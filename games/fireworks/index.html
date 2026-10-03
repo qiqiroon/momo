@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Fireworks v0.60 -->
+<!-- MOMO Fireworks v0.61 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -351,7 +351,7 @@
       <circle cx="26" cy="21" r="2.6" fill="#fff7d6" stroke="#000" stroke-width="0.6"/>
     </g>
   </svg>
-  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.60</span></span></div>
+  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.61</span></span></div>
 </div>
 
 <div id="fps"><div id="fpsA"></div><div id="fpsB"></div></div>
@@ -540,7 +540,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.60</span></h1>
+        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.61</span></h1>
         <div class="subtitle" id="subtitle">Night Blooms, Golden Fade</div>
       </div>
     </header>
@@ -737,6 +737,7 @@
             星の上限を装置の速さで上げ下げする（9000 から始め 4000〜18000。見ている間の fps で決める。Q157＝A））
    （v0.60：星ごとに明るさの倍率を持たせる（R5、Q155＝A）。実写の星は明るさがそろっておらず、特に明るい星が多い。
             対数正規 σ0.12 × 3 割の星を 2.2 倍。平均は 1 に割り戻して玉全体の明るさは変えない。すべての玉で乱数の並びが変わる）
+   （v0.61：白飛び入の光量を 1.45→1.09 倍に（Q159＝A）。星の約半分が真っ白に頭打ちしていた（実写の動画は 14〜36%）。白飛び切は変えない）
    仕様書 hanabi_sim_spec_v2.00.md §3 に対応する実装。
 
    v0.01 からの主要変更（§3.8 参照）
@@ -1123,7 +1124,7 @@ let EXPO = 1.0;                        // 光量（操作盤）
 /* v0.44：白飛び（カメラで撮ったような光のあふれ）。歯車の設定で入／切、既定は入。
    入のときは光量を 1.45 倍、光のにじみを 1.6 倍にし、明るいところに色を抜いた光を重ねて芯を白く飛ばす */
 let WHITEOUT = true;
-const WO_EXPO=1.45, WO_BLOOM=1.6, WO_WHITE=0.75;   // WO_WHITE：明るいところに重ねる白い光（芯を白く飛ばす）
+const WO_EXPO=1.09, WO_BLOOM=1.6, WO_WHITE=0.75;   // v0.61：WO_EXPO 1.45→1.09（Q159＝A）。実写の動画では星の頭打ちは 14〜36%、1.45 では 41〜49%。1.09 で 14〜33%（牡丹 10 号、距離 240・690m、開いて 1.0・1.3 秒）。WO_WHITE：明るいところに重ねる白い光（芯を白く飛ばす）
 function applyExpo(){ const e=document.getElementById('expo'); EXPO=(e ? +e.value/100 : 1)*(WHITEOUT?WO_EXPO:1); }
 /* 注視している高さ[m]（v0.15）。
    v0.12 までは「開花点に対する見込み角のずれ」を pitchBias で保持し、

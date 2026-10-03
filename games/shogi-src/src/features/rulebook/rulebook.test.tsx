@@ -165,6 +165,25 @@ describe('ルールブックの窓', () => {
     }
   });
 
+  it('★v2.01: 目次で選んだ節は、目次を閉じて本文が詰まったあとの位置へ飛ぶ (ずれない)', async () => {
+    mockFetch();
+    render(<RulebookWindow />);
+    act(() => useRulebookStore.getState().openDoc());
+    await screen.findByText('Quantum Shogiとは');
+    const body = document.querySelector('.rb-body') as HTMLDivElement;
+    const target = Array.from(document.querySelectorAll('.rb-doc h1')).find((h) => h.textContent === '千日手') as HTMLElement;
+    // 画面の位置の代わり：本文の枠の上端は 100。節の見出しは本文の中で 600 の所にあり、
+    // **目次が開いている間は目次の高さ 300 ぶん下にずれる** (本物の画面と同じ)。
+    body.getBoundingClientRect = () => ({ top: 100 }) as DOMRect;
+    target.getBoundingClientRect = () => ({ top: 600 + (document.querySelector('.rb-toc') ? 300 : 0) - body.scrollTop }) as DOMRect;
+    fireEvent.click(screen.getByText('目次'));
+    const entry = Array.from(document.querySelectorAll('.rb-toc button')).find((b) => b.textContent === '千日手')!;
+    fireEvent.click(entry);
+    expect(document.querySelector('.rb-toc')).toBeNull();
+    // 見出しが本文の枠の上端から 6 下に来る位置＝600 − 100 − 6
+    expect(body.scrollTop).toBe(494);
+  });
+
   it('閉じ方 3 つ：✕・窓の外・Esc', async () => {
     mockFetch();
     render(<RulebookWindow />);

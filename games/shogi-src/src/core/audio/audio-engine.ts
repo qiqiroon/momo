@@ -14,6 +14,12 @@
 
 const KEY_BGM = 'shogi.audio.bgm';
 const KEY_SFX = 'shogi.audio.sfx';
+/**
+ * ★v2.01 ミュート (2026-10-03 ユーザー指示・Fireworks と同じ)。**音量とは別に持つ**＝
+ * 「鳴らさない」を選んでも音量は動かさず、ミュートを外せばその音量で鳴る。
+ */
+const KEY_BGM_MUTE = 'shogi.audio.bgmMute';
+const KEY_SFX_MUTE = 'shogi.audio.sfxMute';
 
 const DEFAULT_BGM = 30;
 const DEFAULT_SFX = 60;
@@ -23,6 +29,8 @@ let bgmGain: GainNode | null = null;
 let sfxGain: GainNode | null = null;
 let bgmVol = DEFAULT_BGM;
 let sfxVol = DEFAULT_SFX;
+let bgmMuted = false;
+let sfxMuted = false;
 let loaded = false;
 
 function loadPersisted(): void {
@@ -33,6 +41,8 @@ function loadPersisted(): void {
     const s = localStorage.getItem(KEY_SFX);
     if (b !== null) bgmVol = Math.max(0, Math.min(100, Number(b) | 0));
     if (s !== null) sfxVol = Math.max(0, Math.min(100, Number(s) | 0));
+    bgmMuted = localStorage.getItem(KEY_BGM_MUTE) === '1';
+    sfxMuted = localStorage.getItem(KEY_SFX_MUTE) === '1';
   } catch {
     // localStorage 使えない環境 (SSR/シークレット) は無視
   }
@@ -45,10 +55,36 @@ function ensureCtx(): void {
   ctx = new AC();
   bgmGain = ctx.createGain();
   sfxGain = ctx.createGain();
-  bgmGain.gain.value = bgmVol / 100;
-  sfxGain.gain.value = sfxVol / 100;
+  applyGains();
   bgmGain.connect(ctx.destination);
   sfxGain.connect(ctx.destination);
+}
+
+/** 実際に鳴らす大きさ＝ミュートなら 0・そうでなければ音量。**ここ 1 か所で決める**。 */
+function applyGains(): void {
+  if (bgmGain) bgmGain.gain.value = bgmMuted ? 0 : bgmVol / 100;
+  if (sfxGain) sfxGain.gain.value = sfxMuted ? 0 : sfxVol / 100;
+}
+
+export function getBgmMuted(): boolean {
+  loadPersisted();
+  return bgmMuted;
+}
+export function getSfxMuted(): boolean {
+  loadPersisted();
+  return sfxMuted;
+}
+export function setBgmMuted(m: boolean): void {
+  loadPersisted();
+  bgmMuted = m;
+  try { localStorage.setItem(KEY_BGM_MUTE, m ? '1' : '0'); } catch { /* ignore */ }
+  applyGains();
+}
+export function setSfxMuted(m: boolean): void {
+  loadPersisted();
+  sfxMuted = m;
+  try { localStorage.setItem(KEY_SFX_MUTE, m ? '1' : '0'); } catch { /* ignore */ }
+  applyGains();
 }
 
 export function getBgmVolume(): number {
@@ -64,13 +100,13 @@ export function setBgmVolume(v: number): void {
   loadPersisted();
   bgmVol = Math.max(0, Math.min(100, v | 0));
   try { localStorage.setItem(KEY_BGM, String(bgmVol)); } catch { /* ignore */ }
-  if (bgmGain) bgmGain.gain.value = bgmVol / 100;
+  applyGains();
 }
 export function setSfxVolume(v: number): void {
   loadPersisted();
   sfxVol = Math.max(0, Math.min(100, v | 0));
   try { localStorage.setItem(KEY_SFX, String(sfxVol)); } catch { /* ignore */ }
-  if (sfxGain) sfxGain.gain.value = sfxVol / 100;
+  applyGains();
 }
 
 /** ユーザー操作を契機に呼ぶ。以後 SFX/BGM が発音可能に。 */

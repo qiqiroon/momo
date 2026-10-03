@@ -7,6 +7,11 @@
  * 「検査が全部落ちる」**（＝壊し確認が全部赤に見えて何も確かめられない）。
  */
 import '@testing-library/jest-dom';
+import { setFirstGestureCapture } from '../core/audio/first-gesture';
+
+// ★v2.01: 画面の検査では最初のクリックを止めない (音の窓を出さない)。
+// 止めて預かる仕組みそのものは first-gesture の検査で入れて確かめる。
+setFirstGestureCapture(false);
 
 if (typeof Element !== 'undefined') {
   // jsdom は要素の scrollIntoView を持たない（画面が無いので巻き取る先も無い）。

@@ -5,11 +5,12 @@ export const ja: LocaleData = {
   name: '日本語',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v2.00',
+    'app.ver': 'v2.01',
     // v0.72 音楽再生確認モーダル (Darts と同じ思想)
     'sound.promptTitle': 'BGM と効果音を再生してもよろしいですか？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '効果音音量',
+    'sound.mute': 'ミュート',
     'sound.yes': '再生する',
     'sound.no': '再生しない',
     // v0.73 歯車ポップアップ

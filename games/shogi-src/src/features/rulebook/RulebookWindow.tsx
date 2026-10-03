@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18nStore } from '../../core/store/i18n-store';
 import { useRulebookStore } from '../../core/store/rulebook-store';
@@ -36,6 +36,8 @@ function RulebookPanel() {
 
   const [load, setLoad] = useState<LoadState>({ status: 'loading' });
   const [tocOpen, setTocOpen] = useState(false);
+  /** 目次で選んだ節。目次を閉じて本文が詰まり終わってから、その位置を測って移る。 */
+  const [jumpTo, setJumpTo] = useState<string | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -68,12 +70,20 @@ function RulebookPanel() {
 
   const parsed = useMemo(() => (load.status === 'ready' ? parseMarkdown(load.text) : null), [load]);
 
+  // ★v2.01 (2026-10-03 利用者の指摘「ずれたところに飛ぶ」): v2.00 までは目次を開いたまま
+  // 飛ぶ先の位置を測り、その直後に目次を閉じていた＝本文が目次の高さぶん上へ詰まり、
+  // そのぶん行き過ぎていた。**先に目次を閉じ、描き直し終えてから測る**。
   const jump = (id: string) => {
     setTocOpen(false);
-    const body = bodyRef.current;
-    const el = body?.querySelector<HTMLElement>(`#${id}`);
-    if (body && el) body.scrollTop = el.offsetTop - body.offsetTop - 6;
+    setJumpTo(id);
   };
+  useLayoutEffect(() => {
+    if (!jumpTo || tocOpen) return;
+    const body = bodyRef.current;
+    const el = body?.querySelector<HTMLElement>(`#${jumpTo}`);
+    if (body && el) body.scrollTop += el.getBoundingClientRect().top - body.getBoundingClientRect().top - 6;
+    setJumpTo(null);
+  }, [jumpTo, tocOpen]);
 
   const isDoc = open.view === 'doc';
   return (

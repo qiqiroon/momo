@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useI18nStore } from '../store/i18n-store';
 import { t as _t } from '../i18n';
-import { getBgmVolume, getSfxVolume, setBgmVolume, setSfxVolume } from '../audio/audio-engine';
+import { getBgmVolume, getSfxVolume, setBgmVolume, setSfxVolume, getBgmMuted, getSfxMuted, setBgmMuted, setSfxMuted } from '../audio/audio-engine';
+import { MuteBox } from './MuteBox';
 import { useDebugStore, type DebugPanelEvent } from '../store/debug-store';
 import { useGameStore } from '../store/game-store';
 import { SETTINGS_DEFAULTS, clearUiSettings, loadByomuSound, saveByomuSound } from '../store/ui-settings';
@@ -20,6 +21,9 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
   const t = (key: string) => _t(key, locale);
   const [bgmV, setBgmV] = useState<number>(getBgmVolume());
   const [sfxV, setSfxV] = useState<number>(getSfxVolume());
+  // ★v2.01 ミュート (音量とは別・Fireworks と同じ)。外せばその場で鳴る。
+  const [bgmM, setBgmM] = useState<boolean>(getBgmMuted());
+  const [sfxM, setSfxM] = useState<boolean>(getSfxMuted());
   const [creditsOpen, setCreditsOpen] = useState(false);
   // v1.22: 移動先ヒント (行き先マスのオレンジ) の表示。既定 ON・端末ごとの設定。
   // 盤側も同じ値を見るので game-store に置く (localStorage への保存はその中で行う)。
@@ -33,6 +37,8 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
     if (open) {
       setBgmV(getBgmVolume());
       setSfxV(getSfxVolume());
+      setBgmM(getBgmMuted());
+      setSfxM(getSfxMuted());
       setByomuOn(loadByomuSound());
       setCreditsOpen(false); // 開き直したときは初期状態に戻す
       setResetOpen(false);
@@ -64,16 +70,18 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
         <div style={{ fontSize: 11, color: 'var(--orange)', fontWeight: 700, letterSpacing: '0.06em', marginBottom: 10 }}>
           {t('sound.settingsTitle')}
         </div>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, marginBottom: 8 }}>
           <span style={{ minWidth: 64, color: 'var(--text-muted)' }}>{t('sound.bgmLabel')}</span>
           <input type="range" min="0" max="100" value={bgmV} onChange={(e) => onBgm(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--orange)' }} />
           <span style={{ minWidth: 36, textAlign: 'right' }}>{bgmV}%</span>
-        </label>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+          <MuteBox checked={bgmM} label={t('sound.mute')} onChange={(m) => { setBgmM(m); setBgmMuted(m); }} />
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
           <span style={{ minWidth: 64, color: 'var(--text-muted)' }}>{t('sound.sfxLabel')}</span>
           <input type="range" min="0" max="100" value={sfxV} onChange={(e) => onSfx(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--orange)' }} />
           <span style={{ minWidth: 36, textAlign: 'right' }}>{sfxV}%</span>
-        </label>
+          <MuteBox checked={sfxM} label={t('sound.mute')} onChange={(m) => { setSfxM(m); setSfxMuted(m); }} />
+        </div>
         {/* v1.22: 秒読み音 (S10 モック v3 / 付録D-10 §5.1 の音セクション 3 行目)。
             秒読みの音そのものはまだ実装していないので、いまは何も鳴らない。 */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, marginTop: 8 }}>
@@ -138,6 +146,8 @@ export function SettingsPopup({ open, onClose }: SettingsPopupProps) {
             resetAllSettings();
             setBgmV(getBgmVolume());
             setSfxV(getSfxVolume());
+            setBgmM(getBgmMuted());
+            setSfxM(getSfxMuted());
             setByomuOn(SETTINGS_DEFAULTS.byomuSound);
             setResetOpen(false);
           }}
@@ -232,6 +242,9 @@ function resetAllSettings(): void {
   clearUiSettings();
   setBgmVolume(DEFAULT_BGM);
   setSfxVolume(DEFAULT_SFX);
+  // ★v2.01: 既定はミュートなし
+  setBgmMuted(false);
+  setSfxMuted(false);
   useGameStore.getState().setHintAlwaysOn(SETTINGS_DEFAULTS.hintAlwaysOn);
   // 自分の画面の値も既定へ。部屋の値が重ねなら見え方は重ねのまま (spec 駒UI v0.8 §4.4)。
   useGameStore.getState().setQuantumDisplay(SETTINGS_DEFAULTS.myQuantumDisplay);

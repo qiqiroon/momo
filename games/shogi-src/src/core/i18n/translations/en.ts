@@ -5,10 +5,11 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v2.00',
+    'app.ver': 'v2.01',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
+    'sound.mute': 'Mute',
     'sound.yes': 'Enable',
     'sound.no': 'Not now',
     'sound.settingsTitle': 'Volume settings',

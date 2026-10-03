@@ -10,6 +10,7 @@ import { useMatchmakingStore } from '../store';
 import { ensureMatchmakingInit } from '../bootstrap';
 import { seButton } from '../../../core/audio/se-synth';
 import { get as pluginGet } from '../../../core/plugin/registry';
+import { useRulebookStore } from '../../../core/store/rulebook-store';
 
 /**
  * S00 トップメニュー (v0.55 でモック momo_shogi_S01_mock_v5 に追随)。
@@ -160,6 +161,20 @@ export function MenuScreen() {
             // S09 は未実装・見た目のみ (Phase 8 予定)。
           }}
         />
+        {/* ★v1.99 (画面機能 v0.59 §3 S01・付録D-4 v1.2): **遊ぶ入口ではなく読む入口**なので
+            細い区切り線で分ける。押すとルールブックの窓を**一覧から**開く (画面は移らない)。
+            窓を積んでいないビルドでは出さない。 */}
+        {!!pluginGet('overlay:rulebook') && (
+          <>
+            <div className="mode-sep" aria-hidden="true" />
+            <ModeRow
+              glyph="遊"
+              name={t('rulebook.play')}
+              desc={t('rulebook.playD')}
+              onClick={() => useRulebookStore.getState().openList()}
+            />
+          </>
+        )}
       </div>
 
       <footer className="site-footer">

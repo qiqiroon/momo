@@ -19,6 +19,7 @@ import { quantumAllowed, torusAllowed } from '../../../core/engine/mgf/compatibi
 import { seButton } from '../../../core/audio/se-synth';
 import { useGameStore } from '../../../core/store/game-store';
 import { get as pluginGet } from '../../../core/plugin/registry';
+import { useRulebookStore } from '../../../core/store/rulebook-store';
 import type { OnlineGameConnector } from '../../../core/plugin/gameConnector';
 
 /** v0.58 S02 ルール選択 (レイアウト圧縮 + 時間設定を S04 から移設)。
@@ -537,6 +538,13 @@ export function RuleSelectScreen() {
                     <span>{t('s02.quantum')}</span>
                   </h3>
                   <div className="mod-note">{t('s02.quantumNote')}</div>
+                  {/* ★v1.99 (画面機能 v0.59 §3 S02・付録D-2 v1.9): 説明のすぐ下にルールブックへの
+                      リンク。**量子が使えないルールでも押せる** (読むことと選ぶことは別)。 */}
+                  {!!pluginGet('overlay:rulebook') && (
+                    <button type="button" className="rule-link" onClick={() => { seButton(); useRulebookStore.getState().openDoc(); }}>
+                      {t('rulebook.quantum')} ›
+                    </button>
+                  )}
                   <div className="seg">
                     <button
                       type="button"

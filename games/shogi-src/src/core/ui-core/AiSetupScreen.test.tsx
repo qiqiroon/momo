@@ -165,9 +165,8 @@ describe('S03 強さ (Easy / Hard / Apocalypse)', () => {
     clearEngines();
   });
 
-  // ★表示名は暫定 (2026-08-14 ユーザー指示)。ある程度の強さが確保できるまで
-  // 「とてとて弱い／とても弱い／弱い」と正直に出す。内部の呼び名は Easy/Hard/Apocalypse のまま。
-  const LABEL = { Easy: 'とてとて弱い', Hard: 'とても弱い', Apocalypse: '弱い' } as const;
+  // ★v1.99 (2026-10-03 ユーザー指示): 暫定の表示名 (v1.31〜) を MOMO Works 共通の呼び名へ戻した。
+  const LABEL = { Easy: 'Easy', Hard: 'Hard', Apocalypse: 'Apocalypse' } as const;
 
   it('3 段が並び、既定は Hard', () => {
     render(<AiSetupScreen />);
@@ -188,12 +187,11 @@ describe('S03 強さ (Easy / Hard / Apocalypse)', () => {
     expect((screen.getByText(LABEL.Apocalypse).closest('button') as HTMLButtonElement).className).toContain('on');
   });
 
-  it('★暫定の表示名が出ている (内部の呼び名は Easy/Hard/Apocalypse のまま)', () => {
+  it('★v1.99: 段の名前は日本語でも英語表記のまま (暫定の表示名は出ない)', () => {
     render(<AiSetupScreen />);
     expect(screen.getByText('強さ')).toBeTruthy();
-    expect(screen.getByText('とてとて弱い')).toBeTruthy();
-    // 元の英語表記は画面に出ない (戻すときはここも一緒に直す)
-    expect(screen.queryByText('Apocalypse')).toBeNull();
+    expect(screen.getByText('Apocalypse')).toBeTruthy();
+    for (const old of ['とてとて弱い', 'とても弱い', '弱い']) expect(screen.queryByText(old)).toBeNull();
   });
 
   it('選んだ段が対局へ持ち越される', () => {

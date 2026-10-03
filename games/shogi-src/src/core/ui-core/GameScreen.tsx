@@ -65,6 +65,7 @@ import { HeaderCommonRight } from './HeaderCommonRight';
 import type { OnlineGameConnector } from '../plugin/gameConnector';
 import { useDebugStore } from '../store/debug-store';
 import { useAiStore } from '../store/ai-store';
+import { useRulebookStore } from '../store/rulebook-store';
 import { useAiOpponent } from '../controller/ai-driver';
 import { DebugClickLog } from './DebugClickLog';
 
@@ -836,6 +837,22 @@ export function GameScreen({ variant }: GameScreenProps) {
                 {t('s07.reset')}
               </button>
             </>
+          )}
+          {/* ★v1.99 (画面機能 v0.59 §3 S06・付録D-1 v1.24): **量子の対局のときだけ**、戻る導線の
+              列の最後 (歯車の左) にルールブックの窓を開くボタン。盤の上に重なるだけで対局は止めない。
+              **幅 720px 以下では短く「ルール」** (長い名前がヘッダからはみ出すため・利用者)＝
+              2 つの名前を持ち、どちらを出すかは見た目の決まり (styles.css) が幅で選ぶ。
+              観戦者にも出す (読むのは対局の操作ではない)。窓を積んでいないビルドでは出さない。 */}
+          {currentQuantum && !!pluginGet('overlay:rulebook') && (
+            <button
+              className="reset-btn rule-btn"
+              type="button"
+              onClick={() => useRulebookStore.getState().openDoc()}
+              aria-label={t('rulebook.quantum')}
+            >
+              <span className="lbl-long">{t('rulebook.quantum')}</span>
+              <span className="lbl-short">{t('rulebook.short')}</span>
+            </button>
           )}
           <HeaderCommonRight includeCat={variant === 'b'} />
         </div>

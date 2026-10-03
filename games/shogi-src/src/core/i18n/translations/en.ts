@@ -5,7 +5,7 @@ export const en: LocaleData = {
   name: 'English',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.98',
+    'app.ver': 'v1.99',
     'sound.promptTitle': 'Enable BGM and sound effects?',
     'sound.bgmLabel': 'BGM volume',
     'sound.sfxLabel': 'SFX volume',
@@ -123,6 +123,18 @@ export const en: LocaleData = {
     's00.mWatchD': "Spectate someone else's match.",
     's00.mBuild': 'Create a rule',
     's00.mBuildD': 'Set the board size and how pieces move — make it your own.',
+    // v1.99 Rulebook window (screen spec v0.59 §4.1 M08).
+    'rulebook.play': 'How to Play',
+    'rulebook.playD': 'Read the rulebooks',
+    'rulebook.quantum': 'MOMO Shogi-style Quantum Shogi Rules',
+    'rulebook.short': 'Rules',
+    'rulebook.backToList': '‹ List',
+    'rulebook.toc': 'Contents',
+    'rulebook.close': 'Close',
+    'rulebook.choose': 'Choose a rulebook',
+    'rulebook.version': 'Version 1.0',
+    'rulebook.loading': 'Loading…',
+    'rulebook.failed': "Couldn't load the rulebook. Check your connection and open it again.",
     's00.mKifu': 'Replay',
     's00.mKifuD': 'Step back through a saved match.',
     's00.mReview': 'Review',
@@ -590,11 +602,10 @@ export const en: LocaleData = {
     'ai.mcts.desc': 'Plays many random games out to the end and picks the move that wins most often. Handles unusual rules well, but is weaker than the built-in search at ordinary shogi.',
     // Difficulty (Phase 3-3, parent §7.5). Level names are shared across MOMO Works and stay in English.
     's03.lblLevel': 'Difficulty',
-    // Temporary labels (2026-08-14). Honest names until the AI is strong enough;
-    // the internal ids (Easy/Hard/Apocalypse) are unchanged, so restoring them is a 3-line edit.
-    's03.levelName.Easy': 'Very very weak',
-    's03.levelName.Hard': 'Very weak',
-    's03.levelName.Apocalypse': 'Weak',
+    // v1.99 (2026-10-03): the temporary honest labels (since v1.31) were restored to the shared names.
+    's03.levelName.Easy': 'Easy',
+    's03.levelName.Hard': 'Hard',
+    's03.levelName.Apocalypse': 'Apocalypse',
     's03.level.Easy': 'For a light game. Reads shallowly and sometimes picks less than the best move.',
     's03.level.Hard': 'The standard strength.',
     's03.level.Apocalypse': 'The most this app can do (reads longer and deeper).',

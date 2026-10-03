@@ -7,6 +7,7 @@ import './features/matchmaking';
 import './features/quantum';
 import './features/torus';
 import './features/kifu-replay';
+import './features/rulebook';
 import './adapters/selfmade-alphabeta';
 import './adapters/mcts-adapter';
 import { App } from './App';

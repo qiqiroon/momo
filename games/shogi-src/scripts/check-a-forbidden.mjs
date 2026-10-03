@@ -15,6 +15,8 @@ const FORBIDDEN = [
   { feature: 'cat-lang', strings: ['にゃんこ語', 'にゃにゃ将棋', 'ようこそにゃ'] },
   { feature: 'momo-lang', strings: ['momoLang_mode', 'momoCatBase', 'momolang_mode_'] },
   { feature: 'matchmaking', strings: ['MomoMatchmaking', 'enter_lobby', 'create_room', 'signalingUrl'] },
+  // ★v1.99: ルールブックの窓 (features/rulebook) は B だけ。窓の印は実装本体にしか無い。
+  { feature: 'rulebook', strings: ['data-momo-rulebook-window'] },
 ];
 
 let files;

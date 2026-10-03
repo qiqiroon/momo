@@ -62,8 +62,17 @@ export function RootView({ variant }: RootViewProps) {
           **画面のいちばん外側に 1 か所**＝観戦者が居る画面は 1 つではないので、
           画面ごとに置くと新しい画面で必ず書き忘れる。A ビルドには口ごと無い。 */}
       <SpectateOverlay />
+      {/* ★v1.99 ルールブックの窓 (画面機能 v0.59 §4.1 M08)。3 か所から開くので**いちばん外側に 1 つ**。
+          A ビルドには口ごと無い。 */}
+      <RulebookOverlay />
     </>
   );
+}
+
+/** ★v1.99 ルールブックの窓。features/rulebook を積んでいないビルドでは何も出ない。 */
+function RulebookOverlay() {
+  const Comp = pluginGet<ComponentType>('overlay:rulebook');
+  return Comp ? <Comp /> : null;
 }
 
 /** 通信機能を積んでいないビルドでは口ごと無い＝何も出ない（縮退）。 */

@@ -5,7 +5,7 @@ export const zh: LocaleData = {
   name: '中文',
   translations: {
     'app.title': 'MOMO Shogi',
-    'app.ver': 'v1.98',
+    'app.ver': 'v1.99',
     'sound.promptTitle': '是否播放 BGM 与音效？',
     'sound.bgmLabel': 'BGM 音量',
     'sound.sfxLabel': '音效音量',
@@ -123,6 +123,18 @@ export const zh: LocaleData = {
     's00.mWatchD': '观看他人的对局。',
     's00.mBuild': '创建规则',
     's00.mBuildD': '设定棋盘大小与走法，打造专属规则。',
+    // v1.99 规则手册窗口（画面功能 v0.59 §4.1 M08）。
+    'rulebook.play': '玩法',
+    'rulebook.playD': '阅读规则手册',
+    'rulebook.quantum': 'MOMO Shogi式量子将棋规则',
+    'rulebook.short': '规则',
+    'rulebook.backToList': '‹ 列表',
+    'rulebook.toc': '目录',
+    'rulebook.close': '关闭',
+    'rulebook.choose': '请选择规则手册',
+    'rulebook.version': 'Version 1.0',
+    'rulebook.loading': '正在加载…',
+    'rulebook.failed': '无法加载规则手册。请检查网络后重新打开。',
     's00.mKifu': '棋谱回放',
     's00.mKifuD': '重放已保存的对局并复盘。',
     's00.mReview': '复盘',
@@ -589,11 +601,10 @@ export const zh: LocaleData = {
     'ai.mcts.desc': '随机试下到底、选择胜率最高一手的 AI。擅长变则规则，但在普通将棋中弱于自制搜索。',
     // 强度（Phase 3-3・母规格 §7.5）。级别名称为 MOMO Works 共通，不翻译。
     's03.lblLevel': '强度',
-    // ★临时显示名（2026-08-14）。在 AI 达到一定强度之前，如实标注。
-    // 内部名称（Easy/Hard/Apocalypse）未变，变强后改回英文表记即可。
-    's03.levelName.Easy': '非常非常弱',
-    's03.levelName.Hard': '非常弱',
-    's03.levelName.Apocalypse': '弱',
+    // ★v1.99（2026-10-03）：AI 变强后，把 v1.31 起的临时显示名改回了英文表记。
+    's03.levelName.Easy': 'Easy',
+    's03.levelName.Hard': 'Hard',
+    's03.levelName.Apocalypse': 'Apocalypse',
     's03.level.Easy': '想轻松下棋时使用。读得浅，有时也会选择并非最佳的一手。',
     's03.level.Hard': '标准强度。',
     's03.level.Apocalypse': '本应用能达到的最强（读得更久更深）。',

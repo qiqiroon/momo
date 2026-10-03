@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Fireworks v0.58 -->
+<!-- MOMO Fireworks v0.59 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -351,7 +351,7 @@
       <circle cx="26" cy="21" r="2.6" fill="#fff7d6" stroke="#000" stroke-width="0.6"/>
     </g>
   </svg>
-  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.58</span></span></div>
+  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.59</span></span></div>
 </div>
 
 <div id="fps"><div id="fpsA"></div><div id="fpsB"></div></div>
@@ -540,7 +540,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.58</span></h1>
+        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.59</span></h1>
         <div class="subtitle" id="subtitle">Night Blooms, Golden Fade</div>
       </div>
     </header>
@@ -732,6 +732,9 @@
    （v0.58：牡丹の星を 1.7 倍（10 号で約 650→約 1100）。実写（変化牡丹 尺玉）と同じ大きさにそろえて数えると、星の数が実写の約 6 割だった。
             1 粒の強さは 1/1.7 にして、火薬の総量＝地上を照らす光は変えない（Q150＝A・Q152＝A。改善計画 v1.09 §3.0.5〜3.0.7）。
             大玉は増やし方を控える（20 号 0.75 倍・40 号 0.5 倍。40 号 1 発で星の上限 9000 にほぼ届いたため。Q153＝B））
+   （v0.59：星の上限に当たりそうな玉は、星を全体から均等に間引いて作る（Q156＝A）。v0.58 までは上限で打ち切っていたため、
+            大玉を続けて打つと球の一部だけが表示された。間引いたぶん 1 粒を強くして、玉の明るさは変えない。
+            星の上限を装置の速さで上げ下げする（9000 から始め 4000〜18000。見ている間の fps で決める。Q157＝A））
    仕様書 hanabi_sim_spec_v2.00.md §3 に対応する実装。
 
    v0.01 からの主要変更（§3.8 参照）
@@ -1652,7 +1655,12 @@ for(let i=0;i<340;i++) FACETS.push({
   sp:1.8+Math.random()*5.5,
   w:0.4+Math.random()*1.3
 });
-const STAR_CAP = 9000;
+/* v0.59：星の上限は装置の速さで上げ下げする（Q157＝A）。見始めは 9000（v0.58 までの固定値）。
+   見ている間の fps を 0.5 秒ごとに見て、混んでいるのに遅ければ下げ、混んでいても速ければ上げる。
+   変えた上限が効くのは次に開く玉から（上限に当たりそうな玉は均等に間引くので、玉は欠けない） */
+let STAR_CAP = 9000;
+const STAR_CAP_MIN = 4000, STAR_CAP_MAX = 18000;
+let CAP_AUTO = true;                     // 測るときなどに止められるように
 
 /* 閃光が環境を照らす強さの基準値（v0.15）。10号・450m・閃光の頭で
    この値になり、号数と距離でここから増減する。星の照度と同じ単位。 */
@@ -1780,7 +1788,9 @@ function shellCtx(S){
 /* v0.23：update() の中では消えた星をすぐには配列から抜かず、ループの後でまとめて詰める。
    その間も上限の判定が v0.22 と同じになるよう、抜く予定の数（starGone）を差し引く */
 let starGone=0;
-function addStar(o){ if(stars.length-starGone<STAR_CAP) stars.push(o); }
+/* v0.59：玉の星の数は runRecipe() で上限に合わせて間引く。ここは最後の安全弁で、上限の 1.25 倍まで受け入れる
+   （混みきっていても玉ごとに見込みの 1 割は作るため、上限を少し超えることがある） */
+function addStar(o){ if(stars.length-starGone<STAR_CAP*1.25) stars.push(o); }
 
 /* 星の確率的な属性を与える。すべての生成経路がここを通る */
 function finishStar(o, opt, C){
@@ -2042,6 +2052,8 @@ function crColor(cr, dx, dy, dz){
 const NOFX={};
 function otherHue(c){ let d=rndHue(); for(let k=0;k<6 && d===c;k++) d=rndHue(); return d===c ? HUE.white : d; }
 const NOCOLOR={kamuro:1, yanagi:1, yashi:1};           // v0.30：配色を選べない玉（金色）
+/* v0.58：大玉は星の増やし方を控える（Q153＝B）。ik のある段だけ。10 号以下 1、20 号 0.75、40 号 0.5 */
+function bigKOf(l,go){ return l.ik ? Math.max(0.5, 1-0.25*Math.log2(Math.max(1,go/10))) : 1; }
 function runRecipe(R, S, gE, go, cx, cy, cz, inh, C, fx, fcol){
   const ov=R.bbOnly ? 'auto' : (fcol ? 'solid' : colorMode);   // v0.38：番組が色を決めた玉は単色
   let solidCol=null, cr=null, shellCol=null;
@@ -2066,6 +2078,13 @@ function runRecipe(R, S, gE, go, cx, cy, cz, inh, C, fx, fcol){
     shapeCurve(R.shape, n, c0, c1, cr, S, cx, cy, cz, inh, C, SX);
   }
   let popLayer=null, li=0, lx=0, prevCol=null;
+  /* v0.59：星の上限（STAR_CAP）に当たりそうなら、この玉の星を全体から均等に間引く（Q156＝A）。
+     v0.58 までは上限を超えた星を作らずに打ち切っていた。星は球の下から上へ順に作るので、打ち切ると球の一部だけが残っていた。
+     間引いたぶん 1 粒を強くして、玉の明るさは変えない。乱数の並びが変わるのは上限に当たったときだけ */
+  let capF=1;
+  { let plan=0; for(const l of R.layers){ let n=Math.round(l.nk*gE*bigKOf(l,go)); if(l.nmin) n=Math.max(l.nmin,n); plan+=n; }
+    const free=STAR_CAP-(stars.length-starGone);
+    if(plan>free) capF=Math.max(0.1, free*0.97/plan); }   // 混みきっていても見込みの 1 割は作る（0 にすると玉がまったく見えない）
   for(const l of R.layers){
     let col, col2=null;
     const outer = (lx++===0);                             // v0.32：外側の段（親星）
@@ -2097,8 +2116,9 @@ function runRecipe(R, S, gE, go, cx, cy, cz, inh, C, fx, fcol){
     /* v0.58：星を増やした段（ik あり）は 1 粒を弱く・細くする（総量を保つ）。
        ただし大玉は増やし方を控える（Q153＝B）：10 号以下は nk のまま、20 号で 0.75 倍、40 号で 0.5 倍（星の上限 9000 の半分ほど）。
        控えたぶん 1 粒を強くして、総量は変えない */
-    const bigK = l.ik ? Math.max(0.5, 1-0.25*Math.log2(Math.max(1,go/10))) : 1;
+    const bigK = bigKOf(l,go);
     if(l.ik && curBurst) o.I=curBurst.I*l.ik/bigK;
+    if(capF<1 && curBurst) o.I=(o.I!==undefined ? o.I : curBurst.I)/Math.max(0.05,capF);   // v0.59：間引いたぶん 1 粒を強く
     if(l.wl){ o.wl=1;                                    // v0.31：柳
       /* v0.34：柳の大きさと時間はフルード相似（長さ∝開花半径 R、時間と速さ∝√R）。10号を基準に決めた値を号数に合わせる。
          抗力は開花直後の kk から kk2 へ時定数 kt で増える：すぐ球の形で止まり、そこから全部の星がゆっくり落ちる */
@@ -2132,6 +2152,8 @@ function runRecipe(R, S, gE, go, cx, cy, cz, inh, C, fx, fcol){
       if(X.bunki) o.bk=1;
     }
     let n=Math.round(l.nk*gE*bigK); if(l.nmin) n=Math.max(l.nmin,n);
+    n=Math.round(n*capF);                                 // v0.59：上限に当たりそうなら均等に間引く
+    if(n<=0) continue;
     if(o.crk) crkN+=n;
     shellLayer(cx,cy,cz, inh, n, S.v0*l.sp*(R.kg?KG_SP:1), o, C, (cr && !l.bb) ? cr : null);
   }
@@ -4164,12 +4186,30 @@ function fpsText(){
   let sum=0; for(const k in TM) sum+=TM[k];
   const fr=1000/Math.max(0.1,fpsAvg);
   const mode = GLON ? 'WebGL' : '2D';
-  fpsA.textContent = `${fpsAvg.toFixed(1)} fps ／ 星 ${stars.length} ／ 粉 ${EM.n} ／ ${mode}`;
+  fpsA.textContent = `${fpsAvg.toFixed(1)} fps ／ 星 ${stars.length}（上限 ${STAR_CAP}） ／ 粉 ${EM.n} ／ ${mode}`;   // v0.59：上限は装置の速さで変わる
   fpsB.textContent =
     `物理 ${f(TM.upd)}  星 ${f(TM.star)}  火の粉 ${f(TM.emb)}  照明 ${f(TM.lit)}  煙 ${f(TM.smk)}  星描画 ${f(TM.gl)}  ブルーム ${f(TM.bloom)}  水面 ${f(TM.water)}  前景 ${f(TM.fg)}\n`+
     `計 ${(sum/n).toFixed(1)}ms ／ 1コマ ${fr.toFixed(1)}ms ／ 差 ${(fr-sum/n).toFixed(1)}ms\n`+
     `画面 ${innerWidth}×${innerHeight}  DPR ${(devicePixelRatio||1).toFixed(2)} → 描画 ${W}×${H}\n`+
     `GPU: ${gpuName}`+(glNote?`\n${glNote}`:'')+`\nG＝描き方の切替（WebGL／2D）`;
+}
+/* v0.59：星の上限を装置の速さで上げ下げする（Q157＝A）。0.5 秒ごとに呼ぶ。
+   ・fpsPeak＝空いているとき（星 1000 個未満）に出た fps の最大。画面の書き換えの速さ（60・120・165 など）の見当
+   ・混んでいて（星が上限の 6 割以上）遅い（fps が 45 と fpsPeak×0.75 の小さいほう未満）のが 2 回続いたら 15% 下げる。
+     ただし星が上限を超えている間（下げる前の上限で作った星が残っている間）は続けて下げない（下げすぎを防ぐ）
+   ・混んでいて（星が上限の 8 割以上）速い（fps が 55 と fpsPeak×0.9 の小さいほう以上）のが 4 回続いたら 10% 上げる
+   ・空いているときは上限を動かさない（重さが分からないので） */
+let fpsPeak=0, capLow=0, capOk=0;
+function capAdapt(){
+  if(!CAP_AUTO || !inShow() || document.hidden) { capLow=capOk=0; return; }
+  const load=stars.length-starGone;
+  if(load<1000){ if(fpsAvg>fpsPeak) fpsPeak=fpsAvg; capLow=capOk=0; return; }
+  const pk=fpsPeak||60;
+  if(load>STAR_CAP*0.6 && load<=STAR_CAP*1.05 && fpsAvg<Math.min(45,pk*0.75)){   // 下げたあと、前の上限で作った星が残っている間（上限を超えている間）は続けて下げない
+    capOk=0; if(++capLow>=2){ STAR_CAP=Math.max(STAR_CAP_MIN, Math.round(STAR_CAP*0.85)); capLow=0; }
+  }else if(load>STAR_CAP*0.8 && fpsAvg>=Math.min(55,pk*0.9)){
+    capLow=0; if(++capOk>=4){ STAR_CAP=Math.min(STAR_CAP_MAX, Math.round(STAR_CAP*1.10)); capOk=0; }
+  }else{ capLow=0; capOk=0; }
 }
 function frame(now){
   if(MS.on) msBegin(now);       // v0.27：自動計測（前のコマの長さを記録し、予定の玉を打ち上げる）
@@ -4184,7 +4224,9 @@ function frame(now){
   fpsFrames++;
   if(now-lastFps >= 500){
     fpsAvg = fpsFrames*1000/(now-lastFps);
+    const gap=now-lastFps;
     lastFps=now;
+    if(gap<1000) capAdapt();                               // v0.59：画面が隠れていた後（間が空いた）の値では決めない
     if(!fpsSelected()) fpsText();
     fpsFrames=0; for(const k in TM) TM[k]=0;
   }

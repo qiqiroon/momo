@@ -36,6 +36,8 @@ import type { Mgf } from '../../core/engine/mgf/types';
 import type { Player } from '../../core/engine/mgf/types';
 import type { PieceId, PieceInstance, Position } from '../../core/engine/position/types';
 import { buildInitialKindMap } from '../../core/engine/candidate-kinds';
+import { topologyOf, wrapSquare } from '../../core/engine/position/coordinates';
+import { buildAttackMap } from './attack-map';
 
 /** 駒の値打ち (歩 = 100)。未知の駒種は UNKNOWN_VALUE。 */
 export const PIECE_VALUE: Record<string, number> = {
@@ -101,7 +103,43 @@ export interface ValueBook {
    * 王の身元 (陣営ごとに 1 つ)。null なら数えない (量子でない・切り替えが切り)。
    */
   royalIds: Record<Player, PieceId> | null;
+  /**
+   * ★v1.98: 王の安全 (玉の周りの危ないマス・守り駒・逃げ道・相手の持ち駒)。
+   * null なら数えない。量子の対局では使わない (王がどの駒か決まっていない＝案 B が受け持つ)。
+   */
+  kingSafety: KingSafetyWeights | null;
 }
+
+/**
+ * ★v1.98: 王の安全の点の重み (歩 1 枚 = 100)。**値は強さ比べで決める**＝ここが正本。
+ * 自分の玉はこの点だけ減点、相手の玉は同じだけ加点する。
+ */
+export interface KingSafetyWeights {
+  /** 玉の周り 8 マスのうち、相手の駒が利いているマス 1 つあたりの減点。 */
+  danger: number;
+  /** 玉の周り 8 マスにいる自分の金・銀 1 枚あたりの加点。 */
+  defender: number;
+  /** 逃げ道 (動ける先で相手の利きが無いマス) が 0 のときの減点。 */
+  noEscape: number;
+  /** 逃げ道が 1 つだけのときの減点。 */
+  oneEscape: number;
+  /** 相手の持ち駒 1 枚ごとに「危ないマス」の減点を何割重くするか。 */
+  handPerPiece: number;
+  /** 上の割増しに数える持ち駒の上限枚数。 */
+  handCap: number;
+}
+
+export const KING_SAFETY_WEIGHTS: KingSafetyWeights = {
+  danger: 20,
+  defender: 25,
+  noEscape: 120,
+  oneEscape: 40,
+  handPerPiece: 0.1,
+  handCap: 8,
+};
+
+/** 守り駒に数える駒種 (金・銀)。表に無いルール (チェス等) では数えない。 */
+const GUARD_KINDS = new Set(['kin', 'gin']);
 
 /**
  * ★v1.94 案 B: 王でありうる駒が少ないほど危ない、の減点 (歩 1 枚 = 100)。
@@ -112,7 +150,7 @@ export const KING_CANDIDATE_PENALTY = [0, 400, 200, 100, 50];
 export function buildValueBook(
   mgf: Mgf,
   position: Position,
-  opts: { mean?: boolean; kingSafety?: boolean } = {},
+  opts: { mean?: boolean; kingSafety?: boolean; kingSafetyStandard?: Partial<KingSafetyWeights> | boolean } = {},
 ): ValueBook {
   const plain = new Map<PieceId, number>();
   const promoted = new Map<PieceId, number>();
@@ -121,7 +159,14 @@ export function buildValueBook(
     const def = mgf.pieces.find((p) => p.id === kind);
     promoted.set(pieceId, def?.promoted_id ? valueOf(def.promoted_id) : NOT_COUNTED);
   }
-  return { plain, promoted, mean: opts.mean === true, royalIds: opts.kingSafety ? royalIdsOf(position) : null };
+  const ks = opts.kingSafetyStandard;
+  return {
+    plain,
+    promoted,
+    mean: opts.mean === true,
+    royalIds: opts.kingSafety ? royalIdsOf(position) : null,
+    kingSafety: ks ? { ...KING_SAFETY_WEIGHTS, ...(ks === true ? {} : ks) } : null,
+  };
 }
 
 /** 陣営ごとの王の身元。量子でない局面・王が見つからないルールでは null。 */
@@ -242,6 +287,88 @@ export function evaluate(
     p2 -= kingCandidatePenalty(kingCandidateCount(position, 'player2', book.royalIds.player2));
   }
 
+  if (book.kingSafety) p1 += kingSafetyScore(mgf, position, book.kingSafety);
+
   const diff = p1 - p2;
   return position.sideToMove === 'player1' ? diff : -diff;
+}
+
+
+/**
+ * ★v1.98: 王の安全の点 (先手から見た点＝先手の玉が危ないほど小さい)。
+ *
+ * 量子の局面 (正体の決まっていない駒がいる) では 0＝王がどの駒か決まっていないため。
+ * 王が盤に無い側 (はさみ将棋など) は数えない。
+ */
+function kingSafetyScore(mgf: Mgf, position: Position, w: KingSafetyWeights): number {
+  const royal = royalKindsOf(mgf);
+  let k1: { row: number; col: number } | null = null;
+  let k2: { row: number; col: number } | null = null;
+  for (let row = 0; row < position.height; row++) {
+    for (let col = 0; col < position.width; col++) {
+      const cell = position.board[row][col];
+      if (!cell) continue;
+      if (cell.candidates !== undefined) return 0;
+      if (!royal.has(cell.kind)) continue;
+      if (cell.owner === 'player1') k1 ??= { row, col };
+      else k2 ??= { row, col };
+    }
+  }
+  if (!k1 && !k2) return 0;
+  const map = buildAttackMap(mgf, position);
+  let score = 0;
+  if (k1) score -= kingDanger(position, map, k1, 'player1', royal, w);
+  if (k2) score += kingDanger(position, map, k2, 'player2', royal, w);
+  return score;
+}
+
+const royalCache = new WeakMap<Mgf, Set<string>>();
+function royalKindsOf(mgf: Mgf): Set<string> {
+  let s = royalCache.get(mgf);
+  if (!s) {
+    s = new Set(mgf.pieces.filter((p) => p.is_royal).map((p) => p.id));
+    royalCache.set(mgf, s);
+  }
+  return s;
+}
+
+/** その側の玉の危なさ (減点の大きさ)。 */
+function kingDanger(
+  position: Position,
+  map: ReturnType<typeof buildAttackMap>,
+  king: { row: number; col: number },
+  side: Player,
+  royal: Set<string>,
+  w: KingSafetyWeights,
+): number {
+  const opp: Player = side === 'player1' ? 'player2' : 'player1';
+  const enemy = map[opp];
+  const topology = topologyOf(position);
+  const seen = new Set<number>();
+  let danger = 0;
+  let defenders = 0;
+  let escapes = 0;
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const sq = wrapSquare({ row: king.row + dr, col: king.col + dc }, position.width, position.height, topology);
+      if (!sq) continue;
+      const idx = sq.row * position.width + sq.col;
+      if (seen.has(idx) || (sq.row === king.row && sq.col === king.col)) continue;
+      seen.add(idx);
+      const attacked = enemy[idx] > 0;
+      if (attacked) danger++;
+      const cell = position.board[sq.row][sq.col];
+      if (cell && cell.owner === side) {
+        if (GUARD_KINDS.has(cell.kind)) defenders++;
+      } else if (!attacked && !(cell && royal.has(cell.kind))) {
+        escapes++;
+      }
+    }
+  }
+  const handMul = 1 + w.handPerPiece * Math.min(position.hands[opp].length, w.handCap);
+  let penalty = danger * w.danger * handMul - defenders * w.defender;
+  if (escapes === 0) penalty += w.noEscape;
+  else if (escapes === 1) penalty += w.oneEscape;
+  return penalty;
 }

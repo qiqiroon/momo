@@ -42,6 +42,18 @@ const VARIANTS: Record<string, Partial<SearchOptions>> = {
   mean: { features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumMeanValue: true } },
   /** 量子の案 B＝まだ王でありうる自分の駒が少ないほど減点する (＋全部入り)。 */
   kingsafe: { features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumKingSafety: true } },
+  /** ★v1.98 王の安全 (本将棋)。いまの段 (全部入り＋量子の案 B) に足したもの。重みは evaluate.ts の既定。 */
+  ks: { features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumKingSafety: true, kingSafety: true } },
+  /** 同じく、重みを半分に。 */
+  ksHalf: {
+    features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumKingSafety: true, kingSafety: true },
+    kingSafetyWeights: { danger: 10, defender: 12, noEscape: 60, oneEscape: 20 },
+  },
+  /** 同じく、重みを倍に。 */
+  ksDouble: {
+    features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumKingSafety: true, kingSafety: true },
+    kingSafetyWeights: { danger: 40, defender: 50, noEscape: 240, oneEscape: 80 },
+  },
 };
 
 const env = process.env;

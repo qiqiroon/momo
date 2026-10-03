@@ -20,7 +20,7 @@ import { positionHash } from '../../core/engine/position/hash';
 import { hiddenRightsFingerprint } from '../../core/engine/victory/repetition';
 import { PLAIN_RULES, advancePosition, type AdvanceRules } from '../../core/engine/position/advance';
 import { MATE_VALUE, buildValueBook, evaluate, pieceValue } from './evaluate';
-import type { ValueBook } from './evaluate';
+import type { KingSafetyWeights, ValueBook } from './evaluate';
 
 export interface SearchOptions {
   /** 考える時間の上限 (ms)。深さ 1 だけは必ず読み切る。 */
@@ -53,6 +53,8 @@ export interface SearchOptions {
    * 強さ比べ (src/selfplay) で 1 つずつ入れて効き目を測り、効いたものだけを対局で入れる。
    */
   features?: Partial<SearchFeatures>;
+  /** ★v1.98: 王の安全の重みを差し替える (強さ比べ用)。省略＝evaluate.ts の KING_SAFETY_WEIGHTS。 */
+  kingSafetyWeights?: Partial<KingSafetyWeights>;
   /** 深さを 1 つ読み切るたびに呼ばれる。長考中に「動いている」ことを出すため。 */
   onProgress?: (p: { depth: number; nodes: number; elapsedMs: number; score: number }) => void;
   /** 外から打ち切る (画面を離れた・投了した等)。 */
@@ -94,6 +96,11 @@ export interface SearchFeatures {
    * (evaluate.ts KING_CANDIDATE_PENALTY)。省略＝今までどおり数えない。
    */
   quantumKingSafety?: boolean;
+  /**
+   * ★v1.98: 王の安全 (玉の周りの危ないマス・守り駒・逃げ道・相手の持ち駒) を点数に入れる
+   * (evaluate.ts kingSafetyScore)。量子の対局には効かない。省略＝数えない。
+   */
+  kingSafety?: boolean;
 }
 
 const NO_FEATURES: SearchFeatures = { tt: false, killers: false, checkExtension: false, mateSearch: false };
@@ -509,6 +516,7 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
     book: buildValueBook(mgf, position, {
       mean: options.features?.quantumMeanValue === true,
       kingSafety: options.features?.quantumKingSafety === true,
+      kingSafetyStandard: options.features?.kingSafety === true ? (options.kingSafetyWeights ?? true) : false,
     }),
     nodes: 0,
     maxNodes: options.maxNodes ?? Infinity,

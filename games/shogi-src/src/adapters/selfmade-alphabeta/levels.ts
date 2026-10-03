@@ -38,6 +38,11 @@ interface LevelRow {
  * ★v1.95 (2026-10-01): **量子の案 B＝まだ王でありうる自分の駒が少ないほど減点する**を足した
  * (量子・1 手 1,500 局面・80 局で全部入りに 65.6% (±9.8))。量子でない対局には効かない
  * (王の候補を持つ駒が無いので数えない)。案 A (候補の平均) は 50.0% (±10.2) で採らない。
+ *
+ * ★v1.98 (ユーザー判断 2026-10-02): **王の安全** (玉の周りの危ないマス・守り駒・逃げ道・
+ * 相手の持ち駒) を足した。本将棋・1 手 5,000 局面・160 局で v1.97 の段に 67.5% (±7.3)。
+ * 重みを半分・倍にしても 67.8% で変わらなかったので、真ん中 (evaluate.ts の既定) のまま。
+ * 量子・はさみ将棋には効かない (王がどの駒か決まっていない／王がいない)。
  */
 const ALL_FEATURES: SearchFeatures = {
   tt: true,
@@ -45,6 +50,7 @@ const ALL_FEATURES: SearchFeatures = {
   checkExtension: true,
   mateSearch: true,
   quantumKingSafety: true,
+  kingSafety: true,
 };
 
 export const LEVEL_TABLE: Record<AiLevel, LevelRow> = {

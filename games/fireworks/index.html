@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Fireworks v0.59 -->
+<!-- MOMO Fireworks v0.60 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -351,7 +351,7 @@
       <circle cx="26" cy="21" r="2.6" fill="#fff7d6" stroke="#000" stroke-width="0.6"/>
     </g>
   </svg>
-  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.59</span></span></div>
+  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.60</span></span></div>
 </div>
 
 <div id="fps"><div id="fpsA"></div><div id="fpsB"></div></div>
@@ -540,7 +540,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.59</span></h1>
+        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.60</span></h1>
         <div class="subtitle" id="subtitle">Night Blooms, Golden Fade</div>
       </div>
     </header>
@@ -735,6 +735,8 @@
    （v0.59：星の上限に当たりそうな玉は、星を全体から均等に間引いて作る（Q156＝A）。v0.58 までは上限で打ち切っていたため、
             大玉を続けて打つと球の一部だけが表示された。間引いたぶん 1 粒を強くして、玉の明るさは変えない。
             星の上限を装置の速さで上げ下げする（9000 から始め 4000〜18000。見ている間の fps で決める。Q157＝A））
+   （v0.60：星ごとに明るさの倍率を持たせる（R5、Q155＝A）。実写の星は明るさがそろっておらず、特に明るい星が多い。
+            対数正規 σ0.12 × 3 割の星を 2.2 倍。平均は 1 に割り戻して玉全体の明るさは変えない。すべての玉で乱数の並びが変わる）
    仕様書 hanabi_sim_spec_v2.00.md §3 に対応する実装。
 
    v0.01 からの主要変更（§3.8 参照）
@@ -1136,6 +1138,9 @@ let aimAlt = 324;
 let SHAKE = 0.6;                       // カメラ揺れの強度（操作盤）
 
 /* ---------- 乱数ユーティリティ ---------- */
+/* v0.60：星ごとの明るさのばらつき（R5）。BV_SIG＝対数正規の広がり、BV_HI_P の割合の星を BV_HI 倍に。let は調整のため */
+let BV_SIG=0.12, BV_HI_P=0.30, BV_HI=2.2;   // 牡丹 10 号を実写と同じ手順で測って決めた（種 2 つで 10%÷50%＝0.67〜0.69、25%÷50%＝0.76〜0.81、75%÷50%＝1.79〜1.81。実写は 0.66〜0.73・0.76〜0.82・1.46 以上）
+function bvNorm(){ return 1/(Math.exp(BV_SIG*BV_SIG/2)*(1-BV_HI_P+BV_HI_P*BV_HI)); }
 function gauss(){                      // Box–Muller
   let u=0,v=0; while(u===0)u=Math.random(); while(v===0)v=Math.random();
   return Math.sqrt(-2*Math.log(u))*Math.cos(6.283185307*v);
@@ -1837,6 +1842,10 @@ function finishStarV(ox, oy, oz, ovx, ovy, ovz, oLy, opt, C, pc){
     hw=(3+Math.random()*4)*(Math.random()<0.5?-1:1);
     hvt=Math.sqrt(ovx*ovx+ovy*ovy+ovz*ovz)*(0.80+Math.random()*0.20)*BEE_V;   // v0.31：目標の速さを下げる
   }
+  /* v0.60：星ごとの明るさの倍率（R5、Q155＝A）。実写（変化牡丹 尺玉）の星の明るさは、暗い側に少し、明るい側に大きく広い
+     （明るい星が多い）。対数正規のばらつき × 一部の星だけ明るく。平均が 1 になるよう割って、玉全体の明るさ（照らす光）は変えない。
+     すべての星が乱数を 3 つ多く引く（Box–Muller 2 つ＋明るい星の判定 1 つ）ので、すべての玉で乱数の並びが変わる */
+  const bv = bvNorm()*Math.exp(BV_SIG*gauss())*(Math.random()<BV_HI_P ? BV_HI : 1);
   const q={
     x:ox, y:oy, z:oz, vx:ovx, vy:ovy, vz:ovz, Ly:oLy,
     life:lf, age:0, ig, px:null, py:null,
@@ -1850,7 +1859,8 @@ function finishStarV(ox, oy, oz, ovx, ovy, ovz, oLy, opt, C, pc){
     dr:0.10 + 0.20*(fex-0.35)/0.65,                              // v0.20：燃焼中の緩やかな減光 10〜30%
     // v0.24：あとから加わる属性も最初から持たせる。hT は v0.23 までの「未定義なら 0」と同じ値から始まる
     hT:0, hs:-1, hh:0, hn:0, dead:false,                       // v0.26：尾の記録は HIST の hs 番目の区画
-    stb, sd, sph, sk:opt.sk||0, bk, hw, hax, hay, haz, hvt       // v0.29：点滅・先紅・分岐・蜂
+    stb, sd, sph, sk:opt.sk||0, bk, hw, hax, hay, haz, hvt,      // v0.29：点滅・先紅・分岐・蜂
+    bv                                                           // v0.60：明るさの倍率
   };
   addStar(q);
   return q;
@@ -2654,7 +2664,7 @@ function bright(p){
     const br=1.05*w*e*(p.flick ? 1+p.flick*0.45*p.fl : 1);   // v0.30：0.72→1.05（赤をはっきり）
     if(br>b) b=br;
   }
-  return Math.max(0,b);
+  return Math.max(0,b)*(p.bv||1);                      // v0.60：星ごとの明るさの倍率
 }
 /* v0.33：柳の明るさ。寿命のほとんどを同じ明るさで燃え、最後の 20% で消える（実写では 10 秒以上ほぼ同じ明るさ） */
 function wlB(u){ let b=1-0.30*u; if(u>0.74) b*=Math.pow(Math.max(0,(1-u)/0.26),0.8); return b; }   // v0.34：消え始めを 0.80→0.74（実写は 4 秒ほどかけてきらめきながら消える）

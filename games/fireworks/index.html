@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Fireworks v0.62 -->
+<!-- MOMO Fireworks v0.63 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -351,7 +351,7 @@
       <circle cx="26" cy="21" r="2.6" fill="#fff7d6" stroke="#000" stroke-width="0.6"/>
     </g>
   </svg>
-  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.62</span></span></div>
+  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.63</span></span></div>
 </div>
 
 <div id="fps"><div id="fpsA"></div><div id="fpsB"></div></div>
@@ -540,7 +540,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.62</span></h1>
+        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.63</span></h1>
         <div class="subtitle" id="subtitle">Night Blooms, Golden Fade</div>
       </div>
     </header>
@@ -740,6 +740,8 @@
    （v0.61：白飛び入の光量を 1.45→1.09 倍に（Q159＝A）。星の約半分が真っ白に頭打ちしていた（実写の動画は 14〜36%）。白飛び切は変えない）
    （v0.62：柳の星に、星ごとの不規則な横向きの力を掛ける（R7、利用者の指摘）。柳の尾がどれも同じ形で平行に流れ、櫛でとかした髪のようだった。
             実写の尾は 1 本ずつ別々に曲がる。周期 0.8〜3 秒の揺れを 2 つずつ（x・z）、強さ 7m/s²。玉の大きさは変わらない。菊・錦冠には掛けない）
+   （v0.63：v0.62 の揺れは尾がくねくねと蛇のようで不自然（利用者の指摘）。揺れをやめ、柳の星は落ちる道筋で 1〜2 回だけ曲がり、
+            曲がったらその向きのまま落ち続ける（元に戻らない。利用者の指摘）。曲がる時刻から横向きの力を掛け続ける）
    仕様書 hanabi_sim_spec_v2.00.md §3 に対応する実装。
 
    v0.01 からの主要変更（§3.8 参照）
@@ -1143,7 +1145,7 @@ let SHAKE = 0.6;                       // カメラ揺れの強度（操作盤�
 /* ---------- 乱数ユーティリティ ---------- */
 /* v0.60：星ごとの明るさのばらつき（R5）。BV_SIG＝対数正規の広がり、BV_HI_P の割合の星を BV_HI 倍に。let は調整のため */
 let BV_SIG=0.12, BV_HI_P=0.30, BV_HI=2.2;   // 牡丹 10 号を実写と同じ手順で測って決めた（種 2 つで 10%÷50%＝0.67〜0.69、25%÷50%＝0.76〜0.81、75%÷50%＝1.79〜1.81。実写は 0.66〜0.73・0.76〜0.82・1.46 以上）
-let WB_A=7.0;   // v0.62（柳の尾の向きのばらつきを実写に合わせた）：星ごとの横向きの不規則な力の強さ [m/s²]（1 つの揺れの振幅。2 つ足す）。let は調整のため
+let KICK_TAN=0.08, KICK_T=1.0, KICK_P2=0.6;   // v0.63：柳の星が曲がる（傾き 0.25 は実写よりばらつきすぎ＝利用者の指摘、3 案から 0.08 を選んだ Q167＝B）。斜めに落ちる角度の tan の目安（星ごとに 0.3〜1.3 倍）、曲がりはじめの時間 [秒]、2 回目に曲がる星の割合。let は調整のため
 function bvNorm(){ return 1/(Math.exp(BV_SIG*BV_SIG/2)*(1-BV_HI_P+BV_HI_P*BV_HI)); }
 function gauss(){                      // Box–Muller
   let u=0,v=0; while(u===0)u=Math.random(); while(v===0)v=Math.random();
@@ -1850,15 +1852,23 @@ function finishStarV(ox, oy, oz, ovx, ovy, ovz, oLy, opt, C, pc){
      （明るい星が多い）。対数正規のばらつき × 一部の星だけ明るく。平均が 1 になるよう割って、玉全体の明るさ（照らす光）は変えない。
      すべての星が乱数を 3 つ多く引く（Box–Muller 2 つ＋明るい星の判定 1 つ）ので、すべての玉で乱数の並びが変わる */
   const bv = bvNorm()*Math.exp(BV_SIG*gauss())*(Math.random()<BV_HI_P ? BV_HI : 1);
-  /* v0.62：星ごとの不規則な横向きの力（R7、Q162＝A・利用者の指摘）。実写の尾は 1 本ずつ別々の向きへ少しずつ曲がり、
+  /* v0.62：星ごとの不規則な横向きの力（R7、Q162＝A・利用者の指摘）。実写の尾は 1 本ずつ別々の向きへ曲がり、
      全体を貫く筋が無い。アプリは全部の弧が同じ形で平行に流れ、櫛でとかした髪のようにそろっていた。
-     横（x・z）それぞれに、周期の違う 2 つのゆっくりした揺れを足す（周期は星ごとに 0.8〜3 秒、位相も星ごと）。
-     平均すると 0 になる力なので、玉の大きさは変わらない。
+     v0.63：v0.62 はゆっくりした揺れを足したため、尾がくねくねと蛇のようになった（利用者の指摘）。
+     「落ちていく道筋で 1〜2 回曲がる程度」にする。さらに「元に戻るような動きは不自然。一度曲がったらそれを維持」（利用者の指摘）。
+     そこで、曲がる時刻から横向きの力を掛け続ける（約 1 秒かけて立ち上がる）。空気抵抗とつり合ったところで、
+     斜めの向きのまま落ち続ける。2 回目は力を別の向き・強さに切り替える。斜めの角度は tan で KICK_TAN（星ごとに 0.3〜1.3 倍）。
+     力の大きさ＝g×tan（終端速度で落ちる星が、その角度の斜めに落ちる力）
      柳の星だけ（菊は力が無くても実写並みにばらつき、錦冠はもともと実写よりばらばら＝足すと離れる）。柳の星だけが乱数を引く */
-  let wf1=0, wf2=0, wf3=0, wf4=0, wp1=0, wp2=0, wp3=0, wp4=0;
+  let kt1=-1, kt2=-1, kx1=0, kz1=0, kx2=0, kz2=0;
   if(opt.wl){
-    wf1=6.2832/(0.8+Math.random()*2.2); wf2=6.2832/(0.8+Math.random()*2.2); wf3=6.2832/(0.8+Math.random()*2.2); wf4=6.2832/(0.8+Math.random()*2.2);
-    wp1=Math.random()*6.2832; wp2=Math.random()*6.2832; wp3=Math.random()*6.2832; wp4=Math.random()*6.2832;
+    kt1=lf*(0.12+Math.random()*0.33);                        // 1 回目：寿命の 12〜45%
+    let a=Math.random()*6.2832, m=G*KICK_TAN*(0.3+Math.random()); kx1=Math.cos(a)*m; kz1=Math.sin(a)*m;
+    kx2=kx1; kz2=kz1;
+    if(Math.random()<KICK_P2){                               // 2 回目：寿命の 45〜80%（ない星もある）
+      kt2=lf*(0.45+Math.random()*0.35);
+      a=Math.random()*6.2832; m=G*KICK_TAN*(0.3+Math.random()); kx2=Math.cos(a)*m; kz2=Math.sin(a)*m;
+    }
   }
   const q={
     x:ox, y:oy, z:oz, vx:ovx, vy:ovy, vz:ovz, Ly:oLy,
@@ -1875,7 +1885,7 @@ function finishStarV(ox, oy, oz, ovx, ovy, ovz, oLy, opt, C, pc){
     hT:0, hs:-1, hh:0, hn:0, dead:false,                       // v0.26：尾の記録は HIST の hs 番目の区画
     stb, sd, sph, sk:opt.sk||0, bk, hw, hax, hay, haz, hvt,      // v0.29：点滅・先紅・分岐・蜂
     bv,                                                          // v0.60：明るさの倍率
-    wf1, wf2, wf3, wf4, wp1, wp2, wp3, wp4                       // v0.62：横向きの不規則な力（x は 1・2、z は 3・4）
+    kt1, kt2, kx1, kz1, kx2, kz2                                 // v0.63：曲がる時刻（-1＝曲がらない）と、そこから掛け続ける横向きの力 [m/s²]
   };
   addStar(q);
   return q;
@@ -2896,7 +2906,12 @@ function update(dt){
     p.vx -= p.vx*dv; p.vy -= p.vy*dv + G*dt; p.vz -= p.vz*dv;
     if(p.hw) beeTurn(p, dt);                             // v0.29：蜂
     p.vx += (WIND.x-p.vx)*0.06*dt;                      // v0.01 のバグ（*0）を修正
-    if(p.wl && WB_A>0){ const ta=p.age; p.vx += WB_A*(Math.sin(p.wf1*ta+p.wp1)+Math.sin(p.wf2*ta+p.wp2))*dt; p.vz += WB_A*(Math.sin(p.wf3*ta+p.wp3)+Math.sin(p.wf4*ta+p.wp4))*dt; }   // v0.62：星ごとの不規則な横向きの力
+    if(p.kt1>=0 && p.age>p.kt1){                        // v0.63：柳の星は、曲がる時刻から横向きの力を掛け続ける（KICK_T 秒かけて立ち上げる）
+      let s1=(p.age-p.kt1)/KICK_T; s1 = s1>=1 ? 1 : s1*s1*(3-2*s1);
+      let ax=p.kx1*s1, az=p.kz1*s1;
+      if(p.kt2>=0 && p.age>p.kt2){ let s2=(p.age-p.kt2)/KICK_T; s2 = s2>=1 ? 1 : s2*s2*(3-2*s2); ax+=(p.kx2-p.kx1)*s2; az+=(p.kz2-p.kz1)*s2; }
+      p.vx+=ax*dt; p.vz+=az*dt;
+    }
     p.vz += (WIND.z-p.vz)*0.06*dt;
     p.x += p.vx*dt; p.y += p.vy*dt; p.z += p.vz*dt;
     // v0.20：尾の位置の記録（TAIL_DT ごと。新しい順）

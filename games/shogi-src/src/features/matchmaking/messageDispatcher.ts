@@ -26,7 +26,7 @@ import { useRouteStore } from '../../core/store/route-store';
 import { useGameStore } from '../../core/store/game-store';
 import { wireFieldsOf } from '../../core/protocol/wire-move';
 import { JISHOGI_ANSWER_MS, useOffersStore } from '../../core/store/offers-store';
-import { mgfForGameType, pieceIdListDigest, positionHash } from '../../core/engine';
+import { hondou, mgfForGameType, pieceIdListDigest, positionHash } from '../../core/engine';
 import { modifierConflict } from '../../core/engine/mgf/compatibility';
 import { get as pluginGet } from '../../core/plugin/registry';
 import type { ReviewMessage } from '../../core/plugin/review';
@@ -405,7 +405,10 @@ export function handleShogiMessage(data: unknown, from?: string): void {
       // 駒の身元の並びは量子 ON のときだけ突き合わせる (§6.5.2)。相手が返してこない
       // 場合 (量子 OFF / 旧クライアント) は照合を飛ばす。
       if (cfg.quantum && typeof msg.pieceIdListHash === 'string') {
-        const myPieceIds = pieceIdListDigest(useGameStore.getState().mgf);
+        // ★v2.06: 盤の定義は**部屋のルールから**引く。v2.05 までは対局の盤 (useGameStore の mgf)
+        // から引いており、それは**この端末で直前に指していた対局のまま**なので、片方が直前に
+        // 量子チェスを指していると同じルールの部屋でも食い違った (2026-10-04 利用者報告)。
+        const myPieceIds = pieceIdListDigest(roomMgf(cfg.gameType, cfg.customMgf ?? null));
         if (myPieceIds !== msg.pieceIdListHash) {
           // eslint-disable-next-line no-console
           console.warn('[shogi] 駒の身元の並びが不一致:', { mine: myPieceIds, theirs: msg.pieceIdListHash });
@@ -463,6 +466,15 @@ export function handleShogiMessage(data: unknown, from?: string): void {
  * ★**どの道を通っても必ず返事を出す**＝返事を出さない出口を作ると、ホストは
  * 「受領確認待ち」のまま永久に止まる（[[reference_absence_is_a_message]]）。
  */
+/**
+ * ★v2.06: 部屋のルールで使う盤の定義。カスタムは選んだ定義、それ以外は元から入っているもの。
+ * 量子の駒の並びの照合はこれで作る (対局の盤＝直前の対局からは引かない)。
+ */
+function roomMgf(gameType: RuleSyncMsg['rules']['gameType'], customMgf: Mgf | null): Mgf {
+  if (gameType === 'custom' && customMgf) return customMgf;
+  return mgfForGameType(gameType) ?? hondou;
+}
+
 async function adoptRuleSync(msg: RuleSyncMsg): Promise<void> {
   const client = getMomoMatchmaking();
   /** 断って止まる。**理由を添えて必ず返す**。 */
@@ -525,8 +537,9 @@ async function adoptRuleSync(msg: RuleSyncMsg): Promise<void> {
       // ホストのものと違えば（相手のほうが新しい `rules/` を持っている等）、
       // ここで食い違いとして表に出る。
       digest: ruleDigest(rulesFromConfig(applied)),
+      // ★v2.06: 部屋のルールの定義から作る (ホスト側と同じ理由・上の rule_ack を参照)。
       pieceIdListHash: applied.quantum
-        ? pieceIdListDigest(useGameStore.getState().mgf)
+        ? pieceIdListDigest(roomMgf(applied.gameType, resolved))
         : undefined,
       capabilities: CLIENT_CAPABILITIES,
     });

@@ -442,3 +442,71 @@ describe('ホスト側: 公式は目印だけ・自作は定義ごと送る', ()
     expect(c.customRuleDigest).not.toBe(a.customRuleDigest);
   });
 });
+
+/**
+ * ★v2.06 (2026-10-04 利用者報告「ネット対戦で、チェスの量子でも本将棋でも
+ * 『相手のエンジンがこのルール／モディファイアに対応していない』と出て始められない」)。
+ * ホストとゲストの往復を通して、**同じルールなら照合が揃う**ことを見る。
+ */
+describe('★同じルールの部屋は照合が揃う (ホスト→ゲスト→ホスト の往復)', () => {
+  const settle = async () => {
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+  };
+
+  async function roundTrip(hostCfg: typeof DEFAULT_ROOM_CONFIG) {
+    const rules = rulesFromConfig(hostCfg);
+    useMatchmakingStore.setState({ activeRoomConfig: { ...DEFAULT_ROOM_CONFIG }, ruleSyncPhase: 'idle', ruleSyncReason: null });
+    handleShogiMessage(ruleSyncMsg(rules));
+    await settle();
+    const ack = sent.find((m) => m.type === 'rule_ack');
+    expect(ack?.ok).toBe(true);
+    useMatchmakingStore.setState({ activeRoomConfig: hostCfg, ruleSyncPhase: 'sent', ruleSyncReason: null });
+    handleShogiMessage(ack as never);
+    return useMatchmakingStore.getState();
+  }
+
+  it('★カスタムを押してから本将棋へ戻した部屋 (チェスの定義が設定に残っている)', async () => {
+    const s = await roundTrip({
+      ...DEFAULT_ROOM_CONFIG,
+      gameType: 'shogi',
+      customMgf: chess,
+      customRuleName: 'チェス',
+      customRuleId: 'chess',
+    });
+    expect(s.ruleSyncReason).toBeNull();
+    expect(s.ruleSyncPhase).toBe('ok');
+  });
+
+  it('★量子チェスの部屋で、ホストの端末が直前に量子チェス・ゲストは本将棋を指していた', async () => {
+    useGameStore.getState().reset({ gameType: 'custom', customMgf: chess, quantum: true, torusMode: 'none', handicap: null } as never);
+    const hostCfg = { ...DEFAULT_ROOM_CONFIG, gameType: 'custom' as const, customMgf: chess, customRuleName: 'チェス', customRuleId: 'chess', quantum: true };
+    const rules = rulesFromConfig(hostCfg);
+    // ゲストの端末は本将棋の盤のまま
+    useGameStore.getState().reset({ gameType: 'shogi', quantum: false, torusMode: 'none', handicap: null } as never);
+    useMatchmakingStore.setState({ activeRoomConfig: { ...DEFAULT_ROOM_CONFIG }, ruleSyncPhase: 'idle', ruleSyncReason: null });
+    handleShogiMessage(ruleSyncMsg(rules));
+    await settle();
+    const ack = sent.find((m) => m.type === 'rule_ack');
+    // ホストの端末へ戻る (直前の対局は量子チェス)
+    useGameStore.getState().reset({ gameType: 'custom', customMgf: chess, quantum: true, torusMode: 'none', handicap: null } as never);
+    useMatchmakingStore.setState({ activeRoomConfig: hostCfg, ruleSyncPhase: 'sent', ruleSyncReason: null });
+    handleShogiMessage(ack as never);
+    expect(useMatchmakingStore.getState().ruleSyncReason).toBeNull();
+    expect(useMatchmakingStore.getState().ruleSyncPhase).toBe('ok');
+  });
+
+  it('★量子の本将棋の部屋で、ホストの端末が直前に量子チェスを指していた', async () => {
+    useGameStore.getState().reset({ gameType: 'custom', customMgf: chess, quantum: true, torusMode: 'none', handicap: null } as never);
+    const s = await roundTrip({ ...DEFAULT_ROOM_CONFIG, gameType: 'shogi', quantum: true });
+    expect(s.ruleSyncReason).toBeNull();
+    expect(s.ruleSyncPhase).toBe('ok');
+  });
+
+  it('本将棋の部屋ではカスタムの情報を送らない', () => {
+    const r = rulesFromConfig({ ...DEFAULT_ROOM_CONFIG, gameType: 'shogi', customMgf: chess, customRuleName: 'チェス', customRuleId: 'chess' });
+    expect(r.customRuleName).toBeUndefined();
+    expect(r.customRuleId).toBeUndefined();
+    expect(r.customMgf).toBeUndefined();
+    expect(r.customRuleDigest).toBeUndefined();
+  });
+});

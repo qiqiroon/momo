@@ -67,6 +67,12 @@ export function applySyncedRules(rules: SyncedRules, resolved?: Mgf | null): Roo
 
 /** 自分が採用した設定から、送られてきたのと同じ形のルール一式を組み立て直す。 */
 export function rulesFromConfig(cfg: RoomConfig): SyncedRules {
+  // ★v2.06: **カスタムの情報はカスタムを選んでいるときだけ載せる**。
+  // S02 は「カスタム」を押し直したときに前の定義へ戻せるよう、本将棋へ戻してもチェスの
+  // 定義を部屋の設定に残している（v2.04 から押した瞬間に入る）。それをそのまま載せると、
+  // 受け取った側は本将棋なので定義を用意せず、**照合の印が食い違って対局を始められなかった**
+  // （2026-10-04 利用者報告「本将棋でも相手のエンジンが対応していないと出る」）。
+  const custom = cfg.gameType === 'custom';
   return {
     gameType: cfg.gameType,
     torusMode: cfg.torusMode,
@@ -74,15 +80,15 @@ export function rulesFromConfig(cfg: RoomConfig): SyncedRules {
     quantumDisplayMode: cfg.quantumDisplayMode,
     timeControl: cfg.timeControl,
     handicap: cfg.handicap,
-    customRuleName: cfg.customRuleName,
-    customRuleId: cfg.customRuleId,
+    customRuleName: custom ? cfg.customRuleName : undefined,
+    customRuleId: custom ? cfg.customRuleId : undefined,
     // ★段B② (ユーザー判断 2026-08-25): **公式一覧にあるルールは定義を送らない**
     // ＝受け取った側が目印で自分で取りに行く。**作った本人が配っているルールだけ配る**。
     // **目印を持たないものは配る側へ倒す**＝印を付け忘れたら「送ってしまう」ほうへ
     // 転ぶので、忘れても盤が食い違わない（重くなるだけ）。
-    customMgf: cfg.customRuleId ? undefined : cfg.customMgf,
+    customMgf: !custom || cfg.customRuleId ? undefined : cfg.customMgf,
     // 中身の印は**定義を送るかどうかに関わらず必ず添える**（照合の材料が消えないように）。
-    customRuleDigest: cfg.customMgf ? mgfFingerprint(cfg.customMgf) : undefined,
+    customRuleDigest: custom && cfg.customMgf ? mgfFingerprint(cfg.customMgf) : undefined,
     quantumParams: useGameStore.getState().quantumParams,
   };
 }

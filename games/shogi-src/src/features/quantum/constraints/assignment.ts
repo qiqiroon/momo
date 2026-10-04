@@ -34,7 +34,8 @@
  * ## 前提 (仕様に明記・§Q8.7)
  *
  * 「駒は盤から消えない (取られても持ち駒として残る)」= 元の所属ごとに駒枚数と身元の個数が
- * 等しい、という将棋の性質に乗っている。駒が消える自由ルールを作る場合は本制約を外す。
+ * 等しい、という将棋の性質に乗っている。**チェスの捕獲で盤から取り除かれた駒は
+ * `Position.removedPieces` に残して数える** (§Q23.5・v2.03)。
  *
  * ## アルゴリズム
  *
@@ -92,6 +93,17 @@ function getAllowedMap(pos: Position): AllowedMap {
  */
 function collectSide(pos: Position, side: Player): PieceInstance[] {
   const out: PieceInstance[] = [];
+  // ★v2.03 (量子分冊 §Q23.5): **盤から取り除かれた駒も数える**＝消えたのは盤上の位置で
+  // あって身元ではない。v2.02 までは数えておらず、**チェスで取られた 3 枚が「ビショップか
+  // クイーン」の身元 3 つを使い切っていたのに、4 枚目が斜めに長く動けた** (2026-10-04
+  // 利用者の棋譜)。**先頭に並べる**＝増加道法は一度結び付けた駒を外さないので、
+  // 足りないときに身元を貰えないのは盤・駒台の駒になる (= 候補が空＝C-901 に載る。
+  // 取り除いた駒の欠けは誰も問い合わせないので、後ろに並べると矛盾を見落とす)。
+  if (pos.removedPieces) {
+    for (const p of pos.removedPieces) {
+      if (p.candidates && p.initialOwner === side) out.push(p);
+    }
+  }
   for (const row of pos.board) {
     for (const cell of row) {
       if (cell && cell.candidates && cell.initialOwner === side) out.push(cell);

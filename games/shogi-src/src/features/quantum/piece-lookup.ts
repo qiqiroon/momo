@@ -22,7 +22,8 @@ export interface CandidateInfo {
 
 /**
  * 盤上・両手駒を走査して PieceID → CandidateInfo の Map を作る。
- * 対局中 PieceID は追加削除されない (捕獲は owner 反転で pieceId 継続) ので、
+ * 対局中 PieceID は追加削除されない (捕獲は owner 反転で pieceId 継続・チェスの捕獲で
+ * 盤から消えた駒は removedPieces に残る) ので、
  * この Map は Position 単位で 1 回作れば十分。
  */
 export function buildInitialInfoMap(pos: Position): Map<PieceId, CandidateInfo> {
@@ -40,6 +41,8 @@ export function buildInitialInfoMap(pos: Position): Map<PieceId, CandidateInfo> 
   }
   for (const p of pos.hands.player1) add(p);
   for (const p of pos.hands.player2) add(p);
+  // §Q23.5: 盤から取り除かれた駒の身元も残す (Position.removedPieces)。
+  if (pos.removedPieces) for (const p of pos.removedPieces) add(p);
   return map;
 }
 

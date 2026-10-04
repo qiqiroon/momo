@@ -83,5 +83,12 @@ export function applyC201(nextPos: Position, capturedPieceId: PieceId, mgf: Mgf)
   if (newP1) return { ...nextPos, hands: { ...nextPos.hands, player1: newP1 } };
   const newP2 = applyOn(nextPos.hands.player2);
   if (newP2) return { ...nextPos, hands: { ...nextPos.hands, player2: newP2 } };
+  // ★v2.03 (§Q23.4・§Q23.5): チェスの捕獲は駒台へ入らず盤から取り除かれる。取り除いた駒も
+  // 割り当ての勘定に残すので、**王ではなかった**ことをそちらにも書く (書かないと、消えた駒が
+  // 王の身元を引き受けられることになり、盤の上の駒の絞り込みが弱まる)。
+  if (nextPos.removedPieces) {
+    const newRemoved = applyOn(nextPos.removedPieces);
+    if (newRemoved) return { ...nextPos, removedPieces: newRemoved };
+  }
   return nextPos;
 }

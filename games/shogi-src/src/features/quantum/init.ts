@@ -56,5 +56,7 @@ export function quantumInit(pos: Position): Position {
     ...pos,
     board: newBoard,
     hands: newHands,
+    // §Q23.5: 盤から取り除かれた駒の身元を残す並び (Position.removedPieces)。
+    removedPieces: pos.removedPieces ?? [],
   };
 }

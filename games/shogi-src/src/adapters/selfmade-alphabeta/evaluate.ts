@@ -180,6 +180,8 @@ function royalIdsOf(position: Position): Record<Player, PieceId> | null {
   for (const row of position.board) for (const cell of row) if (cell) visit(cell);
   for (const p of position.hands.player1) visit(p);
   for (const p of position.hands.player2) visit(p);
+  // §Q23.5: 王のマスから出た駒が盤から取り除かれても、王の身元は候補に残っている。
+  if (position.removedPieces) for (const p of position.removedPieces) visit(p);
   if (!quantum || !found.player1 || !found.player2) return null;
   return { player1: found.player1, player2: found.player2 };
 }

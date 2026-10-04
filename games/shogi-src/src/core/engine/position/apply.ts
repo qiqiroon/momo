@@ -19,12 +19,15 @@ export function applyMove(mgf: Mgf, position: Position, move: Move): Position {
     player1: position.hands.player1.slice(),
     player2: position.hands.player2.slice(),
   };
+  // ★v2.03 (§Q23.5): この手で**盤から取り除かれた量子の駒**。身元の勘定に残すため
+  // 局面の removedPieces へ足す (駒台へ入る駒・量子でない駒は入れない)。
+  const gone: PieceInstance[] = [];
 
   // ★v1.55: 感想戦の自由な手（親 v1.49 §9.4.2.1）。**合法性を一切見ない**のはこの
   // 関数の元からの約束（呼び出し側の責務）だが、こちらは**駒台へ移す・消す**という
   // 行き先を持つので別に扱う。**対局では絶対に生まれない**。
   if (move.type === 'free') {
-    return applyFree(mgf, position, move, newBoard, newHands);
+    return applyFree(mgf, position, move, newBoard, newHands, gone);
   }
 
   if (move.type === 'move') {
@@ -54,9 +57,11 @@ export function applyMove(mgf: Mgf, position: Position, move: Move): Position {
           ...(captured.confirmed !== undefined ? { confirmed: captured.confirmed } : {}),
         };
         newHands[piece.owner].push(handPiece);
+      } else {
+        // 駒台へ入らない駒は**盤から取り除かれる**だけ (行き先を持たない)。
+        // 盤から消す処理はこの下の「移動元・移動先の書き換え」が兼ねている。
+        keepRemoved(gone, captured);
       }
-      // 駒台へ入らない駒は**盤から取り除かれる**だけ (行き先を持たない)。
-      // 盤から消す処理はこの下の「移動元・移動先の書き換え」が兼ねている。
     }
 
     let newKind = piece.kind;
@@ -158,6 +163,7 @@ function applyFree(
   move: Extract<Move, { type: 'free' }>,
   newBoard: BoardCell[][],
   newHands: { player1: PieceInstance[]; player2: PieceInstance[] },
+  gone: PieceInstance[],
 ): Position {
   // 掴んだ駒を、元の場所から外す。
   let piece: PieceInstance | null = null;
@@ -197,8 +203,11 @@ function applyFree(
   }
 
   if (move.dest.kind === 'discard') {
-    // どこにも行かない（盤からも駒台からも消える）。
-    return { ...position, board: newBoard, hands: newHands, history: position.history };
+    // どこにも行かない（盤からも駒台からも消える）。**身元は残す**（§Q23.5）。
+    keepRemoved(gone, piece);
+    const next: Position = { ...position, board: newBoard, hands: newHands, history: position.history };
+    if (gone.length > 0) next.removedPieces = withRemoved(position, gone);
+    return next;
   }
 
   if (move.dest.kind === 'hand') {
@@ -234,7 +243,7 @@ function applyFree(
   // アンパッサン・獅子の 2 回行動のような複合の手だけ (手の種類は増やしていない)。
   if (move.type === 'move' && move.extra_steps) {
     for (const step of move.extra_steps) {
-      applyStepInPlace(mgf, newBoard, newHands, step);
+      applyStepInPlace(mgf, newBoard, newHands, step, gone, position.removedPieces);
     }
   }
 
@@ -247,12 +256,15 @@ function applyFree(
     for (let row = 0; row < moved.height; row++) {
       for (let col = 0; col < moved.width; col++) {
         const cell = newBoard[row][col];
-        if (cell && takenIds.has(cell.pieceId)) newBoard[row][col] = null;
+        if (cell && takenIds.has(cell.pieceId)) {
+          keepRemoved(gone, cell);
+          newBoard[row][col] = null;
+        }
       }
     }
   }
 
-  return {
+  const next: Position = {
     ...position,
     board: newBoard,
     hands: newHands,
@@ -260,6 +272,20 @@ function applyFree(
     moveNumber: position.moveNumber + 1,
     history: [...position.history, move],
   };
+  // 取り除いた駒があるときだけ書く (量子の局面は最初から欄を持つので形は変わらない)。
+  // 返す局面の書き方に広げる形 (`...`) を足すと、すべての対局の 1 手が遅くなる。
+  if (gone.length > 0) next.removedPieces = withRemoved(position, gone);
+  return next;
+}
+
+/** 量子の駒なら、盤から取り除かれた駒として控える (§Q23.5)。 */
+function keepRemoved(gone: PieceInstance[], piece: PieceInstance): void {
+  if (piece.candidates !== undefined) gone.push(piece);
+}
+
+/** この手で取り除かれた駒を、局面の removedPieces に足した並び。 */
+function withRemoved(position: Position, gone: PieceInstance[]): PieceInstance[] {
+  return [...(position.removedPieces ?? []), ...gone];
 }
 
 /**
@@ -274,6 +300,8 @@ function applyStepInPlace(
   board: BoardCell[][],
   hands: { player1: PieceInstance[]; player2: PieceInstance[] },
   step: MoveStep,
+  gone: PieceInstance[],
+  removedBefore: readonly PieceInstance[] | undefined,
 ): void {
   // 動かす駒を、元の場所 (盤 or 駒台) から外す。
   let piece: PieceInstance | null = null;
@@ -308,7 +336,11 @@ function applyStepInPlace(
     }
   }
 
-  if (step.dest.kind === 'discard') return; // 盤からも駒台からも消える (アンパッサン)。
+  if (step.dest.kind === 'discard') {
+    // 盤からも駒台からも消える (アンパッサン)。**身元は残す** (§Q23.5)。
+    keepRemoved(gone, piece);
+    return;
+  }
 
   if (step.dest.kind === 'hand') {
     const owner = step.dest.owner;
@@ -334,6 +366,9 @@ function applyStepInPlace(
       for (const owner of ['player1', 'player2'] as const) {
         for (const h of hands[owner]) kindMap.set(h.pieceId, h.initialKind);
       }
+      // §Q23.5: 盤から取り除かれた駒の身元も (この手の中で取り除いた分を含めて)。
+      for (const p of removedBefore ?? []) kindMap.set(p.pieceId, p.initialKind);
+      for (const p of gone) kindMap.set(p.pieceId, p.initialKind);
       kinds = displayKindsFor(mgf, captured, kindMap);
     }
     if (capturedGoesToHand(mgf, kinds)) {
@@ -343,6 +378,8 @@ function applyStepInPlace(
         owner: placed.owner,
         promoted: false,
       });
+    } else {
+      keepRemoved(gone, captured);
     }
   }
   board[sq.row][sq.col] = placed;

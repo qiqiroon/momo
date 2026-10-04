@@ -32,6 +32,8 @@ export function buildInitialKindMap(position: Position): Map<PieceId, string> {
   }
   for (const p of position.hands.player1) map.set(p.pieceId, p.initialKind);
   for (const p of position.hands.player2) map.set(p.pieceId, p.initialKind);
+  // §Q23.5: 盤から取り除かれた駒の身元も読み替えられるように (Position.removedPieces)。
+  if (position.removedPieces) for (const p of position.removedPieces) map.set(p.pieceId, p.initialKind);
   return map;
 }
 

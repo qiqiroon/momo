@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Fireworks v0.65 -->
+<!-- MOMO Fireworks v0.66 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -351,7 +351,7 @@
       <circle cx="26" cy="21" r="2.6" fill="#fff7d6" stroke="#000" stroke-width="0.6"/>
     </g>
   </svg>
-  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.65</span></span></div>
+  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.66</span></span></div>
 </div>
 
 <div id="fps"><div id="fpsA"></div><div id="fpsB"></div></div>
@@ -540,7 +540,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.65</span></h1>
+        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.66</span></h1>
         <div class="subtitle" id="subtitle">Night Blooms, Golden Fade</div>
       </div>
     </header>
@@ -747,6 +747,10 @@
             先端はすき間なくつながり、先端から遠いほど燃え尽きた粒が増えてすき間が大きくなり、だんだん消える（利用者の指摘））
    （v0.65：尾のある星の先端に丸い玉を描かない。実写は紐の端に玉がふくらまず、紐が先端並みに明るい（利用者の指摘）。
             尾を曳いている間は先端のにじみを消し、尾を 2.6 倍明るく、先端から尾の 0.75 までを明るさ 2 倍・太さ 2 倍にする（Q175〜Q179））
+   （v0.66：v0.65 の明るい紐が、開花直後に星が固まっているあいだ重なって白い大きな光の球になっていた（利用者の指摘）。
+            星が玉の半径の 0.3〜0.8 まで広がるあいだに v0.65 の強調を効かせる（Q182・Q183）。柳の星を 85→55（Q184・Q185）。
+            型物が続かないように：プログラムは 7 区切りに 1 区切りだけ（種類は混ぜる・フィナーレは除く）、大玉の組は型物どうしにしない。
+            音楽の花火は約 1 分に 1 回、1 小節ぶんの小玉だけ（最後の区間・最後の 1 発は除く）（Q186・Q187））
    仕様書 hanabi_sim_spec_v2.00.md §3 に対応する実装。
 
    v0.01 からの主要変更（§3.8 参照）
@@ -1564,6 +1568,12 @@ let HEAD_TK=0, HEAD_TR=1, TAIL_NK=2.6;   // Q177：先端の玉は消す（0）�
 let TIP_A=2, TIP_W=0, TIP_L=0.75, TIP_WD=2;   // Q178＝C（太さ 2 倍）・Q179＝B（長さ 0.75）。白くするのは見送り（TIP_W=0）   // TIP_WD：先端の紐の太さの倍率（明るさが上限に達したあと光を増やす手段）
  const TIP_C=[255,244,222];
 function tipF(s){ return s<TIP_L ? 1-s/TIP_L : 0; }
+/* v0.66：密集しているあいだは v0.65 の紐の明るさ・先端の上乗せ・太さを効かせない（利用者の指摘・Q182＝A）。
+   開花直後は星が中心近くに固まり、明るく太い紐が重なって白い大きな光の球になっていた（菊 0.5 秒で白く飛んだ画素 343→4133）。
+   星が玉の中心から離れた距離÷玉の半径 R が SPR_0 から SPR_1 まで広がるあいだに 0→1（なめらか）。殻が 1 枚の玉には密集の補正が効かないため */
+let SPR_0=0.3, SPR_1=0.8;
+function sprF(p){ const B=p.B; if(!B || !(B.R>0)) return 1; const d=Math.hypot(p.x-B.x,p.y-B.y,p.z-B.z)/B.R;
+  if(d<=SPR_0) return 0; if(d>=SPR_1) return 1; const u=(d-SPR_0)/(SPR_1-SPR_0); return u*u*(3-2*u); }
 function tailW(p){
   if(!(p.tail>0) || !(p.hn>0)) return 0;
   const pa=p.age; if(pa>=p.life*p.tailEnd) return 0;
@@ -2008,7 +2018,7 @@ const RECIPES = {
   kamuro: {color:{mode:'solid'}, bbOnly:1, layers:[
             {nk:56, sp:0.55, life:10.5, lsig:0.15, kk:0.30, kk2:2.75, kt:2.5, tail:1.0, flick:.5,  bb:1, T:2750, T0:2900, ds:'kamuro'}]},   // v0.42：実写（錦冠菊10号）は約11秒燃え、約4秒で広がり終わって垂れる
   yanagi: {color:{mode:'solid'}, bbOnly:1, layers:[     // v0.31：開く速さ 0.50、寿命 6.8、抗力 0.95、wl＝柳の尾（長い尾と垂れる火の粉）
-            {nk:85, sp:1.4, life:15.0, lsig:0.10, kk:0.8, kk2:2.75, kt:0.4, tail:1.0, flick:.30, bb:1, T:2700, T0:2750, ds:'yanagi', wl:1}]},   // v0.34：実写（昭和記念公園・推定10号）の計測に合わせる。kk→kk2 へ抗力が kt 秒で増える
+            {nk:55, sp:1.4, life:15.0, lsig:0.10, kk:0.8, kk2:2.75, kt:0.4, tail:1.0, flick:.30, bb:1, T:2700, T0:2750, ds:'yanagi', wl:1}]},   // v0.66：85→55（Q185＝B）。v0.65 の明るい紐で広がる途中から最後まで v0.64 の約 3 倍白く飛んでいた   // v0.34：実写（昭和記念公園・推定10号）の計測に合わせる。kk→kk2 へ抗力が kt 秒で増える
   henka:  {color:{mode:'change'}, kg:1, layers:[
             {nk:76, sp:1,    life:2.6, kk:1,    tail:.5,  flick:.3,  swap:.5}]},
   yashi:  {color:{mode:'solid'}, bbOnly:1, layers:[
@@ -3535,7 +3545,8 @@ function render(dt){
       const pa=p.age;
       if(p.tail>0 && p.hn>0 && pa < p.life*p.tailEnd){
         const bee=p.hw!==0, wl=p.wl, TT=Math.min(bee?TAIL_TIME_BEE:(wl?TAIL_TIME_WL:TAIL_TIME), pa), NS=bee?14:(wl?16:TAIL_NS), FW=bee?TAIL_FW14:(wl?TAIL_FW12:TAIL_FW);   // v0.30：蜂、v0.31：柳
-        const bt0 = p.tail*TAIL_GAIN*aD*EXPO*adaptGain*dg*Math.sqrt(Iv)*(wl?WL_TAIL:1)*(1+(TAIL_NK-1)*tailW(p));   // v0.65：TAIL_NK
+        const sfK=sprF(p), tpA=1+(TIP_A-1)*sfK, tpW=1+(TIP_WD-1)*sfK;   // v0.66：広がるにつれて効かせる
+        const bt0 = p.tail*TAIL_GAIN*aD*EXPO*adaptGain*dg*Math.sqrt(Iv)*(wl?WL_TAIL:1)*(1+(TAIL_NK-1)*tailW(p)*sfK);   // v0.65：TAIL_NK
         let bt = wl ? bt0 : b*bt0;                          // v0.33：柳の尾は区間ごとに火花が出たときの明るさで描く
         const ue=pa/(p.life*p.tailEnd); if(ue>0.8 && !wl) bt*=Math.max(0,(1-ue)/0.2);
         if(wl){ const uw=pa/p.life; if(uw>0.74) bt*=Math.max(0,(1-uw)/0.26); }   // v0.34：柳の尾も最後はなだらかに消す（星と一緒に一度に消えない）
@@ -3550,7 +3561,7 @@ function render(dt){
              点 k の濃さは v0.53 の区間 k の濃さ（FW[k]）、星の位置（k=0）は 1 */
           let qat=0, qal=0, qe=pa+p.tk*997, qs=0;           // v0.64：qe＝1つ前の点の「火花が出た時刻」（星ごとにずらす）、qs＝1つ前の点の先端からの時間の割合
           { const rb0=pa/d08; const ramp0=rb0>=1 ? 1 : pw1(PT16,rb0,1.6);
-            qat=bt*ramp0*(wl ? wlB(pa/p.life) : 1)*TIP_A; qal=Math.min(1,qat/(1+qat*0.6)); }
+            qat=bt*ramp0*(wl ? wlB(pa/p.life) : 1)*tpA; qal=Math.min(1,qat/(1+qat*0.6)); }
           let wx=px0, wy=py0, wz=pz0;                       // v0.34：1つ前の点の位置（地面で切るため）
           for(let k=1;k<=NS;k++){
             const sAge=TT*k/NS, tAge=pa-sAge, te=tAge+p.tk*997, ts=k/NS;
@@ -3569,7 +3580,7 @@ function render(dt){
             y -= wl ? Math.min(g035*sAge*sAge, WL_SAG*sAge) : g035*sAge*sAge;   // v0.34：柳の火花はほとんど垂れない
             const rb=Math.max(0,tAge)/d08;
             const ramp=rb>=1 ? 1 : pw1(PT16,rb,1.6);
-            const at2=bt*FW[k]*ramp*(wl ? wlB(Math.max(0,tAge)/p.life) : 1)*(1+(TIP_A-1)*tipF(ts));   // v0.65：先端の上乗せ
+            const at2=bt*FW[k]*ramp*(wl ? wlB(Math.max(0,tAge)/p.life) : 1)*(1+(tpA-1)*tipF(ts));   // v0.65：先端の上乗せ
             const al=Math.min(1,at2/(1+at2*0.6));
             const yy=y-pjE, zr=z*pjC-yy*pjS, yr=z*pjS+yy*pjC, dd=-zr;
             if(dd<6) break;
@@ -3587,7 +3598,7 @@ function render(dt){
             if(Ly) Ly.cv += Math.min(1,(qat+at2)*0.5)*tw*hyp2(px-qx,py-qy)*0.5;
             if((qal>0 || al>0) && !((qx<-mT&&px<-mT)||(qx>WmT&&px>WmT)||(qy<-mT&&py<-mT)||(qy>HmT&&py>HmT))){
               const o=nLC*LC_F; nLC++;                      // v0.64：1 区間の数値の数は LC_F（10→12。以前は 10 と直に書いていた）
-              LCA[o]=qx; LCA[o+1]=qy; LCA[o+2]=px; LCA[o+3]=py; LCA[o+4]=TIP_WD!==1 ? tw*(1+(TIP_WD-1)*tipF((qs+ts)*0.5)) : tw;   // v0.65：先端ほど太く
+              LCA[o]=qx; LCA[o+1]=qy; LCA[o+2]=px; LCA[o+3]=py; LCA[o+4]=tpW!==1 ? tw*(1+(tpW-1)*tipF((qs+ts)*0.5)) : tw;   // v0.65：先端ほど太く
               { const wv=TIP_W*tipF((qs+ts)*0.5); LCA[o+5]=wv>0?tri+(TIP_C[0]-tri)*wv:tri; LCA[o+6]=wv>0?tgi+(TIP_C[1]-tgi)*wv:tgi; LCA[o+7]=wv>0?tbi+(TIP_C[2]-tbi)*wv:tbi; }   // v0.65：先端ほど白く
               LCA[o+8]=qal; LCA[o+9]=al; LCA[o+10]=qe; LCA[o+11]=te; LCA[o+12]=qs; LCA[o+13]=ts;
             }
@@ -3683,7 +3694,8 @@ function render(dt){
        火花は吹き出されたあと少し垂れる（0.5·g'·s²、g' は抗力込みで g の 0.35）。 */
     if(p.tail>0 && p.hn>0 && p.age < p.life*p.tailEnd){
       const bee=p.hw!==0, wl=p.wl, TT=Math.min(bee?TAIL_TIME_BEE:(wl?TAIL_TIME_WL:TAIL_TIME), p.age), FW=bee?TAIL_FW14:(wl?TAIL_FW12:TAIL_FW);   // v0.30：蜂、v0.31：柳
-      const bt0 = p.tail*TAIL_GAIN*aD*EXPO*adaptGain*dg*Math.sqrt(Iv)*(wl?WL_TAIL:1)*(1+(TAIL_NK-1)*tailW(p));   // v0.65：TAIL_NK
+      const sfK=sprF(p), tpA=1+(TIP_A-1)*sfK, tpW=1+(TIP_WD-1)*sfK;   // v0.66：広がるにつれて効かせる
+      const bt0 = p.tail*TAIL_GAIN*aD*EXPO*adaptGain*dg*Math.sqrt(Iv)*(wl?WL_TAIL:1)*(1+(TAIL_NK-1)*tailW(p)*sfK);   // v0.65：TAIL_NK
       let bt = wl ? bt0 : b*bt0;                            // v0.33：柳の尾は火花が出たときの明るさ
       // 尾を曳くのをやめる時点の手前で尾を細らせる
       const ue=p.age/(p.life*p.tailEnd); if(ue>0.8 && !wl) bt*=Math.max(0,(1-ue)/0.2);
@@ -3735,7 +3747,7 @@ function render(dt){
           // v0.23：1 以上なら pow を呼ばない（結果は同じ）。(f)^0.8 は区間ごとに一定なので表から引く
           const rb=Math.max(0,tAge)/d08;
           const ramp=rb>=1 ? 1 : pw1(PT16,rb,1.6);
-          const at=bt*FW[k]*ramp*(wl ? wlB(Math.max(0,tAge)/p.life) : 1)*(1+(TIP_A-1)*tipF(k/NS));   // v0.65：先端の上乗せ
+          const at=bt*FW[k]*ramp*(wl ? wlB(Math.max(0,tAge)/p.life) : 1)*(1+(tpA-1)*tipF(k/NS));   // v0.65：先端の上乗せ
           if(Ly) Ly.cv += Math.min(1,at)*tw*hyp2(px-qx,py-qy)*0.5;
           /* v0.54：この道は 2D のときだけ通る（WebGL は上の速い道）。濃さは区間の両端の平均で段を小さくする */
           { let al2=Math.min(1,at/(1+at*0.6));
@@ -3746,7 +3758,7 @@ function render(dt){
             const alive=kk<=Math.pow(g2,0.6), grain=kk<0.35 || gh>=1-GR_ON;
             al2=Math.min(1, al2*(alive&&grain ? 1+0.8*gf*kk : base)); }
           cctx.globalAlpha=(k===1 ? al2 : (tq+al2)*0.5); tq=al2;
-          if(TIP_WD!==1) cctx.lineWidth=tw*(1+(TIP_WD-1)*tipF((k-0.5)/NS));   // v0.65：先端ほど太く
+          if(tpW!==1) cctx.lineWidth=tw*(1+(tpW-1)*tipF((k-0.5)/NS));   // v0.65：先端ほど太く
           { const wv=TIP_W*tipF((k-0.5)/NS); cctx.strokeStyle= wv>0 ? `rgb(${(tri+(TIP_C[0]-tri)*wv)|0},${(tgi+(TIP_C[1]-tgi)*wv)|0},${(tbi+(TIP_C[2]-tbi)*wv)|0})` : `rgb(${tcs})`; }   // v0.65：先端ほど白く
           cctx.beginPath(); cctx.moveTo(qx,qy); cctx.lineTo(px,py); cctx.stroke();
           }
@@ -4518,6 +4530,13 @@ let progI=0;
 const GOS=[5,7,10,20,40];
 const rr_=(a,b)=>a+Math.random()*(b-a), ri_=(a,b)=>a+((Math.random()*(b-a+1))|0);
 function rndType(){ return TYPES[(Math.random()*TYPES.length)|0].id; }
+/* v0.66：型物の出し方（利用者の指摘「プログラムの途中、型物が連続する」・Q186＝A・Q187＝C）。
+   ふだんは型物以外から選ぶ（rndTypeN）。プログラムは 7 区切りに 1 区切りだけ型物の区切りにする（フィナーレは除く）。
+   その区切りでは型物の種類を混ぜる（kataSeq）。大玉は型物と、ふだんの組の 1 つ目を交互に。大玉の組は型物どうしにしない */
+const KATA=TYPE_GROUPS.find(g=>g[0]==='型物')[1], KATA_SET=new Set(KATA);
+function rndTypeN(){ let t; do{ t=rndType(); }while(KATA_SET.has(t)); return t; }
+function kataSeq(){ const a=tbShuffle(KATA).slice(0,2+((Math.random()*2)|0)); let i=0; return ()=>a[(i++)%a.length]; }   // 2〜3 種類を順に
+let kataOn=false, kataBig=0, segN=0, kataAt=-1;
 function upTo(b){ const r=GOS.filter(g=>g<=b); return r.length?r:[5]; }
 /* v0.38：番組のそろえ方（Q98＝B）
    ・小型：1回（早打ち・スターマイン・フィナーレの区切り）の中では玉の種類と大きさを1つにそろえ、変化は色の並べ方だけでつける
@@ -4528,7 +4547,7 @@ const KIN={ kiku:['kiku','yae','sanju','botan'], botan:['botan','kiku','yae'], y
   hachi:['hachi','senrin'], heart:['heart','star5','butterfly'], smile:['smile','saturn','heart'], saturn:['saturn','smile','star5'],
   butterfly:['butterfly','heart','star5'], star5:['star5','heart','saturn'] };
 let bigPair=['kiku','yae'], bigFx=[null,null], bigN=0, themeN=0;
-function newBigPair(){ const k=KIN[rndType()]; bigPair=[k[0], k[1+((Math.random()*(k.length-1))|0)]]; bigFx=bigPair.map(autoFx); bigN=0; }   // 効果も組ごとに固定
+function newBigPair(){ const k=KIN[rndTypeN()]; bigPair=[k[0], k[1+((Math.random()*(k.length-1))|0)]]; bigFx=bigPair.map(autoFx); bigN=0; }   // 効果も組ごとに固定
 newBigPair();
 /* 色の並べ方。小型の筒を左から並べた順番 k（0〜N-1）から色を決める */
 const HUE_RING=['red','orange','yellow','lemon','green','aqua','blue','purple','pink'];
@@ -4550,15 +4569,16 @@ function shot(t, type, go, tube, col, fx){
   if(go>=10){
     const bl=bigList(), k=bigN++;
     type=bigPair[k%2]; tube=bl.length ? bl[k%bl.length] : undefined; col=null; fx=bigFx[k%2];
+    if(kataOn){ if(kataBig++%2===0){ type=KATA[(Math.random()*KATA.length)|0]; fx=autoFx(type); } else { type=bigPair[0]; fx=bigFx[0]; } }   // v0.66：型物の区切りは型物と組の 1 つ目を交互に
   }else if(fx===undefined) fx=autoFx(type);
   const f=fx;
   schedAt(t, ()=>launch(type, go, dist*(0.95+Math.random()*0.1), f, tube, col), true);
 }
 /* 小型の一続き（そろえた1回）。筒を左から順に使い、色は並べ方に従う */
 function salvo(t, n, go, gapA, gapB){
-  const small=smallList(), N=small.length||1, type=rndType(), fx=autoFx(type), cp=colorPlan();
+  const small=smallList(), N=small.length||1, type=rndTypeN(), fx=autoFx(type), cp=colorPlan(), ks=kataOn?kataSeq():null;
   n=N*Math.max(1, Math.round(n/N));                   // v0.45：横に展開するときは筒の本数の倍数（10本なら10・20…。途中で終わらない）
-  for(let i=0;i<n;i++){ const k=i%N; shot(t, type, go, small[k], cp(k,N), fx); t+=rr_(gapA,gapB); }
+  for(let i=0;i<n;i++){ const k=i%N, ty=ks?ks():type; shot(t, ty, go, small[k], cp(k,N), ks?autoFx(ty):fx); t+=rr_(gapA,gapB); }
   return t;
 }
 const PROG_KEY={tanpatsu:'pgTanpatsu', hayauchi:'pgHayauchi', danuchi:'pgDanuchi', starmine:'pgStarmine', finale:'pgFinale'};
@@ -4568,11 +4588,14 @@ function progSeg(kind, t0){
   const base=progGo;
   schedAt(t0, ()=>{ progKind=kind; progStatShow(); }, true);   // v0.39：区切りの始まりに左下の表示を替える
   if(++themeN%3===0) newBigPair();                    // 大型の組み合わせは3区切りごとに替える
+  if(segN%7===0) kataAt=(Math.random()*6)|0;          // v0.66：7 区切りに 1 区切りだけ型物（おまかせの 7 番目はフィナーレなので 0〜5 から）
+  kataOn = (segN++%7===kataAt) && kind!=='finale'; kataBig=0;
+  const pickT = kataOn ? ()=>KATA[(Math.random()*KATA.length)|0] : rndTypeN;
   let t=t0;
   if(kind==='tanpatsu'){
     if(base>=10) shot(t, null, base);
-    else { const small=smallList(), N=small.length||1, k=(Math.random()*N)|0, type=rndType(); shot(t, type, base, small[k], null); }
-    return t+rr_(6,10);
+    else { const small=smallList(), N=small.length||1, k=(Math.random()*N)|0, type=pickT(); shot(t, type, base, small[k], null); }
+    kataOn=false; return t+rr_(6,10);
   }
   if(kind==='hayauchi'){
     const go=Math.min(base,10), n=ri_(5,8);
@@ -4582,23 +4605,23 @@ function progSeg(kind, t0){
     else if(Math.random()<0.5) t=salvo(t, n, go, 0.5, 0.9);
     else{
       const vt=smallList().filter(q=>q.tilt===0), tb=vt.length ? vt[(Math.random()*vt.length)|0] : undefined;
-      const type=rndType(), fx=autoFx(type), cp=colorPlan();
-      for(let i=0;i<n;i++){ shot(t, type, go, tb, cp(i,n), fx); t+=rr_(0.5,0.9); }
+      const type=rndTypeN(), fx=autoFx(type), cp=colorPlan(), ks=kataOn?kataSeq():null;
+      for(let i=0;i<n;i++){ const ty=ks?ks():type; shot(t, ty, go, tb, cp(i,n), ks?autoFx(ty):fx); t+=rr_(0.5,0.9); }
     }
-    return t+4;
+    kataOn=false; return t+4;
   }
   if(kind==='danuchi'){
     let lad=upTo(base); lad = lad.length>=3 ? lad.slice(-4) : [lad[0],lad[0],lad[0]];
-    const type=rndType(), small=smallList(), N=small.length||1, cp=colorPlan(), fx=autoFx(type);
+    const type=rndTypeN(), small=smallList(), N=small.length||1, cp=colorPlan(), fx=autoFx(type), ks=kataOn?kataSeq():null;
     let k=0;
-    for(const go of lad){ if(go>=10) shot(t, null, go); else { const j=Math.round((N-1)/2); shot(t, type, go, small[j], cp(k++,lad.length), fx); } t+=1.2; }
-    return t+6;
+    for(const go of lad){ if(go>=10) shot(t, null, go); else { const j=Math.round((N-1)/2), ty=ks?ks():type; shot(t, ty, go, small[j], cp(k++,lad.length), ks?autoFx(ty):fx); } t+=1.2; }
+    kataOn=false; return t+6;
   }
   if(kind==='starmine'){
     const gos=upTo(Math.min(base,7)), go=gos[(Math.random()*gos.length)|0];
     const N=smallList().length||1;                     // v0.44：発数は小型の筒の本数の倍数（10本なら10発か20発。20本以上は1巡）
     t=salvo(t, N*(N<20 && Math.random()<0.5 ? 2 : 1), go, 0.25, 0.6);
-    return t+4;
+    kataOn=false; return t+4;
   }
   if(kind==='finale'){
     const n=ri_(25,35), gos=upTo(Math.min(base,7));
@@ -4610,7 +4633,7 @@ function progSeg(kind, t0){
     for(let i=0;i<nBig;i++) shot(t1+(t-t1)*(i+0.5)/nBig, null, base);
     return t+10;
   }
-  return t+5;
+  kataOn=false; return t+5;
 }
 function progStep(t0){
   const sel=progEl.value;
@@ -4626,7 +4649,7 @@ const autoBtn=document.getElementById('auto');
 autoBtn.addEventListener('click',()=>{
   autoOn=!autoOn; autoBtn.classList.toggle('on',autoOn);
   autoBtn.textContent = tr(autoOn ? 'autoStop' : 'autoStart');
-  nextAuto=0; progI=0; progKind=''; progStatShow();
+  nextAuto=0; progI=0; segN=0; progKind=''; progStatShow();
 });
 
 /* ============================================================
@@ -4975,7 +4998,7 @@ document.getElementById('startProg').addEventListener('click', ()=>{
   stopMusic();
   document.body.classList.add('in-show');
   if(MS.on) return;
-  if(autoOn){ for(let i=SCH.length-1;i>=0;i--) if(SCH[i].prog) SCH.splice(i,1); nextAuto=0; progI=0; }   // 選び直した番組で最初から
+  if(autoOn){ for(let i=SCH.length-1;i>=0;i--) if(SCH[i].prog) SCH.splice(i,1); nextAuto=0; progI=0; segN=0; }   // 選び直した番組で最初から
   else autoBtn.click();
 });
 document.getElementById('back').addEventListener('click', ()=>{
@@ -5450,7 +5473,9 @@ function muPlan(A){
   const barLv=bars.map(b=>{ let s=0,c=0; for(let k=b;k<Math.min(nb,b+4);k++){ s+=A.beatLv[k]; c++; } return c ? s/c : 0; });
   const cls=v=> v<0.28 ? 0 : v<0.55 ? 1 : v<0.8 ? 2 : 3;
   let kB=0;                                              // 大型の通し番号（近い仲間を交互、筒も交互）
-  const small=(t,go,k,type,col,fx)=>ev.push({bt:t, go, type, fx, col, tube:sm[((k%N)+N)%N]});
+  /* v0.66：型物は約 1 分に 1 回、1 小節ぶんの小玉だけ（Q187＝C）。種類は混ぜる。フィナーレの区間と最後の 1 発には入れない */
+  let mKata=null, lastKata=-5-Math.random()*10;   // 最初の型物は 40〜60 秒ごろ
+  const small=(t,go,k,type,col,fx)=>{ if(mKata){ type=mKata(); fx=autoFx(type); } ev.push({bt:t, go, type, fx, col, tube:sm[((k%N)+N)%N]}); };
   const big=(t,type,fx,col,j,go)=>{ ev.push({bt:t, go:go||curBigGo, type, fx, col, big:1, tube:NB ? bl[((j===undefined?kB:j)%NB+NB)%NB] : undefined}); kB++; };
   let curBigGo=bigGo;
   let prevCls=-1, prevPat='', cursor=0; const pats=[];   // pats：4小節ごとの段階と打ち方（確認用）
@@ -5465,15 +5490,19 @@ function muPlan(A){
     /* 密な区間（盛り上がり・最高潮）は軽い玉（短く燃える）を 5号で。長く燃える柳・錦冠などは静かな区間だけ */
     const LIGHT=['kiku','yae','hanwari','henka','dan'];   // 牡丹は星が多い（5号で約230）ので外す
     const bGo = c>=2 ? 10 : 20;                            // 密な区間の大型は 10号（20号は1発で星が約1100〜1400あり、重なると上限に当たる）
-    const type= c>=2 ? LIGHT[(Math.random()*LIGHT.length)|0] : rndType(), fx=autoFx(type), bType=bigPair[0], bType2=bigPair[1];
+    const type= c>=2 ? LIGHT[(Math.random()*LIGHT.length)|0] : rndTypeN(), fx=autoFx(type), bType=bigPair[0], bType2=bigPair[1];
     const smallGo = c>=2 ? 5 : smallGo0; curBigGo=bGo;
     const cands=MU_PAT[c].filter(q=>q!==prevPat); const pat=finale ? 'starmineFull' : cands[(Math.random()*cands.length)|0];
     // 区間が盛り上がる方へ変わった頭に「決め」（大型を全部＋小型の一斉）
     /* ときどき 40号で引き締める：約45秒ぶりの、ふつう以上の区間の頭（最高潮へ入る決めは下で 40号） */
     if(!(c===3 && c>prevCls) && c>=1 && B[pb[0]]-last40>=45 && p>0){ big(B[pb[0]],bType,bigFx[0],HUE[pal[0]],0,40); last40=B[pb[0]]; }
     if(c>prevCls && prevCls>=0 && c>=2){ const t=B[pb[0]]; if(c===3 && t-last40>=20){ big(t,bType,bigFx[0],HUE[pal[0]],0,40); last40=t; } else for(let j=0;j<Math.max(1,NB);j++) big(t,bType,bigFx[0],HUE[pal[0]],j,bigGo); const col=HUE[pal[1%pal.length]]; for(let k=0;k<N;k+=2) small(t,smallGo,k,type,col,fx); }
+    /* 4 小節の頭で前の型物から 45〜55 秒たっていたら、その中の 2〜4 小節目のどれかを型物に（実際の間は 4 小節の区切りと小節のずれで平均約 1 分） */
+    const kBar = (!finale && B[pb[0]]-lastKata>=45+Math.random()*10) ? 1+((Math.random()*Math.max(1,pb.length-1))|0) : -1;   // この 4 小節のどの小節を型物にするか
+    if(kBar>=0 && kBar<pb.length) lastKata=B[pb[kBar]];
     for(let bi=0;bi<pb.length;bi++){
       const b0=pb[bi], cp=muColorPlan(md);
+      mKata = bi===kBar ? kataSeq() : null;
       for(let q=0;q<4 && b0+q<nb;q++){
         const i=b0+q, t=B[i], d=beatDur(i), down=(q===0);
         switch(pat){
@@ -5492,6 +5521,7 @@ function muPlan(A){
         }
       }
     }
+    mKata=null;                                          // v0.66：型物の小節はこの 4 小節の中だけ（次の決め・最後の 1 発に持ち越さない）
     prevCls=c; prevPat=pat; pats.push([+B[pb[0]].toFixed(1), c, pat, +lvAvg.toFixed(2)]);
   }
   // v0.48：曲で最初に音が出た瞬間に「決め」

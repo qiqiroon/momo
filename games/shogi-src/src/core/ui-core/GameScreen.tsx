@@ -68,6 +68,7 @@ import { useAiStore } from '../store/ai-store';
 import { useRulebookStore } from '../store/rulebook-store';
 import { useAiOpponent } from '../controller/ai-driver';
 import { DebugClickLog } from './DebugClickLog';
+import { useByoyomiVoice } from './useByoyomiVoice';
 
 interface GameScreenProps {
   variant: 'a' | 'b';
@@ -318,10 +319,15 @@ export function GameScreen({ variant }: GameScreenProps) {
   // 提案できるのは自分の手番のときだけなので、止めなければ**答えを待っている間ずっと
   // 提案した側の時間が減る**＝提案そのものが不利になり、誰も提案しなくなる。
   const jishogiOfferPending = useOffersStore((s) => s.jishogiOfferFrom) !== null;
+  // ★v2.05 (画面機能 S06.Q5・音響 §2.2.1): 量子異常の投票中は**両者の時計を止める**。
+  // v2.04 までは止める処理が使われていない tickClock にだけあり、実際に時計を進める
+  // ここは見ていなかった＝投票中も手番の側の時間が減っていた。
+  const anomalyActive = useGameStore((s) => s.anomaly !== null);
   useEffect(() => {
     if (!activeClockSide) return;
     if (status !== 'playing') return;
     if (paused) return; // 一時中断中は tick しない
+    if (anomalyActive) return; // ★v2.05: 量子異常の投票中も止める
     if (undoOfferPending) return; // v0.42: 待った申し出中は両者の時計を止める
     if (jishogiOfferPending) return; // ★v1.84: 持将棋の提案中も両者の時計を止める
     if (nyugyokuPrompt) return; // ★v1.88: 入玉宣言を尋ねている間も止める
@@ -331,6 +337,13 @@ export function GameScreen({ variant }: GameScreenProps) {
     const anchorClock = { ...s.clocks[anchorSide] };
     const tc = s.timeControl;
     if (tc.mode === 'no_limit') return;
+    // ★v2.05 (2026-10-04 利用者の指示): **時間切れを決めるのは、指している人の端末だけ**。
+    // 相手と観戦者の端末も残りの秒数は数えて見せる（読み上げもする）が、0 になっても
+    // 自分では負けを決めず、指している人の端末から届く判定（時間切れの知らせ・指した手）を
+    // そのまま信用する。v2.04 までは受け取る側も自分の時計で 0 になった瞬間に負けを決めて
+    // 相手へ知らせていたので、通信が遅いと**間に合って指した手より先に負けが決まった**。
+    // ネット対戦でないとき（対 AI・ひとりで二人）は、この端末がすべての手を指す側なので決める。
+    const judgeHere = !online.isOnline || anchorSide === online.mySide;
 
     const advance = () => {
       const elapsed = Date.now() - anchorAt;
@@ -367,8 +380,11 @@ export function GameScreen({ variant }: GameScreenProps) {
           timedOut = true;
         }
       }
-      if (timedOut) {
+      if (timedOut && judgeHere) {
         useGameStore.getState().timeout(anchorSide);
+      } else if (timedOut) {
+        // 決めるのは相手の端末。0 のまま知らせを待つ（時計は 0 で止まって見える）。
+        useGameStore.getState().syncClock(anchorSide, next);
       } else {
         useGameStore.getState().syncClock(anchorSide, next);
       }
@@ -378,7 +394,26 @@ export function GameScreen({ variant }: GameScreenProps) {
     const interval = setInterval(advance, 100);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeClockSide, status, paused, undoOfferPending, jishogiOfferPending, nyugyokuPrompt]);
+  }, [activeClockSide, status, paused, undoOfferPending, jishogiOfferPending, nyugyokuPrompt, anomalyActive, online.isOnline, online.mySide]);
+
+  // ★v2.05: 秒読みの読み上げ (30秒・20秒・10秒・5秒・4・3・2・1・時間切れ)。
+  // 「時間切れ」は時間切れになった側がこの端末で指している人のときだけ言う
+  // (ネット対戦＝自分の側・対 AI＝人の側・ひとりで二人＝両方・観戦＝言わない)。
+  const voiceClocks = useGameStore((s) => s.clocks);
+  const voiceTc = useGameStore((s) => s.timeControl);
+  const voiceLocalSides = useMemo<readonly ('player1' | 'player2')[]>(() => {
+    if (online.isOnline) return online.mySide ? [online.mySide] : [];
+    if (vsAi) return [aiSide === 'player1' ? 'player2' : 'player1'];
+    return ['player1', 'player2'];
+  }, [online.isOnline, online.mySide, vsAi, aiSide]);
+  useByoyomiVoice({
+    status,
+    activeClockSide,
+    clocks: voiceClocks,
+    timeControl: voiceTc,
+    locale,
+    localSides: voiceLocalSides,
+  });
 
   // v0.35: 時間切れになったら相手に通知
   useEffect(() => {

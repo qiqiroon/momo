@@ -432,6 +432,9 @@ function CreditsModal({ onClose, t }: { onClose: () => void; t: (k: string) => s
           <a href="https://freesound.org/s/185846/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>LloydEvans09</a>{', '}
           <a href="https://freesound.org/s/658431/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>deathbyfairydust</a>{', '}
           <a href="https://freesound.org/s/270404/" target="_blank" rel="noopener" style={{ color: 'var(--text-muted)' }}>LittleRobotSoundFactory</a>
+          {/* ★v2.05: 秒読みの声。Windows の音声合成で作った (表記の義務は見つかっていないが念のため・利用者判断 2026-10-04) */}
+          {' / '}
+          Voice: Microsoft Windows Speech (Ayumi / Zira / Yaoyao)
         </div>
         <div style={{ marginTop: 12, textAlign: 'right' }}>
           <button

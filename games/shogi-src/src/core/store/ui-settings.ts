@@ -63,10 +63,8 @@ export function saveMyQuantumDisplay(mode: QuantumDisplay): void {
 /**
  * 秒読み音を鳴らすか (spec 付録D-10 §5.1 音セクション)。既定 ON。
  *
- * **注意**: 秒読みの音そのものは未実装 (音響仕様 v0.6 §2.2.1 は定めているが、
- * アプリにまだ音が無い)。したがって当面この設定は何も鳴らさない。
- * それでも項目を置くのは、モックにある項目を画面へ足す方針 (ユーザー判断 2026-08-12) と、
- * 未実装のものにふたをせずそのまま置く方針による。音を作るときにここへ結線する。
+ * ★v2.05: 秒読みの読み上げ (30秒・20秒・10秒・5秒・4・3・2・1・時間切れ) がこれを見る
+ * (core/ui-core/useByoyomiVoice.ts)。OFF なら何も言わない。
  */
 export function loadByomuSound(): boolean {
   const v = read(KEY_BYOMU);

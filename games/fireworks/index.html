@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Fireworks v0.66 -->
+<!-- MOMO Fireworks v0.67 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -351,7 +351,7 @@
       <circle cx="26" cy="21" r="2.6" fill="#fff7d6" stroke="#000" stroke-width="0.6"/>
     </g>
   </svg>
-  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.66</span></span></div>
+  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.67</span></span></div>
 </div>
 
 <div id="fps"><div id="fpsA"></div><div id="fpsB"></div></div>
@@ -540,7 +540,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.66</span></h1>
+        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.67</span></h1>
         <div class="subtitle" id="subtitle">Night Blooms, Golden Fade</div>
       </div>
     </header>
@@ -751,6 +751,7 @@
             星が玉の半径の 0.3〜0.8 まで広がるあいだに v0.65 の強調を効かせる（Q182・Q183）。柳の星を 85→55（Q184・Q185）。
             型物が続かないように：プログラムは 7 区切りに 1 区切りだけ（種類は混ぜる・フィナーレは除く）、大玉の組は型物どうしにしない。
             音楽の花火は約 1 分に 1 回、1 小節ぶんの小玉だけ（最後の区間・最後の 1 発は除く）（Q186・Q187））
+   （v0.67：菊の仲間（菊・八重芯・三重芯・変化菊・半割・段咲き）と錦冠の紐の太さを 0.7 倍（利用者の指示「実写に合わせて太くしすぎた」・Q190））
    仕様書 hanabi_sim_spec_v2.00.md §3 に対応する実装。
 
    v0.01 からの主要変更（§3.8 参照）
@@ -1572,6 +1573,8 @@ function tipF(s){ return s<TIP_L ? 1-s/TIP_L : 0; }
    開花直後は星が中心近くに固まり、明るく太い紐が重なって白い大きな光の球になっていた（菊 0.5 秒で白く飛んだ画素 343→4133）。
    星が玉の中心から離れた距離÷玉の半径 R が SPR_0 から SPR_1 まで広がるあいだに 0→1（なめらか）。殻が 1 枚の玉には密集の補正が効かないため */
 let SPR_0=0.3, SPR_1=0.8;
+/* v0.67：菊の仲間（kg）と錦冠の紐の太さを 0.7 倍（利用者の指示「実写に合わせて太くしすぎた」・Q190＝B）。玉の記録 B.tw に持たせる */
+let KG_TW=0.7;
 function sprF(p){ const B=p.B; if(!B || !(B.R>0)) return 1; const d=Math.hypot(p.x-B.x,p.y-B.y,p.z-B.z)/B.R;
   if(d<=SPR_0) return 0; if(d>=SPR_1) return 1; const u=(d-SPR_0)/(SPR_1-SPR_0); return u*u*(3-2*u); }
 function tailW(p){
@@ -2361,7 +2364,8 @@ function burstBody(type, go, shell){
   curBurst = {x:cx, y:cy, z:cz, R:S.R, D:Math.hypot(cx,cz),
               l:0, r:0, g:0, b:0, sxs:0, x0:1e9, x1:-1e9,
               sm:0, sx:W/2, hw:10, seed:(Math.random()*400)|0, age:0,
-              ovC:0, layers:[], go:go, pp:1, lm:0};   // v0.30：go・pp（小破裂の間引き割合）・lm（煙を照らす明るさ）
+              ovC:0, layers:[], go:go, pp:1, lm:0,
+              tw:((RECIPES[type]&&RECIPES[type].kg) || type==='kamuro') ? KG_TW : 1};   // v0.67：紐の太さの倍率（菊の仲間と錦冠）   // v0.30：go・pp（小破裂の間引き割合）・lm（煙を照らす明るさ）
   bursts.push(curBurst);
   if(bursts.length>10) bursts.shift();
 
@@ -3552,7 +3556,7 @@ function render(dt){
         if(wl){ const uw=pa/p.life; if(uw>0.74) bt*=Math.max(0,(1-uw)/0.26); }   // v0.34：柳の尾も最後はなだらかに消す（星と一緒に一度に消えない）
         if(bt>0.01 && TT>0.02){
           const tr=R+(TG0-R)*TAIL_GOLD, tg=Gc+(TG1-Gc)*TAIL_GOLD, tb=B+(TG2-B)*TAIL_GOLD;
-          const tw=Math.max(twMin, lw*TAIL_WIDTH*sI), mT=tw+2, WmT=Wv+mT, HmT=Hv+mT;   // 尾の太さは TAIL_WIDTH（光跡の TRAIL_WIDTH とは別）
+          const tw=Math.max(twMin, lw*TAIL_WIDTH*sI*(Bk?Bk.tw:1)), mT=tw+2, WmT=Wv+mT, HmT=Hv+mT;   // 尾の太さは TAIL_WIDTH（光跡の TRAIL_WIDTH とは別）
           const tri=tr|0, tgi=tg|0, tbi=tb|0, d08=0.08*p.life;
           const HB=HIST, hb=p.hs*HIST_S, hh=p.hh, hn=p.hn, o0=hb+hh*4, px0=p.x, py0=p.y, pz0=pz;
           const h0a=HB[o0+3];
@@ -3703,7 +3707,7 @@ function render(dt){
       if(bt>0.01 && TT>0.02){
         const tr=R+(TAIL_GOLD_C[0]-R)*TAIL_GOLD, tg=Gc+(TAIL_GOLD_C[1]-Gc)*TAIL_GOLD, tb=B+(TAIL_GOLD_C[2]-B)*TAIL_GOLD;
         const tcs=GLON?'':`${tr|0},${tg|0},${tb|0}`;
-        const tw=Math.max(0.6*DPR, lw*TAIL_WIDTH*sI);
+        const tw=Math.max(0.6*DPR, lw*TAIL_WIDTH*sI*(p.B?p.B.tw:1));
         if(!GLON){ cctx.lineCap='butt'; cctx.lineWidth=tw; }   // v0.54：丸い端はつなぎ目で重なって粒になる
         const NS=bee?14:(wl?16:TAIL_NS);
         let qx=P.x, qy=P.y;

@@ -5,6 +5,8 @@ import { getBgmVolume, getSfxVolume, setBgmVolume, setSfxVolume, getBgmMuted, ge
 import { MuteBox } from './MuteBox';
 import { useDebugStore, type DebugPanelEvent } from '../store/debug-store';
 import { useGameStore } from '../store/game-store';
+import { initPosition, pieceNameFor } from '../engine';
+import type { Mgf } from '../engine';
 import { SETTINGS_DEFAULTS, clearUiSettings, loadByomuSound, saveByomuSound } from '../store/ui-settings';
 
 /**
@@ -297,8 +299,27 @@ function ResetConfirm({ t, onCancel, onConfirm }: {
  * 重ね = 候補を濃い字のまま重ねる / 巡回 = 1秒ごとに字が入れ替わる。
  * 「動きを減らす」設定のときは巡回を止めて代表 1 字を出す。
  */
+/** 本将棋の見本の字 (付録D-10 §5.2.1)。 */
+const SHOGI_SAMPLE = ['歩', '香', '桂'];
+
+/**
+ * ★v2.04: 見本の字は**いま遊んでいるルールの駒**から（付録D-10 v2.6 §5.2.1・利用者の指摘）。
+ * 将棋の駒 (歩・香・桂) を持つルールは従来どおり。持たないルール (チェス等) は、
+ * 初期配置に並ぶ駒を定義の並び (強い順) の**弱いほうから 3 つ**＝チェスなら P・N・B。
+ */
+export function quantumSampleGlyphs(mgf: Mgf): string[] {
+  const ids = new Set(mgf.pieces.map((p) => p.id));
+  if (ids.has('fu') && ids.has('kyo') && ids.has('kei')) return SHOGI_SAMPLE;
+  const placed = new Set<string>();
+  for (const row of initPosition(mgf).board) for (const cell of row) if (cell) placed.add(cell.kind);
+  const order = mgf.pieces.filter((p) => placed.has(p.id)).map((p) => p.id).reverse();
+  const glyphs = order.slice(0, 3).map((id) => pieceNameFor(mgf, id, 'ja'));
+  return glyphs.length > 0 ? glyphs : SHOGI_SAMPLE;
+}
+
 function QuantumDisplayPreview({ kind }: { kind: 'stack' | 'cycle' }) {
-  const glyphs = ['歩', '香', '桂'];
+  const mgf = useGameStore((s) => s.mgf);
+  const glyphs = quantumSampleGlyphs(mgf);
   const [i, setI] = useState(1);
   const reduced = typeof window !== 'undefined'
     && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -312,7 +333,7 @@ function QuantumDisplayPreview({ kind }: { kind: 'stack' | 'cycle' }) {
       <div className="qd-piece">
         {kind === 'stack'
           ? glyphs.map((g, n) => <span key={g} className={`qd-glyph g${n + 1}`}>{g}</span>)
-          : <span className="qd-glyph">{glyphs[i]}</span>}
+          : <span className="qd-glyph">{glyphs[i % glyphs.length]}</span>}
       </div>
     </div>
   );

@@ -120,39 +120,80 @@ describe('S02 カスタムの札から読み込んだルールを選ぶ (仕様 
     vi.unstubAllGlobals();
   });
 
-  it('★カスタムの札を押すと読み込めるルールの一覧が出て、選ぶとその定義が入る', async () => {
+  /**
+   * ★v2.04 (2026-10-04 利用者の指摘・付録D-2 v1.10 §3.2)＝**押した瞬間に選んだ状態**。
+   * v2.03 までは一覧を開くだけで、一覧からチェスを選ぶまでオレンジにならなかった。
+   * 定義は同梱の既定 (チェス) から待たずに入る＝定義の無い custom は生まれない。
+   */
+  it('★カスタムの札を押した瞬間に custom (チェスの定義つき) になり、一覧のチェスに印が付く', async () => {
     mockConnector(true);
     mockRules();
     useRouteStore.setState({ ruleSelectReturn: 'offline-rule' });
-    render(<RuleSelectScreen />);
+    const { container } = render(<RuleSelectScreen />);
 
     fireEvent.click(screen.getByText('カスタム'));
-    fireEvent.click(await screen.findByText('チェス'));
 
-    await waitFor(() => {
-      expect(useMatchmakingStore.getState().pendingRoomConfig.gameType).toBe('custom');
-    });
+    // 一覧を待たずに決まっている
     const cfg = useMatchmakingStore.getState().pendingRoomConfig;
+    expect(cfg.gameType).toBe('custom');
     // ★**定義そのもの**が入ること＝種類の名札だけでは盤が作れない。
     expect(cfg.customMgf?.board.width).toBe(8);
     expect(cfg.customRuleName).toBe('チェス');
+    expect(cfg.customRuleId).toBe('chess');
+    // 札がオレンジ (選択状態) になる
+    expect(container.querySelector('.rule-card.selected .rc-name')?.textContent).toBe('カスタム');
+    // 一覧が出て、チェスの行に印
+    await waitFor(() => {
+      expect(container.querySelector('.rule-pick-row.selected')?.textContent).toContain('チェス');
+    });
   });
 
-  it('★ネット対戦の経路では、カスタムの札は押しても何も起きない', async () => {
+  it('カスタムを選んでいる間に札をもう一度押しても、選んだまま (一覧も閉じない)', async () => {
+    mockConnector(true);
+    mockRules();
+    useRouteStore.setState({ ruleSelectReturn: 'offline-rule' });
+    const { container } = render(<RuleSelectScreen />);
+
+    fireEvent.click(screen.getByText('カスタム'));
+    await waitFor(() => expect(container.querySelector('.rule-pick-row.selected')).toBeTruthy());
+    fireEvent.click(container.querySelector('.rule-card.selected') as HTMLElement);
+
+    expect(useMatchmakingStore.getState().pendingRoomConfig.gameType).toBe('custom');
+    expect(container.querySelector('.rule-pick')).toBeTruthy();
+  });
+
+  it('ほかのルールへ移ると一覧は消え、もう一度カスタムを押すと前に選んだ定義で戻る', async () => {
+    mockConnector(true);
+    mockRules();
+    useRouteStore.setState({ ruleSelectReturn: 'offline-rule' });
+    const { container } = render(<RuleSelectScreen />);
+
+    fireEvent.click(screen.getByText('カスタム'));
+    fireEvent.click(screen.getByText('本将棋'));
+    expect(useMatchmakingStore.getState().pendingRoomConfig.gameType).toBe('shogi');
+    expect(container.querySelector('.rule-pick')).toBeNull();
+
+    fireEvent.click(screen.getByText('カスタム'));
+    expect(useMatchmakingStore.getState().pendingRoomConfig.customRuleId).toBe('chess');
+  });
+
+  /**
+   * ネット対戦の経路でも押せる (段B②・親 §6.5＝定義をルール同期で運べるようになった)。
+   * ★v2.03 までここには「ネット対戦の経路では押しても何も起きない」という検査があったが、
+   * **一覧の取得が終わる前に見ていたので通っていただけ**で、コードはすでに押せる作りだった。
+   */
+  it('ネット対戦の経路でも、カスタムの札を押すと選んだ状態になる', () => {
     mockConnector(true);
     mockRules();
     useRouteStore.setState({ ruleSelectReturn: 'net-lobby' });
     render(<RuleSelectScreen />);
 
     fireEvent.click(screen.getByText('カスタム'));
-    await Promise.resolve();
 
-    // 一覧も出ない・選んだことにもならない（理由も保護も出さない＝無反応）。
-    expect(screen.queryByText('チェス')).toBeNull();
-    expect(useMatchmakingStore.getState().pendingRoomConfig.gameType).toBe('shogi');
+    expect(useMatchmakingStore.getState().pendingRoomConfig.gameType).toBe('custom');
   });
 
-  it('一覧が取れないときは、選んだことにしない（定義の無い custom を作らない）', async () => {
+  it('一覧が取れなくても、同梱の既定 (チェス) で選んだ状態は保つ (定義の無い custom は作らない)', async () => {
     mockConnector(true);
     mockRules(false);
     useRouteStore.setState({ ruleSelectReturn: 'offline-rule' });
@@ -161,8 +202,8 @@ describe('S02 カスタムの札から読み込んだルールを選ぶ (仕様 
     fireEvent.click(screen.getByText('カスタム'));
 
     expect(await screen.findByText('ルールの一覧を読み込めませんでした。')).toBeTruthy();
-    expect(useMatchmakingStore.getState().pendingRoomConfig.gameType).toBe('shogi');
-    expect(useMatchmakingStore.getState().pendingRoomConfig.customMgf).toBeUndefined();
+    expect(useMatchmakingStore.getState().pendingRoomConfig.gameType).toBe('custom');
+    expect(useMatchmakingStore.getState().pendingRoomConfig.customMgf?.metadata.game_id).toBe('chess');
   });
 });
 

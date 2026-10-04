@@ -7,8 +7,16 @@ import { CatIcon } from '../../../core/ui-core/CatIcon';
 import { HeaderCommonRight } from '../../../core/ui-core/HeaderCommonRight';
 import { useMatchmakingStore, type TorusMode, type QuantumDisplayMode, type TimeControlMode } from '../store';
 import type { GameType } from '../roomNameCodec';
-import { MiniBoardPreview, QUANTUM_PIECES, pieceLabel, type PreviewHandicap } from './MiniBoardPreview';
-import { listHandicaps, findHandicap, mgfForGameType } from '../../../core/engine';
+import {
+  MiniBoardPreview,
+  QUANTUM_PIECES,
+  initialFor,
+  pieceLabel,
+  quantumKindsFor,
+  type PreviewHandicap,
+} from './MiniBoardPreview';
+import { listHandicaps, findHandicap, mgfForGameType, officialCustomRule } from '../../../core/engine';
+import type { Mgf } from '../../../core/engine';
 import {
   fetchRuleCatalog,
   fetchRuleMgf,
@@ -107,6 +115,13 @@ export function formatTimeSummary(
   return parts.join('・');
 }
 
+/**
+ * ★v2.04: カスタムを押したとき最初に選んでおく定義（同梱の公式ルールの id）。
+ * いま読み込めるのはチェスだけ（`public/rules/index.json`）。ほかが増えても既定はこれで、
+ * 選び替えは一覧から（付録D-2 v1.10 §3.2）。
+ */
+const DEFAULT_CUSTOM_RULE_ID = 'chess';
+
 export function RuleSelectScreen() {
   const locale = useI18nStore((s) => s.locale);
   const t = (key: string) => _t(key, locale);
@@ -115,9 +130,11 @@ export function RuleSelectScreen() {
   const setConfig = useMatchmakingStore((s) => s.setPendingRoomConfig);
 
   // v0.63: 量子「巡回」プレビューの現在表示駒 (1 秒ごとに強い順→弱い順に切替)
+  // ★v2.04: 顔ぶれの数はルールで変わる (将棋 8 種・チェス 6 種) ので、拍だけ数えて
+  // 表示のときに顔ぶれの長さで折り返す。840 は 1〜8 のどれでも割り切れる。
   const [cycleIdx, setCycleIdx] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setCycleIdx((i) => (i + 1) % QUANTUM_PIECES.length), 1000);
+    const id = setInterval(() => setCycleIdx((i) => (i + 1) % 840), 1000);
     return () => clearInterval(id);
   }, []);
 
@@ -138,6 +155,13 @@ export function RuleSelectScreen() {
   // 選ばせるだけ選ばせ、可否は定義が決まってから効く（宣言が無ければすべて許容が既定）。
   // ★つなぎ方は 1 つずつ見る＝**円筒は許すが完全トーラスは許さない**ルールが書けるので、
   // まとめて可否を決めない（§3.2.1 は 2 つを別々の欄で持っている）。
+  // ★v2.04: 巡回／重ねの見本マスに出す顔ぶれも**選んだルールの駒**で（付録D-2 v1.10 §4.1）。
+  // v2.03 までは将棋の 8 種の決め打ちで、チェスでも漢字が回っていた（利用者報告）。
+  const sampleKinds: readonly string[] =
+    config.gameType === 'custom' && ruleMgf
+      ? quantumKindsFor(initialFor('custom', ruleMgf), false, ruleMgf)
+      : QUANTUM_PIECES;
+
   const torusModeOK = (mode: TorusMode) => !ruleMgf || torusAllowed(ruleMgf, mode);
   const torusUsable = torusModeOK('cylinder') || torusModeOK('full');
   const quantumUsable = ruleMgf ? quantumAllowed(ruleMgf) : true;
@@ -168,8 +192,11 @@ export function RuleSelectScreen() {
   // v0.69: 戻る先は route.ruleSelectReturn を参照 (S04 経由=net-lobby / S01 経由=offline-rule)
   const returnDest = useRouteStore((s) => s.ruleSelectReturn);
 
-  /** カスタムの札を押して、読み込めるルールの一覧を開いているか。 */
-  const [pickOpen, setPickOpen] = useState(false);
+  /**
+   * 読み込めるルールの一覧を出しているか。★v2.04: **カスタムを選んでいる間はずっと出す**
+   * （付録D-2 v1.10 §3.2）＝どのルールで指すのかを一覧の印で見せ、選び替えもそこでする。
+   */
+  const pickOpen = config.gameType === 'custom';
   /** 読み込めるルールの一覧（`rules/` のマニフェスト）。開いたときに 1 回だけ取りに行く。 */
   const [catalog, setCatalog] = useState<RuleCatalogEntry[] | null>(null);
   const [catalogError, setCatalogError] = useState(false);
@@ -192,26 +219,40 @@ export function RuleSelectScreen() {
   }, [pickOpen, catalog, catalogError]);
 
   /**
-   * 一覧から 1 つ選ぶ＝**定義を取ってきて初めて custom が決まる**。
-   * 取れなかったときは選んだことにしない（定義の無い custom を下流へ流さない）。
+   * カスタムを**この定義で**選んだことにする差分。定義と一緒にしか custom を立てない
+   * （定義の無い custom を下流へ流さない）。移った先の定義が許さない変則条件・手合いは落とす
+   * （親 §3.2.1・§3.12.1＝可否は定義から引く）。
+   */
+  const customPatch = (mgf: Mgf): Parameters<typeof setConfig>[0] => {
+    const patch: Parameters<typeof setConfig>[0] = {
+      gameType: 'custom',
+      customMgf: mgf,
+      customRuleName: mgf.metadata.game_name,
+      // ★段B②: **公式一覧から選んだ**という印（目印＝定義が名乗る `game_id`）。
+      // ネット対戦では定義を送らず、受け取った側がこの目印で自分で取ってくる。
+      customRuleId: mgf.metadata.game_id,
+    };
+    if (config.torusMode !== 'none' && !torusAllowed(mgf, config.torusMode)) {
+      patch.torusMode = 'none';
+      patch.torus = false;
+    }
+    if (config.quantum && !quantumAllowed(mgf)) patch.quantum = false;
+    // 手合いは**その定義が持っている一覧**から決まる。持っていなければ平手へ戻す。
+    if (config.handicap && !findHandicap(mgf, config.handicap.typeId)) patch.handicap = null;
+    return patch;
+  };
+
+  /**
+   * 一覧から 1 つ選ぶ＝定義を取ってきて選び替える。
+   * 取れなかったときは選び替えない（いま選んでいる定義のまま）。
    */
   const onPickCustom = async (entry: RuleCatalogEntry) => {
+    if (entry.id === config.customRuleId) return;
     seButton();
     setPickingId(entry.id);
     try {
       const mgf = await fetchRuleMgf(import.meta.env.BASE_URL, entry.file);
-      const patch: Parameters<typeof setConfig>[0] = {
-        gameType: 'custom',
-        customMgf: mgf,
-        customRuleName: mgf.metadata.game_name,
-        // ★段B②: **公式一覧から選んだ**という印（目印＝定義が名乗る `game_id`）。
-        // ネット対戦では定義を送らず、受け取った側がこの目印で自分で取ってくる。
-        customRuleId: mgf.metadata.game_id,
-      };
-      // 手合いは**その定義が持っている一覧**から決まる。持っていなければ平手へ戻す。
-      if (config.handicap && !findHandicap(mgf, config.handicap.typeId)) patch.handicap = null;
-      setConfig(patch);
-      setPickOpen(false);
+      setConfig(customPatch(mgf));
     } catch {
       setCatalogError(true);
     } finally {
@@ -226,13 +267,17 @@ export function RuleSelectScreen() {
       // ★段B②: **ネット対戦の経路でも押せる**。無反応にしてあったのは「相手へ定義を
       // 送る仕組みが無かった」ためで、定義をルール同期で運べるようになった時点で
       // その理由は消えている（親 §6.5）。
-      // カスタムは**定義を選んで初めて決まる**ので、ここでは一覧を開くだけ。
-      // 種類の名札を先に立てると、定義の無い custom が下流へ流れてしまう。
+      // ★v2.04: **押した瞬間に選んだ状態にする**（付録D-2 v1.10 §3.2・利用者の指摘）。
+      // v2.03 までは一覧を開くだけで、一覧から選ぶまでオレンジにならなかった。
+      // 定義は**前に選んでいたもの、無ければ同梱の既定（チェス）**＝アプリに入っているので
+      // 待たずに決まり、定義の無い custom は生まれない。ほかのルールは一覧から選び替える。
+      if (config.gameType === 'custom') return;
+      const mgf = config.customMgf ?? officialCustomRule(DEFAULT_CUSTOM_RULE_ID);
+      if (!mgf) return;
       seButton();
-      setPickOpen((v) => !v);
+      setConfig(customPatch(mgf));
       return;
     }
-    setPickOpen(false);
     const patch: Parameters<typeof setConfig>[0] = { gameType: rid };
     // 移った先のルールが許さない変則条件は落とす。**可否は移った先の定義から引く**
     // （親 §3.2.1・画面に一覧を持たない）。
@@ -361,6 +406,7 @@ export function RuleSelectScreen() {
           quantumDisplayMode={config.quantumDisplayMode}
           locale={locale}
           handicap={previewHandicap}
+          customMgf={config.gameType === 'custom' ? config.customMgf : null}
         />
       </div>
       {handicapSummary && (
@@ -447,17 +493,29 @@ export function RuleSelectScreen() {
                 {catalog?.length === 0 && (
                   <div className="rule-pick-note">{t('s02.ruleCustom.none')}</div>
                 )}
-                {catalog?.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    className="rule-pick-row"
-                    disabled={pickingId !== null}
-                    onClick={() => void onPickCustom(e)}
-                  >
-                    {pickingId === e.id ? t('s02.ruleCustom.loading') : e.name}
-                  </button>
-                ))}
+                {catalog?.map((e) => {
+                  // ★v2.04: いま選んでいる定義の行に印（カードと同じオレンジの枠と地＋チェック丸）
+                  const picked = e.id === config.customRuleId;
+                  return (
+                    <button
+                      key={e.id}
+                      type="button"
+                      className={`rule-pick-row${picked ? ' selected' : ''}`}
+                      disabled={pickingId !== null}
+                      aria-pressed={picked}
+                      onClick={() => void onPickCustom(e)}
+                    >
+                      {pickingId === e.id ? t('s02.ruleCustom.loading') : e.name}
+                      {picked && (
+                        <span className="rp-check" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M5 12l5 5L20 7" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -588,7 +646,7 @@ export function RuleSelectScreen() {
                           {/* v0.65: qpv-cell-wrap で ? を clip 外に配置 */}
                           <div className="qpv-cell-wrap">
                             <div className="qpv-cell">
-                              <span className="g">{pieceLabel(QUANTUM_PIECES[cycleIdx], locale)}</span>
+                              <span className="g">{pieceLabel(sampleKinds[cycleIdx % sampleKinds.length], locale)}</span>
                             </div>
                             <span className="qmk">?</span>
                           </div>
@@ -603,7 +661,7 @@ export function RuleSelectScreen() {
                           <div className="qpv-cell-wrap">
                             <div className="qpv-cell">
                               <span className="stack">
-                                {QUANTUM_PIECES.map((p) => (
+                                {sampleKinds.map((p) => (
                                   <span key={p}>{pieceLabel(p, locale)}</span>
                                 ))}
                               </span>

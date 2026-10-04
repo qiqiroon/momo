@@ -2582,6 +2582,11 @@ body::before {
   cursor: pointer;
 }
 .rule-pick-row:hover:not(:disabled) { border-color: var(--orange); color: var(--orange-light); }
+/* ★v2.04: いま選んでいる定義の行 (カードの .selected と同じ枠と地＋チェック丸・付録D-2 v1.10 §3.2) */
+.rule-pick-row { display: flex; align-items: center; gap: 8px; }
+.rule-pick-row.selected { border-color: var(--orange); background: var(--bg-selected); color: var(--orange-light); }
+.rule-pick-row .rp-check { margin-left: auto; width: 18px; height: 18px; border-radius: 50%; background: var(--orange); display: flex; align-items: center; justify-content: center; }
+.rule-pick-row .rp-check svg { width: 11px; height: 11px; stroke: #fff; stroke-width: 3; fill: none; }
 
 .rule-card:hover:not(.disabled) {
   border-color: var(--border-strong);
@@ -3002,10 +3007,12 @@ body::before {
   border-color: transparent;
   box-shadow: none;
 }
+/* ★v2.04: 列数・段数はルール定義から (MiniBoardPreview が --cols/--rows/--grid-cols/--grid-rows を渡す)。
+   渡されない画面では従来どおり 9。 */
 .mini-grid {
   display: grid;
-  grid-template-columns: repeat(9, var(--mc));
-  grid-template-rows: repeat(9, var(--mc));
+  grid-template-columns: repeat(var(--grid-cols, 9), var(--mc));
+  grid-template-rows: repeat(var(--grid-rows, 9), var(--mc));
   background: var(--board);
   border: 1.4px solid var(--board-line);
   position: relative;
@@ -3019,43 +3026,39 @@ body::before {
    -1px オフセットして thick border の中心が格子線中心におおよそ揃うように。 */
 .mini-grid.torus-cyl,
 .mini-grid.torus-full {
-  --mc: 16px;
   border-width: 0;
 }
 .mini-grid.torus-cyl {
-  grid-template-columns: repeat(13, var(--mc));
   -webkit-mask-image: linear-gradient(to right,
     transparent 0%,
     rgba(0,0,0,0.5) calc(var(--mc) * 1.5),
     black calc(var(--mc) * 2),
-    black calc(var(--mc) * 11),
-    rgba(0,0,0,0.5) calc(var(--mc) * 11.5),
+    black calc(var(--mc) * (var(--cols, 9) + 2)),
+    rgba(0,0,0,0.5) calc(var(--mc) * (var(--cols, 9) + 2.5)),
     transparent 100%);
           mask-image: linear-gradient(to right,
     transparent 0%,
     rgba(0,0,0,0.5) calc(var(--mc) * 1.5),
     black calc(var(--mc) * 2),
-    black calc(var(--mc) * 11),
-    rgba(0,0,0,0.5) calc(var(--mc) * 11.5),
+    black calc(var(--mc) * (var(--cols, 9) + 2)),
+    rgba(0,0,0,0.5) calc(var(--mc) * (var(--cols, 9) + 2.5)),
     transparent 100%);
 }
 .mini-grid.torus-full {
-  grid-template-columns: repeat(13, var(--mc));
-  grid-template-rows: repeat(13, var(--mc));
   -webkit-mask-image:
     linear-gradient(to right,
       transparent 0%,
       rgba(0,0,0,0.5) calc(var(--mc) * 1.5),
       black calc(var(--mc) * 2),
-      black calc(var(--mc) * 11),
-      rgba(0,0,0,0.5) calc(var(--mc) * 11.5),
+      black calc(var(--mc) * (var(--cols, 9) + 2)),
+      rgba(0,0,0,0.5) calc(var(--mc) * (var(--cols, 9) + 2.5)),
       transparent 100%),
     linear-gradient(to bottom,
       transparent 0%,
       rgba(0,0,0,0.5) calc(var(--mc) * 1.5),
       black calc(var(--mc) * 2),
-      black calc(var(--mc) * 11),
-      rgba(0,0,0,0.5) calc(var(--mc) * 11.5),
+      black calc(var(--mc) * (var(--rows, 9) + 2)),
+      rgba(0,0,0,0.5) calc(var(--mc) * (var(--rows, 9) + 2.5)),
       transparent 100%);
   -webkit-mask-composite: source-in;
           mask-image:
@@ -3063,15 +3066,15 @@ body::before {
       transparent 0%,
       rgba(0,0,0,0.5) calc(var(--mc) * 1.5),
       black calc(var(--mc) * 2),
-      black calc(var(--mc) * 11),
-      rgba(0,0,0,0.5) calc(var(--mc) * 11.5),
+      black calc(var(--mc) * (var(--cols, 9) + 2)),
+      rgba(0,0,0,0.5) calc(var(--mc) * (var(--cols, 9) + 2.5)),
       transparent 100%),
     linear-gradient(to bottom,
       transparent 0%,
       rgba(0,0,0,0.5) calc(var(--mc) * 1.5),
       black calc(var(--mc) * 2),
-      black calc(var(--mc) * 11),
-      rgba(0,0,0,0.5) calc(var(--mc) * 11.5),
+      black calc(var(--mc) * (var(--rows, 9) + 2)),
+      rgba(0,0,0,0.5) calc(var(--mc) * (var(--rows, 9) + 2.5)),
       transparent 100%);
           mask-composite: intersect;
 }
@@ -3083,7 +3086,7 @@ body::before {
   top: 0;
   bottom: 0;
   left: calc(var(--mc) * 2 - 1px);
-  width: calc(var(--mc) * 9 + 2px);
+  width: calc(var(--mc) * var(--cols, 9) + 2px);
   border-left: 2px solid var(--board-line);
   border-right: 2px solid var(--board-line);
   pointer-events: none;
@@ -3095,8 +3098,8 @@ body::before {
   position: absolute;
   top: calc(var(--mc) * 2 - 1px);
   left: calc(var(--mc) * 2 - 1px);
-  width: calc(var(--mc) * 9 + 2px);
-  height: calc(var(--mc) * 9 + 2px);
+  width: calc(var(--mc) * var(--cols, 9) + 2px);
+  height: calc(var(--mc) * var(--rows, 9) + 2px);
   border: 2px solid var(--board-line);
   pointer-events: none;
   z-index: 2;
@@ -3104,10 +3107,8 @@ body::before {
 }
 /* 拡張マスの右端/下端の外枠は畳む */
 .mini-grid.torus-cyl .mini-sq { border-right: 1px solid var(--board-line); }
-.mini-grid.torus-cyl .mini-sq:nth-child(13n) { border-right: none; }
 .mini-grid.torus-full .mini-sq { border-right: 1px solid var(--board-line); border-bottom: 1px solid var(--board-line); }
-.mini-grid.torus-full .mini-sq:nth-child(13n) { border-right: none; }
-.mini-grid.torus-full .mini-sq:nth-last-child(-n+13) { border-bottom: none; }
+/* 右端・下端の線は MiniBoardPreview が付ける印 (.lc/.lr) で畳む (★v2.04・列数の決め打ちをやめた) */
 .mini-sq {
   border-right: 1px solid var(--board-line);
   border-bottom: 1px solid var(--board-line);
@@ -3117,8 +3118,8 @@ body::before {
   /* v0.65: border-box で border が cell 幅内に収まり、::before の位置がグリッド線と揃う */
   box-sizing: border-box;
 }
-.mini-sq:nth-child(9n) { border-right: none; }
-.mini-grid .mini-sq:nth-last-child(-n+9) { border-bottom: none; }
+.mini-grid .mini-sq.lc { border-right: none; }
+.mini-grid .mini-sq.lr { border-bottom: none; }
 .mini-pc {
   width: 82%;
   height: 82%;
@@ -3137,6 +3138,12 @@ body::before {
 /* v0.58: 後手駒は駒全体 (外形の五角形ごと) を回転させて向きを反転する。
    v0.57 までは span (文字) のみ回転していたため、外形が反転していなかった。 */
 .mini-pc.g2 { transform: rotate(180deg); }
+/* ★v2.04: ルール定義が文字の色を持つ駒 (チェスの先手＝白)。縁取りは常に黒 (駒デザイン v0.15 §2.4)。 */
+.mini-pc span.tinted {
+  -webkit-text-stroke: 0.6px var(--piece-ink);
+  paint-order: stroke;
+  font-weight: 700;
+}
 
 /* v0.63/v0.64: プレビュー量子 ON 時の ? マーク。駒 (mini-pc) の clip-path で
    クリップされないよう、.mini-sq 直下に絶対配置する (モック S06 .qmark-b と同じ)。

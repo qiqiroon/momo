@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Fireworks v0.64 -->
+<!-- MOMO Fireworks v0.65 -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -351,7 +351,7 @@
       <circle cx="26" cy="21" r="2.6" fill="#fff7d6" stroke="#000" stroke-width="0.6"/>
     </g>
   </svg>
-  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.64</span></span></div>
+  <div class="mh"><span class="mh-t">MOMO <b>Fireworks</b></span><span class="mh-s"><span id="mhSub">Night Blooms, Golden Fade</span><span class="mh-v" id="mhVer">v0.65</span></span></div>
 </div>
 
 <div id="fps"><div id="fpsA"></div><div id="fpsB"></div></div>
@@ -540,7 +540,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.64</span></h1>
+        <h1><span class="momo">MOMO</span><span class="fireworks">Fireworks</span><span class="version-tag" id="version-tag">v0.65</span></h1>
         <div class="subtitle" id="subtitle">Night Blooms, Golden Fade</div>
       </div>
     </header>
@@ -745,6 +745,8 @@
    （v0.64：尾の質感（R9）。実写の尾は細かい火花の粒の集まりで、途切れ、太さ・明るさにむらがある。尾を描くとき、
             火花が出た時刻ごとに粒を作り（粒は尾の上を滑らない）、粒ごとの明るさ・太さを変え、ちらつかせる。
             先端はすき間なくつながり、先端から遠いほど燃え尽きた粒が増えてすき間が大きくなり、だんだん消える（利用者の指摘））
+   （v0.65：尾のある星の先端に丸い玉を描かない。実写は紐の端に玉がふくらまず、紐が先端並みに明るい（利用者の指摘）。
+            尾を曳いている間は先端のにじみを消し、尾を 2.6 倍明るく、先端から尾の 0.75 までを明るさ 2 倍・太さ 2 倍にする（Q175〜Q179））
    仕様書 hanabi_sim_spec_v2.00.md §3 に対応する実装。
 
    v0.01 からの主要変更（§3.8 参照）
@@ -1553,6 +1555,21 @@ const WL_BR_K = 2.0;       // v0.35：柳の分岐で枝を押し分ける勢い
 const WL_SAG = 1.5;         // v0.34：柳の尾の火花が垂れる速さの上限 [m/s]（実写の尾は長い間ほぼその場に残る）
 const TAIL_GAIN   = 1.60;   // v0.42：1.30→1.60（実写の尾は太く明るい光の筋）   // 尾の明るさ（星の明るさ比。p.tail を掛ける）
 const TAIL_WIDTH  = 1.25;   // v0.42：0.90→1.25   // 尾の太さ（光跡の線幅比）
+/* v0.65：尾のある星の先端と紐の明るさの釣り合い（利用者の指摘・Q175＝C）。実写は紐の端に丸い玉がふくらまず、
+   紐が先端並みに明るい（紐÷先端：実写 0.53〜0.89、v0.64 は 0.35〜0.45）。尾を曳いている間だけ、
+   先端のにじみの濃さを HEAD_TK 倍・半径を HEAD_TR 倍にし、尾の明るさを TAIL_NK 倍にする（尾が消えていくのに合わせて元へ戻す）。牡丹など尾の無い星は変えない */
+let HEAD_TK=0, HEAD_TR=1, TAIL_NK=2.6;   // Q177：先端の玉は消す（0）。Q176：尾 2.6 倍
+/* v0.65：紐の先端を明るく（利用者の指示・Q177）。紐は先端付近で明るさの上限に近いので、先端から TIP_L（尾の時間の割合）までを
+   TIP_A 倍に上乗せし、色も TIP_W の割合で白へ寄せる（実写の紐の先端は白い）。先端で最大、TIP_L で 0 */
+let TIP_A=2, TIP_W=0, TIP_L=0.75, TIP_WD=2;   // Q178＝C（太さ 2 倍）・Q179＝B（長さ 0.75）。白くするのは見送り（TIP_W=0）   // TIP_WD：先端の紐の太さの倍率（明るさが上限に達したあと光を増やす手段）
+ const TIP_C=[255,244,222];
+function tipF(s){ return s<TIP_L ? 1-s/TIP_L : 0; }
+function tailW(p){
+  if(!(p.tail>0) || !(p.hn>0)) return 0;
+  const pa=p.age; if(pa>=p.life*p.tailEnd) return 0;
+  if(p.wl){ const uw=pa/p.life; return uw>0.74 ? Math.max(0,(1-uw)/0.26) : 1; }
+  const ue=pa/(p.life*p.tailEnd); return ue>0.8 ? Math.max(0,(1-ue)/0.2) : 1;
+}
 const TAIL_GOLD   = 0.55;   // 尾の色を炭火の金色へ寄せる割合（色星の尾も金色を帯びる）
 const TAIL_GOLD_C = [255,176,92];
 const BURN_FRAC   = 0.12;   // 寿命の最後のこの割合で燃え尽きる
@@ -3518,7 +3535,7 @@ function render(dt){
       const pa=p.age;
       if(p.tail>0 && p.hn>0 && pa < p.life*p.tailEnd){
         const bee=p.hw!==0, wl=p.wl, TT=Math.min(bee?TAIL_TIME_BEE:(wl?TAIL_TIME_WL:TAIL_TIME), pa), NS=bee?14:(wl?16:TAIL_NS), FW=bee?TAIL_FW14:(wl?TAIL_FW12:TAIL_FW);   // v0.30：蜂、v0.31：柳
-        const bt0 = p.tail*TAIL_GAIN*aD*EXPO*adaptGain*dg*Math.sqrt(Iv)*(wl?WL_TAIL:1);
+        const bt0 = p.tail*TAIL_GAIN*aD*EXPO*adaptGain*dg*Math.sqrt(Iv)*(wl?WL_TAIL:1)*(1+(TAIL_NK-1)*tailW(p));   // v0.65：TAIL_NK
         let bt = wl ? bt0 : b*bt0;                          // v0.33：柳の尾は区間ごとに火花が出たときの明るさで描く
         const ue=pa/(p.life*p.tailEnd); if(ue>0.8 && !wl) bt*=Math.max(0,(1-ue)/0.2);
         if(wl){ const uw=pa/p.life; if(uw>0.74) bt*=Math.max(0,(1-uw)/0.26); }   // v0.34：柳の尾も最後はなだらかに消す（星と一緒に一度に消えない）
@@ -3533,7 +3550,7 @@ function render(dt){
              点 k の濃さは v0.53 の区間 k の濃さ（FW[k]）、星の位置（k=0）は 1 */
           let qat=0, qal=0, qe=pa+p.tk*997, qs=0;           // v0.64：qe＝1つ前の点の「火花が出た時刻」（星ごとにずらす）、qs＝1つ前の点の先端からの時間の割合
           { const rb0=pa/d08; const ramp0=rb0>=1 ? 1 : pw1(PT16,rb0,1.6);
-            qat=bt*ramp0*(wl ? wlB(pa/p.life) : 1); qal=Math.min(1,qat/(1+qat*0.6)); }
+            qat=bt*ramp0*(wl ? wlB(pa/p.life) : 1)*TIP_A; qal=Math.min(1,qat/(1+qat*0.6)); }
           let wx=px0, wy=py0, wz=pz0;                       // v0.34：1つ前の点の位置（地面で切るため）
           for(let k=1;k<=NS;k++){
             const sAge=TT*k/NS, tAge=pa-sAge, te=tAge+p.tk*997, ts=k/NS;
@@ -3552,7 +3569,7 @@ function render(dt){
             y -= wl ? Math.min(g035*sAge*sAge, WL_SAG*sAge) : g035*sAge*sAge;   // v0.34：柳の火花はほとんど垂れない
             const rb=Math.max(0,tAge)/d08;
             const ramp=rb>=1 ? 1 : pw1(PT16,rb,1.6);
-            const at2=bt*FW[k]*ramp*(wl ? wlB(Math.max(0,tAge)/p.life) : 1);
+            const at2=bt*FW[k]*ramp*(wl ? wlB(Math.max(0,tAge)/p.life) : 1)*(1+(TIP_A-1)*tipF(ts));   // v0.65：先端の上乗せ
             const al=Math.min(1,at2/(1+at2*0.6));
             const yy=y-pjE, zr=z*pjC-yy*pjS, yr=z*pjS+yy*pjC, dd=-zr;
             if(dd<6) break;
@@ -3570,8 +3587,9 @@ function render(dt){
             if(Ly) Ly.cv += Math.min(1,(qat+at2)*0.5)*tw*hyp2(px-qx,py-qy)*0.5;
             if((qal>0 || al>0) && !((qx<-mT&&px<-mT)||(qx>WmT&&px>WmT)||(qy<-mT&&py<-mT)||(qy>HmT&&py>HmT))){
               const o=nLC*LC_F; nLC++;                      // v0.64：1 区間の数値の数は LC_F（10→12。以前は 10 と直に書いていた）
-              LCA[o]=qx; LCA[o+1]=qy; LCA[o+2]=px; LCA[o+3]=py; LCA[o+4]=tw;
-              LCA[o+5]=tri; LCA[o+6]=tgi; LCA[o+7]=tbi; LCA[o+8]=qal; LCA[o+9]=al; LCA[o+10]=qe; LCA[o+11]=te; LCA[o+12]=qs; LCA[o+13]=ts;
+              LCA[o]=qx; LCA[o+1]=qy; LCA[o+2]=px; LCA[o+3]=py; LCA[o+4]=TIP_WD!==1 ? tw*(1+(TIP_WD-1)*tipF((qs+ts)*0.5)) : tw;   // v0.65：先端ほど太く
+              { const wv=TIP_W*tipF((qs+ts)*0.5); LCA[o+5]=wv>0?tri+(TIP_C[0]-tri)*wv:tri; LCA[o+6]=wv>0?tgi+(TIP_C[1]-tgi)*wv:tgi; LCA[o+7]=wv>0?tbi+(TIP_C[2]-tbi)*wv:tbi; }   // v0.65：先端ほど白く
+              LCA[o+8]=qal; LCA[o+9]=al; LCA[o+10]=qe; LCA[o+11]=te; LCA[o+12]=qs; LCA[o+13]=ts;
             }
             qat=at2; qal=al; qe=te; qs=ts;
             qx=px; qy=py;
@@ -3583,14 +3601,14 @@ function render(dt){
         const bc = brightCore(p, b*sK);
         if(bc>0.004){
           let ac = bc*aD*EXPO*CORE_GAIN*adaptGain*Math.sqrt(dg);
-          ac = ac/(1+ac*0.5);
+          ac = ac/(1+ac*0.5); const twK=tailW(p); ac *= 1+(HEAD_TK-1)*twK;   // v0.65：尾を曳く星は先端を控える
           const rc = Math.max(CORE_MIN_RADIUS, CR*sI*Math.min(1.6, Math.max(0.7, Math.sqrt(450/Pd)))*(0.75+0.25*Math.min(1,bc)))*dpr;
           const wm = Math.min(0.85, whiteMix(bc) + (pa<WHITEHOT_DURATION ? 0.5*(1-pa/WHITEHOT_DURATION) : 0));
           const warm = R>=B;
           const hot = warm ? HOTW_C : HOTC_C;
           const mo = wm*0.35;
           const cr=R+(hot[0]-R)*mo, cg=Gc+(hot[1]-Gc)*mo, cb=B+(hot[2]-B)*mo;
-          const rh = rc*HALO_RADIUS;
+          const rh = rc*HALO_RADIUS*(1+(HEAD_TR-1)*twK);
           const ah = ac*wm*1.2;
           // pushSpr(SC, …) と同じ
           const a1=Math.min(1,ac), m1=rh+2;
@@ -3665,7 +3683,7 @@ function render(dt){
        火花は吹き出されたあと少し垂れる（0.5·g'·s²、g' は抗力込みで g の 0.35）。 */
     if(p.tail>0 && p.hn>0 && p.age < p.life*p.tailEnd){
       const bee=p.hw!==0, wl=p.wl, TT=Math.min(bee?TAIL_TIME_BEE:(wl?TAIL_TIME_WL:TAIL_TIME), p.age), FW=bee?TAIL_FW14:(wl?TAIL_FW12:TAIL_FW);   // v0.30：蜂、v0.31：柳
-      const bt0 = p.tail*TAIL_GAIN*aD*EXPO*adaptGain*dg*Math.sqrt(Iv)*(wl?WL_TAIL:1);
+      const bt0 = p.tail*TAIL_GAIN*aD*EXPO*adaptGain*dg*Math.sqrt(Iv)*(wl?WL_TAIL:1)*(1+(TAIL_NK-1)*tailW(p));   // v0.65：TAIL_NK
       let bt = wl ? bt0 : b*bt0;                            // v0.33：柳の尾は火花が出たときの明るさ
       // 尾を曳くのをやめる時点の手前で尾を細らせる
       const ue=p.age/(p.life*p.tailEnd); if(ue>0.8 && !wl) bt*=Math.max(0,(1-ue)/0.2);
@@ -3717,7 +3735,7 @@ function render(dt){
           // v0.23：1 以上なら pow を呼ばない（結果は同じ）。(f)^0.8 は区間ごとに一定なので表から引く
           const rb=Math.max(0,tAge)/d08;
           const ramp=rb>=1 ? 1 : pw1(PT16,rb,1.6);
-          const at=bt*FW[k]*ramp*(wl ? wlB(Math.max(0,tAge)/p.life) : 1);
+          const at=bt*FW[k]*ramp*(wl ? wlB(Math.max(0,tAge)/p.life) : 1)*(1+(TIP_A-1)*tipF(k/NS));   // v0.65：先端の上乗せ
           if(Ly) Ly.cv += Math.min(1,at)*tw*hyp2(px-qx,py-qy)*0.5;
           /* v0.54：この道は 2D のときだけ通る（WebGL は上の速い道）。濃さは区間の両端の平均で段を小さくする */
           { let al2=Math.min(1,at/(1+at*0.6));
@@ -3728,7 +3746,8 @@ function render(dt){
             const alive=kk<=Math.pow(g2,0.6), grain=kk<0.35 || gh>=1-GR_ON;
             al2=Math.min(1, al2*(alive&&grain ? 1+0.8*gf*kk : base)); }
           cctx.globalAlpha=(k===1 ? al2 : (tq+al2)*0.5); tq=al2;
-          cctx.strokeStyle=`rgb(${tcs})`;
+          if(TIP_WD!==1) cctx.lineWidth=tw*(1+(TIP_WD-1)*tipF((k-0.5)/NS));   // v0.65：先端ほど太く
+          { const wv=TIP_W*tipF((k-0.5)/NS); cctx.strokeStyle= wv>0 ? `rgb(${(tri+(TIP_C[0]-tri)*wv)|0},${(tgi+(TIP_C[1]-tgi)*wv)|0},${(tbi+(TIP_C[2]-tbi)*wv)|0})` : `rgb(${tcs})`; }   // v0.65：先端ほど白く
           cctx.beginPath(); cctx.moveTo(qx,qy); cctx.lineTo(px,py); cctx.stroke();
           }
           qx=px; qy=py;
@@ -3743,7 +3762,7 @@ function render(dt){
       const bc = brightCore(p, b*sK);
       if(bc>0.004){
         let ac = bc*aD*EXPO*CORE_GAIN*adaptGain*Math.sqrt(dg);
-        ac = ac/(1+ac*0.5);
+        ac = ac/(1+ac*0.5); const twK=tailW(p); ac *= 1+(HEAD_TK-1)*twK;   // v0.65：尾を曳く星は先端を控える
         const rc = Math.max(CORE_MIN_RADIUS, CORE_RADIUS*sI*Math.min(1.6, Math.max(0.7, Math.sqrt(450/P.d)))*(0.75+0.25*Math.min(1,bc)))*DPR;
         const wm = Math.min(0.85, whiteMix(bc) + (p.age<WHITEHOT_DURATION ? 0.5*(1-p.age/WHITEHOT_DURATION) : 0));
         const warm = R>=B;
@@ -3751,7 +3770,7 @@ function render(dt){
         // 外側：星の色をわずかに白へ寄せた色
         const mo = wm*0.35;
         const cr=R+(hot[0]-R)*mo, cg=Gc+(hot[1]-Gc)*mo, cb=B+(hot[2]-B)*mo;
-        const rh = rc*HALO_RADIUS;
+        const rh = rc*HALO_RADIUS*(1+(HEAD_TR-1)*twK);
         // 中心：白熱部（Core 半径の 0.8 倍まで）
         const ah = ac*wm*1.2;
         if(GLON){

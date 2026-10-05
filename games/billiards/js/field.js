@@ -592,7 +592,15 @@ const BilliardsField = (() => {
   function drawHole(field, rng, table, balls) {
     const T = BilliardsTable;
     const keep = holeKeepAway(field);
-    const live = (balls || []).filter(b => b && b.state === 'live');
+    /*
+     * ★**台上の構造物（6.9節）は「玉」として数えない。**
+     *   第1順位（玉が動き出さない距離を空ける）は**絶対に緩められない**制約で、
+     *   柱をここへ混ぜると候補が狭まり、**代替措置（手順2）へ落ちやすくなる**。
+     *   柱は押しても動かないので、そもそも「動き出す」心配が無い。
+     *   仕様書も構造物を**第4順位＝緩めてよい制約**に置いている（6.8.1節）。
+     */
+    const live = (balls || []).filter(b => b && b.state === 'live' && !b.fixture);
+    const fixt = (balls || []).filter(b => b && b.state === 'live' && b.fixture);
     const terr = terrain(field);
     const cx = (table.center && table.center.x) || 0;
     const cy = (table.center && table.center.y) || 0;
@@ -610,6 +618,11 @@ const BilliardsField = (() => {
     };
     const farFromBalls = (x, y) => {
       for (const b of live) if (Math.hypot(x - b.x, y - b.y) < keep) return false;
+      return true;
+    };
+    // 第4順位（6.8.1節）。構造物と重ならない。**緩めてよい**
+    const offFixture = (x, y) => {
+      for (const b of fixt) if (Math.hypot(x - b.x, y - b.y) < b.r + HOLE.horizon) return false;
       return true;
     };
     const offTerrain = (x, y) => {
@@ -630,7 +643,8 @@ const BilliardsField = (() => {
         const y = cy + (rng() * 2 - 1) * table.halfH;
         if (!hard(x, y)) continue;
         if (!farFromBalls(x, y)) continue;
-        if (pass === 0 && !offTerrain(x, y)) continue;
+        if (pass === 0 && !offFixture(x, y)) continue;      // 第4順位
+        if (pass === 0 && !offTerrain(x, y)) continue;      // 第5順位
         return { x, y, relaxed: pass > 0 };
       }
     }
@@ -697,7 +711,13 @@ const BilliardsField = (() => {
    * ★**空中の玉は落ちない**（引力も受けていない）。
    */
   function swallow(field, b, table) {
-    if (!b || b.z > 0.01) return false;
+    /*
+     * ★**据え付けの物は吸い込まれない**（ゴルフ型の木・6.9節の固定障害物とバンパー）。
+     *   穴は第4順位を緩めると構造物と重なりうるが（6.8.1節）、そのとき仕様書は
+     *   **「障害物は残る」**と定めている（6.8.3節）。ここを素通りさせると、
+     *   重なった瞬間に柱が場外になって消える。
+     */
+    if (!b || b.pinned || b.z > 0.01) return false;
     for (const h of holes(field)) {
       if (Math.hypot(b.x - h.x, b.y - h.y) >= HOLE.horizon) continue;
       if (!holeBlocked(table, b.x, b.y, h)) return true;
@@ -1867,6 +1887,15 @@ const BilliardsField = (() => {
    */
   function apply(field, b, tick, dt, table, shotTick) {
     if (!field) return false;
+    /*
+     * ★**据え付けの物（ゴルフ型の木・6.9節の固定障害物とバンパー）には、ギミックを効かせない。**
+     *   「据え付け＝押されても動かない」は玉の性質として決まっているのに（engine の makeBall）、
+     *   ここを素通りさせると**ブラックホールが木を吸い、突風が柱を飛ばす。**
+     *   どちらも静止している物に効くギミックなので、速度を見る条件では止められない
+     *   （地震と傾きは「動いている玉だけ」なので、たまたま効いていなかっただけ）。
+     *   ★押し返す力の側（衝突）は重さ無限大で止めているが、**外力の側はここでしか止められない。**
+     */
+    if (b.pinned) return false;
     let done = false;
     /*
      * F-01 地震（6.6.2節）。転がっている玉だけに、揺れの向きの行ったり来たりする加速度。

@@ -2201,6 +2201,140 @@ const BilliardsTable = (() => {
     return iy * g.nx + ix;
   }
 
+  // ══════════════════════════════════════════════
+  //  台上の構造物（6.9節）：固定障害物とバンパー
+  // ══════════════════════════════════════════════
+  /*
+   * 6.9.1節は「固定障害物＝玉を反射する静止した構造物」「バンパー＝触れた玉を加速して
+   * 弾き返す構造物」と定め、**どちらも台定義データ層に属する**としている。だからここに居る。
+   * 盤面イベント層（field.js）のギミックではないので、ターンごとに現れたり消えたりしない。
+   *
+   * ★**仕様書は位置について一言も書いていない。**どの台に何個どこへ置くかは
+   *   第68セッションで決めた（D471〜D476）。要点だけ：
+   *     ・変則モード（妨害・異常）のときだけ置く。通常モードには置かない（6.9.1節）
+   *     ・ゲーム開始時に共有シードで抽選し、**1ゲーム中は動かない**
+   *     ・どの台も **固定障害物2個＋バンパー2個**。難易度 apocalypse でも数は増えない
+   *     ・**固定障害物は中央寄り／バンパーは壁にぴったり**
+   *     ・対称にはしない（4個それぞれ自由に抽選）
+   */
+  const FIX_R = { wall: R * 2.5, bumper: R * 1.8 };   // 半径（付録B送り。まず仮の値）
+  const FIX_N = { wall: 2, bumper: 2 };               // 個数（D472）
+  /*
+   * ★**1個あたりに引く乱数の個数は、盤面の状態で変えない。**
+   *   残り球数やポケットの数だけ引くと、玉が落ちた局面で乱数列の進み方が変わり、
+   *   AIの読み・リプレイ・観戦の追いつきと食い違う。
+   *   **候補が早く見つかっても、必ず最後まで引く。**
+   */
+  const FIX_TRIES = 12;
+  /*
+   * ★**まわりに空ける量は「玉1個ぶん」＝玉の直径。**
+   *   これより狭くすると、**玉が入れないのに空いている隙間**ができる。
+   *   壁とのすき間も同じで、だから固定障害物は壁から玉1個ぶん以上離し、
+   *   バンパーは**ぴったり付ける**（中途半端な隙間を作らない）。
+   */
+  const FIX_GAP = R * 2;
+
+  /** 外周（ドーナツ型は中央の島も）の上に、壁へぴったり付く中心を取る */
+  function fixOnWall(table, u, r) {
+    const total = perimeterOf(table.bounds);
+    const p = boundaryAt(table.bounds, (u - Math.floor(u)) * total);
+    if (!p) return null;
+    /*
+     * ★**内向きがどちらかは、法線の符号で決めつけない。**
+     *   ドーナツ型の中央の島は、外周とは内外が裏返る。両方試して
+     *   「台の内側で、壁からちょうど半径ぶん」になるほうを採る。
+     */
+    for (let s = -1; s <= 1; s += 2) {
+      const x = p.x + p.nx * r * s, y = p.y + p.ny * r * s;
+      if (Math.abs(clearance(table, x, y) - r) < 0.5) return pt(x, y);
+    }
+    return null;
+  }
+
+  /** 台の内側に、壁から need 以上離れた中心を取る */
+  function fixInField(table, u, v, r, need) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const q of table.outline) {
+      if (q.x < x0) x0 = q.x; if (q.x > x1) x1 = q.x;
+      if (q.y < y0) y0 = q.y; if (q.y > y1) y1 = q.y;
+    }
+    const p = clampInside(table, x0 + (x1 - x0) * u, y0 + (y1 - y0) * v, need);
+    return (clearance(table, p.x, p.y) >= need - 1e-6) ? p : null;
+  }
+
+  /** 線分と点の距離（ブレイクの通り道を塞がないため） */
+  function fixSegDist(sx, sy, ex, ey, px, py) {
+    const dx = ex - sx, dy = ey - sy, l2 = dx * dx + dy * dy;
+    let t = l2 < 1e-9 ? 0 : ((px - sx) * dx + (py - sy) * dy) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (sx + dx * t), py - (sy + dy * t));
+  }
+
+  /**
+   * 構造物の置き場所を決める（6.9節）。
+   *
+   * @param {object}   table 台
+   * @param {function} rng   共有シードの乱数（★ここで Math.random を使わない）
+   * @param {object}   opts  { balls:[{x,y,r}] 既に盤に居る玉, lanes:[[x1,y1,x2,y2]] 空けておく通り道 }
+   * @returns {Array} [{ x, y, r, kind:'wall'|'bumper' }]
+   */
+  function fixtureLayout(table, rng, opts) {
+    const o = opts || {};
+    const balls = o.balls || [];
+    const lanes = o.lanes || [];
+    const out = [];
+    // 固定障害物を先に置く。中央寄りのほうが置き場所が限られるため
+    for (const kind of ['wall', 'bumper']) {
+      const r = FIX_R[kind];
+      for (let i = 0; i < FIX_N[kind]; i++) {
+        let best = null, bestScore = -Infinity;
+        for (let t = 0; t < FIX_TRIES; t++) {
+          const u = rng(), v = rng();            // ★必ず2個引く（使わない回でも引く）
+          const p = (kind === 'bumper')
+            ? fixOnWall(table, u, r)
+            : fixInField(table, u, v, r, r + FIX_GAP);
+          if (!p) continue;
+          let ok = true;
+          // ポケットの口を塞がない
+          for (const pk of table.pockets) {
+            if (Math.hypot(p.x - pk.x, p.y - pk.y) < pk.r + r + FIX_GAP) { ok = false; break; }
+          }
+          // 玉と重ならない（玉1個ぶん空ける）
+          if (ok) for (const b of balls) {
+            if (Math.hypot(p.x - b.x, p.y - b.y) < (b.r || R) + r + FIX_GAP) { ok = false; break; }
+          }
+          // 構造物どうしも玉1個ぶん空ける
+          if (ok) for (const q of out) {
+            if (Math.hypot(p.x - q.x, p.y - q.y) < q.r + r + FIX_GAP) { ok = false; break; }
+          }
+          // ★**空けておく通り道**（ブレイクで手玉が先頭球へ向かう線）を塞がない
+          if (ok) for (const ln of lanes) {
+            if (fixSegDist(ln[0], ln[1], ln[2], ln[3], p.x, p.y) < r + FIX_GAP) { ok = false; break; }
+          }
+          if (!ok) continue;
+          /*
+           * ★**良さの測り方は種類で違う。**
+           *   固定障害物＝壁から遠いほど良い（中央寄りにしたい）
+           *   バンパー ＝ほかの構造物から遠いほど良い（4個が1か所へ寄らないように）
+           */
+          let sc;
+          if (kind === 'wall') sc = clearance(table, p.x, p.y);
+          else {
+            sc = Infinity;
+            for (const q of out) sc = Math.min(sc, Math.hypot(p.x - q.x, p.y - q.y));
+            if (!isFinite(sc)) sc = 0;
+          }
+          if (sc > bestScore) { bestScore = sc; best = p; }
+        }
+        // ★置ける場所が1つも無ければ、その1個は**置かない**。
+        //   無理に置くと玉やポケットへ重なる（6.8節のブラックホールと違い、
+        //   構造物は「必ず在る」ことを求める規定が無い）
+        if (best) out.push({ x: best.x, y: best.y, r, kind });
+      }
+    }
+    return out;
+  }
+
   return {
     R, D, MOUTH, PLAY_W, PLAY_H, HX, HY, CUSHION_TOP, SHAPE_IDS, FILLET_R,
     make, rackDiamond, rackTriangle, rackByGroups, caromPositions,
@@ -2217,6 +2351,8 @@ const BilliardsTable = (() => {
     golfLayout, golfPocket, GOLF_PICK, GOLF_HAZARD_R, GOLF_WATERS, GOLF_BUNKERS,
     blobRadius, blobContains, GOLF_BLOB_MAX, BLOB_WOBBLE, GOLF_WATER_SCALE,
     clearance, inside, clampInside, nearestBoundary, diamonds, buildFillets,
+    // 台上の構造物（6.9節）。固定障害物とバンパー
+    fixtureLayout, FIX_R, FIX_N, FIX_GAP, FIX_TRIES,
     // 検査から直に確かめるために出している。
     // 「内角90度以上には手を触れない」という条件は、いまのどの台でも働かない
     // （切り落としを掛ける相手が星型の先端5本だけで、どれも90度未満のため）。

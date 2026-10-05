@@ -333,6 +333,50 @@ const BilliardsRules = (() => {
    *   「その盤面でだけギミックが効かない」という静かな食い違いになる。
    *   同じ表を2か所に持たない、と同じ話。
    */
+  // 台上の構造物（6.9節）の色。固定障害物＝石／バンパー＝赤い円座
+  const FIX_COLOR = { wall: '#6e6a63', bumper: '#c8453a' };
+
+  /**
+   * 台上の構造物（6.9節）を盤へ足す。**変則モードのときだけ。**
+   *
+   * ★**ゴルフ型の木と同じ「据え付けの玉」として置く。**当たれば跳ね返るが動かない。
+   *   こうすると、キューを構えられるかの判定（4.7節）が**世の中の玉を全部見る作り**なので、
+   *   「バンパーもキュー干渉の対象」（D350）が**1行も書かずに成り立つ。**
+   * ★**種類は kind='fixture'。**'object' にすると、的球を数えている20か所あまりが
+   *   柱を的球として数えてしまう（残り球・サバイバルの区分・落球の勘定）。
+   * ★**通常モードでは置かない**（6.9.1節）。練習モードは通常モードでも器を作るので、
+   *   器の有無ではなく**モードの名前**で見る。
+   * ★**抽選は共有シードから、盤面を組む時点で引く。**ここは玉が並び終えた1か所なので、
+   *   「玉やブレイクの通り道と重ならない」を見ながら置ける。
+   */
+  function addFixtures(game, table, balls) {
+    const f = game.field;
+    if (!f || (f.mode !== 'disturb' && f.mode !== 'abnormal')) return;
+    /*
+     * ★**空けておく通り道**＝それぞれの手玉と、その手玉にいちばん近い的球を結ぶ線。
+     *   ブレイクは手玉を好きな場所へ置けるとはいえ、**先頭球へ真っ直ぐ行ける線が
+     *   1本も無い盤面**を作ってしまうと撞きようがなくなる（ドーナツ型で実際に起きた話＝D377）。
+     */
+    const lanes = [];
+    for (const c of balls) {
+      if (c.kind !== 'cue') continue;
+      let near = null, nd = Infinity;
+      for (const b of balls) {
+        if (b === c || b.kind !== 'object') continue;
+        const d = Math.hypot(b.x - c.x, b.y - c.y);
+        if (d < nd) { nd = d; near = b; }
+      }
+      if (near) lanes.push([c.x, c.y, near.x, near.y]);
+    }
+    const put = T.fixtureLayout(table, game.rng, { balls, lanes });
+    put.forEach((q, k) => {
+      balls.push(E.makeBall({
+        id: 200 + k, num: 0, kind: 'fixture', owner: -1, r: q.r,
+        x: q.x, y: q.y, color: FIX_COLOR[q.kind], pinned: true, fixture: q.kind,
+      }));
+    });
+  }
+
   function makeWorld(game, table, balls, opts) {
     /*
      * 台面の区画（摩擦の違う場所）は**2つの出どころがある**
@@ -343,6 +387,14 @@ const BilliardsRules = (() => {
      */
     // ★足し合わせ方は field 側の1か所（syncPatches）に置いてある。ここで組み直さない
     F.syncPatches(game.field, table);
+    /*
+     * 台上の構造物（6.9節）。**盤面を組む3か所が必ず通るここで足す。**
+     * ★**バンキングのときだけは置かない**（D476）。順番決めは向こうのクッションまで
+     *   往復させて近さを競うので、途中に柱があると順番が決められない。
+     * ★ここを通るのは「新しいゲームの玉並べ」と「ゴルフの次のホール」だけなので、
+     *   **ゲーム（ゴルフはホール）ごとに引き直し、そのあいだは動かない**（D473）が成り立つ。
+     */
+    if (!(opts && opts.noFixtures)) addFixtures(game, table, balls);
     /*
      * ★**細かい記録を積むのは、ミッション制を選んでいるときだけ**（8.5.10節の材料）。
      *   判定に使うのは課題だけなので、選んでいないゲームでは積まない
@@ -978,7 +1030,7 @@ const BilliardsRules = (() => {
         color: CAROM_COLORS[i % CAROM_COLORS.length],
       }));
     }
-    game.world = makeWorld(game, table, balls);
+    game.world = makeWorld(game, table, balls, { noFixtures: true });
     game.bank = { on: true, marks: game.players.map(() => null), shotBy: {} };
     game.turn = firstActive(game);          // 抜けている席から始めない
     game.ballInHand = true;                 // ヘッドストリングより手前に置いてから撞く
@@ -3798,6 +3850,7 @@ const BilliardsRules = (() => {
     // ゴルフ型（7.10節）
     golfPar, golfCut, golfTotal, golfParTotal, golfSeatDone, golfShape, golfTermKey, golfInWater,
     golfAwayFromPockets, golfWaterDrop, resolveGolf,   // 検査から帰結だけを確かめるために出している
+    golfBuildHole,   // ホールを組み直す。検査が「構造物をホールごとに置き直すか」を見るために出している
     GOLF_PAR, GOLF_CUT, GOLF_WATER_PASS,
     BALL_COLORS, CAROM_COLORS,
     teamOf, teamMembers, teamList, teamScore, otherTeam,

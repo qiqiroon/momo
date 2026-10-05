@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '2.09';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '2.10';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -2914,8 +2914,165 @@
     ctx.restore();
   }
 
+
+  /**
+   * バンパー（6.9節）を真上から描く。**ピンボール台のポップバンパー**を下敷きにしている。
+   *
+   * ★**玉に見せない。**玉は「上から光が当たった球」だが、こちらは
+   *   **台座・放射の飾り・金属のスカート・ドームのキャップ**という段重ねにして、
+   *   「台に据え付けられた仕掛け」に見えるようにする。
+   * ★**残り回数は台座のランプの数で見せる**（6.9.2節）。輪の本数で表していたときは
+   *   ドームの模様と区別が付かなかった。**上限の数だけランプを並べ、残っているぶんだけ点ける。**
+   * ★**使い切ったら全体を灰色へ落とす**＝加速しなくなった（ただの壁になった）ことが絵に出る。
+   * ★**模様の向きは位置から決める**（乱数を引かない）。毎コマ引くと飾りが回って見える。
+   */
+  /**
+   * そのバンパーがいま光っている強さ（0〜1）。弾いた瞬間が1で、短く消える。
+   * ★**画面の演出なので実時間で減らす**（ブラックホールの残像と同じ扱い）。
+   *   盤面の時計で減らすと、玉が止まったとたん光が凍りつく。
+   * ★**真上から見た絵と、構える段（3D）で同じ値を使う。**別々に測ると、
+   *   撞く前と撞いたあとで光り方が違って見える。
+   */
+  const BUMP_FLASH_MS = 320;
+  function bumperFlash(b) {
+    const t = S.bumpFx && S.bumpFx[b.id];
+    if (!t) return 0;
+    const e = (performance.now() - t) / BUMP_FLASH_MS;
+    return (e < 0 || e > 1) ? 0 : (1 - e) * (1 - e);
+  }
+
+  /**
+   * 2色のあいだを k（0〜1）で混ぜる。
+   * ★**自分が返した色をもう一度渡せること。**混ぜた色をさらに混ぜる場面があるので
+   *   （残り回数で褪せた色に、弾いた光を重ねる）、`#rrggbb` だけでなく `rgb(...)` も受ける。
+   *   ★ここを `#` 前提のままにして、画面がまるごと描けなくなった（第68セッションで踏んだ）。
+   */
+  function rgbOf(c) {
+    if (c.charAt(0) === '#') {
+      const v = parseInt(c.slice(1), 16);
+      return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+    }
+    const m = c.match(/(\d+)\D+(\d+)\D+(\d+)/);
+    return m ? [+m[1], +m[2], +m[3]] : [255, 255, 255];
+  }
+  function mixHex(a, c, k) {
+    if (k <= 0) return a;
+    if (k >= 1) return c;
+    const pa = rgbOf(a), pc = rgbOf(c);
+    const m = i => Math.round(pa[i] + (pc[i] - pa[i]) * k);
+    return 'rgb(' + m(0) + ',' + m(1) + ',' + m(2) + ')';
+  }
+
+  function drawPopBumper(p, r, b, alpha) {
+    const live = b.boostLeft > 0;
+    const fl = bumperFlash(b);
+    const N = (window.BilliardsEngine && BilliardsEngine.BUMP_N) || 3;
+    /*
+     * ★**残り回数は「星の鮮やかさ」で見せる。**真上から見た盤では玉より少し大きいだけなので、
+     *   輪やランプを並べても読めない（実機で確かめた）。弾くたびに色が褪せ、
+     *   使い切ると**灰色**になる＝「もう弾かない」が一目で分かる。
+     * ★数字は**大きく描けるときだけ**出す（3Dの構える段）。小さいと潰れて読めない。
+     */
+    const t = live ? (0.42 + 0.58 * (b.boostLeft / N)) : 0;
+    const star = live ? mixHex('#9c968e', '#e0251f', t) : '#8f8a84';
+    const core = live ? mixHex('#b9b3ab', '#f2721c', t) : '#8f8a84';
+    const disc = live ? '#f4f1ea' : '#a9a49c';
+    // ① 白い円盤（台座）
+    const g0 = ctx.createRadialGradient(p.x - r * .3, p.y - r * .34, r * .1, p.x, p.y, r);
+    g0.addColorStop(0, '#ffffff'); g0.addColorStop(.74, disc); g0.addColorStop(1, shade(disc, .72));
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fillStyle = g0; ctx.fill();
+    ctx.strokeStyle = 'rgba(40,34,28,.5)'; ctx.lineWidth = Math.max(1, r * .05); ctx.stroke();
+    // ② ギザギザの星（12山）。★向きは位置から決める（乱数を引くと毎コマ回る）
+    const SP = 12, spin = b.x * 0.004 + b.y * 0.003;
+    const rOut = r * .88, rIn = r * .50;
+    ctx.beginPath();
+    for (let k = 0; k < SP * 2; k++) {
+      const a = spin + k * Math.PI / SP;
+      const rr = (k % 2 === 0) ? rOut : rIn;
+      const x = p.x + Math.cos(a) * rr, y = p.y + Math.sin(a) * rr;
+      if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath(); ctx.fillStyle = star; ctx.fill();
+    // ③ 中央の丸（オレンジ）。弾いた瞬間に光る
+    const gc = ctx.createRadialGradient(p.x, p.y, r * .03, p.x, p.y, r * .42);
+    gc.addColorStop(0, live ? mixHex(core, '#fff6d8', fl) : core);
+    gc.addColorStop(.62, live ? mixHex(core, '#ffd27a', fl) : core);
+    gc.addColorStop(1, shade(core, .72));
+    ctx.beginPath(); ctx.arc(p.x, p.y, r * .40, 0, 7); ctx.fillStyle = gc; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = Math.max(1, r * .07); ctx.stroke();
+    // ④ 残り回数の数字（読める大きさのときだけ）
+    if (r >= 13) {
+      ctx.fillStyle = live ? '#ffffff' : 'rgba(255,255,255,.55)';
+      ctx.font = '700 ' + (r * .52).toFixed(1) + 'px "Noto Sans JP",sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(b.boostLeft), p.x, p.y + r * .02);
+    }
+    // ⑤ 弾いた瞬間の光（外へにじむ）
+    if (fl > 0) {
+      const rr = r * (1 + 0.55 * fl);
+      const gf = ctx.createRadialGradient(p.x, p.y, r * .2, p.x, p.y, rr);
+      gf.addColorStop(0, 'rgba(255,196,96,' + (0.60 * fl).toFixed(3) + ')');
+      gf.addColorStop(1, 'rgba(255,170,60,0)');
+      ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, 7); ctx.fillStyle = gf; ctx.fill();
+    }
+  }
+
+  /**
+   * 台上の構造物（6.9節）を真上から描く。
+   *
+   * ★**玉に見せない。**固定障害物は石の柱、バンパーは床に据えた赤い円座として描く。
+   *   玉と同じ球に描くと「当たると跳ね返る的球」に見え、狙う相手と見分けがつかない。
+   * ★**バンパーは残り回数を輪の本数で見せる。**上限に達したら
+   *   （加速しない＝ただの壁になったら）灰色へ落とす。
+   *   こうすると「あと何回弾くか」が文字なしで分かり、6.9.2節の決まりが絵に出る。
+   */
+  function drawFixture2D(b, s, alpha) {
+    const p = toScreen(b.x, b.y);
+    const r = b.r * s;
+    ctx.save();
+    if (alpha != null) ctx.globalAlpha = alpha;
+    /*
+     * ★**影はずらさない。**玉と同じように斜めへ大きくずらすと、
+     *   **台の上に浮いているように見える**（利用者指摘・第68セッション）。
+     *   構造物は台に**据え付けられている**ので、**接している縁のすぐ外**に
+     *   細く落とすだけにする＝根元が台に着いて見える。
+     */
+    ctx.beginPath(); ctx.ellipse(p.x + r * .05, p.y + r * .07, r * 1.06, r * 1.04, 0, 0, 7);
+    ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fill();
+    if (b.fixture === 'bumper') {
+      drawPopBumper(p, r, b, alpha);
+      ctx.restore();
+      return;
+    }
+    /*
+     * 固定障害物＝石の柱。**でこぼこの輪郭**にして、丸い玉と見分けがつくようにする。
+     * ★形は位置から作る（乱数を引かない）。毎コマ引くと石が震えて見える。
+     */
+    ctx.beginPath();
+    for (let k = 0; k <= 11; k++) {
+      const a = k * Math.PI * 2 / 11;
+      const w = 0.88 + 0.12 * Math.abs(Math.sin(k * 1.7 + b.x * 0.013 + b.y * 0.009));
+      const x = p.x + Math.cos(a) * r * w, y = p.y + Math.sin(a) * r * w;
+      if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    const g2 = ctx.createRadialGradient(p.x - r * .34, p.y - r * .38, r * .1, p.x, p.y, r);
+    g2.addColorStop(0, shade(b.color, 1.42)); g2.addColorStop(.6, b.color); g2.addColorStop(1, shade(b.color, .46));
+    ctx.fillStyle = g2; ctx.fill();
+    ctx.strokeStyle = 'rgba(25,22,18,.5)'; ctx.lineWidth = Math.max(1, r * .07); ctx.stroke();
+    // 上面の割れ目（石らしさ）
+    ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = Math.max(1, r * .06);
+    ctx.beginPath();
+    ctx.moveTo(p.x - r * .44, p.y - r * .18);
+    ctx.lineTo(p.x - r * .05, p.y + r * .06);
+    ctx.lineTo(p.x + r * .40, p.y - r * .30);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawBall2D(b, s, alpha) {
     if (b.hazardKind === 'tree') { drawGolfTree(b, s, alpha); return; }
+    if (b.fixture) { drawFixture2D(b, s, alpha); return; }
     // 番号シャッフルの演出（6.6.8節）。回っている間は**見せる身分だけ**を差し替える
     const face = shuffleFace(b);
     if (face) b = Object.assign({}, b, face);
@@ -4584,6 +4741,12 @@
     const g = S.game;
     const pv = S.aimPreview;
     if (!pv || !pv.contact || pv.contact.type !== 'ball' || !pv.contact.ball) return;
+    /*
+     * ★**台上の構造物（6.9節）には印を出さない。**柱は的球ではないので
+     *   「当ててよい玉」の一覧に入らず、そのままだと**禁止の印**が出てしまう。
+     *   柱に当てることは反則ではない（当たったらクッション扱い＝D475）。
+     */
+    if (pv.contact.ball.fixture) return;
     const b = pv.contact.ball;
     const tg = RU.legalTargets(g, g.turn);
     const ok = !tg || tg.some(x => x.id === b.id);
@@ -4684,7 +4847,12 @@
     const fc = E.firstContact(g.world, cue, dir, 6000);
     const cuePt = fc.point || { x: cue.x + Math.cos(dir) * 6000, y: cue.y + Math.sin(dir) * 6000 };
     let obj = null;
-    if (fc.type === 'ball' && fc.ball) {
+    /*
+     * ★**構造物に当たるときは、的球の進む向きの線を出さない。**柱は動かないので、
+     *   出すと「柱がこちらへ転がっていく」という嘘の線になる。
+     *   手玉の線（cuePt まで）はそのまま出す＝どこで跳ね返るかは見せる。
+     */
+    if (fc.type === 'ball' && fc.ball && !fc.ball.fixture) {
       if (S.cfg.cue[2]) {
         /*
          * スロー効果ON：短時間だけ物理を先回りさせる（4.6.3節）。
@@ -5129,7 +5297,15 @@
       .map(b => { const j = quakeOf(b); return { b, p: proj(b.x + (j ? j.x : 0), b.y + (j ? j.y : 0), b.z + b.r) }; })
       .filter(o => o.p)
       .sort((m, n) => n.p.z - m.p.z);
-    for (const o of live) drawBall3D(o.b, o.p.x, o.p.y, scale * o.b.r / o.p.z);
+    for (const o of live) {
+      /*
+       * ★**構造物は玉と同じ描き方ができない。**玉は「中心を投影して円を描く」で済むが、
+       *   柱は**高さのある立体**なので、**台の面の輪と上面の輪を別々に投影**しないと
+       *   見下ろしの視点とずれる（側面を真横の長方形で描いて指摘を受けた・第68セッション）。
+       */
+      if (o.b.fixture) drawFixture3D(o.b, proj, quakeOf(o.b));
+      else drawBall3D(o.b, o.p.x, o.p.y, scale * o.b.r / o.p.z);
+    }
 
     // ゴルフ型：指定ポケットの旗。玉より後に描く＝手前の玉に隠れない
     if (g.rule === 'G-10' && g.golf && g.golf.layout && g.golf.layout.pocket) {
@@ -5210,6 +5386,169 @@
     }
     return out;
   }
+
+
+  /**
+   * 台上の構造物（6.9節）を構える段（3D）で描く。**立体として投影する。**
+   *
+   * ★★**玉の描き方を真似てはいけない。**玉は球なので「中心を投影して円を描く」で足りるが、
+   *   柱は高さのある立体なので、**高さごとに輪を投影**して、そのあいだを帯でつなぐ。
+   * ★★**途中の高さを「画面の上での按分」で出してはいけない。**
+   *   見下ろしの投影では、底と上面を結んだ線を半分に割った点が、**高さの半分の位置にならない**
+   *   （奥ほど縮むため）。帯の位置がずれる。**必要な高さの輪をそのつど投影すること。**
+   * ★**底は台の面（z=0）である。**玉の中心の高さ（z=r）を底に使うと玉半径ぶん浮く。
+   * ★**奥の面から手前の面へ順に塗る。**手前が奥を隠すので、並べ替えないと裏側が透ける。
+   * ★**地震のぶれは描く位置にだけ足す**（玉と同じ。座標そのものは動かさない）。
+   *
+   * ★**バンパーの形は実物のポップバンパーに合わせてある**（利用者指示・添付写真）。
+   *   下から順に ── 色の帯／銀の胴（細い）／白い笠（太い）／笠の上にギザギザの星。
+   */
+  function drawFixture3D(b, proj, jt) {
+    const bump = (b.fixture === 'bumper');
+    const live = b.boostLeft > 0;
+    const N3 = (window.BilliardsEngine && BilliardsEngine.BUMP_N) || 3;
+    const t3 = live ? (0.42 + 0.58 * (b.boostLeft / N3)) : 0;
+    const star3 = live ? mixHex('#9c968e', '#e0251f', t3) : '#8f8a84';
+    const core3 = live ? mixHex('#b9b3ab', '#f2721c', t3) : '#8f8a84';
+    const N = 32;           // 輪郭の刻み。1つのグラデーションで塗るので増やしても色は乱れない
+    const ox = b.x + (jt ? jt.x : 0), oy = b.y + (jt ? jt.y : 0);
+
+    /** 高さ z・半径 rr の輪を投影する。1点でも後ろへ回ったら null */
+    const ring = (z, rr) => {
+      const out = [];
+      for (let k = 0; k < N; k++) {
+        const a = k * Math.PI * 2 / N;
+        const q = proj(ox + Math.cos(a) * rr, oy + Math.sin(a) * rr, z);
+        if (!q) return null;
+        out.push(q);
+      }
+      return out;
+    };
+    const path = pts => {
+      ctx.beginPath();
+      pts.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y));
+      ctx.closePath();
+    };
+    /**
+     * 2つの輪のあいだ（＝筒の側面）を塗る。
+     *
+     * ★★**面ごとに別の色で塗らないこと。**それをやると**角張って見える**（実機で指摘を受けた）。
+     *   なめらかに見せる機能があるわけではなく、**塗り方の問題**である。
+     *   **筒ぜんたいを1つの横方向のグラデーションで塗る**＝丸みが連続して出る。
+     * ★**グラデーションは画面の座標で作る**（canvas のグラデーションは画面座標なので、
+     *   投影した輪の左端・右端から幅を取れば、どの向きから見ても筒の幅に合う）。
+     * ★色の配り方は**縁が暗く、少し左寄りがいちばん明るい**＝左上から光が当たった円柱。
+     * ★面を並べ替える必要も無くなった（どの面も同じ色で塗るので、重なっても同じ結果）。
+     */
+    const tube = (lo, hi, c) => {
+      if (!lo || !hi) return;
+      let x0 = Infinity, x1 = -Infinity;
+      for (const q of lo) { if (q.x < x0) x0 = q.x; if (q.x > x1) x1 = q.x; }
+      for (const q of hi) { if (q.x < x0) x0 = q.x; if (q.x > x1) x1 = q.x; }
+      if (!(x1 > x0)) { x1 = x0 + 1; }
+      const g = ctx.createLinearGradient(x0, 0, x1, 0);
+      g.addColorStop(0.00, shade(c, .40));
+      g.addColorStop(0.16, shade(c, .82));
+      g.addColorStop(0.30, shade(c, 1.22));
+      g.addColorStop(0.55, shade(c, 1.00));
+      g.addColorStop(0.84, shade(c, .66));
+      g.addColorStop(1.00, shade(c, .38));
+      ctx.fillStyle = g;
+      ctx.strokeStyle = g; ctx.lineWidth = 1;
+      for (let k = 0; k < N; k++) {
+        const k2 = (k + 1) % N;
+        ctx.beginPath();
+        ctx.moveTo(lo[k].x, lo[k].y);
+        ctx.lineTo(lo[k2].x, lo[k2].y);
+        ctx.lineTo(hi[k2].x, hi[k2].y);
+        ctx.lineTo(hi[k].x, hi[k].y);
+        ctx.closePath();
+        ctx.fill();
+        // ★同じ塗りで縁もなぞる。塗りつぶしの境目に髪の毛ほどの隙間が残り、縦の筋に見えるため
+        ctx.stroke();
+      }
+    };
+
+    ctx.save();
+    if (!bump) {
+      // ── 固定障害物＝ただの石の柱
+      const h = b.r * 1.65;
+      const bot = ring(0, b.r), top = ring(h, b.r);
+      if (!bot || !top) { ctx.restore(); return; }
+      path(bot); ctx.fillStyle = 'rgba(0,0,0,.40)'; ctx.fill();   // 根元の影
+      tube(bot, top, b.color);
+      path(top);
+      const gt = ctx.createLinearGradient(top[0].x, top[0].y, top[(N / 2) | 0].x, top[(N / 2) | 0].y);
+      gt.addColorStop(0, shade(b.color, 1.26)); gt.addColorStop(1, shade(b.color, .92));
+      ctx.fillStyle = gt; ctx.fill();
+      ctx.strokeStyle = 'rgba(25,20,16,.5)'; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    // ── バンパー。下から 色の帯／銀の胴／白い笠
+    const rSkirt = b.r * 0.66, rCap = b.r;
+    const zStripe = b.r * 0.16, zSkirt = b.r * 0.46, zCapTop = b.r * 0.72;
+    const silver = live ? '#c9ccd1' : '#9b9893';
+    const white = live ? '#f6f3ec' : '#a9a49c';
+    const r0 = ring(0, rSkirt), r1 = ring(zStripe, rSkirt), r2 = ring(zSkirt, rSkirt);
+    const c0 = ring(zSkirt, rCap), c1 = ring(zCapTop, rCap);
+    if (!r0 || !r1 || !r2 || !c0 || !c1) { ctx.restore(); return; }
+    path(ring(0, rCap) || r0); ctx.fillStyle = 'rgba(0,0,0,.40)'; ctx.fill();   // 根元の影
+    tube(r0, r1, star3);        // 色の帯（いちばん下）
+    tube(r1, r2, silver);       // 銀の胴
+    tube(c0, c1, white);        // 白い笠の厚み
+    // 笠の上面
+    path(c1);
+    const gt = ctx.createLinearGradient(c1[0].x, c1[0].y, c1[(N / 2) | 0].x, c1[(N / 2) | 0].y);
+    gt.addColorStop(0, '#ffffff'); gt.addColorStop(1, shade(white, .9));
+    ctx.fillStyle = gt; ctx.fill();
+    ctx.strokeStyle = 'rgba(25,20,16,.5)'; ctx.lineWidth = 1.2; ctx.stroke();
+    /*
+     * ギザギザの星。★頂点も**ひとつずつ投影する**（平面に描いた星を貼ると視点とずれる）。
+     * ★向きは真上から見た絵と同じ式から作る（別々にすると模様が噛み合わない）。
+     */
+    const SP = 12, spin = ox * 0.004 + oy * 0.003;
+    ctx.beginPath();
+    let okStar = true;
+    for (let k = 0; k < SP * 2; k++) {
+      const a = spin + k * Math.PI / SP;
+      const rr = rCap * ((k % 2 === 0) ? 0.88 : 0.50);
+      const q = proj(ox + Math.cos(a) * rr, oy + Math.sin(a) * rr, zCapTop);
+      if (!q) { okStar = false; break; }
+      if (k === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
+    }
+    if (okStar) { ctx.closePath(); ctx.fillStyle = star3; ctx.fill(); }
+    // 中央の丸（オレンジ）と、弾いた瞬間の光
+    const fl = bumperFlash(b);
+    const mid = ring(zCapTop, rCap * 0.40), cc = proj(ox, oy, zCapTop);
+    if (mid && cc) {
+      const rr = Math.hypot(mid[0].x - cc.x, mid[0].y - cc.y) || 4;
+      path(mid);
+      const gm = ctx.createRadialGradient(cc.x, cc.y, rr * 0.06, cc.x, cc.y, rr);
+      gm.addColorStop(0, live ? mixHex(core3, '#fff6d8', fl) : core3);
+      gm.addColorStop(.62, live ? mixHex(core3, '#ffd27a', fl) : core3);
+      gm.addColorStop(1, shade(core3, .72));
+      ctx.fillStyle = gm; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = Math.max(1, rr * .18); ctx.stroke();
+      // ★残り回数の数字（実物のバンパーが点数を出しているのと同じ場所）。読める大きさのときだけ
+      if (rr >= 9) {
+        ctx.fillStyle = live ? '#ffffff' : 'rgba(255,255,255,.55)';
+        ctx.font = '700 ' + (rr * 1.3).toFixed(1) + 'px "Noto Sans JP",sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(b.boostLeft), cc.x, cc.y);
+      }
+      if (fl > 0) {
+        const rg = rr * (2.4 + 1.4 * fl);
+        const gf = ctx.createRadialGradient(cc.x, cc.y, rr * .2, cc.x, cc.y, rg);
+        gf.addColorStop(0, 'rgba(255,196,96,' + (0.55 * fl).toFixed(3) + ')');
+        gf.addColorStop(1, 'rgba(255,170,60,0)');
+        ctx.beginPath(); ctx.arc(cc.x, cc.y, rg, 0, 7); ctx.fillStyle = gf; ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
 
   function drawBall3D(b, x, y, r) {
     if (r < 0.4) return;
@@ -6122,7 +6461,24 @@
       if (e.type === 'hit') {
         if (!slam && played++ < MAX_PER_FRAME) AU.sfx('ball', Math.min(1, e.speed / 4000));
       } else if (e.type === 'cushion') {
-        if (cush++ < MAX_PER_FRAME) AU.sfx('cushion', Math.min(1, e.speed / 4000));
+        /*
+         * ★台上の構造物（6.9節）もクッションの出来事として流れてくる（D475）。
+         *   音だけは分ける ── **弾かれたのか、ただ跳ね返っただけなのか**が
+         *   耳で分からないと、上限に達したことに気づけない。
+         */
+        if (cush++ < MAX_PER_FRAME) {
+          const lv = Math.min(1, e.speed / 4000);
+          AU.sfx(e.fixture ? (e.boost ? 'bump' : 'stone') : 'cushion', lv);
+        }
+        /*
+         * ★**弾いたバンパーの中央を光らせる**（利用者指示・第68セッション）。
+         *   ★**光らせるのは加速したときだけ。**上限に達してただの壁になった回は光らない
+         *   ＝「もう弾かない」が絵でも分かる（音と同じ分かれ方。6.9.2節）。
+         *   ★**覚えるのは出来事を受け取ったこの場。**鳴らすのと同じ出口から取る。
+         */
+        if (e.fixture === 'bumper' && e.boost) {
+          (S.bumpFx = S.bumpFx || {})[e.fixId] = performance.now();
+        }
       } else if (e.type === 'pocket') {
         /*
          * ★水で満たされたポケットは**音だけ**水音になる（6.7.2節）。

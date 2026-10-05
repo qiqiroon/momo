@@ -27,6 +27,14 @@ const BilliardsEngine = (() => {
   const CUE_M = 0.540;                // キューの質量 kg
   const CUE_E = 0.75;                 // キュー先革の反発係数
   const V_MAX = 12000;                // 最大手玉速度 mm/s（5.2.2節の想定値）
+  /*
+   * 台上の構造物（6.9節）。**バンパーの2つの値はどちらも付録B送り**＝
+   * 実際に玉を転がしながら決める値である。ここに書いてあるのは仮の値。
+   * ★**上限Nは「加速を与える回数」**（D353）。N回目までは作動し、N＋1回目からはただの壁になる。
+   * ★**1ショットごとに数え直す**（D16・D195）。数え直す場所は step の末尾1か所だけ。
+   */
+  const BUMP_N = 3;                   // 1ショットに加速を与える回数の上限
+  const BUMP_V = 1500;                // 1回あたり足す速さ mm/s
 
   const STOP_V = 8.0;                 // 停止判定（速度 mm/s）
   const STOP_W = 0.6;                 // 停止判定（角速度 rad/s）
@@ -74,6 +82,13 @@ const BilliardsEngine = (() => {
        *   押されても動かない＝重さが無限大にあたる扱いをする。
        */
       pinned: !!o.pinned,
+      /*
+       * 台上の構造物（6.9節）。null＝ふつうの玉／'wall'＝固定障害物／'bumper'＝バンパー。
+       * ★**ふつうの玉にもこの2項目を持たせる。**玉ごとに持ち物が違うと入れ物の形が2種類になり、
+       *   **走らせていない処理でも物理が遅くなる**（世界の over/zone で実測済み＝＋12%）。
+       */
+      fixture: o.fixture || null,
+      boostLeft: o.fixture === 'bumper' ? BUMP_N : 0,   // あと何回加速を与えられるか
       onTable: true,            // 盤面に居るか（落球・場外で false）
       state: 'live',            // 'live' | 'pocketed' | 'off'
       // 曲面クッションに沿って走った長さと、前に沿わせた場所（5.7.3節・D29）
@@ -145,6 +160,12 @@ const BilliardsEngine = (() => {
        */
       over: null,
       zone: null,
+      /*
+       * ★**バンパーが1個でも居るか**。ショットごとの数え直し（step の末尾）を
+       *   この1行で素通りさせるために持つ。玉の列を毎刻みなめ直さないため。
+       *   玉の顔ぶれは世界を作ったあと増えないので、ここで1回数えれば足りる。
+       */
+      bumper: (balls || []).some(b => b && b.fixture === 'bumper'),
     };
   }
 
@@ -174,6 +195,7 @@ const BilliardsEngine = (() => {
       rec: !!w.rec,          // 記録を積むかも引き継ぐ（AIの読みも同じ盤面でなければならない）
       over: null,            // ★複製の側も形をそろえる（足りないと複製だけが遅くなる）
       zone: null,
+      bumper: !!w.bumper,    // 構造物は複製しても同じ顔ぶれ（玉ごと写している）
     };
   }
 
@@ -606,6 +628,32 @@ const BilliardsEngine = (() => {
     return { speed: Math.abs(vn) };
   }
 
+  /**
+   * バンパーの加速（6.9.2節）。弾き返したあとの玉へ、外向きに一定の速さを足す。
+   *
+   * ★**跳ね返り（反発）を済ませたあとに足す。**先に足すと、足したぶんまで
+   *   反発係数で減らされてしまい、足した量と効く量が食い違う。
+   * ★**向きは「バンパーの中心から玉へ」。**玉の進む向きへ足すと、
+   *   掠めただけの玉が同じ向きへ押し出されて、弾き返したことにならない。
+   * ★**上限Nまで**（D353＝N回目までは作動し、N＋1回目からはただの壁）。
+   *   残りを数えているのはバンパー自身なので、**バンパーごとに独立**になる（6.9.2節）。
+   * ★**最高速を超えない。**超えると、玉の速さを前提にしている見張り
+   *   （突風の前線が必ず1回だけすれ違う＝24 m/s の根拠）が崩れる。
+   * @returns {boolean} 加速したか（しなかった＝ただの壁として振る舞った）
+   */
+  function bumperBoost(fix, ball) {
+    if (fix.fixture !== 'bumper' || fix.boostLeft <= 0) return false;
+    const dx = ball.x - fix.x, dy = ball.y - fix.y;
+    const d = Math.hypot(dx, dy);
+    if (d < EPS) return false;
+    ball.vx += dx / d * BUMP_V;
+    ball.vy += dy / d * BUMP_V;
+    const sp = Math.hypot(ball.vx, ball.vy);
+    if (sp > V_MAX) { const k = V_MAX / sp; ball.vx *= k; ball.vy *= k; }
+    fix.boostLeft--;
+    return true;
+  }
+
   function nearestOnSeg(s, px, py) {
     const ex = s.x2 - s.x1, ey = s.y2 - s.y1;
     const l2 = ex * ex + ey * ey;
@@ -822,9 +870,38 @@ const BilliardsEngine = (() => {
            *   止まった地点を結ばないと出せない。撞いた向きだけでは分からない。
            */
           if (r) {
-            w.events.push({ type: 'hit', a: hit.a.id, b: hit.b.id, speed: r.speed, tick: w.tick,
-              ax: hit.a.x, ay: hit.a.y, bx: hit.b.x, by: hit.b.y,
-              air: (hit.a.z > 0.01 || hit.b.z > 0.01) });
+            /*
+             * ★**台上の構造物（6.9節）に当たったときは、玉に当たったことにしない。**
+             *   構造物は玉ではないので、V-02対象違い（7.2.3節が見るのは「最初に接触した玉」）の
+             *   相手にならない。ここで hit を出すと、柱に当たっただけで反則になる。
+             * ★**代わりにクッションの出来事を出す**（D475）。当たったら「クッションに触れた」と
+             *   数える、というのが第68セッションの決定である。キャロムの3クッション・
+             *   ブレイクの成立条件・当てたあとノークッションの反則の3つに効く。
+             *   ★これは**モードがルールの判定に効く初めての例**である（ふだんは
+             *   ルールとモードは互いに干渉しない＝5.3.3節）。利用者の決定（D475）。
+             */
+            const fix = hit.a.fixture ? hit.a : (hit.b.fixture ? hit.b : null);
+            if (fix) {
+              const ball = (fix === hit.a) ? hit.b : hit.a;
+              const boosted = bumperBoost(fix, ball);
+              /*
+               * ★**rail は入れない**（null）。「最初に触れたクッションと同じ側のポケットへ」
+               *   （ミッション M-11）は面の番号で見るので、構造物に面の番号を与えると
+               *   そこに無い壁を指すことになる。受け手は rail が null の出来事を飛ばす作りになっている。
+               */
+              /*
+               * ★**どの構造物に当たったかも載せる**（fixId）。画面側は
+               *   「弾いたバンパーの中央を光らせる」のにこれを使う。
+               *   当たった玉の番号（ball）だけでは、光らせる相手が分からない。
+               */
+              w.events.push({ type: 'cushion', ball: ball.id, x: ball.x, y: ball.y, rail: null,
+                speed: r.speed, slide: false, tick: w.tick,
+                fixture: fix.fixture, fixId: fix.id, boost: boosted });
+            } else {
+              w.events.push({ type: 'hit', a: hit.a.id, b: hit.b.id, speed: r.speed, tick: w.tick,
+                ax: hit.a.x, ay: hit.a.y, bx: hit.b.x, by: hit.b.y,
+                air: (hit.a.z > 0.01 || hit.b.z > 0.01) });
+            }
           }
         } else {
           r = resolveBallRail(w, hit.a, hit.s);
@@ -997,6 +1074,13 @@ const BilliardsEngine = (() => {
       // 盤面が止まっている＝ショットとショットのあいだ。数えをどれも0へ戻す
       w.stall = 0; w.shotTick = 0;
       /*
+       * ★**バンパーの残り回数も、ここで数え直す**（6.9.2節・D195＝1ショットごと）。
+       *   立てる側と下ろす側を同じ場所に置く。撞き終わりの道は5本あるので、
+       *   呼ぶ側で戻す形にすると、どれか1本で戻し忘れて
+       *   **そのショットだけバンパーが死んでいる**という食い違いになる。
+       */
+      if (w.bumper) for (const b of w.balls) if (b.fixture === 'bumper') b.boostLeft = BUMP_N;
+      /*
        * ★**一撞きのあいだだけ持つ控えも、ここで捨てる**（飛び越えた組・いま居る効き目）。
        *   立てる側と下ろす側を同じ場所にしておく。撞き終わりの道は5本あるので、
        *   呼ぶ側で消す形にすると、どれか1本で消し忘れて前の一撞きぶんが残る。
@@ -1152,6 +1236,7 @@ const BilliardsEngine = (() => {
      *   この停止判定である。**同じ数を field 側に書き写さない**（片方だけ古くなる）。
      */
     DT, G, V_MAX, BALL_M, BALL_E, STOP_V,
+    BUMP_N, BUMP_V,          // 台上の構造物（6.9節）。検査から直に確かめるために出している
     makeBall, createWorld, cloneWorld,
     applyCue, isMiscue, step, runShot, allStopped, firstContact,
     contactSlip, nearestOnSeg, nearestOnRail, timeBallRail,

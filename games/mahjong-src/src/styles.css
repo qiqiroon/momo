@@ -1,0 +1,30 @@
+body {
+  margin: 0;
+  background: #0a0a0a;
+  color: #fff;
+  font-family: 'Noto Sans JP', 'Noto Sans SC', sans-serif;
+}
+
+.placeholder {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.placeholder h1 {
+  font-family: 'Fredoka One', cursive;
+  font-weight: 400;
+  margin: 0;
+}
+
+.placeholder h1 span {
+  color: #fb923c;
+}
+
+.placeholder .version {
+  margin: 0;
+  color: #aaa;
+}

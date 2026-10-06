@@ -136,6 +136,12 @@ export interface KingSafetyWeights {
    */
   shell: number;
   /**
+   * ★v2.08: 上の加点に数える自分の駒の上限枚数。固めすぎて攻めが遅くなるのを防ぐ
+   * (v2.07＝上限なしの実機で利用者が「攻めが遅くなった」・実測でも駒を取り始めるのが約 2 手遅れた)。
+   * 8＝上限なし。
+   */
+  shellCap: number;
+  /**
    * ★v2.07 玉の固さ: 逃げ道の減点 (`noEscape`・`oneEscape`) を、玉の周りに相手の利きがあるときだけ付ける。
    * 切りだと、自分の駒で固めた囲い (穴熊など) が利きの無いうちから「逃げ道 0」で減点され、
    * 上の加点と打ち消し合う (測定では固めた形を崩す手が増えた)。
@@ -151,6 +157,7 @@ export const KING_SAFETY_WEIGHTS: KingSafetyWeights = {
   handPerPiece: 0.1,
   handCap: 8,
   shell: 10,
+  shellCap: 3,
   escapeNeedsDanger: true,
 };
 
@@ -387,7 +394,7 @@ function kingDanger(
     }
   }
   const handMul = 1 + w.handPerPiece * Math.min(position.hands[opp].length, w.handCap);
-  let penalty = danger * w.danger * handMul - defenders * w.defender - own * w.shell;
+  let penalty = danger * w.danger * handMul - defenders * w.defender - Math.min(own, w.shellCap) * w.shell;
   if (!w.escapeNeedsDanger || danger > 0) {
     if (escapes === 0) penalty += w.noEscape;
     else if (escapes === 1) penalty += w.oneEscape;

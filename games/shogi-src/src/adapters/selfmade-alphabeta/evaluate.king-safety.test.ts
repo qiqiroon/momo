@@ -77,6 +77,21 @@ describe('王の安全の点', () => {
     expect(ks(hondou, pos)).toBe(2 * W.shell);
   });
 
+  it('★v2.08 囲いの加点は上限の枚数まで (それより多く固めても増えない)', () => {
+    // 先手玉 (8,4) の周り 5 マスを自分の歩で埋める (金銀ではないので守り駒の加点は無い)。相手の利きは無い。
+    const pos = make([
+      pc('K', 'ou', 'player1', 8, 4),
+      pc('k', 'ou', 'player2', 0, 0),
+      pc('P1', 'fu', 'player1', 7, 3),
+      pc('P2', 'fu', 'player1', 7, 4),
+      pc('P3', 'fu', 'player1', 7, 5),
+      pc('P4', 'fu', 'player1', 8, 3),
+      pc('P5', 'fu', 'player1', 8, 5),
+    ]);
+    expect(W.shellCap).toBe(3);
+    expect(ks(hondou, pos)).toBe(W.shellCap * W.shell);
+  });
+
   it('★v2.07 自分の駒で固めた玉は、相手の利きが無いうちは逃げ道 0 でも減点しない', () => {
     // 先手玉を隅 (8,8) に置き、周り 3 マスを自分の歩で埋める (逃げ道 0)。相手の利きは無い。
     const pos = make([

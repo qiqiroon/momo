@@ -58,6 +58,11 @@ const VARIANTS: Record<string, Partial<SearchOptions>> = {
    * ★v2.07 で玉の固さ (周りの自分の駒に加点・逃げ道の減点は利きがあるときだけ) が既定に入った。
    * `ks` 以下はそれを含む。入る前 (v1.98〜v2.06) の王の安全と比べるときはこれ。
    */
+  /** v2.07 の玉の固さ (囲いの加点に上限なし)。v2.08 で 3 枚までにした＝それと比べるとき。 */
+  ksV207: {
+    features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumKingSafety: true, kingSafety: true },
+    kingSafetyWeights: { shellCap: 8 },
+  },
   ksV198: {
     features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumKingSafety: true, kingSafety: true },
     kingSafetyWeights: { shell: 0, escapeNeedsDanger: false },

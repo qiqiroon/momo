@@ -61,12 +61,24 @@ describe('王の安全の点', () => {
   });
 
   it('玉の周りの金・銀は守り駒として加点 (乗っているマスは逃げ道に数えない)', () => {
+    // ★v2.07: 金・銀は守り駒の加点と、囲いの駒 1 枚ぶんの加点の両方をもらう。
     const pos = make([pc('K', 'ou', 'player1', 8, 4), pc('k', 'ou', 'player2', 0, 0), pc('G', 'kin', 'player1', 7, 4)]);
-    expect(ks(hondou, pos)).toBe(W.defender);
+    expect(ks(hondou, pos)).toBe(W.defender + W.shell);
   });
 
-  it('自分の駒で囲まれた玉は逃げ道 0 と数える (玉が動ける先ではないため)', () => {
-    // 先手玉を隅 (8,8) に置き、周り 3 マスを自分の歩で埋める。相手の利きは無い。
+  it('★v2.07 玉の周りの自分の駒は、種類を問わず 1 枚ごとに加点 (囲いを保つ力)', () => {
+    const pos = make([
+      pc('K', 'ou', 'player1', 8, 4),
+      pc('k', 'ou', 'player2', 0, 0),
+      pc('P', 'fu', 'player1', 7, 4),
+      pc('N', 'kei', 'player1', 8, 3),
+    ]);
+    expect(W.shell).toBeGreaterThan(0);
+    expect(ks(hondou, pos)).toBe(2 * W.shell);
+  });
+
+  it('★v2.07 自分の駒で固めた玉は、相手の利きが無いうちは逃げ道 0 でも減点しない', () => {
+    // 先手玉を隅 (8,8) に置き、周り 3 マスを自分の歩で埋める (逃げ道 0)。相手の利きは無い。
     const pos = make([
       pc('K', 'ou', 'player1', 8, 8),
       pc('k', 'ou', 'player2', 0, 0),
@@ -74,7 +86,20 @@ describe('王の安全の点', () => {
       pc('P2', 'fu', 'player1', 7, 8),
       pc('P3', 'fu', 'player1', 8, 7),
     ]);
-    expect(ks(hondou, pos)).toBe(-W.noEscape);
+    expect(ks(hondou, pos)).toBe(3 * W.shell);
+  });
+
+  it('★v2.07 固めた玉でも、周りに相手の利きが届けば逃げ道 0 の減点が付く', () => {
+    // 上と同じ囲いに、後手の飛車 (1,8) が 8 列目を下へ利かせる＝(7,8) の歩に利きが届く。
+    const pos = make([
+      pc('K', 'ou', 'player1', 8, 8),
+      pc('k', 'ou', 'player2', 0, 0),
+      pc('P1', 'fu', 'player1', 7, 7),
+      pc('P2', 'fu', 'player1', 7, 8),
+      pc('P3', 'fu', 'player1', 8, 7),
+      pc('r', 'hi', 'player2', 1, 8),
+    ]);
+    expect(ks(hondou, pos)).toBe(3 * W.shell - W.danger - W.noEscape);
   });
 
   it('相手の玉の危なさは加点になる (先後で符号が逆)', () => {

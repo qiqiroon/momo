@@ -119,7 +119,10 @@ export interface KingSafetyWeights {
   danger: number;
   /** 玉の周り 8 マスにいる自分の金・銀 1 枚あたりの加点。 */
   defender: number;
-  /** 逃げ道 (動ける先で相手の利きが無いマス) が 0 のときの減点。 */
+  /**
+   * 逃げ道 (動ける先で相手の利きが無いマス) が 0 のときの減点。
+   * ★v2.07: `escapeNeedsDanger` が入りなら、周りに相手の利きがあるときだけ。
+   */
   noEscape: number;
   /** 逃げ道が 1 つだけのときの減点。 */
   oneEscape: number;
@@ -127,6 +130,17 @@ export interface KingSafetyWeights {
   handPerPiece: number;
   /** 上の割増しに数える持ち駒の上限枚数。 */
   handCap: number;
+  /**
+   * ★v2.07 玉の固さ: 玉の周り 8 マスにいる自分の駒 1 枚あたりの加点 (駒の種類は問わない＝囲いを保つ力)。
+   * 金・銀は `defender` と両方もらう。0＝数えない。
+   */
+  shell: number;
+  /**
+   * ★v2.07 玉の固さ: 逃げ道の減点 (`noEscape`・`oneEscape`) を、玉の周りに相手の利きがあるときだけ付ける。
+   * 切りだと、自分の駒で固めた囲い (穴熊など) が利きの無いうちから「逃げ道 0」で減点され、
+   * 上の加点と打ち消し合う (測定では固めた形を崩す手が増えた)。
+   */
+  escapeNeedsDanger: boolean;
 }
 
 export const KING_SAFETY_WEIGHTS: KingSafetyWeights = {
@@ -136,6 +150,8 @@ export const KING_SAFETY_WEIGHTS: KingSafetyWeights = {
   oneEscape: 40,
   handPerPiece: 0.1,
   handCap: 8,
+  shell: 10,
+  escapeNeedsDanger: true,
 };
 
 /** 守り駒に数える駒種 (金・銀)。表に無いルール (チェス等) では数えない。 */
@@ -349,6 +365,7 @@ function kingDanger(
   const seen = new Set<number>();
   let danger = 0;
   let defenders = 0;
+  let own = 0;
   let escapes = 0;
   for (let dr = -1; dr <= 1; dr++) {
     for (let dc = -1; dc <= 1; dc++) {
@@ -362,6 +379,7 @@ function kingDanger(
       if (attacked) danger++;
       const cell = position.board[sq.row][sq.col];
       if (cell && cell.owner === side) {
+        own++;
         if (GUARD_KINDS.has(cell.kind)) defenders++;
       } else if (!attacked && !(cell && royal.has(cell.kind))) {
         escapes++;
@@ -369,8 +387,10 @@ function kingDanger(
     }
   }
   const handMul = 1 + w.handPerPiece * Math.min(position.hands[opp].length, w.handCap);
-  let penalty = danger * w.danger * handMul - defenders * w.defender;
-  if (escapes === 0) penalty += w.noEscape;
-  else if (escapes === 1) penalty += w.oneEscape;
+  let penalty = danger * w.danger * handMul - defenders * w.defender - own * w.shell;
+  if (!w.escapeNeedsDanger || danger > 0) {
+    if (escapes === 0) penalty += w.noEscape;
+    else if (escapes === 1) penalty += w.oneEscape;
+  }
   return penalty;
 }

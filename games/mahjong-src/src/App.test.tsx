@@ -2,6 +2,10 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { App } from './App';
 import { APP_VERSION } from './version';
 
+const container = () => document.body;
+/** 始めるボタン（言語が変わっても見つかるよう、主ボタンの印で探す） */
+const startButton = () => document.querySelector<HTMLButtonElement>('.btn-start')!;
+
 describe('始める画面', () => {
   it('アプリ名・版番号・始めるボタンが出る', () => {
     render(<App />);
@@ -9,7 +13,28 @@ describe('始める画面', () => {
     expect(h1).toHaveTextContent('MOMO');
     expect(h1).toHaveTextContent('Mahjong');
     expect(screen.getByText(APP_VERSION)).toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.getByRole('combobox')).toBeInTheDocument(); // 言語選択
+    expect(container().querySelector('.header-right .icon-btn')).not.toBeNull(); // 歯車
+  });
+
+  it('言語を選ぶと画面の言葉が切り替わる', () => {
+    render(<App />);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'en' } });
+    expect(screen.getByText('Play vs CPU')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'zh' } });
+    expect(screen.getByText('与电脑对局')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'ja' } });
+  });
+
+  it('対局中も見出しはアイコン・タイトル・バージョン・サブタイトルを出し、右上に歯車と言語選択がある', () => {
+    render(<App />);
+    fireEvent.click(startButton());
+    const header = container().querySelector('.site-header')!;
+    expect(header.querySelector('.cat-icon')).not.toBeNull();
+    expect(header.querySelector('.version-tag')).toHaveTextContent(APP_VERSION);
+    expect(header.querySelector('.subtitle')).toHaveTextContent('Any Rule, Any Table');
+    expect(header.querySelector('.header-right .icon-btn')).not.toBeNull();
+    expect(header.querySelector('.header-right select')).not.toBeNull();
   });
 });
 
@@ -28,7 +53,7 @@ describe('卓の画面（段階1）', () => {
 
   it('始めると親の自分に 14 枚。牌を 1 枚切ると河に出て、CPU の番が回って自分の番に戻る', () => {
     const { container } = render(<App />);
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(startButton());
     run(100);
 
     expect(container.querySelectorAll('.my-hand .hand-tile')).toHaveLength(14);
@@ -50,7 +75,7 @@ describe('卓の画面（段階1）', () => {
 
   it('指で押すときは 1 回目で浮かせるだけ、2 回目で切る', () => {
     const { container } = render(<App />);
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(startButton());
     run(100);
     const tile = myTiles(container)[3];
     fireEvent.pointerUp(tile, { pointerType: 'touch' });
@@ -62,7 +87,7 @@ describe('卓の画面（段階1）', () => {
 
   it('自分がツモ切りを続けると、局が終わって結果ともう一局のボタンが出る', () => {
     const { container } = render(<App />);
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(startButton());
     for (let i = 0; i < 40 && !container.querySelector('.result'); i++) {
       run(5000);
       const tsumo = Array.from(container.querySelectorAll('.hand-actions .btn-primary'));

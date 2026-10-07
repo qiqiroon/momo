@@ -113,27 +113,80 @@ h1 .version-tag {
   font-family: 'Fredoka One', 'Noto Sans SC', 'Noto Sans JP', sans-serif;
 }
 
-/* 対局中は見出しをタイトルだけに縮めて左上に置く（§5） */
-body.in-game .site-header {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 6px);
-  left: 12px;
-  margin: 0;
-  z-index: 50;
-  pointer-events: none;
-  width: auto;
-  max-width: none;
+/* 右上：設定（歯車）と言語選択。始める画面でも対局中でも同じ場所 */
+.header-right {
+  margin-left: auto;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-body.in-game .site-header .cat-icon,
-body.in-game .site-header .subtitle,
-body.in-game .site-header .version-tag {
-  display: none;
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  border-color: var(--orange-mid);
+}
+
+.lang-select {
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 8px;
+  height: 34px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Noto Sans JP', 'Noto Sans SC', sans-serif;
+}
+
+/* 狭い画面の始める画面：大きいタイトルの横に置くと右へはみ出すので、歯車と言語だけ上の行の右端へ */
+@media (max-width: 520px) {
+  body:not(.in-game) .site-header {
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  body:not(.in-game) .header-right {
+    order: -1;
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* 対局中：見出しは同じ形式（アイコン・タイトル・バージョン・サブタイトル）のまま小さく、上の帯にする（利用者指示 2026-10-07） */
+body.in-game .site-header {
+  max-width: none;
+  margin: 0;
+  padding: calc(env(safe-area-inset-top, 0px) + 6px) 0 6px;
+  align-items: center;
+  gap: 8px;
+}
+
+body.in-game .site-header .cat-icon {
+  width: 30px;
+  height: 33px;
 }
 
 body.in-game .site-header h1 {
-  font-size: 1.25rem;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+  font-size: 1.3rem;
+}
+
+body.in-game .site-header .subtitle {
+  font-size: 11px;
+  margin: 2px 0 0;
+  min-height: 0;
 }
 
 /* ---- 始める画面 ---- */
@@ -325,11 +378,11 @@ body.in-game .site-header h1 {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 44px 0 20px;
+  padding: 16px 0 20px;
 }
 
 .square {
-  --side: min(100vw - 48px, 100dvh - 84px, 980px);
+  --side: min(100vw - 48px, 100dvh - 100px, 980px);
   width: var(--side);
   height: var(--side);
   position: relative;
@@ -489,8 +542,7 @@ body.in-game .site-header h1 {
   justify-content: flex-end;
   align-items: baseline;
   gap: 12px;
-  min-height: 40px;
-  padding: 12px 6px 4px;
+  padding: 8px 6px 6px;
   font-size: 14px;
   border-bottom: 1px solid var(--brass-soft);
 }

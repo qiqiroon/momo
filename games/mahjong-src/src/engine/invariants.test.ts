@@ -1,8 +1,9 @@
 import type { Envelope } from './events';
 import { Watcher, checkState } from './invariants';
-import { startRound } from './round';
+import { act, advance, startRound } from './round';
 import { GENERAL_RULES } from './rules';
 import { playOne, runSelfplay } from '../selfplay/run';
+import { tsumogiriCpu } from '../cpu/tsumogiri';
 
 /** 見張り役に正しい列を流し、1つだけ差し替えて流す（既定は最後の出来事）。差し替えた時点までに出た理由を返す */
 function feedWithLast(tamper: (env: Envelope, all: Envelope[]) => Envelope, at = -1): string[] {
@@ -32,8 +33,21 @@ describe('見張り役', () => {
     // 出来事の並び：局の始まり・山の種・配牌16回 → 3 番目が最初の配牌
     const reasons = feedWithLast((e) => (e.ev.type === 'deal' ? { ...e, ev: { ...e.ev, tiles: e.ev.tiles.slice(1) } } : e), 2);
     // 手牌と山の残りが一緒にずれるので「数」は合ってしまう。並びの決まりで捕まえる
-    // （最後の1枚を配らない壊し方は並びも崩れない＝段階1の「最初のツモの時点で全員13枚」で捕まえる）
+    // （最後の1枚を配らない壊し方は並びも崩れない＝下の「最初のツモの時点で全員13枚」で捕まえる）
     expect(reasons.join()).toMatch(/山の先頭から順に取られていない/);
+  });
+
+  it('最後の1枚を配り忘れると、最初のツモの時点で気づく（並びの決まりでは気づけない形）', () => {
+    const w = new Watcher();
+    w.push({ seq: 0, to: 'all', ev: { type: 'gameStart', rules: GENERAL_RULES } });
+    const envs = startRound(w.full, 'forget', 0, 0);
+    // 最後の配牌（席3 の 1 枚）を抜き、通し番号を詰める
+    const kept = envs.slice(0, -1);
+    const dealReasons = kept.flatMap((e) => w.push(e));
+    expect(dealReasons).toEqual([]); // 配っている途中では気づけない
+    // 席3 の 1 枚が山に残ったまま＝親は本来の 14 枚目でなく、その牌をツモる
+    const reasons = advance(w.full).flatMap((e) => w.push(e));
+    expect(reasons.join()).toMatch(/手牌の枚数が違う（席 3：12 枚/);
   });
 
   it('局面を作る側の数え違い（山の残りだけずれる）に気づく', () => {
@@ -57,12 +71,77 @@ describe('見張り役', () => {
   });
 });
 
+/** 配り終えて、親がツモるまで進めた見張り役 */
+function dealtWatcher(seed: string): Watcher {
+  const w = new Watcher();
+  w.push({ seq: 0, to: 'all', ev: { type: 'gameStart', rules: GENERAL_RULES } });
+  for (const env of startRound(w.full, seed, 0, 0)) w.push(env);
+  for (const env of advance(w.full)) w.push(env);
+  return w;
+}
+
+describe('見張り役（ツモと打牌）', () => {
+  it('山の順番を飛ばしてツモると気づく', () => {
+    const w = dealtWatcher('skip');
+    w.push(act(w.full, 0, { type: 'discard', tile: w.full.hands[0][0] })[0]);
+    const right = advance(w.full)[0];
+    if (right.ev.type !== 'draw') throw new Error('ツモのはず');
+    const skipped = { ...right, ev: { ...right.ev, tile: w.full.wall![w.full.wall!.length - w.full.wallLeft + 1] } };
+    expect(w.push(skipped).join()).toMatch(/山の先頭から順に取られていない/);
+  });
+
+  it('ツモを全員に見せてしまうと気づく', () => {
+    const w = new Watcher();
+    w.push({ seq: 0, to: 'all', ev: { type: 'gameStart', rules: GENERAL_RULES } });
+    for (const env of startRound(w.full, 'show', 0, 0)) w.push(env);
+    const draw = advance(w.full)[0];
+    expect(w.push({ ...draw, to: 'all' }).join()).toMatch(/手牌が見えている|ツモ牌の見え方/);
+  });
+
+  it('持っていない牌を切ると気づく', () => {
+    const w = dealtWatcher('notmine');
+    const other = w.full.hands[1][0];
+    expect(w.push({ seq: w.full.nextSeq, to: 'all', ev: { type: 'discard', seat: 0, tile: other, tsumogiri: false } }).join()).toMatch(
+      /持っていない牌/,
+    );
+  });
+
+  it('番でない人が切ると気づく', () => {
+    const w = dealtWatcher('turn');
+    const t = w.full.hands[1][0];
+    expect(w.push({ seq: w.full.nextSeq, to: 'all', ev: { type: 'discard', seat: 1, tile: t, tsumogiri: false } }).join()).toMatch(/番でない/);
+  });
+
+  it('アガリの形でないのにツモアガリすると気づく（進行役を通さず出来事を直接作る）', () => {
+    const w = dealtWatcher('fake');
+    expect(w.push({ seq: w.full.nextSeq, to: 'all', ev: { type: 'tsumo', seat: 0, hand: w.full.hands[0].slice() } }).join()).toMatch(
+      /アガリの形でない/,
+    );
+  });
+
+  it('山が残っているのに流局すると気づく', () => {
+    const w = dealtWatcher('early');
+    w.push(act(w.full, 0, { type: 'discard', tile: w.full.hands[0][0] })[0]);
+    expect(w.push({ seq: w.full.nextSeq, to: 'all', ev: { type: 'exhaust' } }).join()).toMatch(/山が残っている/);
+  });
+});
+
 describe('自動対局の台', () => {
-  it('50局回して失敗0件・回した数と出来事の数が合う（1局＝始まり1＋局の始まり1＋山の種1＋配牌16回）', () => {
-    const r = runSelfplay(50, 'test');
-    expect(r.games).toBe(50);
-    expect(r.events).toBe(50 * 19);
+  it('ツモ切りだけの 1 局は必ず流局まで行き、出来事は 160 件（始まり3＋配牌16回＋ツモ70＋打牌70＋流局1）', () => {
+    // 136 枚−配牌 52−王牌 14＝ツモは 70 回
+    const r = playOne('count', GENERAL_RULES, tsumogiriCpu);
+    expect(r.failure).toBeNull();
+    expect(r.ending).toBe('exhaust');
+    expect(r.events).toBe(160);
+  });
+
+  it('100局回して失敗0件・ツモアガリと流局の両方の道を通る', () => {
+    const r = runSelfplay(100, 'test');
+    expect(r.games).toBe(100);
     expect(r.failures).toEqual([]);
+    expect(r.endings.unfinished).toBe(0);
+    expect(r.endings.tsumo).toBeGreaterThan(0); // アガリの道が走ったことを見る
+    expect(r.endings.exhaust).toBeGreaterThan(0);
   });
 
   it('同じ種なら同じ結果（失敗した局を種で再現できる）', () => {

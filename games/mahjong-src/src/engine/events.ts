@@ -22,7 +22,15 @@ export type GameEvent =
   /** 山の種。局の終わりまで誰にも見せない */
   | { type: 'wallSeed'; seed: string | null }
   /** 配牌。本人だけに見える */
-  | { type: 'deal'; seat: Seat; tiles: readonly TileId[] };
+  | { type: 'deal'; seat: Seat; tiles: readonly TileId[] }
+  /** ツモ。本人だけに見える */
+  | { type: 'draw'; seat: Seat; tile: TileId }
+  /** 打牌。全員に見える。tsumogiri＝引いた牌をそのまま切った */
+  | { type: 'discard'; seat: Seat; tile: TileId; tsumogiri: boolean }
+  /** ツモアガリ。全員に見える。手牌（14 枚）を開ける */
+  | { type: 'tsumo'; seat: Seat; hand: readonly TileId[] }
+  /** 山が尽きて流局。全員に見える */
+  | { type: 'exhaust' };
 
 export interface Envelope {
   /** 通し番号（0 から） */
@@ -44,6 +52,8 @@ export function mask(env: Envelope, viewer: Seat): Envelope {
       return { ...env, ev: { ...ev, seed: null } };
     case 'deal':
       return { ...env, ev: { ...ev, tiles: ev.tiles.map(() => HIDDEN) } };
+    case 'draw':
+      return { ...env, ev: { ...ev, tile: HIDDEN } };
     default:
       return env;
   }

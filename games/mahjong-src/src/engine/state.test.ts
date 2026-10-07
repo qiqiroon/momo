@@ -1,9 +1,10 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { HIDDEN, mask, type Envelope } from './events';
-import { roundSeed, startRound } from './round';
+import { act, advance, legalActions, roundSeed, startRound } from './round';
 import { GENERAL_RULES } from './rules';
-import { apply, initialState, replay, viewFor } from './state';
+import { apply, initialState, liveWallLeft, replay, viewFor } from './state';
+import { playOne } from '../selfplay/run';
 
 /** 対局を始めて、1 局目を配るまでの出来事の列 */
 function dealtLog(gameSeed: string): Envelope[] {
@@ -92,5 +93,60 @@ describe('ルール部分は画面に触らない', () => {
       expect(src, f).not.toMatch(/from ['"]react/);
       expect(src, f).not.toMatch(/\bdocument\.|\bwindow\./);
     }
+  });
+});
+
+describe('ツモって切る（段階1）', () => {
+  it('同じ種で2回打つと、出来事の列がまるごと同じ（同じ配牌・同じツモ）', () => {
+    const a = playOne('same-seed');
+    const b = playOne('same-seed');
+    expect(a.log.length).toBeGreaterThan(100);
+    expect(a.log).toEqual(b.log);
+    expect(playOne('other-seed').log).not.toEqual(a.log);
+  });
+
+  it('ツモは本人だけに見え、他の人には伏せて渡る・切った牌は全員に見える', () => {
+    const { log } = playOne('peek');
+    const firstDraw = log.find((e) => e.ev.type === 'draw')!;
+    expect(firstDraw.to).toEqual([0]);
+    const seen = mask(firstDraw, 1);
+    expect(seen.ev.type === 'draw' && seen.ev.tile).toBe(HIDDEN);
+    const firstDiscard = log.find((e) => e.ev.type === 'discard')!;
+    expect(firstDiscard.to).toBe('all');
+  });
+
+  it('他の人の打牌を、伏せた手牌から 1 枚減らして当てはめられる（河は全員同じ）', () => {
+    const { log } = playOne('rivers');
+    const full = replay(log);
+    for (const viewer of [0, 1, 2, 3] as const) {
+      const v = viewFor(log, viewer);
+      expect(v.discards).toEqual(full.discards);
+      expect(v.hands.map((h) => h.length)).toEqual(full.hands.map((h) => h.length));
+    }
+  });
+
+  it('ツモ切りの印：ツモ切りの CPU の打牌はすべてツモ切り', () => {
+    const { log } = playOne('giri');
+    const discards = log.filter((e) => e.ev.type === 'discard');
+    expect(discards.length).toBe(70);
+    expect(discards.every((e) => e.ev.type === 'discard' && e.ev.tsumogiri)).toBe(true);
+  });
+
+  it('流局は王牌 14 枚を残したところ', () => {
+    const s = replay(playOne('dead').log);
+    expect(s.result).toEqual({ type: 'exhaust' });
+    expect(s.wallLeft).toBe(14);
+    expect(liveWallLeft(s)).toBe(0);
+  });
+
+  it('進行役は、番でない人・持っていない牌・アガリでない形のツモアガリを受け付けない', () => {
+    const log = dealtLog('guard');
+    let s = replay(log);
+    for (const e of advance(s)) s = apply(s, e);
+    expect(() => act(s, 1, { type: 'discard', tile: s.hands[1][0] })).toThrow(/番ではない/);
+    expect(() => act(s, 0, { type: 'discard', tile: s.hands[1][0] })).toThrow(/持っていない/);
+    expect(() => act(s, 0, { type: 'tsumo' })).toThrow(/アガリの形/);
+    expect(legalActions(s, 1)).toEqual([]);
+    expect(legalActions(s, 0).filter((a) => a.type === 'discard')).toHaveLength(14);
   });
 });

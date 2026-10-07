@@ -26,6 +26,21 @@ describe('始める画面', () => {
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'ja' } });
   });
 
+  it('CAT を選ぶと、日本語から選んだときは にゃあ 系の鳴き声になり、描き直しても同じ言葉のまま', () => {
+    render(<App />);
+    const sel = screen.getByRole('combobox');
+    expect([...sel.querySelectorAll('option')].map((o) => o.textContent)).toContain('CAT');
+    fireEvent.change(sel, { target: { value: 'ja' } });
+    fireEvent.change(sel, { target: { value: 'cat' } });
+    const word = startButton().textContent;
+    expect(['にゃあ', 'にゃ', 'にゃーん', 'みゃお', 'ニャ！']).toContain(word);
+    fireEvent.click(startButton());
+    // 卓の言葉も鳴き声（局の表示）。もう一度描かれても同じ
+    const round = document.querySelector('.round-label')!.textContent;
+    expect(['にゃあ', 'にゃ', 'にゃーん', 'みゃお', 'ニャ！']).toContain(round);
+    fireEvent.change(sel, { target: { value: 'ja' } });
+  });
+
   it('対局中も見出しはアイコン・タイトル・バージョン・サブタイトルを出し、右上に歯車と言語選択がある', () => {
     render(<App />);
     fireEvent.click(startButton());

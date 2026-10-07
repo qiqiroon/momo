@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTable } from './game/useTable';
-import { LANG_MODES, changeMode, currentMode, initLang, translate, type LangMode, type MessageKey } from './i18n/strings';
+import { LANG_MODES, baseOf, changeMode, currentMode, initLang, translate, type LangMode, type MessageKey } from './i18n/strings';
 import { Table } from './ui/Table';
 import { APP_VERSION } from './version';
 
@@ -16,7 +16,8 @@ export function App() {
 
   useEffect(() => {
     document.body.classList.toggle('in-game', started);
-    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
+    const base = baseOf(lang);
+    document.documentElement.lang = base === 'zh' ? 'zh-CN' : base;
   }, [started, lang]);
 
   const onLang = (m: LangMode) => {
@@ -34,7 +35,7 @@ export function App() {
             <span className="mahjong">Mahjong</span>
             <span className="version-tag">{APP_VERSION}</span>
           </h1>
-          <div className={`subtitle${lang === 'zh' ? ' zh' : ''}`}>{t('subtitle')}</div>
+          <div className={`subtitle${baseOf(lang) === 'zh' ? ' zh' : ''}`}>{t('subtitle')}</div>
         </div>
         <div className="header-right">
           {/* 設定の中身はまだ無い（入れる段階で作る）。ボタンだけ先に置く */}

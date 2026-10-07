@@ -31,10 +31,9 @@ const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kin
 export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
   const narrow = useNarrow();
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
-  const winds = t('winds').split(',');
-  const windOf = (seat: number) => winds[(seat - view.dealer + 4) % 4];
+  const windOf = (seat: number) => t(`wind${(seat - view.dealer + 4) % 4}` as MessageKey);
   const nameOf = (seat: number) => (seat === HUMAN ? t('you') : t('cpu', { n: relOf(seat) }));
-  const roundLabel = t('round', { wind: t('roundWinds').split(',')[0], n: view.roundIndex + 1 });
+  const roundLabel = t('round', { wind: t('roundWind0'), n: view.roundIndex + 1 });
   const left = Math.max(0, liveWallLeft(view));
   const playing = view.phase !== 'ended';
   // 直前に切った人（その河の最後の牌に印を付ける）

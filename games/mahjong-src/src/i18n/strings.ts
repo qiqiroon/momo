@@ -3,10 +3,15 @@
 //
 // 表示言語の判定・保存・アプリ間の引き継ぎは共通ライブラリ momo-lang の役目（ここでは呼ぶだけ）。
 // 中国語は簡体字 1 種（2026-10-05 決定）。
+// 猫語（CAT）は MOMO Works 共通の仕様（works/docs/多言語対応/cat-lang-spec.docx）どおり辞書を持たず、
+// キーの性質に応じた鳴き声を返す。語彙は猫語を選ぶ直前の言語（catBase＝momo-lang の共有値）で決まる。
 
 import '@momo-lib/momo-lang/momo-lang.js';
 
-export type Lang = 'ja' | 'en' | 'zh';
+/** 辞書を持つ言語 */
+export type BaseLang = 'ja' | 'en' | 'zh';
+/** 表示言語（猫語を含む） */
+export type Lang = BaseLang | 'cat';
 
 const ja = {
   subtitle: 'Any Rule, Any Table',
@@ -15,8 +20,11 @@ const ja = {
   again: 'もう一局',
   you: 'あなた',
   cpu: 'CPU {n}',
-  winds: '東,南,西,北',
-  roundWinds: '東,南,西,北',
+  wind0: '東',
+  wind1: '南',
+  wind2: '西',
+  wind3: '北',
+  roundWind0: '東',
   round: '{wind}{n}局',
   wallLeft: '残り {n}',
   tsumo: 'ツモ',
@@ -38,8 +46,11 @@ const en: Dict = {
   again: 'Play again',
   you: 'You',
   cpu: 'CPU {n}',
-  winds: 'E,S,W,N',
-  roundWinds: 'East,South,West,North',
+  wind0: 'E',
+  wind1: 'S',
+  wind2: 'W',
+  wind3: 'N',
+  roundWind0: 'East',
   round: '{wind} {n}',
   wallLeft: '{n} left',
   tsumo: 'Tsumo',
@@ -58,8 +69,11 @@ const zh: Dict = {
   again: '再来一局',
   you: '你',
   cpu: '电脑 {n}',
-  winds: '东,南,西,北',
-  roundWinds: '东,南,西,北',
+  wind0: '东',
+  wind1: '南',
+  wind2: '西',
+  wind3: '北',
+  roundWind0: '东',
   round: '{wind}{n}局',
   wallLeft: '余 {n}',
   tsumo: '自摸',
@@ -71,22 +85,72 @@ const zh: Dict = {
   language: '语言',
 };
 
-const DICTS: Record<Lang, Dict> = { ja, en, zh };
+const DICTS: Record<BaseLang, Dict> = { ja, en, zh };
+
+// ---- 猫語 ----
+
+/** 攻撃的な鳴き声を返すキー（失敗・エラーの通知）。いまは無い（オンラインの段階で足す） */
+const ERROR_KEYS: ReadonlySet<MessageKey> = new Set([]);
+/** 穏やかな鳴き声を返すキー（待ちの通知）。いまは無い */
+const CALM_KEYS: ReadonlySet<MessageKey> = new Set([]);
+
+const CAT_VOCAB: Record<BaseLang, { error: string[]; calm: string[]; normal: string[] }> = {
+  ja: {
+    error: ['シャー！', 'フーッ！', 'シャシャシャ！'],
+    calm: ['ごろごろ…', 'にゃ…', 'ぐるぐる…'],
+    normal: ['にゃあ', 'にゃ', 'にゃーん', 'みゃお', 'ニャ！'],
+  },
+  en: {
+    error: ['HISS!', 'SPIT!', 'FSSST!'],
+    calm: ['purrrr...', 'mrrr...', 'prrr...'],
+    normal: ['MEOW', 'meow', 'mrrrow', 'mew', 'NYA!'],
+  },
+  zh: {
+    error: ['嘶！', '哈！', '嘶嘶！'],
+    calm: ['咕噜…', '喵…', '噜噜…'],
+    normal: ['喵', '喵呜', '咪', '喵！'],
+  },
+};
+
+/** 同じキーには同じ鳴き声を返す覚え書き（無いと、画面を描き直すたびに全部の言葉が引き直されて読めない）。
+ *  語彙の元の言語が変わったら作り直す */
+const catCache = new Map<MessageKey, string>();
+let cacheBase: BaseLang | null = null;
+let catBase: BaseLang = 'ja';
+
+function catSpeak(key: MessageKey): string {
+  if (cacheBase !== catBase) {
+    catCache.clear();
+    cacheBase = catBase;
+  }
+  const hit = catCache.get(key);
+  if (hit) return hit;
+  const v = CAT_VOCAB[catBase];
+  const list = ERROR_KEYS.has(key) ? v.error : CALM_KEYS.has(key) ? v.calm : v.normal;
+  const word = list[Math.floor(Math.random() * list.length)];
+  catCache.set(key, word);
+  return word;
+}
+
+/** 猫語の語彙の元の言語（html の lang や中国語用の字形に使う） */
+export const baseOf = (lang: Lang): BaseLang => (lang === 'cat' ? catBase : lang);
 
 interface MomoLangApi {
   bind(appId: string, opts: { supportedLangs: readonly string[]; fallback?: string }): void;
   resolve(appId: string): string;
   getMode(appId: string): string;
   setMode(appId: string, mode: string): string;
+  getCatBase(appId: string): string;
 }
 
-/** 言語選択の値。auto＝端末の設定に従う。猫語は Mahjong では扱わない（選ばれていたら momo-lang が元の言語に倒す） */
+/** 言語選択の値。auto＝端末の設定に従う */
 export type LangMode = 'auto' | Lang;
 export const LANG_MODES: readonly { mode: LangMode; label: string }[] = [
   { mode: 'auto', label: 'Auto' },
   { mode: 'ja', label: '日本語' },
   { mode: 'en', label: 'EN' },
   { mode: 'zh', label: '中文' },
+  { mode: 'cat', label: 'CAT' },
 ];
 declare global {
   interface Window {
@@ -95,9 +159,9 @@ declare global {
 }
 
 const APP_ID = 'mahjong';
-const SUPPORTED: readonly Lang[] = ['ja', 'en', 'zh'];
+const SUPPORTED: readonly Lang[] = ['ja', 'en', 'zh', 'cat'];
 
-function detectFallback(): Lang {
+function detectFallback(): BaseLang {
   for (const entry of navigator.languages?.length ? navigator.languages : [navigator.language || 'en']) {
     const l = entry.toLowerCase();
     if (l.startsWith('ja')) return 'ja';
@@ -107,16 +171,26 @@ function detectFallback(): Lang {
   return 'en';
 }
 
-/** 起動時に 1 回。他の MOMO アプリで選んだ言語に合わせる（猫語は momo-lang が元の言語に倒す） */
-export function initLang(): Lang {
-  const api = typeof window === 'undefined' ? undefined : window.MomoLang;
-  if (!api) return detectFallback();
-  api.bind(APP_ID, { supportedLangs: SUPPORTED, fallback: 'en' });
-  const r = api.resolve(APP_ID);
+const api = () => (typeof window === 'undefined' ? undefined : window.MomoLang);
+
+function asLang(r: string): Lang {
   return (SUPPORTED as readonly string[]).includes(r) ? (r as Lang) : detectFallback();
 }
 
-const api = () => (typeof window === 'undefined' ? undefined : window.MomoLang);
+/** 猫語の語彙の元の言語を momo-lang から読む（アプリ間で にゃあ/meow/喵 がそろう） */
+function syncCatBase(): void {
+  const b = api()?.getCatBase(APP_ID);
+  catBase = b === 'en' || b === 'zh' ? b : 'ja';
+}
+
+/** 起動時に 1 回。他の MOMO アプリで選んだ言語に合わせる */
+export function initLang(): Lang {
+  const a = api();
+  if (!a) return detectFallback();
+  a.bind(APP_ID, { supportedLangs: SUPPORTED, fallback: 'en' });
+  syncCatBase();
+  return asLang(a.resolve(APP_ID));
+}
 
 export function currentMode(): LangMode {
   const m = api()?.getMode(APP_ID) ?? 'auto';
@@ -127,13 +201,16 @@ export function currentMode(): LangMode {
 export function changeMode(mode: LangMode): Lang {
   const a = api();
   if (!a) return mode === 'auto' ? detectFallback() : mode;
+  // 猫語を選んだ瞬間に語彙の元の言語が決まる（momo-lang の setMode が共有値へ書く）
   const r = a.setMode(APP_ID, mode);
-  return (SUPPORTED as readonly string[]).includes(r) ? (r as Lang) : detectFallback();
+  syncCatBase();
+  return asLang(r);
 }
 
 export function translate(lang: Lang, key: MessageKey, vars: Record<string, string | number> = {}): string {
+  if (lang === 'cat') return catSpeak(key);
   return DICTS[lang][key].replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? ''));
 }
 
 export const ALL_LANGS = SUPPORTED;
-export const dictFor = (lang: Lang) => DICTS[lang];
+export const dictFor = (lang: BaseLang) => DICTS[lang];

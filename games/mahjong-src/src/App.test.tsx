@@ -38,6 +38,8 @@ describe('始める画面', () => {
     // 卓の言葉も鳴き声（局の表示）。もう一度描かれても同じ
     const round = document.querySelector('.round-label')!.textContent;
     expect(['にゃあ', 'にゃ', 'にゃーん', 'みゃお', 'ニャ！']).toContain(round);
+    // サブタイトルは猫語にしない（猫語を選ぶ直前の言語のまま）
+    expect(document.querySelector('.subtitle')).toHaveTextContent('Any Rule, Any Table');
     fireEvent.change(sel, { target: { value: 'ja' } });
   });
 

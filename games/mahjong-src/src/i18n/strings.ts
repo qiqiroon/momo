@@ -89,6 +89,11 @@ const DICTS: Record<BaseLang, Dict> = { ja, en, zh };
 
 // ---- 猫語 ----
 
+/** 猫語にしないキー（猫語のときも、猫語を選ぶ直前の言語のまま出す）。利用者指示 2026-10-07：
+ *  - サブタイトル（全アプリ共通で猫語にしない）
+ *  - 利用規約・免責・賭博禁止・公平性の説明など、意味が伝わらないと困るもの（段階4で足す） */
+const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['subtitle']);
+
 /** 攻撃的な鳴き声を返すキー（失敗・エラーの通知）。いまは無い（オンラインの段階で足す） */
 const ERROR_KEYS: ReadonlySet<MessageKey> = new Set([]);
 /** 穏やかな鳴き声を返すキー（待ちの通知）。いまは無い */
@@ -208,7 +213,8 @@ export function changeMode(mode: LangMode): Lang {
 }
 
 export function translate(lang: Lang, key: MessageKey, vars: Record<string, string | number> = {}): string {
-  if (lang === 'cat') return catSpeak(key);
+  if (lang === 'cat' && !NO_CAT_KEYS.has(key)) return catSpeak(key);
+  if (lang === 'cat') return translate(catBase, key, vars);
   return DICTS[lang][key].replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? ''));
 }
 

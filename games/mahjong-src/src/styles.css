@@ -1,30 +1,559 @@
-body {
-  margin: 0;
-  background: #0a0a0a;
-  color: #fff;
-  font-family: 'Noto Sans JP', 'Noto Sans SC', sans-serif;
+/* MOMO Mahjong の見た目。
+   MOMO Works 共通（黒地・白い字・オレンジは目立たせる所だけ・灰色は「選べない」とき）を守り、
+   卓だけは緑の羅紗＋木の縁＋真鍮の細線で高級な雀卓に寄せる。 */
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #111111;
+  --surface2: #1a1a1a;
+  --orange: #c2410c;
+  --orange-mid: #ea580c;
+  --text: #e5e5e5;
+  --text-sub: #a3a3a3;
+  --text-muted: #737373;
+  --border: #2a2a2a;
+  --border-strong: #444;
+
+  /* 卓（このアプリだけの色） */
+  --felt-hi: #1b6e45;
+  --felt: #12573a;
+  --felt-lo: #0a3524;
+  --brass: rgba(201, 168, 106, 0.55);
+  --brass-soft: rgba(201, 168, 106, 0.22);
+  --wood: #1c130d;
+  --wood-edge: #4a3524;
+  --tile-side: #cdbf9c;
 }
 
-.placeholder {
-  min-height: 100vh;
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans JP', 'Noto Sans SC', sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 16px;
+}
+
+/* ---- 見出し（app-card-design v1.0） ---- */
+
+.site-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 24px 0 0;
+  width: 100%;
+  max-width: 460px;
+  position: relative;
+  z-index: 1;
+}
+
+.cat-icon {
+  width: 57px;
+  height: 62px;
+  flex-shrink: 0;
+}
+
+.title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1;
+}
+
+h1 {
+  font-family: 'Fredoka One', cursive;
+  font-size: clamp(2rem, 6vw, 2.6rem);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.3em;
+  margin: 0;
+}
+
+h1 .momo {
+  color: var(--text);
+}
+
+h1 .mahjong {
+  color: var(--orange-mid);
+}
+
+h1 .version-tag {
+  color: var(--text-muted);
+  font-size: 0.28em;
+  letter-spacing: 0.04em;
+  align-self: flex-end;
+  padding-bottom: 0.2em;
+}
+
+.subtitle {
+  font-family: 'Fredoka One', cursive;
+  color: #888888;
+  margin-top: 1px;
+  margin-bottom: 16px;
+  font-size: 16px;
+  min-height: 1.2em;
+}
+
+.subtitle.zh {
+  font-family: 'Fredoka One', 'Noto Sans SC', 'Noto Sans JP', sans-serif;
+}
+
+/* 対局中は見出しをタイトルだけに縮めて左上に置く（§5） */
+body.in-game .site-header {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  left: 12px;
+  margin: 0;
+  z-index: 50;
+  pointer-events: none;
+  width: auto;
+  max-width: none;
+}
+
+body.in-game .site-header .cat-icon,
+body.in-game .site-header .subtitle,
+body.in-game .site-header .version-tag {
+  display: none;
+}
+
+body.in-game .site-header h1 {
+  font-size: 1.25rem;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+}
+
+/* ---- 始める画面 ---- */
+
+.title {
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.trial {
+  margin: 8px 0 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.btn-primary {
+  font: inherit;
+  font-weight: 700;
+  color: #fff;
+  background: var(--orange);
+  border: 1px solid var(--orange-mid);
+  border-radius: 8px;
+  padding: 10px 22px;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background: var(--orange-mid);
+}
+
+.btn-start {
+  font-size: 16px;
+  padding: 12px 28px;
+}
+
+/* ---- 牌 ---- */
+
+.tile {
+  display: inline-block;
+  position: relative;
+  width: var(--tw, 32px);
+  flex: 0 0 auto;
+  border-radius: 11% / 8%;
+  /* 牌の厚み（下の縁）と落ちる影 */
+  box-shadow:
+    0 calc(var(--tw, 32px) * 0.09) 0 var(--tile-side),
+    0 calc(var(--tw, 32px) * 0.14) calc(var(--tw, 32px) * 0.18) rgba(0, 0, 0, 0.45);
+  margin-bottom: calc(var(--tw, 32px) * 0.09);
+}
+
+.tile img {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.tile-back {
+  box-shadow:
+    0 calc(var(--tw, 32px) * 0.09) 0 #173a66,
+    0 calc(var(--tw, 32px) * 0.14) calc(var(--tw, 32px) * 0.18) rgba(0, 0, 0, 0.45);
+}
+
+/* 直前に切られた牌 */
+.tile.last {
+  outline: 2px solid var(--orange-mid);
+  outline-offset: 1px;
+}
+
+/* ---- 卓（共通） ---- */
+
+.felt {
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(255, 255, 255, 0.07), transparent 62%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .22 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at center, var(--felt-hi) 0%, var(--felt) 55%, var(--felt-lo) 100%);
+}
+
+.round-label {
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.wall-left {
+  color: var(--text-sub);
+}
+
+.game {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hand-tile {
+  all: unset;
+  display: inline-block;
+  cursor: pointer;
+  transition: transform 0.12s ease-out;
+}
+
+.hand-tile:disabled {
+  cursor: default;
+}
+
+.my-turn .hand-tile.raised,
+.my-turn .hand-tile:not(:disabled):hover {
+  transform: translateY(-14%);
+}
+
+@media (hover: none) {
+  .my-turn .hand-tile:not(:disabled):hover:not(.raised) {
+    transform: none;
+  }
+}
+
+.hand-tile:focus-visible .tile {
+  outline: 2px solid var(--orange-mid);
+}
+
+.hand-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1px;
+}
+
+.drawn-gap {
+  width: calc(var(--tw, 32px) * 0.45);
+}
+
+.hand-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.hint {
+  color: var(--text);
+  font-size: 12px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.result {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 24px;
+  background: rgba(10, 10, 10, 0.9);
+  border: 1px solid var(--orange);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  max-width: calc(100% - 24px);
+}
+
+.result-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.result-hand {
+  display: flex;
+  gap: 1px;
+  --tw: var(--res-tw);
+}
+
+/* ---- 広い画面：正方形の卓 ---- */
+
+.square-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 44px 0 20px;
+}
+
+.square {
+  --side: min(100vw - 48px, 100dvh - 84px, 980px);
+  width: var(--side);
+  height: var(--side);
+  position: relative;
+  container-type: size;
+  border-radius: 22px;
+  box-shadow:
+    inset 0 0 9cqw rgba(0, 0, 0, 0.5),
+    0 0 0 12px var(--wood),
+    0 0 0 13px var(--wood-edge),
+    0 24px 60px rgba(0, 0, 0, 0.7);
+  --res-tw: 3.6cqw;
+}
+
+/* 縁の内側の真鍮の細線 */
+.square::before {
+  content: '';
+  position: absolute;
+  inset: 1.4cqw;
+  border: 1px solid var(--brass-soft);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+/* 中央の札：局・残り枚数・4 人の風（番の人はオレンジ） */
+.center-box {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 25cqw;
+  height: 25cqw;
+  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 0.8cqw;
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid var(--brass);
+  border-radius: 1.4cqw;
+  box-shadow: inset 0 0 2cqw rgba(0, 0, 0, 0.5);
 }
 
-.placeholder h1 {
-  font-family: 'Fredoka One', cursive;
-  font-weight: 400;
-  margin: 0;
+.center-box .round-label {
+  font-size: 2.8cqw;
 }
 
-.placeholder h1 span {
-  color: #fb923c;
+.center-box .wall-left {
+  font-size: 1.9cqw;
 }
 
-.placeholder .version {
-  margin: 0;
-  color: #aaa;
+.center-wind {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  font-size: 1.5cqw;
+  color: var(--text-sub);
+  white-space: nowrap;
+  transform-origin: 0 0;
+  transform: rotate(var(--a)) translate(-50%, 9.6cqw);
+}
+
+.center-wind b {
+  color: var(--text);
+  font-size: 1.25em;
+}
+
+.center-wind.is-turn,
+.center-wind.is-turn b {
+  color: var(--orange-mid);
+  text-shadow: 0 0 1.2cqw rgba(234, 88, 12, 0.6);
+}
+
+.rel-0 { --a: 0deg; }
+.rel-1 { --a: -90deg; }
+.rel-2 { --a: 180deg; }
+.rel-3 { --a: 90deg; }
+
+/* 河：中央から外へ、6 枚で折り返す。各席の向きに回す */
+.seat-river {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: 0 0;
+  transform: rotate(var(--a)) translate(-50%, 13.6cqw);
+  width: calc(6 * var(--tw) + 5px);
+  --tw: 4.1cqw;
+}
+
+.river {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  align-content: flex-start;
+}
+
+/* 他の 3 人の手牌（伏せた牌） */
+.seat-hand {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: 0 0;
+  transform: rotate(var(--a)) translate(-50%, 41.5cqw);
+  display: flex;
+  gap: 1px;
+  --tw: 3cqw;
+}
+
+/* 自分の手牌は回さず、手前に大きく */
+.seat-hand.rel-0 {
+  transform: translate(-50%, 33cqw);
+  --tw: 5.4cqw;
+}
+
+.seat-hand.rel-0 .my-hand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.8cqw;
+}
+
+.seat-hand.rel-0 .hand-actions {
+  min-height: 4.2cqw;
+}
+
+.seat-hand.rel-0 .btn-primary {
+  font-size: max(13px, 1.7cqw);
+  padding: 0.7cqw 2.2cqw;
+}
+
+/* ---- 狭い画面：横に 4 列 ---- */
+
+.lanes-wrap {
+  position: relative;
+  width: calc(100% + 32px);
+  margin: 0 -16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px calc(env(safe-area-inset-bottom, 0px) + 10px);
+  --res-tw: min(6vw, 30px);
+}
+
+.lanes-info {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 12px;
+  min-height: 40px;
+  padding: 12px 6px 4px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--brass-soft);
+}
+
+.lanes {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.lane {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: 6px;
+  align-items: start;
+  padding: 8px 6px 6px 4px;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--brass-soft);
+  min-height: 72px;
+  /* 余った高さは 4 列で分ける（河が伸びても手牌の位置が動かない） */
+  flex: 1 1 0;
+  /* 1 行 9 枚（18 枚で 2 行・それ以上は 3 行目へ） */
+  --tw: min(calc((100vw - 100px) / 9), 36px);
+}
+
+.lane.is-turn {
+  border-left-color: var(--orange-mid);
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.28), transparent 70%);
+}
+
+.lane-who {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.lane-wind {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+.lane.is-turn .lane-wind {
+  color: var(--orange-mid);
+}
+
+.lane-name {
+  font-size: 11px;
+  color: var(--text-sub);
+}
+
+.lane-count {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+
+.lane-count .tile.mini {
+  --tw: 10px;
+}
+
+.lanes-wrap .my-hand {
+  padding-top: 6px;
+  --tw: min(calc((100vw - 16px - 20px) / 14.5), 46px);
+}
+
+.lanes-wrap .hand-actions {
+  min-height: 40px;
+  padding: 0 4px 4px;
+}
+
+.lanes-wrap .result {
+  position: fixed;
 }

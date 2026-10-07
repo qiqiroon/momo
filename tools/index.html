@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Tools 内部バージョン: v1.17
+<!-- MOMO Tools 内部バージョン: v1.18
      変更履歴:
        v1.11 - MOMO Lyrics カードを追加
        v1.12 - MOMO Explorer カードを追加、猫語(CAT)対応、言語切替をプルダウンに変更
@@ -8,7 +8,8 @@
        v1.14 - 言語切替を共通ライブラリ momo-lang(案件⑦)を呼ぶ形に書き換え。Auto(端末言語)モードを追加
        v1.15 - MOMO KJCards カードを Management Tools に追加
        v1.16 - 猫語のときもサブタイトルは鳴き声にせず、元が中国語なら中国語・日本語/英語なら英語で出す
-       v1.17 - 猫語を選ぶ直前の言語を共通ライブラリから読む（開き直しても中国語のサブタイトルが出る） -->
+       v1.17 - 猫語を選ぶ直前の言語を共通ライブラリから読む（開き直しても中国語のサブタイトルが出る）
+       v1.18 - 日本語のときのページの副題を英語で出す -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -382,7 +383,7 @@
     <h1 class="site-title">MOMO <span>Tools</span></h1>
   </header>
 
-  <p class="header-sub" id="header-sub">便利なWebツール集</p>
+  <p class="header-sub" id="header-sub">A collection of browser-based tools</p>
 
   <!-- ── Management Tools ── -->
   <div class="category-section">
@@ -563,7 +564,7 @@
 <script>
   const I18N = {
     ja: {
-      headerSub:       '便利なWebツール集',
+      headerSub:       'A collection of browser-based tools',
       catManagement:   'Management Tools',
       catMusic:        'Music Tools',
       catGadget:       'Gadget Tools',

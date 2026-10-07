@@ -134,7 +134,8 @@ describe('ツモって切る（段階1）', () => {
 
   it('流局は王牌 14 枚を残したところ', () => {
     const s = replay(playOne('dead').log);
-    expect(s.result).toEqual({ type: 'exhaust' });
+    // ツモ切りだけの卓は全員ノーテンになりやすい。ここでは流局で終わったことだけを見る（支払いは流局の検査で）
+    expect(s.result?.type).toBe('exhaust');
     expect(s.wallLeft).toBe(14);
     expect(liveWallLeft(s)).toBe(0);
   });

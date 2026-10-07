@@ -8,8 +8,10 @@ import type { GameState } from '../engine/state';
 export function tsumogiriCpu(view: GameState, seat: Seat): Action {
   const legal = legalActions(view, seat);
   if (legal.length === 0) throw new Error(`席 ${seat} はいま選べることが無い`);
-  const win = legal.find((a) => a.type === 'tsumo');
+  const win = legal.find((a) => a.type === 'tsumo' || a.type === 'tenpai');
   if (win) return win;
+  const noten = legal.find((a) => a.type === 'noten');
+  if (noten) return noten;
   const drawn = view.drawn[seat];
   return legal.find((a) => a.type === 'discard' && a.tile === drawn) ?? legal[legal.length - 1];
 }

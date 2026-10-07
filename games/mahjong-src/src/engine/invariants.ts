@@ -6,7 +6,7 @@
 // 席から見た局面には、その席に渡す形（mask 済み）だけを当てはめる＝実際に渡すものと同じ。
 
 import { HIDDEN, SEATS, mask, type Envelope, type Seat } from './events';
-import { isWinningHand } from './agari';
+import { isWinningHand, waitKinds } from './agari';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { apply, initialState, type GameState } from './state';
 import { tileSetFor } from './tiles';
@@ -83,6 +83,16 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     if (at !== null && at >= full.discards[seat].length) bad.push(`席 ${seat}：リーチの宣言牌が河に無い`);
   });
 
+  // 流局の点の動きは合計 0・宣言と食い違わない・テンパイと言った人は本当にテンパイ
+  if (full.result?.type === 'exhaust') {
+    const sum = full.result.payments.reduce((a, b) => a + b, 0);
+    if (sum !== 0) bad.push(`流局の点の動きの合計が 0 でない（${sum}）`);
+    full.result.tenpai.forEach((t, seat) => {
+      if (t && waitKinds(full.hands[seat]).length === 0) bad.push(`席 ${seat}：テンパイと言ったがテンパイでない`);
+      if (!t && full.riichi[seat] !== 'none') bad.push(`席 ${seat}：リーチしたのにノーテン`);
+    });
+  }
+
   // ツモアガリには点数が付いている（役が無いアガリは局面を作る側が止める）
   if (full.result?.type === 'tsumo' && !(full.result.score.total > 0)) bad.push('ツモアガリの点数が 0');
 
@@ -116,8 +126,8 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     if (v.wall !== null) bad.push(`席 ${viewer}：山の並びが見えている`);
     if (v.doraIndicators.join() !== full.doraIndicators.join()) bad.push(`席 ${viewer}：ドラ表示牌が全体と違う`);
     if (v.riichi.join() !== full.riichi.join() || v.ippatsu.join() !== full.ippatsu.join()) bad.push(`席 ${viewer}：リーチ・一発の状態が全体と違う`);
-    // ツモアガリの点数は、見える局面からも全体と同じに出る（どの端末でも同じ点数）
-    if (full.result?.type === 'tsumo' && JSON.stringify(v.result) !== JSON.stringify(full.result)) bad.push(`席 ${viewer}：アガリの点数が全体と違う`);
+    // 局の結果（アガリの点数・流局の点の動き）は、見える局面からも全体と同じに出る（どの端末でも同じ）
+    if (JSON.stringify(v.result) !== JSON.stringify(full.result)) bad.push(`席 ${viewer}：局の結果が全体と違う`);
     if (v.phase !== full.phase || v.turn !== full.turn) bad.push(`席 ${viewer}：進み具合（番・段取り）が全体と違う`);
     full.discards.forEach((d, seat) => {
       const vd = v.discards[seat];
@@ -132,8 +142,8 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       if (vh.length !== h.length) bad.push(`席 ${viewer}：席 ${seat} の手牌の枚数が全体と違う`);
       else if (seat === viewer) {
         if (vh.some((t, i) => t !== h[i])) bad.push(`席 ${viewer}：自分の手牌が全体と違う`);
-      } else if (full.phase === 'ended' && full.result?.type === 'tsumo' && full.result.seat === seat) {
-        // ツモアガリした人の手牌は全員に開けている
+      } else if ((full.phase === 'ended' && full.result?.type === 'tsumo' && full.result.seat === seat) || full.declared[seat] === true) {
+        // ツモアガリした人・流局でテンパイと言った人の手牌は全員に開けている
         if (vh.some((t, i) => t !== h[i])) bad.push(`席 ${viewer}：開けた席 ${seat} の手牌が全体と違う`);
       } else if (vh.some((t) => t !== HIDDEN)) {
         bad.push(`席 ${viewer}：席 ${seat} の手牌が見えている`);

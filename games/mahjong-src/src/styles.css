@@ -337,6 +337,13 @@ body.in-game .site-header .subtitle {
   color: var(--text);
   font-size: 12px;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  min-width: 0;
+}
+
+/* ボタンの文字は折り返さない（狭い画面で並んだ説明文のほうを折り返す） */
+.hand-actions .btn-primary {
+  flex: none;
+  white-space: nowrap;
 }
 
 .result {
@@ -731,4 +738,58 @@ body.in-game .site-header .subtitle {
   background: transparent;
   color: var(--orange-mid);
   border: 1px solid var(--orange-mid);
+}
+
+/* ---- 流局の結果（段階2） ---- */
+
+.exhaust-list {
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.exhaust-list th {
+  text-align: left;
+  font-weight: 400;
+  color: var(--text-sub);
+  padding: 3px 12px 3px 0;
+  white-space: nowrap;
+}
+
+.exhaust-list th b {
+  color: var(--text);
+}
+
+.exhaust-list td {
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.exhaust-state {
+  color: var(--text-sub);
+}
+
+.exhaust-list tr.is-tenpai .exhaust-state {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.exhaust-hand {
+  display: flex;
+  gap: 1px;
+  padding-bottom: 4px;
+}
+
+.exhaust-hand-row td {
+  padding-top: 0;
+}
+
+.exhaust-hand .tile.mini {
+  --tw: 14px;
+  margin-bottom: 0;
+}
+
+.exhaust-pay {
+  text-align: right;
+  font-weight: 700;
+  color: var(--text);
 }

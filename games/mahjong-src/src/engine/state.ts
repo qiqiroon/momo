@@ -8,11 +8,25 @@ import type { Rules } from './rules';
 import { scoreWin, type ScoreResult } from './score';
 import { kindOf, tileSetFor, type TileId } from './tiles';
 
-/** 局の進み具合。deal＝配っている途中／draw＝番の人がツモる前／discard＝番の人が切る（またはアガる）前／ended＝局が終わった */
-export type Phase = 'idle' | 'deal' | 'draw' | 'discard' | 'ended';
+/** 局の進み具合。deal＝配っている途中／draw＝番の人がツモる前／discard＝番の人が切る（またはアガる）前／
+ *  declare＝流局してテンパイ・ノーテンを宣言している（番の人が宣言する）／ended＝局が終わった */
+export type Phase = 'idle' | 'deal' | 'draw' | 'discard' | 'declare' | 'ended';
 
 /** ツモアガリの結果。score は開けた手牌・ドラ表示牌など全員に見えるものだけから出す＝どの端末でも同じ点数になる */
-export type RoundResult = { type: 'tsumo'; seat: Seat; winTile: TileId; ura: TileId[]; score: ScoreResult } | { type: 'exhaust' };
+export type RoundResult =
+  | { type: 'tsumo'; seat: Seat; winTile: TileId; ura: TileId[]; score: ScoreResult }
+  /** 流局。tenpai＝席ごとの宣言／payments＝席ごとの点の動き（受け取りが＋、払いが−。合計 0） */
+  | { type: 'exhaust'; tenpai: boolean[]; payments: number[] };
+
+/** 流局したときにノーテンの人からテンパイの人へ動く点の合計（変えられない決まり） */
+export const NOTEN_PENALTY = 3000;
+
+/** テンパイの宣言から、席ごとの点の動き。全員テンパイ・全員ノーテンなら動かない */
+export function notenPayments(tenpai: readonly boolean[]): number[] {
+  const k = tenpai.filter(Boolean).length;
+  if (k === 0 || k === 4) return tenpai.map(() => 0);
+  return tenpai.map((t) => (t ? NOTEN_PENALTY / k : -NOTEN_PENALTY / (4 - k)));
+}
 
 /** リーチの状態。double＝ダブル立直（最初の打牌でリーチ） */
 export type RiichiState = 'none' | 'riichi' | 'double';
@@ -47,6 +61,8 @@ export interface GameState {
   riichiAt: (number | null)[];
   /** 席ごとの、一発が残っているか（リーチの次の自分の打牌まで。鳴きで消えるのは段階3） */
   ippatsu: boolean[];
+  /** 流局したときの、席ごとの宣言（まだなら null） */
+  declared: (boolean | null)[];
   result: RoundResult | null;
 }
 
@@ -66,6 +82,7 @@ export const initialState = (): GameState => ({
   riichi: ['none', 'none', 'none', 'none'],
   riichiAt: [null, null, null, null],
   ippatsu: [false, false, false, false],
+  declared: [null, null, null, null],
   result: null,
 });
 
@@ -115,6 +132,7 @@ export function apply(state: GameState, env: Envelope): GameState {
         riichi: ['none', 'none', 'none', 'none'],
         riichiAt: [null, null, null, null],
         ippatsu: [false, false, false, false],
+        declared: [null, null, null, null],
         result: null,
       };
     }
@@ -196,7 +214,35 @@ export function apply(state: GameState, env: Envelope): GameState {
     }
     case 'exhaust': {
       if (s.phase !== 'draw' || liveWallLeft(s) > 0) throw new Error('山が残っているのに流局した');
-      return { ...s, phase: 'ended', result: { type: 'exhaust' } };
+      // 親から順に宣言する
+      return { ...s, phase: 'declare', turn: s.dealer, drawn: [null, null, null, null] };
+    }
+    case 'declare': {
+      if (s.phase !== 'declare' || ev.seat !== s.turn) throw new Error('宣言する時・席ではない');
+      const known = s.hands[ev.seat];
+      const visible = !known.includes(HIDDEN);
+      if (ev.tenpai) {
+        if (!ev.hand) throw new Error('テンパイの宣言なのに手牌を開けていない');
+        if (visible && !sameTiles(known, ev.hand)) throw new Error('開けた手牌が持っている牌と違う');
+        if (known.length !== ev.hand.length) throw new Error('開けた手牌の枚数が違う');
+        if (waitKinds(ev.hand).length === 0) throw new Error('テンパイでないのにテンパイを宣言した');
+      } else {
+        if (ev.hand) throw new Error('ノーテンの宣言で手牌を開けた');
+        if (s.riichi[ev.seat] !== 'none') throw new Error('リーチした人がノーテンを宣言した');
+        // テンパイを隠してノーテンと言えるのは、ルールが許すときだけ（手牌が見える端末で確かめる）
+        if (visible && waitKinds(known).length > 0 && !(s.rules?.family === 'jp' && s.rules.values.tenpaiHide === 'ok')) {
+          throw new Error('テンパイなのにノーテンを宣言した（このルールではできない）');
+        }
+      }
+      const hands = s.hands.map((h) => h.slice());
+      if (ev.hand) hands[ev.seat] = ev.hand.slice();
+      const declared = s.declared.slice();
+      declared[ev.seat] = ev.tenpai;
+      if (declared.every((d) => d !== null)) {
+        const tenpai = declared as boolean[];
+        return { ...s, hands, declared, phase: 'ended', result: { type: 'exhaust', tenpai, payments: notenPayments(tenpai) } };
+      }
+      return { ...s, hands, declared, turn: nextSeat(ev.seat) };
     }
   }
 }

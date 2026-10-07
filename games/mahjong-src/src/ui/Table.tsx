@@ -2,7 +2,7 @@
 // 広い画面＝正方形の卓（自分が手前・下家が右・対面が奥・上家が左）。
 // 狭い画面＝横に 4 列（下家→対面→上家→自分の順＝打つ順に上から下へ流れる）＋手牌。
 
-import { useState, type CSSProperties, type PointerEvent } from 'react';
+import { Fragment, useState, type CSSProperties, type PointerEvent } from 'react';
 import { HIDDEN, type Seat } from '../engine/events';
 import type { Action } from '../engine/round';
 import type { ScoreResult } from '../engine/score';
@@ -91,6 +91,41 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
         </span>
       )}
       {won && <ScoreView score={won.score} lang={lang} />}
+      {view.result.type === 'exhaust' && (
+        <table className="exhaust-list">
+          <tbody>
+            {[0, 1, 2, 3].map((rel) => {
+              const seat = seatAt(rel);
+              const r = view.result?.type === 'exhaust' ? view.result : null;
+              if (!r) return null;
+              const pay = r.payments[seat];
+              // テンパイの人の手牌は名前の行の下に 1 行で出す（携帯の幅でも横にはみ出さない）
+              return (
+                <Fragment key={rel}>
+                  <tr className={r.tenpai[seat] ? 'is-tenpai' : ''}>
+                    <th>
+                      <b>{windOf(seat)}</b> {nameOf(seat)}
+                    </th>
+                    <td className="exhaust-state">{t(r.tenpai[seat] ? 'declareTenpai' : 'declareNoten')}</td>
+                    <td className="exhaust-pay">{pay > 0 ? `+${pay}` : pay < 0 ? `−${-pay}` : '±0'}</td>
+                  </tr>
+                  {r.tenpai[seat] && (
+                    <tr className="exhaust-hand-row">
+                      <td colSpan={3}>
+                        <div className="exhaust-hand">
+                          {sortTiles(view.hands[seat]).map((id) => (
+                            <Tile key={id} id={id} rules={view.rules} className="mini" />
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
       <button type="button" className="btn-primary" onClick={onAgain}>
         {t('again')}
       </button>
@@ -248,6 +283,8 @@ function MyHand({ view, legal, lang, onChoose }: { view: GameState; legal: Actio
   const mine = view.hands[HUMAN];
   const rest = sortTiles(drawn === null ? mine : mine.filter((x) => x !== drawn));
   const canTsumo = legal.some((a) => a.type === 'tsumo');
+  // 流局の宣言（テンパイを隠せるときだけボタンが出る。1 つしか言えないときは自動で言う）
+  const declaring = view.phase === 'declare' && legal.length > 1;
   const riichiable = new Set(legal.flatMap((a) => (a.type === 'riichi' ? [a.tile] : [])));
   const discardable = new Set(legal.flatMap((a) => (a.type === 'discard' ? [a.tile] : [])));
   const picking = riichiPick && riichiable.size > 0;
@@ -278,6 +315,17 @@ function MyHand({ view, legal, lang, onChoose }: { view: GameState; legal: Actio
           <button type="button" className="btn-primary btn-tsumo" onClick={() => onChoose({ type: 'tsumo' })}>
             {translate(lang, 'tsumo')}
           </button>
+        )}
+        {declaring && (
+          <>
+            <button type="button" className="btn-primary btn-tenpai" onClick={() => onChoose({ type: 'tenpai' })}>
+              {translate(lang, 'declareTenpai')}
+            </button>
+            <button type="button" className="btn-primary btn-noten" onClick={() => onChoose({ type: 'noten' })}>
+              {translate(lang, 'declareNoten')}
+            </button>
+            <span className="hint">{translate(lang, 'declareHint')}</span>
+          </>
         )}
         {riichiable.size > 0 && (
           <button

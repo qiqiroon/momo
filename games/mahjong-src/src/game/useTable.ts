@@ -63,7 +63,14 @@ export function useTable() {
       const id = setTimeout(() => dispatch({ type: 'push', envs: advance(full) }), wait);
       return () => clearTimeout(id);
     }
-    if (full.phase === 'discard' && full.turn !== HUMAN) {
+    // 流局の宣言：自分が言えることが 1 つだけなら自動で言う（テンパイを隠せるときだけボタンで選ぶ）
+    if (full.phase === 'declare' && full.turn === HUMAN) {
+      const options = legalActions(full, HUMAN);
+      if (options.length !== 1) return undefined;
+      const id = setTimeout(() => dispatch({ type: 'push', envs: act(full, HUMAN, options[0]) }), CPU_DELAY / 2);
+      return () => clearTimeout(id);
+    }
+    if ((full.phase === 'discard' || full.phase === 'declare') && full.turn !== HUMAN) {
       const seat = full.turn;
       // CPU には、その席から見える局面だけを渡す
       const cpuView = s.log.reduce((st, e) => apply(st, mask(e, seat)), initialState());
@@ -75,7 +82,7 @@ export function useTable() {
 
   const choose = useCallback(
     (a: Action) => {
-      if (full.phase !== 'discard' || full.turn !== HUMAN) return;
+      if ((full.phase !== 'discard' && full.phase !== 'declare') || full.turn !== HUMAN) return;
       dispatch({ type: 'push', envs: act(full, HUMAN, a) });
     },
     [full],

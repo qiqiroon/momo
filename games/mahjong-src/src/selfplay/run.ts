@@ -18,7 +18,7 @@ export interface SelfplayResult {
   /** 終わり方の内訳（ツモアガリ・流局・途中で止まった） */
   endings: { tsumo: number; exhaust: number; unfinished: number };
   /** 通った道の数（0 なら、その道は検査に乗っていない）：リーチ・ダブル立直・リーチでのツモ・一発・裏ドラが乗ったアガリ */
-  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number };
+  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[] };
   failures: { seed: string; seq: number; reasons: string[] }[];
 }
 
@@ -60,7 +60,7 @@ export function playOne(
     const s = w.full;
     try {
       failure =
-        s.phase === 'discard' ? feed(act(s, s.turn, player(w.views[s.turn], s.turn))) : feed(advance(s));
+        s.phase === 'discard' || s.phase === 'declare' ? feed(act(s, s.turn, player(w.views[s.turn], s.turn))) : feed(advance(s));
     } catch (e) {
       failure = { seed, seq: s.nextSeq, reasons: [`進行役が止まった：${(e as Error).message}`] };
     }
@@ -73,7 +73,7 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
     games: 0,
     events: 0,
     endings: { tsumo: 0, exhaust: 0, unfinished: 0 },
-    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0 },
+    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0] },
     failures: [],
   };
   for (let i = 0; i < games; i++) {
@@ -86,6 +86,7 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
     }
     const last = r.log[r.log.length - 1]?.ev;
     if (last?.type === 'tsumo' && last.ura.length > 0) result.paths.riichiWin++;
+    if (r.result?.type === 'exhaust') result.paths.tenpaiCounts[r.result.tenpai.filter(Boolean).length]++;
     if (r.result?.type === 'tsumo') {
       const ids = r.result.score.yaku.map((y) => y.id);
       if (ids.includes('doubleRiichi')) result.paths.double++;

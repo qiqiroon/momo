@@ -55,7 +55,13 @@ export function startRound(state: GameState, gameSeed: string, roundIndex: numbe
 // どちらも「全部を知る局面」を受け取り、次の出来事を返すだけ。局面を変えるのは state.ts の apply だけ。
 
 /** 番の人が選べること。打牌は背番号で指す（同じ種類でも赤5かどうかで別の牌） */
-export type Action = { type: 'discard'; tile: TileId } | { type: 'riichi'; tile: TileId } | { type: 'tsumo' };
+export type Action =
+  | { type: 'discard'; tile: TileId }
+  | { type: 'riichi'; tile: TileId }
+  | { type: 'tsumo' }
+  /** 流局したときの宣言 */
+  | { type: 'tenpai' }
+  | { type: 'noten' };
 
 /** リーチを宣言して切れる牌（切ったあとテンパイになる牌）。リーチできないときは空 */
 export function riichiTiles(view: GameState, seat: Seat): TileId[] {
@@ -80,6 +86,7 @@ export function riichiTiles(view: GameState, seat: Seat): TileId[] {
 
 /** その席がいま選べること（その席から見える局面だけで決まる＝画面と CPU が使う） */
 export function legalActions(view: GameState, seat: Seat): Action[] {
+  if (view.phase === 'declare' && view.turn === seat) return declareOptions(view, seat);
   if (view.phase !== 'discard' || view.turn !== seat) return [];
   const hand = view.hands[seat];
   const out: Action[] = [];
@@ -93,6 +100,17 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
   }
   for (const tile of hand) out.push({ type: 'discard', tile });
   for (const tile of riichiTiles(view, seat)) out.push({ type: 'riichi', tile });
+  return out;
+}
+
+/** 流局したときに言えること。テンパイならテンパイと言える。ノーテンと言えるのはノーテンのとき、
+ *  またはテンパイでもリーチしておらず、ルールが「テンパイでもノーテンと言える」のとき */
+function declareOptions(view: GameState, seat: Seat): Action[] {
+  const tenpai = waitKinds(view.hands[seat]).length > 0;
+  const out: Action[] = [];
+  if (tenpai) out.push({ type: 'tenpai' });
+  const mayHide = view.riichi[seat] === 'none' && view.rules?.family === 'jp' && view.rules.values.tenpaiHide === 'ok';
+  if (!tenpai || mayHide) out.push({ type: 'noten' });
   return out;
 }
 
@@ -110,6 +128,11 @@ export function advance(full: GameState): Envelope[] {
 
 /** 番の人が選んだことを出来事にする。選べないことなら例外 */
 export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
+  if (full.phase === 'declare' && full.turn === seat) {
+    if (!declareOptions(full, seat).some((a) => a.type === action.type)) throw new Error(`その宣言はできない（${action.type}）`);
+    const tenpai = action.type === 'tenpai';
+    return [{ seq: full.nextSeq, to: 'all', ev: { type: 'declare', seat, tenpai, hand: tenpai ? full.hands[seat].slice() : null } }];
+  }
   if (full.phase !== 'discard' || full.turn !== seat) throw new Error(`席 ${seat} の番ではない`);
   const hand = full.hands[seat];
   const at = envelopeAt(full);
@@ -130,5 +153,7 @@ export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
       const ura = full.riichi[seat] === 'none' ? [] : full.doraIndicators.map((_, i) => uraIndicatorAt(wall, i));
       return [at('all', { type: 'tsumo', seat, hand: hand.slice(), winTile, ura })];
     }
+    default:
+      throw new Error(`いまはできない（${action.type}）`);
   }
 }

@@ -32,8 +32,10 @@ export type GameEvent =
   /** ツモアガリ。全員に見える。手牌（14 枚）とアガリ牌（ツモった牌）を開ける。
    *  ura＝めくった裏ドラ表示牌（リーチでアガったときだけ。ドラ表示牌の真下を同じ枚数） */
   | { type: 'tsumo'; seat: Seat; hand: readonly TileId[]; winTile: TileId; ura: readonly TileId[] }
-  /** 山が尽きて流局。全員に見える */
-  | { type: 'exhaust' };
+  /** 山が尽きて流局。全員に見える。このあと親から順にテンパイかノーテンかを宣言する */
+  | { type: 'exhaust' }
+  /** 流局したときの宣言。全員に見える。テンパイなら手牌（13 枚）を開ける（ノーテンなら null） */
+  | { type: 'declare'; seat: Seat; tenpai: boolean; hand: readonly TileId[] | null };
 
 export interface Envelope {
   /** 通し番号（0 から） */

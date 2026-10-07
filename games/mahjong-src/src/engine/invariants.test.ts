@@ -146,12 +146,12 @@ describe('見張り役（ツモと打牌）', () => {
 });
 
 describe('自動対局の台', () => {
-  it('ツモ切りだけの 1 局は必ず流局まで行き、出来事は 161 件（始まり3＋配牌16回＋ドラ表示1＋ツモ70＋打牌70＋流局1）', () => {
+  it('ツモ切りだけの 1 局は必ず流局まで行き、出来事は 165 件（始まり3＋配牌16回＋ドラ表示1＋ツモ70＋打牌70＋流局1＋宣言4）', () => {
     // 136 枚−配牌 52−王牌 14＝ツモは 70 回
     const r = playOne('count', GENERAL_RULES, tsumogiriCpu);
     expect(r.failure).toBeNull();
     expect(r.ending).toBe('exhaust');
-    expect(r.events).toBe(161);
+    expect(r.events).toBe(165);
   });
 
   it('100局回して失敗0件・ツモアガリと流局の両方の道を通る', () => {

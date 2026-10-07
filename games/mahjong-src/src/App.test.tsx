@@ -109,7 +109,9 @@ describe('卓の画面（段階1）', () => {
       run(5000);
       const tsumo = Array.from(container.querySelectorAll('.hand-actions .btn-tsumo'));
       const mine = myTiles(container);
-      if (tsumo.length) fireEvent.click(tsumo[0]);
+      const tenpai = container.querySelector('.btn-tenpai');
+      if (tenpai) fireEvent.click(tenpai);
+      else if (tsumo.length) fireEvent.click(tsumo[0]);
       else if (mine.length) fireEvent.pointerUp(mine[mine.length - 1], { pointerType: 'mouse' });
     }
     run(5000);

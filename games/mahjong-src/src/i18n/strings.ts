@@ -15,7 +15,7 @@ export type Lang = BaseLang | 'cat';
 
 const ja = {
   subtitle: 'Any Rule, Any Table',
-  trial: '段階2の試作：リーチとツモアガリができます（鳴き・ロンはまだありません）',
+  trial: '段階2の試作：リーチ・ツモアガリ・流局の支払いまでできます（鳴き・ロンはまだありません）',
   start: 'CPU と対局する',
   again: 'もう一局',
   you: 'あなた',
@@ -99,6 +99,9 @@ const ja = {
   riichiPick: 'リーチで切る牌を選んでください',
   riichiCancel: 'やめる',
   uraIndicator: '裏ドラ表示',
+  declareTenpai: 'テンパイ',
+  declareNoten: 'ノーテン',
+  declareHint: '流局です。テンパイを宣言しますか？（ノーテンと言うと手牌は見せません）',
 } as const;
 
 export type MessageKey = keyof typeof ja;
@@ -106,7 +109,7 @@ type Dict = Record<MessageKey, string>;
 
 const en: Dict = {
   subtitle: 'Any Rule, Any Table',
-  trial: 'Stage 2 prototype: riichi and self-draw wins (no calls or ron yet)',
+  trial: 'Stage 2 prototype: riichi, self-draw wins and draw payments (no calls or ron yet)',
   start: 'Play vs CPU',
   again: 'Play again',
   you: 'You',
@@ -190,11 +193,14 @@ const en: Dict = {
   riichiPick: 'Choose the tile to discard for riichi',
   riichiCancel: 'Cancel',
   uraIndicator: 'Ura indicator',
+  declareTenpai: 'Tenpai',
+  declareNoten: 'No-ten',
+  declareHint: 'Exhaustive draw. Declare tenpai? (No-ten keeps your hand hidden)',
 };
 
 const zh: Dict = {
   subtitle: '百般规则，随心成局',
-  trial: '第2阶段试作：可以立直和自摸和牌（还没有吃碰杠和荣和）',
+  trial: '第2阶段试作：可以立直、自摸和牌和流局罚符（还没有吃碰杠和荣和）',
   start: '与电脑对局',
   again: '再来一局',
   you: '你',
@@ -278,6 +284,9 @@ const zh: Dict = {
   riichiPick: '请选择立直时打出的牌',
   riichiCancel: '取消',
   uraIndicator: '里宝牌指示牌',
+  declareTenpai: '听牌',
+  declareNoten: '未听牌',
+  declareHint: '流局。要宣告听牌吗？（宣告未听牌则不亮牌）',
 };
 
 const DICTS: Record<BaseLang, Dict> = { ja, en, zh };

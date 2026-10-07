@@ -1,5 +1,5 @@
-// アガリの形の判定。段階1は「4面子1雀頭の形になっているか」だけを見る（役は見ない）。
-// 七対子・国士無双は役と一緒に段階2で足す。
+// アガリの形の判定。形だけを見る（役は見ない）。
+// 4面子1雀頭・七対子・国士無双の3つ（段階2で七対子・国士無双を足した）。
 //
 // 種類（KindId）ごとの枚数で考える。赤5も種類は普通の5なので、ここでは区別しない。
 
@@ -56,6 +56,33 @@ export function isStandardWin(counts: readonly number[]): boolean {
   return false;
 }
 
+/** 么九牌（1・9・字牌）13種 */
+export const TERMINAL_HONOR_KINDS: readonly KindId[] = [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33];
+
+/**
+ * 七対子：14 枚が違う種類の対子 7 組。日本式は同じ牌 4 枚を 2 組と数えない。
+ * （中国式＝四川の「龍七対」などは 4 枚を 2 組と数える。段階9でルールの値として足す）
+ */
+export function isSevenPairs(counts: readonly number[]): boolean {
+  let pairs = 0;
+  for (let k = 0; k < 34; k++) {
+    if (counts[k] === 0) continue;
+    if (counts[k] !== 2) return false;
+    pairs++;
+  }
+  return pairs === 7;
+}
+
+/** 国士無双：么九牌 13 種を 1 枚ずつ＋そのどれか 1 種がもう 1 枚（14 枚。鳴いていない手だけ） */
+export function isThirteenOrphans(counts: readonly number[]): boolean {
+  let total = 0;
+  for (let k = 0; k < 34; k++) total += counts[k];
+  if (total !== 14) return false;
+  return TERMINAL_HONOR_KINDS.every((k) => counts[k] >= 1) &&
+    TERMINAL_HONOR_KINDS.reduce((a, k) => a + counts[k], 0) === 14;
+}
+
 export function isWinningHand(tiles: readonly TileId[]): boolean {
-  return isStandardWin(kindCounts(tiles));
+  const c = kindCounts(tiles);
+  return isStandardWin(c) || isSevenPairs(c) || isThirteenOrphans(c);
 }

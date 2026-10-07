@@ -13,6 +13,8 @@ const ms = Date.now() - started;
 
 console.log(`回した対局 ${r.games}・見張った出来事 ${r.events}・失敗 ${r.failures.length}（${ms} ms）`);
 console.log(`終わり方：ツモアガリ ${r.endings.tsumo}・流局 ${r.endings.exhaust}・途中で止まった ${r.endings.unfinished}`);
+const p = r.paths;
+console.log(`通った道：リーチ ${p.riichi}（ダブル立直のアガリ ${p.double}）・リーチでのツモ ${p.riichiWin}・一発 ${p.ippatsu}・裏ドラが乗った ${p.ura}`);
 if (r.games === 0 || r.events === 0) {
   console.log('★1件も回っていない＝検査になっていない');
   process.exitCode = 1;

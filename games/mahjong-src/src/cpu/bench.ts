@@ -1,6 +1,6 @@
 // 検査用の打ち手（対局の画面では使わない）。ツモ切りだけだとアガリがほぼ起きず、
 // 自動対局でアガリの道が通らない＝検査にならないので、形を寄せる素朴な打ち方を用意する。
-// 強さは目的ではない：孤立した牌から切り、アガリの形ならアガる。
+// 強さは目的ではない：孤立した牌から切り、アガリの形ならアガる。切る牌でリーチできるならリーチする（リーチ・一発・裏ドラの道を通すため）。
 
 import { kindCounts } from '../engine/agari';
 import type { Seat } from '../engine/events';
@@ -32,6 +32,11 @@ export function benchCpu(view: GameState, seat: Seat): Action {
     if (a.type !== 'discard') continue;
     const s = connection(a.tile, counts);
     if (s < bestScore) [best, bestScore] = [a, s];
+  }
+  if (best.type === 'discard') {
+    const tile = best.tile;
+    const riichi = legal.find((a) => a.type === 'riichi' && a.tile === tile);
+    if (riichi) return riichi;
   }
   return best;
 }

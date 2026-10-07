@@ -2,10 +2,11 @@
 // ここは山の並びを知っている側だけが呼ぶ。作った出来事は列に積み、局面は state.ts の apply で作る。
 
 import { SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
-import { liveWallLeft, scoreTsumo, type GameState } from './state';
-import { doraIndicatorAt } from './dora';
+import { liveWallLeft, RIICHI_MIN_WALL, scoreTsumo, type GameState } from './state';
+import { doraIndicatorAt, uraIndicatorAt } from './dora';
+import { waitKinds } from './agari';
 import { createRng, shuffle } from './rng';
-import { tileSetFor, type TileId } from './tiles';
+import { kindOf, tileSetFor, type TileId } from './tiles';
 
 const HAND_SIZE = 13;
 
@@ -54,7 +55,28 @@ export function startRound(state: GameState, gameSeed: string, roundIndex: numbe
 // どちらも「全部を知る局面」を受け取り、次の出来事を返すだけ。局面を変えるのは state.ts の apply だけ。
 
 /** 番の人が選べること。打牌は背番号で指す（同じ種類でも赤5かどうかで別の牌） */
-export type Action = { type: 'discard'; tile: TileId } | { type: 'tsumo' };
+export type Action = { type: 'discard'; tile: TileId } | { type: 'riichi'; tile: TileId } | { type: 'tsumo' };
+
+/** リーチを宣言して切れる牌（切ったあとテンパイになる牌）。リーチできないときは空 */
+export function riichiTiles(view: GameState, seat: Seat): TileId[] {
+  if (view.phase !== 'discard' || view.turn !== seat) return [];
+  if (view.rules?.family !== 'jp' || view.riichi[seat] !== 'none') return [];
+  // 鳴いている手はリーチできない（鳴きは段階3）。1000 点未満のリーチの扱いは持ち点が入る段階4で足す
+  if (liveWallLeft(view) < RIICHI_MIN_WALL) return [];
+  const hand = view.hands[seat];
+  const byKind = new Map<number, boolean>();
+  return hand.filter((tile) => {
+    const k = kindOf(tile);
+    let ok = byKind.get(k);
+    if (ok === undefined) {
+      const rest = hand.slice();
+      rest.splice(rest.indexOf(tile), 1);
+      ok = waitKinds(rest).length > 0;
+      byKind.set(k, ok);
+    }
+    return ok;
+  });
+}
 
 /** その席がいま選べること（その席から見える局面だけで決まる＝画面と CPU が使う） */
 export function legalActions(view: GameState, seat: Seat): Action[] {
@@ -64,7 +86,13 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
   // アガリの形で、役がある（縛りに届く）ときだけツモアガリできる
   const drawn = view.drawn[seat];
   if (drawn !== null && scoreTsumo(view, seat, hand, drawn)) out.push({ type: 'tsumo' });
+  // リーチのあとはツモった牌を切るだけ
+  if (view.riichi[seat] !== 'none') {
+    if (drawn !== null) out.push({ type: 'discard', tile: drawn });
+    return out;
+  }
   for (const tile of hand) out.push({ type: 'discard', tile });
+  for (const tile of riichiTiles(view, seat)) out.push({ type: 'riichi', tile });
   return out;
 }
 
@@ -88,12 +116,19 @@ export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
   switch (action.type) {
     case 'discard':
       if (!hand.includes(action.tile)) throw new Error(`持っていない牌は切れない（背番号 ${action.tile}）`);
+      if (full.riichi[seat] !== 'none' && action.tile !== full.drawn[seat]) throw new Error('リーチのあとはツモった牌しか切れない');
       return [at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat] })];
+    case 'riichi':
+      if (!riichiTiles(full, seat).includes(action.tile)) throw new Error(`その牌ではリーチできない（背番号 ${action.tile}）`);
+      return [at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat], riichi: true })];
     case 'tsumo': {
       const winTile = full.drawn[seat];
       if (winTile === null || !scoreTsumo(full, seat, hand, winTile)) throw new Error('アガリの形になっていない（または役が無い）');
-      // 裏ドラはリーチでアガったときだけめくる（リーチは段階2の順番5で足す）
-      return [at('all', { type: 'tsumo', seat, hand: hand.slice(), winTile, ura: [] })];
+      // 裏ドラはリーチでアガったときだけ、ドラ表示牌の真下をめくる
+      if (!full.wall) throw new Error('山の並びを知らない端末は進行役になれない');
+      const wall = full.wall;
+      const ura = full.riichi[seat] === 'none' ? [] : full.doraIndicators.map((_, i) => uraIndicatorAt(wall, i));
+      return [at('all', { type: 'tsumo', seat, hand: hand.slice(), winTile, ura })];
     }
   }
 }

@@ -10,12 +10,15 @@ import type { Envelope, Seat } from '../engine/events';
 import { Watcher } from '../engine/invariants';
 import { act, advance, startRound } from '../engine/round';
 import { GENERAL_RULES, type Rules } from '../engine/rules';
+import type { RoundResult } from '../engine/state';
 
 export interface SelfplayResult {
   games: number;
   events: number;
   /** 終わり方の内訳（ツモアガリ・流局・途中で止まった） */
   endings: { tsumo: number; exhaust: number; unfinished: number };
+  /** 通った道の数（0 なら、その道は検査に乗っていない）：リーチ・ダブル立直・リーチでのツモ・一発・裏ドラが乗ったアガリ */
+  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number };
   failures: { seed: string; seq: number; reasons: string[] }[];
 }
 
@@ -31,7 +34,7 @@ export function playOne(
   seed: string,
   rules: Rules = GENERAL_RULES,
   player: Player = tsumogiriCpu,
-): { events: number; log: Envelope[]; ending: keyof SelfplayResult['endings']; failure: Failure | null } {
+): { events: number; log: Envelope[]; ending: keyof SelfplayResult['endings']; result: RoundResult | null; failure: Failure | null } {
   const w = new Watcher();
   const log: Envelope[] = [];
   const feed = (envs: Envelope[]): Failure | null => {
@@ -46,6 +49,7 @@ export function playOne(
     events: w.checked,
     log,
     ending: w.full.result?.type ?? ('unfinished' as const),
+    result: w.full.result,
     failure,
   });
 
@@ -65,12 +69,29 @@ export function playOne(
 }
 
 export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayResult {
-  const result: SelfplayResult = { games: 0, events: 0, endings: { tsumo: 0, exhaust: 0, unfinished: 0 }, failures: [] };
+  const result: SelfplayResult = {
+    games: 0,
+    events: 0,
+    endings: { tsumo: 0, exhaust: 0, unfinished: 0 },
+    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0 },
+    failures: [],
+  };
   for (let i = 0; i < games; i++) {
     const r = playOne(`${seedPrefix}-${i}`, GENERAL_RULES, i % 2 === 0 ? tsumogiriCpu : benchCpu);
     result.games++;
     result.events += r.events;
     result.endings[r.ending]++;
+    for (const e of r.log) {
+      if (e.ev.type === 'discard' && e.ev.riichi) result.paths.riichi++;
+    }
+    const last = r.log[r.log.length - 1]?.ev;
+    if (last?.type === 'tsumo' && last.ura.length > 0) result.paths.riichiWin++;
+    if (r.result?.type === 'tsumo') {
+      const ids = r.result.score.yaku.map((y) => y.id);
+      if (ids.includes('doubleRiichi')) result.paths.double++;
+      if (ids.includes('ippatsu')) result.paths.ippatsu++;
+      if (r.result.score.dora.ura > 0) result.paths.ura++;
+    }
     if (r.failure) result.failures.push(r.failure);
   }
   return result;

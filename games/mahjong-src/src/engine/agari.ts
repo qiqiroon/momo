@@ -86,3 +86,19 @@ export function isWinningHand(tiles: readonly TileId[]): boolean {
   const c = kindCounts(tiles);
   return isStandardWin(c) || isSevenPairs(c) || isThirteenOrphans(c);
 }
+
+/**
+ * 待ち牌の種類（13 枚の手に 1 枚足すとアガリの形になる種類）。空ならテンパイでない。
+ * 自分の手で 4 枚とも使っている種類は、もう引けないので待ちに数えない。
+ */
+export function waitKinds(tiles: readonly TileId[]): KindId[] {
+  const c = kindCounts(tiles);
+  const out: KindId[] = [];
+  for (let k = 0; k < 34; k++) {
+    if (c[k] >= 4) continue;
+    c[k]++;
+    if (isStandardWin(c) || isSevenPairs(c) || isThirteenOrphans(c)) out.push(k);
+    c[k]--;
+  }
+  return out;
+}

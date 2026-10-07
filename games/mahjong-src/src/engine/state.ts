@@ -2,7 +2,7 @@
 // 列としてあり得ない出来事（持っていない牌を切る・番でない人がツモる など）は例外で止める。
 
 import { HIDDEN, mask, type Envelope, type Seat } from './events';
-import { kindCounts } from './agari';
+import { kindCounts, waitKinds } from './agari';
 import { createRng, shuffle } from './rng';
 import type { Rules } from './rules';
 import { scoreWin, type ScoreResult } from './score';
@@ -12,7 +12,13 @@ import { kindOf, tileSetFor, type TileId } from './tiles';
 export type Phase = 'idle' | 'deal' | 'draw' | 'discard' | 'ended';
 
 /** ツモアガリの結果。score は開けた手牌・ドラ表示牌など全員に見えるものだけから出す＝どの端末でも同じ点数になる */
-export type RoundResult = { type: 'tsumo'; seat: Seat; winTile: TileId; score: ScoreResult } | { type: 'exhaust' };
+export type RoundResult = { type: 'tsumo'; seat: Seat; winTile: TileId; ura: TileId[]; score: ScoreResult } | { type: 'exhaust' };
+
+/** リーチの状態。double＝ダブル立直（最初の打牌でリーチ） */
+export type RiichiState = 'none' | 'riichi' | 'double';
+
+/** リーチできるのは、宣言したあとにまだ自分のツモが来る（ツモれる牌が 4 枚以上残っている）とき */
+export const RIICHI_MIN_WALL = 4;
 
 export interface GameState {
   /** 次に来るはずの通し番号 */
@@ -35,6 +41,12 @@ export interface GameState {
   wallLeft: number;
   /** めくられたドラ表示牌（めくった順） */
   doraIndicators: TileId[];
+  /** 席ごとのリーチの状態 */
+  riichi: RiichiState[];
+  /** 席ごとの、リーチを宣言した牌の河での位置（横に曲げて置く） */
+  riichiAt: (number | null)[];
+  /** 席ごとの、一発が残っているか（リーチの次の自分の打牌まで。鳴きで消えるのは段階3） */
+  ippatsu: boolean[];
   result: RoundResult | null;
 }
 
@@ -51,6 +63,9 @@ export const initialState = (): GameState => ({
   wall: null,
   wallLeft: 0,
   doraIndicators: [],
+  riichi: ['none', 'none', 'none', 'none'],
+  riichiAt: [null, null, null, null],
+  ippatsu: [false, false, false, false],
   result: null,
 });
 
@@ -97,6 +112,9 @@ export function apply(state: GameState, env: Envelope): GameState {
         wall: null,
         wallLeft: tileSetFor(s.rules).length,
         doraIndicators: [],
+        riichi: ['none', 'none', 'none', 'none'],
+        riichiAt: [null, null, null, null],
+        ippatsu: [false, false, false, false],
         result: null,
       };
     }
@@ -136,11 +154,28 @@ export function apply(state: GameState, env: Envelope): GameState {
       if (i < 0) i = hand.indexOf(HIDDEN);
       if (i < 0) throw new Error(`持っていない牌を切った（席 ${ev.seat}・背番号 ${ev.tile}）`);
       hand.splice(i, 1);
+      const riichi = s.riichi.slice();
+      const riichiAt = s.riichiAt.slice();
+      const ippatsu = s.ippatsu.slice();
+      if (s.riichi[ev.seat] !== 'none') {
+        if (ev.riichi) throw new Error('リーチのあとにもう一度リーチした');
+        // リーチのあとは手を変えられない＝ツモった牌をそのまま切るだけ（暗槓は段階3）
+        if (!ev.tsumogiri) throw new Error('リーチのあとにツモった牌以外を切った');
+        ippatsu[ev.seat] = false;
+      } else if (ev.riichi) {
+        if (liveWallLeft(s) < RIICHI_MIN_WALL) throw new Error('山が足りないのにリーチした');
+        // 手牌が見えている端末では、切ったあとテンパイかも確かめる
+        if (!hand.includes(HIDDEN) && waitKinds(hand).length === 0) throw new Error('テンパイでないのにリーチした');
+        // 最初の打牌でのリーチはダブル立直（鳴きで消えるのは段階3）
+        riichi[ev.seat] = s.discards[ev.seat].length === 0 ? 'double' : 'riichi';
+        riichiAt[ev.seat] = s.discards[ev.seat].length;
+        ippatsu[ev.seat] = true;
+      }
       const discards = s.discards.map((d) => d.slice());
       discards[ev.seat].push(ev.tile);
       const drawn = s.drawn.slice();
       drawn[ev.seat] = null;
-      return { ...s, phase: 'draw', turn: nextSeat(ev.seat), hands, discards, drawn };
+      return { ...s, phase: 'draw', turn: nextSeat(ev.seat), hands, discards, drawn, riichi, riichiAt, ippatsu };
     }
     case 'tsumo': {
       if (s.phase !== 'discard' || ev.seat !== s.turn) throw new Error('ツモアガリできる時ではない');
@@ -151,10 +186,13 @@ export function apply(state: GameState, env: Envelope): GameState {
       const drawn = s.drawn[ev.seat];
       if (drawn !== HIDDEN && drawn !== ev.winTile) throw new Error('アガリ牌がツモった牌と違う');
       if (!ev.hand.includes(ev.winTile)) throw new Error('アガリ牌が手牌に無い');
+      // 裏ドラはリーチしている人だけ、ドラ表示牌と同じ枚数をめくる
+      const uraWant = s.riichi[ev.seat] === 'none' ? 0 : s.doraIndicators.length;
+      if (ev.ura.length !== uraWant) throw new Error(`裏ドラ表示牌の枚数が違う（${ev.ura.length} 枚・正しくは ${uraWant} 枚）`);
       const score = scoreTsumo(s, ev.seat, ev.hand, ev.winTile, ev.ura);
       if (!score) throw new Error('アガリの形でない、または役が無いのにツモアガリした');
       hands[ev.seat] = ev.hand.slice();
-      return { ...s, phase: 'ended', hands, result: { type: 'tsumo', seat: ev.seat, winTile: ev.winTile, score } };
+      return { ...s, phase: 'ended', hands, result: { type: 'tsumo', seat: ev.seat, winTile: ev.winTile, ura: ev.ura.slice(), score } };
     }
     case 'exhaust': {
       if (s.phase !== 'draw' || liveWallLeft(s) > 0) throw new Error('山が残っているのに流局した');
@@ -184,6 +222,8 @@ export function scoreTsumo(s: GameState, seat: Seat, hand: readonly TileId[], wi
       seatWind: seatWindOf(s, seat),
       roundWind: roundWindOf(s),
       haitei: liveWallLeft(s) === 0,
+      riichi: s.riichi[seat],
+      ippatsu: s.ippatsu[seat],
       // 鳴きが入る段階3で「それまでに鳴きが無い」を足す
       tenhou: seat === s.dealer && noDiscards,
       chiihou: seat !== s.dealer && s.discards[seat].length === 0,

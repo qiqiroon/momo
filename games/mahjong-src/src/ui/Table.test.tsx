@@ -1,8 +1,10 @@
-// 卓の画面の検査（段階2）：ドラ表示牌と、ツモアガリの役・点数の表示。
-// 局面は自動対局の打ち手で実際に回した出来事の列から作る（画面用に作った局面ではない）。
-import { render, screen } from '@testing-library/react';
+// 卓の画面の検査（段階2）：ドラ表示牌・ツモアガリの役と点数の表示・リーチのボタン。
+// アガリの局面は自動対局の打ち手で実際に回した出来事の列から作る。リーチは配る牌を指定した列から作る。
+import { fireEvent, render, screen } from '@testing-library/react';
+import type { Envelope, GameEvent } from '../engine/events';
+import { legalActions, type Action } from '../engine/round';
 import { benchCpu } from '../cpu/bench';
-import { viewFor } from '../engine/state';
+import { apply, initialState, viewFor } from '../engine/state';
 import { playOne } from '../selfplay/run';
 import { GENERAL_RULES } from '../engine/rules';
 import { Table } from './Table';
@@ -42,5 +44,49 @@ describe('卓の画面（段階2）', () => {
     render(<Table view={view} legal={[]} lang="zh" onChoose={() => {}} onAgain={() => {}} />);
     expect(screen.getByText('门前清自摸和')).toBeInTheDocument();
     expect(screen.getByText(`合计 ${view.result.score.total}点`)).toBeInTheDocument();
+  });
+});
+
+describe('リーチのボタン（段階2）', () => {
+  /** 席 0（親）が 123m456p789s1122z をもらい、3z をツモったところ（3z を切ればリーチできる） */
+  function riichiView() {
+    let s = initialState();
+    let seq = 0;
+    const push = (ev: GameEvent, to: Envelope['to'] = 'all') => (s = apply(s, { seq: seq++, to, ev }));
+    const kinds = (list: number[]) => list.map((kd, i) => kd * 4 + 3 - (list.slice(0, i).filter((x) => x === kd).length));
+    push({ type: 'gameStart', rules: GENERAL_RULES });
+    push({ type: 'roundStart', roundIndex: 0, dealer: 0 });
+    push({ type: 'deal', seat: 0, tiles: kinds([0, 1, 2, 12, 13, 14, 24, 25, 26, 27, 27, 28, 28]) }, [0]);
+    push({ type: 'deal', seat: 1, tiles: kinds([3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7]) }, [1]);
+    push({ type: 'deal', seat: 2, tiles: kinds([9, 9, 9, 10, 10, 10, 11, 11, 11, 15, 15, 15, 16]) }, [2]);
+    push({ type: 'deal', seat: 3, tiles: kinds([18, 18, 18, 19, 19, 19, 20, 20, 20, 21, 21, 21, 22]) }, [3]);
+    push({ type: 'doraReveal', tile: 33 * 4 + 3 });
+    push({ type: 'draw', seat: 0, tile: 29 * 4 + 3 }, [0]);
+    return s;
+  }
+
+  it('リーチを押すとリーチできる牌だけ押せて、押すとリーチで切る。もう一度押すとやめる', () => {
+    const view = riichiView();
+    const chosen: Action[] = [];
+    render(<Table view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onAgain={() => {}} />);
+    const riichi = () => document.querySelector<HTMLButtonElement>('.btn-riichi')!;
+    const enabled = () => [...document.querySelectorAll<HTMLButtonElement>('.my-hand .hand-tile')].filter((b) => !b.disabled);
+    expect(enabled()).toHaveLength(14);
+    fireEvent.click(riichi());
+    expect(screen.getByText('リーチで切る牌を選んでください')).toBeInTheDocument();
+    expect(enabled()).toHaveLength(1);
+    fireEvent.click(riichi()); // やめる
+    expect(enabled()).toHaveLength(14);
+    fireEvent.click(riichi());
+    fireEvent.pointerUp(enabled()[0], { pointerType: 'mouse' });
+    expect(chosen).toEqual([{ type: 'riichi', tile: 29 * 4 + 3 }]);
+  });
+
+  it('リーチした人の宣言牌は横に曲げ、名札に印が出る', () => {
+    let view = riichiView();
+    view = apply(view, { seq: view.nextSeq, to: 'all', ev: { type: 'discard', seat: 0, tile: 29 * 4 + 3, tsumogiri: true, riichi: true } });
+    render(<Table view={view} legal={[]} lang="ja" onChoose={() => {}} onAgain={() => {}} />);
+    expect(document.querySelectorAll('.riichi-tile')).toHaveLength(1);
+    expect(document.querySelectorAll('.riichi-mark').length).toBeGreaterThan(0);
   });
 });

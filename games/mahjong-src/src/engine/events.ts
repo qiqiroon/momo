@@ -27,10 +27,10 @@ export type GameEvent =
   | { type: 'doraReveal'; tile: TileId }
   /** ツモ。本人だけに見える */
   | { type: 'draw'; seat: Seat; tile: TileId }
-  /** 打牌。全員に見える。tsumogiri＝引いた牌をそのまま切った */
-  | { type: 'discard'; seat: Seat; tile: TileId; tsumogiri: boolean }
+  /** 打牌。全員に見える。tsumogiri＝引いた牌をそのまま切った。riichi＝この牌でリーチを宣言した（横に曲げて置く） */
+  | { type: 'discard'; seat: Seat; tile: TileId; tsumogiri: boolean; riichi?: boolean }
   /** ツモアガリ。全員に見える。手牌（14 枚）とアガリ牌（ツモった牌）を開ける。
-   *  ura＝めくった裏ドラ表示牌（リーチでアガったときだけ。リーチは段階2の順番5で足す） */
+   *  ura＝めくった裏ドラ表示牌（リーチでアガったときだけ。ドラ表示牌の真下を同じ枚数） */
   | { type: 'tsumo'; seat: Seat; hand: readonly TileId[]; winTile: TileId; ura: readonly TileId[] }
   /** 山が尽きて流局。全員に見える */
   | { type: 'exhaust' };

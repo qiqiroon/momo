@@ -15,7 +15,7 @@ export type Lang = BaseLang | 'cat';
 
 const ja = {
   subtitle: 'Any Rule, Any Table',
-  trial: '段階2の試作：ツモアガリすると役と点数が出ます（鳴き・ロン・リーチはまだありません）',
+  trial: '段階2の試作：リーチとツモアガリができます（鳴き・ロンはまだありません）',
   start: 'CPU と対局する',
   again: 'もう一局',
   you: 'あなた',
@@ -95,6 +95,10 @@ const ja = {
   payTsumoDealer: '3人とも {each}点',
   payRon: '{amount}点',
   totalPoints: '合計 {n}点',
+  riichi: 'リーチ',
+  riichiPick: 'リーチで切る牌を選んでください',
+  riichiCancel: 'やめる',
+  uraIndicator: '裏ドラ表示',
 } as const;
 
 export type MessageKey = keyof typeof ja;
@@ -102,7 +106,7 @@ type Dict = Record<MessageKey, string>;
 
 const en: Dict = {
   subtitle: 'Any Rule, Any Table',
-  trial: 'Stage 2 prototype: win by self-draw to see yaku and score (no calls, ron or riichi yet)',
+  trial: 'Stage 2 prototype: riichi and self-draw wins (no calls or ron yet)',
   start: 'Play vs CPU',
   again: 'Play again',
   you: 'You',
@@ -182,11 +186,15 @@ const en: Dict = {
   payTsumoDealer: '{each} from each player',
   payRon: '{amount}',
   totalPoints: 'Total {n}',
+  riichi: 'Riichi',
+  riichiPick: 'Choose the tile to discard for riichi',
+  riichiCancel: 'Cancel',
+  uraIndicator: 'Ura indicator',
 };
 
 const zh: Dict = {
   subtitle: '百般规则，随心成局',
-  trial: '第2阶段试作：自摸和牌后会显示番种和点数（还没有吃碰杠、荣和和立直）',
+  trial: '第2阶段试作：可以立直和自摸和牌（还没有吃碰杠和荣和）',
   start: '与电脑对局',
   again: '再来一局',
   you: '你',
@@ -266,6 +274,10 @@ const zh: Dict = {
   payTsumoDealer: '三家各 {each}点',
   payRon: '{amount}点',
   totalPoints: '合计 {n}点',
+  riichi: '立直',
+  riichiPick: '请选择立直时打出的牌',
+  riichiCancel: '取消',
+  uraIndicator: '里宝牌指示牌',
 };
 
 const DICTS: Record<BaseLang, Dict> = { ja, en, zh };

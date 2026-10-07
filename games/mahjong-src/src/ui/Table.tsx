@@ -40,10 +40,17 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
   // 直前に切った人（その河の最後の牌に印を付ける）
   const lastDiscarder = view.phase === 'draw' ? (view.turn + 3) % 4 : -1;
 
+  /** 河の牌の印：直前に切られた牌・リーチの宣言牌（横に曲げる） */
+  const riverClass = (seat: number, i: number) =>
+    [seat === lastDiscarder && i === view.discards[seat].length - 1 ? 'last' : '', view.riichiAt[seat] === i ? 'riichi-tile' : '']
+      .filter(Boolean)
+      .join(' ');
+  const riichiMark = (seat: number) => view.riichi[seat] !== 'none' && <span className="riichi-mark">{t('riichi')}</span>;
+
   const river = (seat: number) => (
     <div className="river">
       {view.discards[seat].map((id, i) => (
-        <Tile key={i} id={id} rules={view.rules} className={seat === lastDiscarder && i === view.discards[seat].length - 1 ? 'last' : ''} />
+        <Tile key={i} id={id} rules={view.rules} className={riverClass(seat, i)} />
       ))}
     </div>
   );
@@ -75,6 +82,14 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
           <Tile id={won.winTile} rules={view.rules} className="win-tile" />
         </div>
       )}
+      {won && won.ura.length > 0 && (
+        <span className="dora-ind">
+          <span className="dora-ind-label">{t('uraIndicator')}</span>
+          {won.ura.map((id) => (
+            <Tile key={id} id={id} rules={view.rules} className="mini" />
+          ))}
+        </span>
+      )}
       {won && <ScoreView score={won.score} lang={lang} />}
       <button type="button" className="btn-primary" onClick={onAgain}>
         {t('again')}
@@ -98,6 +113,7 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
                 <div className="lane-who">
                   <span className="lane-wind">{windOf(seat)}</span>
                   <span className="lane-name">{nameOf(seat)}</span>
+                  {riichiMark(seat)}
                   {seat !== HUMAN && (
                     <span className="lane-count">
                       <Tile id={HIDDEN} rules={view.rules} className="mini" />×{view.hands[seat].length}
@@ -129,7 +145,7 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
       {riverRows(view.discards[seat].map((id, i) => ({ id, i }))).map((row, r) => (
         <div key={r} className="river-row">
           {row.map(({ id, i }) => (
-            <Tile key={i} id={id} rules={view.rules} className={seat === lastDiscarder && i === view.discards[seat].length - 1 ? 'last' : ''} />
+            <Tile key={i} id={id} rules={view.rules} className={riverClass(seat, i)} />
           ))}
         </div>
       ))}
@@ -148,6 +164,7 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
             return (
               <span key={rel} className={`center-wind rel-${rel}${view.turn === seat && playing ? ' is-turn' : ''}`}>
                 <b>{windOf(seat)}</b> {nameOf(seat)}
+                {riichiMark(seat)}
               </span>
             );
           })}
@@ -224,24 +241,32 @@ function ScoreView({ score, lang }: { score: ScoreResult; lang: Lang }) {
 /** 自分の手牌。マウスは 1 回押すと切る／指は 1 回目で浮かせ、2 回目で切る（押し間違いを防ぐ） */
 function MyHand({ view, legal, lang, onChoose }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void }) {
   const [raised, setRaised] = useState<TileId | null>(null);
+  // リーチを押したあと＝切る牌を選んでいるところ（もう一度押すとやめる）
+  const [riichiPick, setRiichiPick] = useState(false);
   const myTurn = legal.length > 0;
   const drawn = view.drawn[HUMAN];
   const mine = view.hands[HUMAN];
   const rest = sortTiles(drawn === null ? mine : mine.filter((x) => x !== drawn));
   const canTsumo = legal.some((a) => a.type === 'tsumo');
+  const riichiable = new Set(legal.flatMap((a) => (a.type === 'riichi' ? [a.tile] : [])));
+  const discardable = new Set(legal.flatMap((a) => (a.type === 'discard' ? [a.tile] : [])));
+  const picking = riichiPick && riichiable.size > 0;
+  /** いま押せる牌（リーチの牌を選んでいるときは、リーチできる牌だけ） */
+  const usable = (id: TileId) => (picking ? riichiable.has(id) : discardable.has(id));
 
   const press = (id: TileId) => (e: PointerEvent) => {
-    if (!myTurn) return;
+    if (!usable(id)) return;
     if (e.pointerType === 'mouse' || raised === id) {
       setRaised(null);
-      onChoose({ type: 'discard', tile: id });
+      setRiichiPick(false);
+      onChoose(picking ? { type: 'riichi', tile: id } : { type: 'discard', tile: id });
     } else {
       setRaised(id);
     }
   };
 
   const tile = (id: TileId) => (
-    <button key={id} type="button" className={`hand-tile${raised === id ? ' raised' : ''}`} disabled={!myTurn} onPointerUp={press(id)}>
+    <button key={id} type="button" className={`hand-tile${raised === id ? ' raised' : ''}`} disabled={!usable(id)} onPointerUp={press(id)}>
       <Tile id={id} rules={view.rules} />
     </button>
   );
@@ -250,10 +275,23 @@ function MyHand({ view, legal, lang, onChoose }: { view: GameState; legal: Actio
     <div className={`my-hand${myTurn ? ' my-turn' : ''}`}>
       <div className="hand-actions">
         {canTsumo && (
-          <button type="button" className="btn-primary" onClick={() => onChoose({ type: 'tsumo' })}>
+          <button type="button" className="btn-primary btn-tsumo" onClick={() => onChoose({ type: 'tsumo' })}>
             {translate(lang, 'tsumo')}
           </button>
         )}
+        {riichiable.size > 0 && (
+          <button
+            type="button"
+            className={`btn-primary btn-riichi${picking ? ' active' : ''}`}
+            onClick={() => {
+              setRaised(null);
+              setRiichiPick(!picking);
+            }}
+          >
+            {translate(lang, picking ? 'riichiCancel' : 'riichi')}
+          </button>
+        )}
+        {picking && <span className="hint">{translate(lang, 'riichiPick')}</span>}
         {raised !== null && myTurn && <span className="hint">{translate(lang, 'tapAgain')}</span>}
       </div>
       <div className="hand-row">

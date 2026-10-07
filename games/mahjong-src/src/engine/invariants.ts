@@ -7,7 +7,7 @@
 
 import { HIDDEN, SEATS, mask, type Envelope, type Seat } from './events';
 import { isWinningHand } from './agari';
-import { doraIndicatorAt } from './dora';
+import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { apply, initialState, type GameState } from './state';
 import { tileSetFor } from './tiles';
 
@@ -70,6 +70,19 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   if (full.rules.family === 'jp' && (full.phase === 'draw' || full.phase === 'discard') && full.doraIndicators.length === 0) {
     bad.push('配り終えたのにドラ表示牌がめくられていない');
   }
+  // めくった裏ドラ表示牌はドラ表示牌の真下の牌
+  if (full.wall && full.result?.type === 'tsumo') {
+    full.result.ura.forEach((t, i) => {
+      if (t !== uraIndicatorAt(full.wall!, i)) bad.push(`裏ドラ表示牌がドラ表示牌の真下の牌でない（${i + 1} 枚目）`);
+    });
+  }
+  // リーチの状態と宣言牌の位置が食い違わない・宣言牌は河にある
+  full.riichi.forEach((r, seat) => {
+    const at = full.riichiAt[seat];
+    if ((r === 'none') !== (at === null)) bad.push(`席 ${seat}：リーチの状態と宣言牌の位置が食い違う`);
+    if (at !== null && at >= full.discards[seat].length) bad.push(`席 ${seat}：リーチの宣言牌が河に無い`);
+  });
+
   // ツモアガリには点数が付いている（役が無いアガリは局面を作る側が止める）
   if (full.result?.type === 'tsumo' && !(full.result.score.total > 0)) bad.push('ツモアガリの点数が 0');
 
@@ -102,6 +115,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     if (v.wallLeft !== full.wallLeft) bad.push(`席 ${viewer}：山の残りが全体と違う`);
     if (v.wall !== null) bad.push(`席 ${viewer}：山の並びが見えている`);
     if (v.doraIndicators.join() !== full.doraIndicators.join()) bad.push(`席 ${viewer}：ドラ表示牌が全体と違う`);
+    if (v.riichi.join() !== full.riichi.join() || v.ippatsu.join() !== full.ippatsu.join()) bad.push(`席 ${viewer}：リーチ・一発の状態が全体と違う`);
     // ツモアガリの点数は、見える局面からも全体と同じに出る（どの端末でも同じ点数）
     if (full.result?.type === 'tsumo' && JSON.stringify(v.result) !== JSON.stringify(full.result)) bad.push(`席 ${viewer}：アガリの点数が全体と違う`);
     if (v.phase !== full.phase || v.turn !== full.turn) bad.push(`席 ${viewer}：進み具合（番・段取り）が全体と違う`);

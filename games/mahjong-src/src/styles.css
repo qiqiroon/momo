@@ -705,3 +705,30 @@ body.in-game .site-header .subtitle {
   font-weight: 700;
   color: var(--orange-mid);
 }
+
+/* ---- リーチ（段階2） ---- */
+
+/* 宣言牌は横に曲げて置く（牌の絵は縦横 19:26＝横にすると左右に 0.18 枚ぶん広がる） */
+.tile.riichi-tile {
+  transform: rotate(-90deg);
+  margin-left: calc(var(--tw, 32px) * 0.18);
+  margin-right: calc(var(--tw, 32px) * 0.18);
+}
+
+.riichi-mark {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  border: 1px solid var(--orange-mid);
+  border-radius: 3px;
+  color: var(--orange-mid);
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.btn-riichi.active {
+  background: transparent;
+  color: var(--orange-mid);
+  border: 1px solid var(--orange-mid);
+}

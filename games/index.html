@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MOMO Games v1.33 -->
+<!-- MOMO Games v1.34 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -688,7 +688,10 @@ function t(key) {
 }
 
 function applyLang() {
-  document.getElementById('header-sub').textContent = t('headerSub');
+  // サブタイトルは猫語にしない：元が中国語なら中国語、日本語・英語なら英語（v1.34）
+  document.getElementById('header-sub').textContent = currentLang === 'cat'
+    ? (catBase === 'zh' ? I18N.zh : I18N.en).headerSub
+    : t('headerSub');
   document.getElementById('section-label').textContent = t('sectionLabel');
   // バッジ
   document.getElementById('tilt-badge').textContent = t('tiltBadge');

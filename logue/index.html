@@ -105,7 +105,10 @@ function render() {
   const backEl = document.getElementById('back-link');
   const footEl = document.getElementById('footer-text');
   
-  if (taglineEl) taglineEl.textContent = d.tagline;
+  // サブタイトル（tagline）は猫語にしない：元が中国語なら中国語、日本語・英語なら英語
+  const catBase = (window.MomoLang && MomoLang.getCatBase) ? MomoLang.getCatBase(LANG_APP_ID) : 'ja';
+  const taglineText = currentLang === 'cat' ? (catBase === 'zh' ? I18N.zh : I18N.en).tagline : d.tagline;
+  if (taglineEl) taglineEl.textContent = taglineText;
   if (backEl) backEl.textContent = d.back;
   if (footEl) footEl.textContent = d.foot;
 

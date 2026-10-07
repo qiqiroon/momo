@@ -309,13 +309,14 @@
             if (el) el.textContent = text;
         };
         setText('breadcrumb-current', d.breadcrumb);
-        setText('header-sub', d.headerSub);
+        // v2.03: サブタイトルは猫語にしない。元が中国語なら中国語、日本語・英語なら英語
+        const subLang = MOMO.state.curLang === 'cat'
+            ? (MOMO.state.catBase === 'zh' ? 'zh' : 'en')
+            : MOMO.state.curLang;
+        setText('header-sub', (I18N[subLang] || I18N.en).headerSub);
         // v2.00: サブタイトル zh 用フォントスタック切替 (仕様書 §4.1)
         const subEl = document.getElementById('header-sub');
-        if (subEl) {
-            const effLang = MOMO.state.curLang === 'cat' ? MOMO.state.catBase : MOMO.state.curLang;
-            subEl.classList.toggle('zh', effLang === 'zh');
-        }
+        if (subEl) subEl.classList.toggle('zh', subLang === 'zh');
         setText('tab-folder', d.tabFolder);
         setText('tab-search', d.tabSearch);
         setText('tab-play', d.tabPlay);

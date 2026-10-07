@@ -7,7 +7,7 @@
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
 
 <!-- ============================================================
-  MOMO Works TOP  内部バージョン: v1.04
+  MOMO Works TOP  内部バージョン: v1.05
   変更履歴:
     v1.01 - 利用規約ページ（terms.html）へのリンクをCONTENTS上に追加
             リンク文言は3言語対応（I18N.tosNotice キー参照）
@@ -15,6 +15,7 @@
     v1.03 - MOMO Logue へのリンクをページ下部に追加（左寄せ・目立たない文字リンク）
             言語切り替えをボタン列からプルダウンに変更（cat-lang-spec v1.0 準拠）
             CAT（猫語）モード追加
+    v1.05 - 猫語のときもサブタイトル（tagline）は鳴き声にせず、元が中国語なら中国語・日本語/英語なら英語で出す
     v1.04 - 言語選択を共通ライブラリ momo-lang に移行（案件⑦）。
             Auto モード追加（端末言語を自動判定）、起動の読み元を
             アプリ別ローカルモードに、明示選択のみ共有 momoLang へ。
@@ -434,7 +435,7 @@
 
 <script>
 /* ── 内部バージョン（表示なし・管理用） ── */
-const SITE_VERSION = 'v1.04';
+const SITE_VERSION = 'v1.05';
 
 const I18N = {
   ja: {
@@ -519,7 +520,8 @@ let currentLang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
 function applyLang() {
   const d = I18N[currentLang] || I18N.ja;
   if (currentLang === 'cat') {
-    document.getElementById('tagline').innerHTML      = catSpeak('tagline');
+    // サブタイトルは猫語にしない：元が中国語なら中国語、日本語・英語なら英語（v1.05）
+    document.getElementById('tagline').innerHTML      = (catBase === 'zh' ? I18N.zh : I18N.en).tagline;
     document.getElementById('games-desc').textContent  = catSpeak('gamesDesc');
     document.getElementById('games-arrow').textContent = catSpeak('gamesArrow');
     document.getElementById('tools-desc').textContent  = catSpeak('toolsDesc');

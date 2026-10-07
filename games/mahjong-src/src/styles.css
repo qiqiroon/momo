@@ -470,6 +470,8 @@ body.in-game .site-header h1 {
   flex-direction: column;
   padding: 0 8px calc(env(safe-area-inset-bottom, 0px) + 10px);
   --res-tw: min(6vw, 30px);
+  /* 手牌の 1 枚の幅＝横幅いっぱいに 14 枚（＋ツモ牌の前の隙間 0.45 枚・牌の間 1px×13） */
+  --hand-tw: min(calc((100vw - 16px - 13px) / 14.45), 46px);
 }
 
 .lanes-info {
@@ -489,19 +491,18 @@ body.in-game .site-header h1 {
   flex-direction: column;
 }
 
+/* 1 列＝上に薄い名札・下に河。河の牌は手牌と同じ大きさ（手牌より大きくしない）で横いっぱいに並べる */
 .lane {
-  display: grid;
-  grid-template-columns: 54px 1fr;
-  gap: 6px;
-  align-items: start;
-  padding: 8px 6px 6px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 0 4px 3px;
   border-left: 3px solid transparent;
   border-bottom: 1px solid var(--brass-soft);
-  min-height: 72px;
+  min-height: 60px;
   /* 余った高さは 4 列で分ける（河が伸びても手牌の位置が動かない） */
   flex: 1 1 0;
-  /* 1 行 9 枚（18 枚で 2 行・それ以上は 3 行目へ） */
-  --tw: min(calc((100vw - 100px) / 9), 36px);
+  --tw: var(--hand-tw);
 }
 
 .lane.is-turn {
@@ -511,42 +512,43 @@ body.in-game .site-header h1 {
 
 .lane-who {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-sub);
+  opacity: 0.8;
+}
+
+.lane.is-turn .lane-who {
+  opacity: 1;
 }
 
 .lane-wind {
-  font-size: 18px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text);
-  line-height: 1;
 }
 
 .lane.is-turn .lane-wind {
   color: var(--orange-mid);
 }
 
-.lane-name {
-  font-size: 11px;
-  color: var(--text-sub);
-}
-
 .lane-count {
   display: flex;
   align-items: center;
   gap: 2px;
-  font-size: 11px;
-  color: var(--text-sub);
 }
 
 .lane-count .tile.mini {
-  --tw: 10px;
+  --tw: 8px;
+  margin-bottom: 0;
+  box-shadow: none;
 }
 
 .lanes-wrap .my-hand {
   padding-top: 6px;
-  --tw: min(calc((100vw - 16px - 20px) / 14.5), 46px);
+  --tw: var(--hand-tw);
 }
 
 .lanes-wrap .hand-actions {

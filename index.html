@@ -7,7 +7,7 @@
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
 
 <!-- ============================================================
-  MOMO Works TOP  内部バージョン: v1.05
+  MOMO Works TOP  内部バージョン: v1.06
   変更履歴:
     v1.01 - 利用規約ページ（terms.html）へのリンクをCONTENTS上に追加
             リンク文言は3言語対応（I18N.tosNotice キー参照）
@@ -15,6 +15,8 @@
     v1.03 - MOMO Logue へのリンクをページ下部に追加（左寄せ・目立たない文字リンク）
             言語切り替えをボタン列からプルダウンに変更（cat-lang-spec v1.0 準拠）
             CAT（猫語）モード追加
+    v1.06 - 猫語のときも利用規約・プライバシーの案内は鳴き声にせず、猫語を選ぶ直前の言語で出す（リンクも残す）。
+            猫語を選ぶ直前の言語は共通ライブラリから読む（開き直しても中国語のサブタイトルが出る）
     v1.05 - 猫語のときもサブタイトル（tagline）は鳴き声にせず、元が中国語なら中国語・日本語/英語なら英語で出す
     v1.04 - 言語選択を共通ライブラリ momo-lang に移行（案件⑦）。
             Auto モード追加（端末言語を自動判定）、起動の読み元を
@@ -435,7 +437,7 @@
 
 <script>
 /* ── 内部バージョン（表示なし・管理用） ── */
-const SITE_VERSION = 'v1.05';
+const SITE_VERSION = 'v1.06';
 
 const I18N = {
   ja: {
@@ -521,13 +523,15 @@ function applyLang() {
   const d = I18N[currentLang] || I18N.ja;
   if (currentLang === 'cat') {
     // サブタイトルは猫語にしない：元が中国語なら中国語、日本語・英語なら英語（v1.05）
-    document.getElementById('tagline').innerHTML      = (catBase === 'zh' ? I18N.zh : I18N.en).tagline;
+    const noCatBase = ((window.MomoLang && MomoLang.getCatBase) ? MomoLang.getCatBase(LANG_APP_ID) : catBase);
+    document.getElementById('tagline').innerHTML      = (noCatBase === 'zh' ? I18N.zh : I18N.en).tagline;
     document.getElementById('games-desc').textContent  = catSpeak('gamesDesc');
     document.getElementById('games-arrow').textContent = catSpeak('gamesArrow');
     document.getElementById('tools-desc').textContent  = catSpeak('toolsDesc');
     document.getElementById('tools-arrow').textContent = catSpeak('toolsArrow');
     document.getElementById('footer-text').textContent = catSpeak('footer');
-    document.getElementById('tos-notice').textContent  = catSpeak('tosNotice');
+    // 利用規約・プライバシーの案内は猫語にしない（リンクも残す）：猫語を選ぶ直前の言語で出す（v1.06）
+    document.getElementById('tos-notice').innerHTML    = (I18N[noCatBase] || I18N.ja).tosNotice;
     document.getElementById('logue-link').textContent  = catSpeak('logueLink');
     document.getElementById('logue-sub').textContent   = catSpeak('logueSub');
   } else {

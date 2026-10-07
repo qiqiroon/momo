@@ -1322,7 +1322,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.12</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.13</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1388,7 +1388,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.12</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.13</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1524,7 +1524,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.12</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.13</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1587,7 +1587,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.12</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.13</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -2946,9 +2946,13 @@ function _langDetectFallback() {
   return 'en';
 }
 
+// v3.13: 断り書きなど、意味が伝わらないと困るものは猫語にしない（猫語を選ぶ直前の言語で出す）
+const NO_CAT_KEYS = new Set(['art.disclaimer']);
 function t(key, params) {
-  if (_currentLang === 'cat') return catSpeak(key);
-  const dict = I18N[_currentLang] || I18N.ja;
+  const noCat = _currentLang === 'cat' && NO_CAT_KEYS.has(key);
+  if (_currentLang === 'cat' && !noCat) return catSpeak(key);
+  const lang = noCat ? ((window.MomoLang && MomoLang.getCatBase) ? MomoLang.getCatBase(LANG_APP_ID) : 'ja') : _currentLang;
+  const dict = I18N[lang] || I18N.ja;
   let v = dict[key];
   if (v == null) v = (I18N.ja[key] != null ? I18N.ja[key] : key);
   if (typeof v === 'function') return v(params);

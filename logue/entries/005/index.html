@@ -10,8 +10,9 @@
   MOMO Logue — Entry 005
   タイトル: AIに教わりながらAIを使う / Learning from AI to Use AI / 边问AI边用AI
   日付: 2026-04-27
-  バージョン: v1.02
+  バージョン: v1.03
   変更履歴:
+    v1.03 - 猫語のときも注釈の断り書き（AI による事実確認）は鳴き声にせず、猫語を選ぶ直前の言語で出す
     v1.02 - 末尾の「← Logue」リンクの参照先を修正（../ → ../../。一覧トップへ正しく戻る）
     v1.01 - 言語選択を共通ライブラリ momo-lang 化（Auto＝端末言語の自動判定を追加、選択は記憶方式に統一、?lang= 受け渡しを廃止）
     v1.00 - 初版（注釈方式: AI ファクトチェック型 / 仕様書 v1.08 §3.4 参照）
@@ -450,7 +451,8 @@ function applyLang() {
     document.title = t + ' — MOMO Logue';
     document.getElementById('entry-body').innerHTML     = catBody();
     document.getElementById('footnotes-title').textContent = catSpeak();
-    document.getElementById('footnotes-disclaimer').textContent = catSpeak();
+    // 断り書き（AI による事実確認）は猫語にしない：猫語を選ぶ直前の言語で出す
+    document.getElementById('footnotes-disclaimer').textContent = (CONTENT[((window.MomoLang && MomoLang.getCatBase) ? MomoLang.getCatBase(LANG_APP_ID) : catBase)] || CONTENT.ja).notesDisclaimer;
     renderNotes(catNotes());
     document.getElementById('nav-back').textContent     = catSpeak();
     document.getElementById('footer-text').textContent  = catSpeak();

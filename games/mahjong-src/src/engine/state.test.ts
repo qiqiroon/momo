@@ -78,7 +78,7 @@ describe('席から見える局面', () => {
         checked++;
       }
     }
-    expect(checked).toBe(4); // 山の種 1 ＋ 他の 3 人の配牌
+    expect(checked).toBe(13); // 山の種 1 ＋ 他の 3 人の配牌（4 回ずつ）
   });
 });
 

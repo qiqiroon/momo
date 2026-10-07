@@ -40,11 +40,11 @@ describe('卓の画面（段階1）', () => {
     const first = myTiles(container)[0];
     fireEvent.pointerUp(first, { pointerType: 'mouse' });
     expect(container.querySelectorAll('.my-hand .hand-tile')).toHaveLength(13);
-    expect(container.querySelectorAll('.river .tile').length).toBe(1);
+    expect(container.querySelectorAll('.river .tile, .river-row .tile').length).toBe(1);
 
     // CPU 3 人が打つ（それぞれツモと打牌の間を置く）
     run(5000);
-    expect(container.querySelectorAll('.river .tile').length).toBeGreaterThanOrEqual(4);
+    expect(container.querySelectorAll('.river .tile, .river-row .tile').length).toBeGreaterThanOrEqual(4);
     expect(myTiles(container)).toHaveLength(14);
   });
 
@@ -55,9 +55,9 @@ describe('卓の画面（段階1）', () => {
     const tile = myTiles(container)[3];
     fireEvent.pointerUp(tile, { pointerType: 'touch' });
     expect(tile).toHaveClass('raised');
-    expect(container.querySelectorAll('.river .tile').length).toBe(0);
+    expect(container.querySelectorAll('.river .tile, .river-row .tile').length).toBe(0);
     fireEvent.pointerUp(tile, { pointerType: 'touch' });
-    expect(container.querySelectorAll('.river .tile').length).toBe(1);
+    expect(container.querySelectorAll('.river .tile, .river-row .tile').length).toBe(1);
   });
 
   it('自分がツモ切りを続けると、局が終わって結果ともう一局のボタンが出る', () => {

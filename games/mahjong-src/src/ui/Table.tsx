@@ -2,7 +2,7 @@
 // 広い画面＝正方形の卓（自分が手前・下家が右・対面が奥・上家が左）。
 // 狭い画面＝横に 4 列（下家→対面→上家→自分の順＝打つ順に上から下へ流れる）＋手牌。
 
-import { useState, type PointerEvent } from 'react';
+import { useState, type CSSProperties, type PointerEvent } from 'react';
 import { HIDDEN, type Seat } from '../engine/events';
 import type { Action } from '../engine/round';
 import { liveWallLeft, type GameState } from '../engine/state';
@@ -11,6 +11,7 @@ import { HUMAN } from '../game/useTable';
 import { translate, type Lang, type MessageKey } from '../i18n/strings';
 import { Tile } from './Tile';
 import { useNarrow } from './useNarrow';
+import { HAND_ROW, handRowUnits, handTileWidth, riverRows, riverTileWidth } from './squareLayout';
 
 interface Props {
   view: GameState;
@@ -99,6 +100,27 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
     );
   }
 
+  // 正方形の卓の大きさ（squareLayout.ts の決め方）
+  const handWidths = [0, 1, 2, 3].map((rel) => {
+    const seat = seatAt(rel);
+    const units = handRowUnits(view.hands[seat].length, seat === HUMAN && view.drawn[seat] !== null);
+    return handTileWidth(units, rel === 0 ? HAND_ROW.me : HAND_ROW.other);
+  });
+  const riverTw = riverTileWidth(handWidths);
+  const cq = (n: number) => ({ '--tw': `${n.toFixed(2)}cqw` }) as CSSProperties;
+
+  const squareRiver = (seat: number) => (
+    <div className="river-rows">
+      {riverRows(view.discards[seat].map((id, i) => ({ id, i }))).map((row, r) => (
+        <div key={r} className="river-row">
+          {row.map(({ id, i }) => (
+            <Tile key={i} id={id} rules={view.rules} className={seat === lastDiscarder && i === view.discards[seat].length - 1 ? 'last' : ''} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="square-wrap">
       <div className="square felt">
@@ -115,18 +137,20 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
           })}
         </div>
         {[0, 1, 2, 3].map((rel) => (
-          <div key={rel} className={`seat-river rel-${rel}`}>
-            {river(seatAt(rel))}
+          <div key={rel} className={`seat-river rel-${rel}`} style={cq(riverTw)}>
+            {squareRiver(seatAt(rel))}
           </div>
         ))}
         {[1, 2, 3].map((rel) => (
-          <div key={rel} className={`seat-hand rel-${rel}`}>
+          <div key={rel} className={`seat-hand rel-${rel}`} style={cq(handWidths[rel])}>
             {view.hands[seatAt(rel)].map((id, i) => (
               <Tile key={i} id={id} rules={view.rules} />
             ))}
           </div>
         ))}
-        <div className="seat-hand rel-0">{hand}</div>
+        <div className="seat-hand rel-0" style={cq(handWidths[0])}>
+          {hand}
+        </div>
         {result}
       </div>
     </div>

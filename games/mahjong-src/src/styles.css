@@ -407,15 +407,25 @@ body.in-game .site-header h1 {
 .rel-2 { --a: 180deg; }
 .rel-3 { --a: 90deg; }
 
-/* 河：中央から外へ、6 枚で折り返す。各席の向きに回す */
+/* 河：中央の四角の左の辺から右へ。1 行 9 枚×3 行、3 行目は残り全部（squareLayout.ts）。
+   4 人とも自分から見て右へ伸ばすので、伸びた先は風車のように互いの角に入らない */
 .seat-river {
   position: absolute;
   left: 50%;
   top: 50%;
   transform-origin: 0 0;
-  transform: rotate(var(--a)) translate(-50%, 13.6cqw);
-  width: calc(6 * var(--tw) + 5px);
-  --tw: 4.1cqw;
+  transform: rotate(var(--a)) translate(-12.5cqw, 14.4cqw);
+}
+
+.river-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.river-row {
+  display: flex;
+  gap: 1px;
 }
 
 .river {
@@ -425,33 +435,33 @@ body.in-game .site-header h1 {
   align-content: flex-start;
 }
 
-/* 他の 3 人の手牌（伏せた牌） */
+/* 手牌の列（手牌＋鳴いた面子）。左端の位置を決めて右へ並べる */
 .seat-hand {
   position: absolute;
   left: 50%;
   top: 50%;
   transform-origin: 0 0;
-  transform: rotate(var(--a)) translate(-50%, 41.5cqw);
+  transform: rotate(var(--a)) translate(-32cqw, 41cqw);
   display: flex;
+  align-items: flex-end;
   gap: 1px;
-  --tw: 3cqw;
 }
 
 /* 自分の手牌は回さず、手前に大きく */
 .seat-hand.rel-0 {
-  transform: translate(-50%, 33cqw);
-  --tw: 5.4cqw;
+  transform: translate(-38cqw, 38cqw);
 }
 
 .seat-hand.rel-0 .my-hand {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.8cqw;
+  position: relative;
 }
 
+/* ツモのボタンなどは手牌の右上に浮かせる（手牌の位置を動かさない） */
 .seat-hand.rel-0 .hand-actions {
-  min-height: 4.2cqw;
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.8cqw);
+  white-space: nowrap;
 }
 
 .seat-hand.rel-0 .btn-primary {

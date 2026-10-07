@@ -621,3 +621,87 @@ body.in-game .site-header .subtitle {
 .lanes-wrap .result {
   position: fixed;
 }
+
+/* ---- ドラ表示牌（段階2） ---- */
+
+.dora-ind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-sub);
+}
+
+.dora-ind .tile.mini {
+  --tw: 18px;
+  margin-bottom: 0;
+}
+
+.lanes-info .dora-ind {
+  margin-right: auto;
+  order: -1;
+}
+
+.center-box .dora-ind {
+  gap: 0.5cqw;
+  font-size: 1.5cqw;
+}
+
+.center-box .dora-ind .tile.mini {
+  --tw: 2.6cqw;
+}
+
+/* ---- アガリの役と点数（段階2） ---- */
+
+.result-hand .win-tile {
+  outline: 2px solid var(--orange-mid);
+  outline-offset: 1px;
+}
+
+.score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: min(260px, 100%);
+}
+
+.yaku-list {
+  border-collapse: collapse;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.yaku-list th {
+  text-align: left;
+  font-weight: 400;
+  color: var(--text);
+  padding: 2px 24px 2px 0;
+}
+
+.yaku-list td {
+  text-align: right;
+  color: var(--text-sub);
+  padding: 2px 0;
+  white-space: nowrap;
+}
+
+.score p {
+  margin: 0;
+}
+
+.score-level {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.score-pay {
+  font-size: 14px;
+  color: var(--text-sub);
+}
+
+.score-total {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--orange-mid);
+}

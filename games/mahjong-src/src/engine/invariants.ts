@@ -7,6 +7,7 @@
 
 import { HIDDEN, SEATS, mask, type Envelope, type Seat } from './events';
 import { isWinningHand } from './agari';
+import { doraIndicatorAt } from './dora';
 import { apply, initialState, type GameState } from './state';
 import { tileSetFor } from './tiles';
 
@@ -60,6 +61,18 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     bad.push(`アガリの形でないのにツモアガリした（席 ${full.result.seat}）`);
   }
 
+  // ドラ表示牌は王牌の決まった場所の牌（1 枚目は配り終えたとき、2 枚目からはカンのたび＝段階3）
+  if (full.wall) {
+    full.doraIndicators.forEach((t, i) => {
+      if (t !== doraIndicatorAt(full.wall!, i)) bad.push(`ドラ表示牌が王牌の決まった場所の牌でない（${i + 1} 枚目）`);
+    });
+  }
+  if (full.rules.family === 'jp' && (full.phase === 'draw' || full.phase === 'discard') && full.doraIndicators.length === 0) {
+    bad.push('配り終えたのにドラ表示牌がめくられていない');
+  }
+  // ツモアガリには点数が付いている（役が無いアガリは局面を作る側が止める）
+  if (full.result?.type === 'tsumo' && !(full.result.score.total > 0)) bad.push('ツモアガリの点数が 0');
+
   // 同じ背番号の牌が2か所にない・使わない牌が混ざっていない・全体には伏せた牌が無い
   const allowed = new Set(set);
   const seen = new Set<number>();
@@ -88,6 +101,9 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     if (v.nextSeq !== full.nextSeq) bad.push(`席 ${viewer}：通し番号が全体とずれている`);
     if (v.wallLeft !== full.wallLeft) bad.push(`席 ${viewer}：山の残りが全体と違う`);
     if (v.wall !== null) bad.push(`席 ${viewer}：山の並びが見えている`);
+    if (v.doraIndicators.join() !== full.doraIndicators.join()) bad.push(`席 ${viewer}：ドラ表示牌が全体と違う`);
+    // ツモアガリの点数は、見える局面からも全体と同じに出る（どの端末でも同じ点数）
+    if (full.result?.type === 'tsumo' && JSON.stringify(v.result) !== JSON.stringify(full.result)) bad.push(`席 ${viewer}：アガリの点数が全体と違う`);
     if (v.phase !== full.phase || v.turn !== full.turn) bad.push(`席 ${viewer}：進み具合（番・段取り）が全体と違う`);
     full.discards.forEach((d, seat) => {
       const vd = v.discards[seat];

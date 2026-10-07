@@ -2,8 +2,8 @@
 // ここは山の並びを知っている側だけが呼ぶ。作った出来事は列に積み、局面は state.ts の apply で作る。
 
 import { SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
-import { liveWallLeft, type GameState } from './state';
-import { isWinningHand } from './agari';
+import { liveWallLeft, scoreTsumo, type GameState } from './state';
+import { doraIndicatorAt } from './dora';
 import { createRng, shuffle } from './rng';
 import { tileSetFor, type TileId } from './tiles';
 
@@ -44,6 +44,8 @@ export function startRound(state: GameState, gameSeed: string, roundIndex: numbe
   push('all', { type: 'roundStart', roundIndex, dealer });
   push([], { type: 'wallSeed', seed });
   for (const c of chunks) push([c.seat], { type: 'deal', seat: c.seat, tiles: c.tiles });
+  // 配り終えたらドラ表示牌をめくる（日本式だけ）
+  if (state.rules.family === 'jp') push('all', { type: 'doraReveal', tile: doraIndicatorAt(wall, 0) });
   return out;
 }
 
@@ -59,7 +61,9 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
   if (view.phase !== 'discard' || view.turn !== seat) return [];
   const hand = view.hands[seat];
   const out: Action[] = [];
-  if (isWinningHand(hand)) out.push({ type: 'tsumo' });
+  // アガリの形で、役がある（縛りに届く）ときだけツモアガリできる
+  const drawn = view.drawn[seat];
+  if (drawn !== null && scoreTsumo(view, seat, hand, drawn)) out.push({ type: 'tsumo' });
   for (const tile of hand) out.push({ type: 'discard', tile });
   return out;
 }
@@ -85,8 +89,11 @@ export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
     case 'discard':
       if (!hand.includes(action.tile)) throw new Error(`持っていない牌は切れない（背番号 ${action.tile}）`);
       return [at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat] })];
-    case 'tsumo':
-      if (!isWinningHand(hand)) throw new Error('アガリの形になっていない');
-      return [at('all', { type: 'tsumo', seat, hand: hand.slice() })];
+    case 'tsumo': {
+      const winTile = full.drawn[seat];
+      if (winTile === null || !scoreTsumo(full, seat, hand, winTile)) throw new Error('アガリの形になっていない（または役が無い）');
+      // 裏ドラはリーチでアガったときだけめくる（リーチは段階2の順番5で足す）
+      return [at('all', { type: 'tsumo', seat, hand: hand.slice(), winTile, ura: [] })];
+    }
   }
 }

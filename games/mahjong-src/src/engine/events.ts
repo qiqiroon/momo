@@ -23,12 +23,15 @@ export type GameEvent =
   | { type: 'wallSeed'; seed: string | null }
   /** 配牌。本人だけに見える */
   | { type: 'deal'; seat: Seat; tiles: readonly TileId[] }
+  /** ドラ表示牌をめくる。全員に見える（配り終えたとき。段階3でカンのたびにも） */
+  | { type: 'doraReveal'; tile: TileId }
   /** ツモ。本人だけに見える */
   | { type: 'draw'; seat: Seat; tile: TileId }
   /** 打牌。全員に見える。tsumogiri＝引いた牌をそのまま切った */
   | { type: 'discard'; seat: Seat; tile: TileId; tsumogiri: boolean }
-  /** ツモアガリ。全員に見える。手牌（14 枚）を開ける */
-  | { type: 'tsumo'; seat: Seat; hand: readonly TileId[] }
+  /** ツモアガリ。全員に見える。手牌（14 枚）とアガリ牌（ツモった牌）を開ける。
+   *  ura＝めくった裏ドラ表示牌（リーチでアガったときだけ。リーチは段階2の順番5で足す） */
+  | { type: 'tsumo'; seat: Seat; hand: readonly TileId[]; winTile: TileId; ura: readonly TileId[] }
   /** 山が尽きて流局。全員に見える */
   | { type: 'exhaust' };
 

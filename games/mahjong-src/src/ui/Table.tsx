@@ -5,6 +5,7 @@
 import { useState, type CSSProperties, type PointerEvent } from 'react';
 import { HIDDEN, type Seat } from '../engine/events';
 import type { Action } from '../engine/round';
+import type { ScoreResult } from '../engine/score';
 import { liveWallLeft, type GameState } from '../engine/state';
 import { kindOf, type TileId } from '../engine/tiles';
 import { HUMAN } from '../game/useTable';
@@ -49,18 +50,32 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
 
   const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} />;
 
+  // ドラ表示牌（めくられた順）
+  const indicators = view.doraIndicators.length > 0 && (
+    <span className="dora-ind">
+      <span className="dora-ind-label">{t('doraIndicator')}</span>
+      {view.doraIndicators.map((id) => (
+        <Tile key={id} id={id} rules={view.rules} className="mini" />
+      ))}
+    </span>
+  );
+
+  const won = view.result?.type === 'tsumo' ? view.result : null;
   const result = view.phase === 'ended' && view.result && (
     <div className="result" role="dialog">
       <p className="result-title">
-        {view.result.type === 'tsumo' ? t('resultTsumo', { name: nameOf(view.result.seat) }) : t('resultExhaust')}
+        {won ? t('resultTsumo', { name: nameOf(won.seat) }) : t('resultExhaust')}
       </p>
-      {view.result.type === 'tsumo' && (
+      {won && (
         <div className="result-hand">
-          {sortTiles(view.hands[view.result.seat]).map((id) => (
+          {sortTiles(view.hands[won.seat].filter((x) => x !== won.winTile)).map((id) => (
             <Tile key={id} id={id} rules={view.rules} />
           ))}
+          <span className="drawn-gap" />
+          <Tile id={won.winTile} rules={view.rules} className="win-tile" />
         </div>
       )}
+      {won && <ScoreView score={won.score} lang={lang} />}
       <button type="button" className="btn-primary" onClick={onAgain}>
         {t('again')}
       </button>
@@ -73,6 +88,7 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
         <div className="lanes-info">
           <span className="round-label">{roundLabel}</span>
           <span className="wall-left">{t('wallLeft', { n: left })}</span>
+          {indicators}
         </div>
         <div className="lanes">
           {[1, 2, 3, 0].map((rel) => {
@@ -126,6 +142,7 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
         <div className="center-box">
           <span className="round-label">{roundLabel}</span>
           <span className="wall-left">{t('wallLeft', { n: left })}</span>
+          {indicators}
           {[0, 1, 2, 3].map((rel) => {
             const seat = seatAt(rel);
             return (
@@ -152,6 +169,54 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
         </div>
         {result}
       </div>
+    </div>
+  );
+}
+
+/** アガリの役と点数。役の名前・翻、ドラの数、符と翻（または満貫などの段階）、支払い、合計 */
+function ScoreView({ score, lang }: { score: ScoreResult; lang: Lang }) {
+  const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
+  const yakumanName = (n: number) => (n === 1 ? t('limit_yakuman') : n === 2 ? t('yakuman2') : n === 3 ? t('yakuman3') : t('yakumanN', { n }));
+  const windName = (k: number) => t(`wind${k - 27}` as MessageKey);
+  const rows: { name: string; value: string }[] = score.yaku.map((y) => ({
+    name: t(`yaku_${y.id}` as MessageKey, { wind: '' }),
+    value: y.yakuman > 0 ? yakumanName(y.yakuman) : t('hanN', { n: y.han }),
+  }));
+  // 場風・自風は何の風かを名前に入れる（役の判定は風の種類を持たないので、局面の風から出す）
+  score.yaku.forEach((y, i) => {
+    if (y.id === 'roundWind' || y.id === 'seatWind') rows[i].name = t(`yaku_${y.id}`, { wind: windName(score.winds[y.id]) });
+  });
+  for (const [key, n] of [['yakuDora', score.dora.dora], ['yakuAka', score.dora.aka], ['yakuUra', score.dora.ura]] as const) {
+    if (n > 0) rows.push({ name: t(key), value: t('hanN', { n }) });
+  }
+  const level =
+    score.limit === 'yakuman'
+      ? yakumanName(score.yakuman)
+      : score.limit === 'none'
+        ? t('hanFu', { han: score.han, fu: score.fu })
+        : `${t('hanFu', { han: score.han, fu: score.fu })}　${t(`limit_${score.limit}` as MessageKey)}`;
+  const p = score.payment;
+  const pay =
+    p.type === 'ron'
+      ? t('payRon', { amount: p.amount })
+      : p.fromDealer === 0
+        ? t('payTsumoDealer', { each: p.fromOthers })
+        : t('payTsumoChild', { others: p.fromOthers, dealer: p.fromDealer });
+  return (
+    <div className="score">
+      <table className="yaku-list">
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <th>{r.name}</th>
+              <td>{r.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="score-level">{level}</p>
+      <p className="score-pay">{pay}</p>
+      <p className="score-total">{t('totalPoints', { n: score.total })}</p>
     </div>
   );
 }

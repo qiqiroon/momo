@@ -5,12 +5,13 @@ import { GENERAL_RULES } from './rules';
 import { playOne, runSelfplay } from '../selfplay/run';
 import { tsumogiriCpu } from '../cpu/tsumogiri';
 
-/** 見張り役に正しい列を流し、1つだけ差し替えて流す（既定は最後の出来事）。差し替えた時点までに出た理由を返す */
+/** 見張り役に正しい列を流し、1つだけ差し替えて流す（既定は最後の配牌）。差し替えた時点までに出た理由を返す */
 function feedWithLast(tamper: (env: Envelope, all: Envelope[]) => Envelope, at = -1): string[] {
   const w = new Watcher();
   w.push({ seq: 0, to: 'all', ev: { type: 'gameStart', rules: GENERAL_RULES } });
   const envs = startRound(w.full, 'tamper', 0, 0);
-  const target = at < 0 ? envs.length + at : at;
+  const lastDeal = envs.map((e) => e.ev.type).lastIndexOf('deal');
+  const target = at < 0 ? lastDeal : at;
   const reasons: string[] = [];
   envs.forEach((env, i) => reasons.push(...w.push(i === target ? tamper(env, envs) : env)));
   return reasons;
@@ -41,8 +42,9 @@ describe('見張り役', () => {
     const w = new Watcher();
     w.push({ seq: 0, to: 'all', ev: { type: 'gameStart', rules: GENERAL_RULES } });
     const envs = startRound(w.full, 'forget', 0, 0);
-    // 最後の配牌（席3 の 1 枚）を抜き、通し番号を詰める
-    const kept = envs.slice(0, -1);
+    // 最後の配牌（席3 の 1 枚）を抜き、通し番号を詰める（そのあとのドラ表示は番号を 1 つ前へ）
+    const last = envs.map((e) => e.ev.type).lastIndexOf('deal');
+    const kept = [...envs.slice(0, last), ...envs.slice(last + 1).map((e) => ({ ...e, seq: e.seq - 1 }))];
     const dealReasons = kept.flatMap((e) => w.push(e));
     expect(dealReasons).toEqual([]); // 配っている途中では気づけない
     // 席3 の 1 枚が山に残ったまま＝親は本来の 14 枚目でなく、その牌をツモる
@@ -61,6 +63,23 @@ describe('見張り役', () => {
   it('配牌を全員に見せてしまうと気づく', () => {
     const reasons = feedWithLast((e) => ({ ...e, to: 'all' }));
     expect(reasons.join()).toMatch(/手牌が見えている/);
+  });
+
+  it('ドラ表示牌を王牌の決まった場所以外からめくると気づく', () => {
+    const reasons = feedWithLast((e, all) => {
+      if (e.ev.type !== 'doraReveal') return e;
+      const other = all.find((x) => x.ev.type === 'deal')!;
+      return other.ev.type === 'deal' ? { ...e, ev: { ...e.ev, tile: other.ev.tiles[0] } } : e;
+    }, 18); // 局の始まり・山の種・配牌16回のあと＝18 番目
+    expect(reasons.join()).toMatch(/ドラ表示牌が王牌の決まった場所の牌でない/);
+  });
+
+  it('ドラ表示牌をめくり忘れると、最初のツモの時点で気づく', () => {
+    const w = new Watcher();
+    w.push({ seq: 0, to: 'all', ev: { type: 'gameStart', rules: GENERAL_RULES } });
+    const envs = startRound(w.full, 'nodora', 0, 0).filter((e) => e.ev.type !== 'doraReveal');
+    for (const e of envs) w.push(e);
+    expect(advance(w.full).flatMap((e) => w.push(e)).join()).toMatch(/ドラ表示牌がめくられていない/);
   });
 
   it('使わない牌（花牌）を配ると気づく', () => {
@@ -114,7 +133,7 @@ describe('見張り役（ツモと打牌）', () => {
 
   it('アガリの形でないのにツモアガリすると気づく（進行役を通さず出来事を直接作る）', () => {
     const w = dealtWatcher('fake');
-    expect(w.push({ seq: w.full.nextSeq, to: 'all', ev: { type: 'tsumo', seat: 0, hand: w.full.hands[0].slice() } }).join()).toMatch(
+    expect(w.push({ seq: w.full.nextSeq, to: 'all', ev: { type: 'tsumo', seat: 0, hand: w.full.hands[0].slice(), winTile: w.full.drawn[0]!, ura: [] } }).join()).toMatch(
       /アガリの形でない/,
     );
   });
@@ -127,12 +146,12 @@ describe('見張り役（ツモと打牌）', () => {
 });
 
 describe('自動対局の台', () => {
-  it('ツモ切りだけの 1 局は必ず流局まで行き、出来事は 160 件（始まり3＋配牌16回＋ツモ70＋打牌70＋流局1）', () => {
+  it('ツモ切りだけの 1 局は必ず流局まで行き、出来事は 161 件（始まり3＋配牌16回＋ドラ表示1＋ツモ70＋打牌70＋流局1）', () => {
     // 136 枚−配牌 52−王牌 14＝ツモは 70 回
     const r = playOne('count', GENERAL_RULES, tsumogiriCpu);
     expect(r.failure).toBeNull();
     expect(r.ending).toBe('exhaust');
-    expect(r.events).toBe(160);
+    expect(r.events).toBe(161);
   });
 
   it('100局回して失敗0件・ツモアガリと流局の両方の道を通る', () => {

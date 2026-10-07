@@ -2,14 +2,17 @@
 // 列としてあり得ない出来事（持っていない牌を切る・番でない人がツモる など）は例外で止める。
 
 import { HIDDEN, mask, type Envelope, type Seat } from './events';
+import { kindCounts } from './agari';
 import { createRng, shuffle } from './rng';
 import type { Rules } from './rules';
-import { tileSetFor, type TileId } from './tiles';
+import { scoreWin, type ScoreResult } from './score';
+import { kindOf, tileSetFor, type TileId } from './tiles';
 
 /** 局の進み具合。deal＝配っている途中／draw＝番の人がツモる前／discard＝番の人が切る（またはアガる）前／ended＝局が終わった */
 export type Phase = 'idle' | 'deal' | 'draw' | 'discard' | 'ended';
 
-export type RoundResult = { type: 'tsumo'; seat: Seat } | { type: 'exhaust' };
+/** ツモアガリの結果。score は開けた手牌・ドラ表示牌など全員に見えるものだけから出す＝どの端末でも同じ点数になる */
+export type RoundResult = { type: 'tsumo'; seat: Seat; winTile: TileId; score: ScoreResult } | { type: 'exhaust' };
 
 export interface GameState {
   /** 次に来るはずの通し番号 */
@@ -30,6 +33,8 @@ export interface GameState {
   wall: TileId[] | null;
   /** 山の残り枚数（王牌も含む。並びを知らなくても数は分かる） */
   wallLeft: number;
+  /** めくられたドラ表示牌（めくった順） */
+  doraIndicators: TileId[];
   result: RoundResult | null;
 }
 
@@ -45,6 +50,7 @@ export const initialState = (): GameState => ({
   drawn: [null, null, null, null],
   wall: null,
   wallLeft: 0,
+  doraIndicators: [],
   result: null,
 });
 
@@ -90,6 +96,7 @@ export function apply(state: GameState, env: Envelope): GameState {
         drawn: [null, null, null, null],
         wall: null,
         wallLeft: tileSetFor(s.rules).length,
+        doraIndicators: [],
         result: null,
       };
     }
@@ -102,6 +109,11 @@ export function apply(state: GameState, env: Envelope): GameState {
       const hands = s.hands.map((h) => h.slice());
       hands[ev.seat].push(...ev.tiles);
       return { ...s, hands, wallLeft: s.wallLeft - ev.tiles.length };
+    }
+    case 'doraReveal': {
+      if (s.phase === 'idle' || s.phase === 'ended') throw new Error('局の外でドラをめくった');
+      if (s.doraIndicators.length >= 5) throw new Error('ドラ表示牌は 5 枚まで');
+      return { ...s, doraIndicators: [...s.doraIndicators, ev.tile] };
     }
     case 'draw': {
       // 最初のツモで配り終わりになる
@@ -136,14 +148,52 @@ export function apply(state: GameState, env: Envelope): GameState {
       const known = hands[ev.seat];
       if (!known.includes(HIDDEN) && !sameTiles(known, ev.hand)) throw new Error('開けた手牌が持っている牌と違う');
       if (known.length !== ev.hand.length) throw new Error('開けた手牌の枚数が違う');
+      const drawn = s.drawn[ev.seat];
+      if (drawn !== HIDDEN && drawn !== ev.winTile) throw new Error('アガリ牌がツモった牌と違う');
+      if (!ev.hand.includes(ev.winTile)) throw new Error('アガリ牌が手牌に無い');
+      const score = scoreTsumo(s, ev.seat, ev.hand, ev.winTile, ev.ura);
+      if (!score) throw new Error('アガリの形でない、または役が無いのにツモアガリした');
       hands[ev.seat] = ev.hand.slice();
-      return { ...s, phase: 'ended', hands, result: { type: 'tsumo', seat: ev.seat } };
+      return { ...s, phase: 'ended', hands, result: { type: 'tsumo', seat: ev.seat, winTile: ev.winTile, score } };
     }
     case 'exhaust': {
       if (s.phase !== 'draw' || liveWallLeft(s) > 0) throw new Error('山が残っているのに流局した');
       return { ...s, phase: 'ended', result: { type: 'exhaust' } };
     }
   }
+}
+
+/** 自風（27＝東 … 30＝北）。親が東 */
+export const seatWindOf = (s: GameState, seat: Seat): number => 27 + ((seat - s.dealer + 4) % 4);
+/** 場風。東場の 4 局のあとが南場（局の進め方は段階4で決める） */
+export const roundWindOf = (s: GameState): number => 27 + (Math.floor(Math.max(0, s.roundIndex) / 4) % 4);
+
+/**
+ * ツモアガリしたときの点数（ツモって切る前の局面で呼ぶ）。役が無ければ null。
+ * 見える局面からでも全体の局面からでも同じ答えになるよう、手牌と ura は引数で受け取る。
+ */
+export function scoreTsumo(s: GameState, seat: Seat, hand: readonly TileId[], winTile: TileId, ura: readonly TileId[] = []): ScoreResult | null {
+  if (!s.rules || s.rules.family !== 'jp') return null;
+  const noDiscards = s.discards.every((d) => d.length === 0);
+  return scoreWin({
+    ctx: {
+      concealed: kindCounts(hand),
+      melds: [],
+      winTile: kindOf(winTile),
+      tsumo: true,
+      seatWind: seatWindOf(s, seat),
+      roundWind: roundWindOf(s),
+      haitei: liveWallLeft(s) === 0,
+      // 鳴きが入る段階3で「それまでに鳴きが無い」を足す
+      tenhou: seat === s.dealer && noDiscards,
+      chiihou: seat !== s.dealer && s.discards[seat].length === 0,
+      rules: s.rules,
+    },
+    tiles: hand,
+    indicators: s.doraIndicators,
+    ura,
+    dealer: seat === s.dealer,
+  });
 }
 
 export function replay(log: readonly Envelope[]): GameState {

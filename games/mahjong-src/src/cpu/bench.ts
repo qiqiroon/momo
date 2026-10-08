@@ -26,6 +26,9 @@ export function benchCpu(view: GameState, seat: Seat): Action {
   const legal = legalActions(view, seat);
   const win = legal.find((a) => a.type === 'tsumo' || a.type === 'ron' || a.type === 'tenpai');
   if (win) return win;
+  // 途中流局の道を検査に乗せるため：九種九牌で流せるなら流す
+  const kyushu = legal.find((a) => a.type === 'kyushu');
+  if (kyushu) return kyushu;
   const noten = legal.find((a) => a.type === 'noten');
   if (noten) return noten;
   // カンの道を検査に乗らせるため：暗槓・加槓はできるときはする（リーチのあとの暗槓も）。大明槓は字牌か、鳴いたあとならする

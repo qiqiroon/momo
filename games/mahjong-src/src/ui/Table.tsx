@@ -120,6 +120,14 @@ export function Table({ narrow, view, legal, lang, onChoose, onAgain }: Props) {
     <DraggableDialog className="result">
       {r.type === 'exhaust' && <p className="result-title">{t('resultExhaust')}</p>}
       {r.type === 'tripleRon' && <p className="result-title">{t('resultTripleRon')}</p>}
+      {r.type === 'abort' && <p className="result-title">{t(`resultAbort_${r.reason}`, { name: r.seat === undefined ? '' : nameOf(r.seat) })}</p>}
+      {r.type === 'abort' && r.reason === 'kyushu' && r.seat !== undefined && (
+        <div className="result-hand">
+          {sortTiles(view.hands[r.seat]).map((id) => (
+            <Tile key={id} id={id} rules={view.rules} />
+          ))}
+        </div>
+      )}
       {wins.map((won) => (
         <Fragment key={won.seat}>
           <p className="result-title">{won.title}</p>
@@ -369,6 +377,7 @@ function MyHand({ view, legal, lang, onChoose, melds }: { view: GameState; legal
   const mine = view.hands[HUMAN];
   const rest = sortTiles(drawn === null ? mine : mine.filter((x) => x !== drawn));
   const canTsumo = legal.some((a) => a.type === 'tsumo');
+  const canKyushu = legal.some((a) => a.type === 'kyushu');
   // 切られた牌でロン・チー・ポンできるときだけボタンを出す（できないときは自動で見送る）
   const canRon = legal.some((a) => a.type === 'ron');
   const calls = legal.filter((a) => a.type === 'chi' || a.type === 'pon' || (a.type === 'kan' && a.kan === 'minkan'));
@@ -407,6 +416,14 @@ function MyHand({ view, legal, lang, onChoose, melds }: { view: GameState; legal
           <button type="button" className="btn-primary btn-tsumo" onClick={() => onChoose({ type: 'tsumo' })}>
             {translate(lang, 'tsumo')}
           </button>
+        )}
+        {canKyushu && (
+          <>
+            <button type="button" className="btn-primary btn-kyushu" onClick={() => onChoose({ type: 'kyushu' })}>
+              {translate(lang, 'kyushu')}
+            </button>
+            <span className="hint">{translate(lang, 'kyushuHint')}</span>
+          </>
         )}
         {replying && (
           <>

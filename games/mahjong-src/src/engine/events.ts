@@ -42,6 +42,8 @@ export type GameEvent =
   | { type: 'kan'; seat: Seat; kan: 'ankan' | 'kakan'; tiles: readonly TileId[] }
   /** 切られた牌への返事「ロン」。全員に見える。手牌（13 枚）を開ける。ura＝めくった裏ドラ表示牌（リーチしているときだけ） */
   | { type: 'ron'; seat: Seat; hand: readonly TileId[]; ura: readonly TileId[] }
+  /** 九種九牌で流す。全員に見える。手牌（14 枚）を開ける */
+  | { type: 'kyushu'; seat: Seat; hand: readonly TileId[] }
   /** 山が尽きて流局。全員に見える。このあと親から順にテンパイかノーテンかを宣言する */
   | { type: 'exhaust' }
   /** 流局したときの宣言。全員に見える。テンパイなら手牌（13 枚）を開ける（ノーテンなら null） */

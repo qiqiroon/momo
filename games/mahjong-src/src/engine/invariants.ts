@@ -1,6 +1,7 @@
 // 見張り役。出来事を1つ当てはめるたびに、どの段階でも崩れてはいけない決まりを確かめる。
 // 段階が進んで出来事が増えたら、ここに決まりを足していく。
 // 段階1：ツモったあとは番の人 14 枚・ほかは 13 枚（最後の1枚を配り忘れても、並びの決まりでは気づけないため）
+// 段階3の 5：九種九牌の条件・喰い替え禁止の残り方
 // 段階3の 3：カンの数・嶺上牌の数・カンドラの枚数・嶺上牌は王牌の頭から順に取られている
 //
 // 全部を知る局面（全体）と、4つの席から見た局面を並べて持ち、同じ出来事を当てはめていく。
@@ -162,6 +163,15 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       bad.push('返事を待っているカンの牌が、カンした人の槓子に無い');
     }
   }
+
+  // 九種九牌で流した人は、開けた手牌に么九牌が 9 種類以上ある。途中流局の前に誰もアガっていない
+  if (full.result?.type === 'abort' && full.result.reason === 'kyushu' && full.result.seat !== undefined) {
+    const kinds = new Set(full.hands[full.result.seat].map(kindOf));
+    if (kinds.size === 0 || [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33].filter((x) => kinds.has(x)).length < 9) bad.push('九種九牌でないのに流した');
+    if (!full.opened[full.result.seat]) bad.push('九種九牌で流した人の手牌が開いていない');
+  }
+  // 喰い替え禁止の牌が残っているのは、鳴いた人が切る前だけ
+  if (full.kuikaeBan.length > 0 && full.phase !== 'discard') bad.push('喰い替え禁止の牌が、切る番の外で残っている');
 
   // ツモアガリには点数が付いている（役が無いアガリは局面を作る側が止める）
   if (full.result?.type === 'tsumo' && !(full.result.score.total > 0)) bad.push('ツモアガリの点数が 0');

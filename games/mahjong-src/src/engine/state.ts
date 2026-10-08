@@ -2,7 +2,7 @@
 // 列としてあり得ない出来事（持っていない牌を切る・番でない人がツモる など）は例外で止める。
 
 import { HIDDEN, mask, type Envelope, type Seat } from './events';
-import { kindCounts, waitKinds } from './agari';
+import { kindCounts, TERMINAL_HONOR_KINDS, waitKinds } from './agari';
 import { decompose } from './yaku';
 import { furitenOf } from './furiten';
 import { createRng, shuffle } from './rng';
@@ -69,7 +69,11 @@ export type RoundResult =
   /** 流局。tenpai＝席ごとの宣言／payments＝席ごとの点の動き（受け取りが＋、払いが−。合計 0） */
   | { type: 'exhaust'; tenpai: boolean[]; payments: number[] }
   /** 3 人が同じ牌でロンして、ルールで流局になった（三家和） */
-  | { type: 'tripleRon'; from: Seat; seats: Seat[] };
+  | { type: 'tripleRon'; from: Seat; seats: Seat[] }
+  /** 途中流局。kyushu＝九種九牌（seat が流した）／sufon＝四風連打／suricchi＝四家立直／sukan＝四開槓 */
+  | { type: 'abort'; reason: AbortReason; seat?: Seat };
+
+export type AbortReason = 'kyushu' | 'sufon' | 'suricchi' | 'sukan';
 
 /** 流局したときにノーテンの人からテンパイの人へ動く点の合計（変えられない決まり） */
 export const NOTEN_PENALTY = 3000;
@@ -142,6 +146,8 @@ export interface GameState {
   pendingDora: number;
   /** 最後のカンのカンドラを、打牌のときまでめくらない（kandoraWhen が split で、最後のカンが大明槓・加槓） */
   deferDora: boolean;
+  /** 喰い替え禁止で、番の人が次に切れない牌の種類（チー・ポンした直後だけ。切ったら空） */
+  kuikaeBan: number[];
   result: RoundResult | null;
 }
 
@@ -175,6 +181,7 @@ export const initialState = (): GameState => ({
   rinshanDraw: false,
   pendingDora: 0,
   deferDora: false,
+  kuikaeBan: [],
   result: null,
 });
 
@@ -238,6 +245,7 @@ export function apply(state: GameState, env: Envelope): GameState {
         rinshanDraw: false,
         pendingDora: 0,
         deferDora: false,
+        kuikaeBan: [],
         result: null,
       };
     }
@@ -294,6 +302,8 @@ export function apply(state: GameState, env: Envelope): GameState {
       let i = hand.indexOf(ev.tile);
       if (i < 0) i = hand.indexOf(HIDDEN);
       if (i < 0) throw new Error(`持っていない牌を切った（席 ${ev.seat}・背番号 ${ev.tile}）`);
+      if (s.kuikaeBan.includes(kindOf(ev.tile))) throw new Error('喰い替えになる牌を切った（このルールでは禁止）');
+      if (s.rules?.family === 'jp' && s.rules.values.kyushuHow === 'force' && kyushuOk(s, ev.seat)) throw new Error('九種九牌は必ず流すルールなのに切った');
       hand.splice(i, 1);
       const riichi = s.riichi.slice();
       const riichiAt = s.riichiAt.slice();
@@ -324,7 +334,25 @@ export function apply(state: GameState, env: Envelope): GameState {
       const replies: Claim['replies'] = [null, null, null, null];
       replies[ev.seat] = 'self';
       const claim: Claim = { kind: 'discard', from: ev.seat, tile: ev.tile, replies, rons: [], calls: [] };
-      return { ...s, phase: 'claim', hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn, claim, rinshanDraw: false };
+      const after: GameState = { ...s, phase: 'claim', hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn, claim, rinshanDraw: false, kuikaeBan: [] };
+      // 四家立直：ルールが「4 人目が宣言したとき」なら、宣言牌への返事を待たずに流局
+      const v = s.rules?.family === 'jp' ? s.rules.values : null;
+      if (ev.riichi && v?.suricchi === 'on' && v.suricchiWhen === 'declare' && riichi.every((r) => r !== 'none')) {
+        return { ...after, phase: 'ended', claim: null, result: { type: 'abort', reason: 'suricchi' } };
+      }
+      return after;
+    }
+    case 'kyushu': {
+      if (s.phase !== 'discard' || ev.seat !== s.turn) throw new Error('九種九牌で流せる時ではない');
+      const known = s.hands[ev.seat];
+      if (known.length !== ev.hand.length) throw new Error('開けた手牌の枚数が違う');
+      if (!known.includes(HIDDEN) && !sameTiles(known, ev.hand)) throw new Error('開けた手牌が持っている牌と違う');
+      if (!kyushuOk({ ...s, hands: s.hands.map((h, i) => (i === ev.seat ? ev.hand.slice() : h)) }, ev.seat)) throw new Error('九種九牌で流せない');
+      const hands = s.hands.map((h) => h.slice());
+      hands[ev.seat] = ev.hand.slice();
+      const opened = s.opened.slice();
+      opened[ev.seat] = true;
+      return { ...s, phase: 'ended', hands, opened, result: { type: 'abort', reason: 'kyushu', seat: ev.seat } };
     }
     case 'kan': {
       if (s.phase !== 'discard' || ev.seat !== s.turn) throw new Error('カンできる時ではない');
@@ -463,12 +491,12 @@ export function apply(state: GameState, env: Envelope): GameState {
         if (!ev.hand) throw new Error('テンパイの宣言なのに手牌を開けていない');
         if (visible && !sameTiles(known, ev.hand)) throw new Error('開けた手牌が持っている牌と違う');
         if (known.length !== ev.hand.length) throw new Error('開けた手牌の枚数が違う');
-        if (waitKinds(ev.hand).length === 0) throw new Error('テンパイでないのにテンパイを宣言した');
+        if (!tenpaiForDeclare(s, ev.seat, ev.hand)) throw new Error('テンパイでないのにテンパイを宣言した（形式テンパイ「なし」なら役が要る）');
       } else {
         if (ev.hand) throw new Error('ノーテンの宣言で手牌を開けた');
         if (s.riichi[ev.seat] !== 'none') throw new Error('リーチした人がノーテンを宣言した');
         // テンパイを隠してノーテンと言えるのは、ルールが許すときだけ（手牌が見える端末で確かめる）
-        if (visible && waitKinds(known).length > 0 && !(s.rules?.family === 'jp' && s.rules.values.tenpaiHide === 'ok')) {
+        if (visible && tenpaiForDeclare(s, ev.seat, known) && !(s.rules?.family === 'jp' && s.rules.values.tenpaiHide === 'ok')) {
           throw new Error('テンパイなのにノーテンを宣言した（このルールではできない）');
         }
       }
@@ -503,7 +531,12 @@ function settleClaim(s: GameState): GameState {
   if (c.rons.length === 0) {
     // 鳴き：ポン・カンがチーより先（同じ牌を 2 人がポン・カンすることは無い＝4 枚しかない）
     const call = c.calls.find((x) => x.meld === 'pon' || x.meld === 'kan') ?? c.calls.find((x) => x.meld === 'chi');
-    if (!call) return { ...s, phase: 'draw', turn: nextSeat(c.from), claim: null };
+    if (!call) {
+      // 打牌が通った（誰もロンも鳴きもしない）ところで、途中流局を確かめる
+      const reason = abortAfterPass(s, c);
+      if (reason) return { ...s, phase: 'ended', claim: null, result: { type: 'abort', reason } };
+      return { ...s, phase: 'draw', turn: nextSeat(c.from), claim: null };
+    }
     return applyCall(s, c, call);
   }
   // 切った人の下家から順に並べる（頭ハネで先に来る人が先頭）
@@ -537,12 +570,22 @@ export function callProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan
   if (!hand.includes(HIDDEN) && !tiles.every((t) => hand.includes(t))) return '持っていない牌で鳴こうとした';
   const k = kindOf(c.tile);
   const ks = tiles.map(kindOf);
-  if (meld === 'pon') return ks.every((x) => x === k) ? null : 'ポンは同じ牌 3 枚';
   if (meld === 'kan') return ks.every((x) => x === k) ? null : 'カンは同じ牌 4 枚';
-  if (seat !== nextSeat(c.from)) return 'チーは上家の捨て牌だけ';
-  const all = [k, ...ks].sort((a, b) => a - b);
-  const suit = Math.floor(all[0] / 9);
-  if (all[0] >= 27 || Math.floor(all[2] / 9) !== suit || all[1] !== all[0] + 1 || all[2] !== all[0] + 2) return 'チーは同じ色の続いた 3 枚';
+  if (meld === 'pon') {
+    if (!ks.every((x) => x === k)) return 'ポンは同じ牌 3 枚';
+  } else {
+    if (seat !== nextSeat(c.from)) return 'チーは上家の捨て牌だけ';
+    const all = [k, ...ks].sort((a, b) => a - b);
+    const suit = Math.floor(all[0] / 9);
+    if (all[0] >= 27 || Math.floor(all[2] / 9) !== suit || all[1] !== all[0] + 1 || all[2] !== all[0] + 2) return 'チーは同じ色の続いた 3 枚';
+  }
+  // 喰い替え禁止のルールで、鳴いたあと切れる牌が 1 枚も無いなら鳴けない
+  const v = s.rules?.family === 'jp' ? s.rules.values : null;
+  if (v?.kuikae === 'ng' && !hand.includes(HIDDEN)) {
+    const ban = kuikaeKinds(meld, c.tile, tiles);
+    const rest = hand.filter((t) => !tiles.includes(t));
+    if (rest.every((t) => ban.includes(kindOf(t)))) return '鳴いたあと切れる牌が無い（喰い替え禁止）';
+  }
   return null;
 }
 
@@ -597,6 +640,67 @@ export function riichiAnkanKeepsWait(before: readonly TileId[], k: number, cond:
   });
 }
 
+/**
+ * 打牌が通ったときの途中流局（ルールで「あり」のものだけ）。全員に見えることだけで決まる＝どの端末でも同じ。
+ * 四風連打＝鳴きが無いまま 4 人の最初の打牌が同じ風牌／四家立直＝4 人目のリーチの宣言牌が通った（成立時点が「通ったとき」のルール）／
+ * 四開槓＝2 人以上で合わせて 4 回カンして、そのあとの打牌が通った（1 人で 4 回なら続ける＝四槓子の見込み）
+ */
+function abortAfterPass(s: GameState, c: Claim): AbortReason | null {
+  const v = s.rules?.family === 'jp' ? s.rules.values : null;
+  if (!v) return null;
+  if (v.sufon === 'on' && !s.anyCall && s.discards.every((d) => d.length === 1)) {
+    const k = kindOf(s.discards[0][0]);
+    if (k >= 27 && k <= 30 && s.discards.every((d) => kindOf(d[0]) === k)) return 'sufon';
+  }
+  if (v.suricchi === 'on' && v.suricchiWhen === 'pass' && s.riichi.every((r) => r !== 'none') && s.riichiAt[c.from] === s.discards[c.from].length - 1) {
+    return 'suricchi';
+  }
+  if (v.sukan === 'on' && s.kans >= MAX_KANS && s.melds.filter((ms) => ms.some(isKanMeld)).length >= 2) return 'sukan';
+  return null;
+}
+
+/** 九種九牌で流せるか：ルールが「あり」、自分の最初のツモで、それまでに誰も鳴いていない、么九牌が 9 種類以上 */
+export function kyushuOk(s: GameState, seat: Seat): boolean {
+  const v = s.rules?.family === 'jp' ? s.rules.values : null;
+  if (!v || v.kyushu !== 'on') return false;
+  if (s.phase !== 'discard' || s.turn !== seat || s.discards[seat].length > 0 || s.anyCall || s.rinshanDraw) return false;
+  const hand = s.hands[seat];
+  if (hand.includes(HIDDEN) || hand.length !== 14) return false;
+  const kinds = new Set(hand.map(kindOf));
+  return TERMINAL_HONOR_KINDS.filter((k) => kinds.has(k)).length >= 9;
+}
+
+/**
+ * 流局のときテンパイと言えるか。形の上でテンパイ（待ちがある）で、形式テンパイ「なし」のルールなら、
+ * どれかの待ちで役が付く（縛りに届く）ことも要る。最後のツモ・最後の捨て牌の役（海底・河底）は数えない
+ */
+export function tenpaiForDeclare(s: GameState, seat: Seat, hand: readonly TileId[]): boolean {
+  const waits = waitKinds(hand);
+  if (waits.length === 0) return false;
+  const v = s.rules?.family === 'jp' ? s.rules.values : null;
+  if (!v || v.keishiki === 'on') return true;
+  // 海底・河底が付かないように、山が残っている局面として数える（局面を変えるのではなく、数えるための写し）
+  const probe: GameState = { ...s, wallLeft: s.wallLeft + 100, claim: null, drawn: [null, null, null, null], rinshanDraw: false };
+  return waits.some((k) => {
+    const t = k * 4 + 3;
+    return scoreRon(probe, seat, hand, t) !== null || scoreTsumo(probe, seat, [...hand, t], t) !== null;
+  });
+}
+
+/**
+ * 喰い替え禁止のとき、鳴いた直後に切れない牌の種類。ポン＝その牌（現物）。チー＝鳴いた牌と、両面の反対側（筋）。
+ * 例）3萬4萬で 2萬をチー → 2萬と 5萬は切れない。2萬4萬で 3萬をチー → 3萬だけ
+ */
+export function kuikaeKinds(meld: 'chi' | 'pon', called: TileId, tiles: readonly TileId[]): number[] {
+  const k = kindOf(called);
+  if (meld === 'pon') return [k];
+  const ks = tiles.map(kindOf).sort((a, b) => a - b);
+  const out = [k];
+  if (k + 1 === ks[0] && ks[1] === k + 2 && (k % 9) + 3 <= 8) out.push(k + 3);
+  if (k - 1 === ks[1] && ks[0] === k - 2 && (k % 9) - 3 >= 0) out.push(k - 3);
+  return out;
+}
+
 /** 鳴きを局面に入れる。鳴いた人の番になり、ツモらずに 1 枚切る（大明槓は嶺上牌を引いてから切る）。一発はみんな消える */
 function applyCall(s: GameState, c: Claim, call: CallOffer): GameState {
   const hands = s.hands.map((h) => h.slice());
@@ -617,6 +721,7 @@ function applyCall(s: GameState, c: Claim, call: CallOffer): GameState {
   const kanDora = kan && v?.kandora === 'on';
   return {
     ...s,
+    kuikaeBan: !kan && call.meld !== 'kan' && v?.kuikae === 'ng' ? kuikaeKinds(call.meld, c.tile, call.tiles) : [],
     phase: kan ? 'draw' : 'discard',
     rinshanDue: kan,
     kans: s.kans + (kan ? 1 : 0),

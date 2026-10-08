@@ -11,14 +11,15 @@ import { Watcher } from '../engine/invariants';
 import { act, advance, startRound } from '../engine/round';
 import { GENERAL_RULES, type Rules } from '../engine/rules';
 import type { OpenMeld, RoundResult } from '../engine/state';
+import { kindOf } from '../engine/tiles';
 
 export interface SelfplayResult {
   games: number;
   events: number;
   /** 終わり方の内訳（ツモアガリ・流局・途中で止まった） */
-  endings: { tsumo: number; ron: number; exhaust: number; tripleRon: number; unfinished: number };
+  endings: { tsumo: number; ron: number; exhaust: number; tripleRon: number; abort: number; unfinished: number };
   /** 通った道の数（0 なら、その道は検査に乗っていない）：リーチ・ダブル立直・リーチでのツモ・一発・裏ドラが乗ったアガリ */
-  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[]; doubleRon: number; missed: number; calls: number; chi: number; openWin: number; kan: { ankan: number; kakan: number; minkan: number; riichiAnkan: number; rinshanWin: number; chankan: number; kanDora: number; fourKans: number }; clash: { total: number; ronWon: number; ponWon: number; chiLost: number } };
+  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[]; doubleRon: number; missed: number; calls: number; chi: number; openWin: number; kan: { ankan: number; kakan: number; minkan: number; riichiAnkan: number; rinshanWin: number; chankan: number; kanDora: number; fourKans: number }; clash: { total: number; ronWon: number; ponWon: number; chiLost: number }; aborts: Record<string, number>; kuikaeBanned: number };
   failures: { seed: string; seq: number; reasons: string[] }[];
 }
 
@@ -34,17 +35,20 @@ export function playOne(
   seed: string,
   rules: Rules = GENERAL_RULES,
   player: Player = tsumogiriCpu,
-): { events: number; missed: boolean; clashes: { won: string; chi: boolean }[]; finalMelds: OpenMeld[][]; log: Envelope[]; ending: keyof SelfplayResult['endings']; result: RoundResult | null; failure: Failure | null } {
+): { events: number; missed: boolean; kuikaeBanned: number; clashes: { won: string; chi: boolean }[]; finalMelds: OpenMeld[][]; log: Envelope[]; ending: keyof SelfplayResult['endings']; result: RoundResult | null; failure: Failure | null } {
   const w = new Watcher();
   const seedNumber = [...seed].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
   const log: Envelope[] = [];
   let sawMissed = false;
   // 同じ牌に 2 人以上が宣言した（見送り以外の返事が 2 つ以上）ときの、勝った宣言
   const clashes: { won: string; chi: boolean }[] = [];
+  // 喰い替え禁止で切れない牌を持ったまま切る番になった回数（禁止の道が検査に乗っているか）
+  let kuikaeBanned = 0;
   const feed = (envs: Envelope[]): Failure | null => {
     for (const env of envs) {
       const before = w.full;
       const reasons = w.push(env);
+      if (w.full.kuikaeBan.length > 0 && w.full.hands[w.full.turn].some((t) => w.full.kuikaeBan.includes(kindOf(t)))) kuikaeBanned++;
       const c = before.claim;
       if (c && w.full.claim === null) {
         const said = c.calls.map((x) => x.meld as string).concat(c.rons.map(() => 'ron'));
@@ -64,6 +68,7 @@ export function playOne(
   const done = (failure: Failure | null) => ({
     events: w.checked,
     missed: sawMissed,
+    kuikaeBanned,
     clashes,
     finalMelds: w.full.melds,
     log,
@@ -99,8 +104,8 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
   const result: SelfplayResult = {
     games: 0,
     events: 0,
-    endings: { tsumo: 0, ron: 0, exhaust: 0, tripleRon: 0, unfinished: 0 },
-    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0, calls: 0, chi: 0, openWin: 0, kan: { ankan: 0, kakan: 0, minkan: 0, riichiAnkan: 0, rinshanWin: 0, chankan: 0, kanDora: 0, fourKans: 0 }, clash: { total: 0, ronWon: 0, ponWon: 0, chiLost: 0 } },
+    endings: { tsumo: 0, ron: 0, exhaust: 0, tripleRon: 0, abort: 0, unfinished: 0 },
+    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0, calls: 0, chi: 0, openWin: 0, kan: { ankan: 0, kakan: 0, minkan: 0, riichiAnkan: 0, rinshanWin: 0, chankan: 0, kanDora: 0, fourKans: 0 }, clash: { total: 0, ronWon: 0, ponWon: 0, chiLost: 0 }, aborts: {}, kuikaeBanned: 0 },
     failures: [],
   };
   for (let i = 0; i < games; i++) {
@@ -129,6 +134,8 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
       if (e.ev.type === 'doraReveal') indicators++;
     }
     k.kanDora += Math.max(0, indicators - 1);
+    if (r.result?.type === 'abort') result.paths.aborts[r.result.reason] = (result.paths.aborts[r.result.reason] ?? 0) + 1;
+    result.paths.kuikaeBanned += r.kuikaeBanned;
     const c = result.paths.clash;
     c.total += r.clashes.length;
     c.ronWon += r.clashes.filter((x) => x.won === 'ron').length;

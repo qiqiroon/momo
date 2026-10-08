@@ -33,6 +33,10 @@ const ja = {
   resultExhaust: '流局',
   resultRon: '{name}のロンアガリ（{from}から）',
   resultTripleRon: '3人が同時にロン＝流局',
+  resultAbort_kyushu: '{name}が九種九牌で流局',
+  resultAbort_sufon: '四風連打で流局',
+  resultAbort_suricchi: '四家立直で流局',
+  resultAbort_sukan: '四開槓で流局',
   turnOf: '{name}の番',
   settings: '設定',
   layoutSwitch: '画面切替',
@@ -112,6 +116,8 @@ const ja = {
   uraIndicator: '裏ドラ表示',
   declareTenpai: 'テンパイ',
   declareNoten: 'ノーテン',
+  kyushu: '九種九牌で流す',
+  kyushuHint: '么九牌が9種類あります。流すこともできます',
   declareHint: '流局です。テンパイを宣言しますか？（ノーテンと言うと手牌は見せません）',
 } as const;
 
@@ -138,6 +144,10 @@ const en: Dict = {
   resultExhaust: 'Exhaustive draw',
   resultRon: '{name} won by ron from {from}',
   resultTripleRon: 'Triple ron: abortive draw',
+  resultAbort_kyushu: '{name} declared nine terminals: abortive draw',
+  resultAbort_sufon: 'Four winds: abortive draw',
+  resultAbort_suricchi: 'Four riichi: abortive draw',
+  resultAbort_sukan: 'Four kans: abortive draw',
   turnOf: "{name}'s turn",
   settings: 'Settings',
   layoutSwitch: 'Layout',
@@ -217,6 +227,8 @@ const en: Dict = {
   uraIndicator: 'Ura indicator',
   declareTenpai: 'Tenpai',
   declareNoten: 'No-ten',
+  kyushu: 'Abort (nine terminals)',
+  kyushuHint: 'You hold nine kinds of terminals and honors. You may abort the hand',
   declareHint: 'Exhaustive draw. Declare tenpai? (No-ten keeps your hand hidden)',
 };
 
@@ -240,6 +252,10 @@ const zh: Dict = {
   resultExhaust: '流局',
   resultRon: '{name}荣和（{from}放铳）',
   resultTripleRon: '三家和，流局',
+  resultAbort_kyushu: '{name}九种九牌，流局',
+  resultAbort_sufon: '四风连打，流局',
+  resultAbort_suricchi: '四家立直，流局',
+  resultAbort_sukan: '四杠散了，流局',
   turnOf: '轮到{name}',
   settings: '设置',
   layoutSwitch: '切换画面',
@@ -319,6 +335,8 @@ const zh: Dict = {
   uraIndicator: '里宝牌指示牌',
   declareTenpai: '听牌',
   declareNoten: '未听牌',
+  kyushu: '九种九牌流局',
+  kyushuHint: '有九种幺九牌，可以流局',
   declareHint: '流局。要宣告听牌吗？（宣告未听牌则不亮牌）',
 };
 

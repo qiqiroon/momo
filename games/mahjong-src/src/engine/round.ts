@@ -3,7 +3,7 @@
 
 import { HIDDEN, SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
 import { furitenOf } from './furiten';
-import { callProblem, kanProblem, liveWallLeft, RIICHI_MIN_WALL, scoreRon, scoreTsumo, type GameState } from './state';
+import { callProblem, kanProblem, kyushuOk, liveWallLeft, RIICHI_MIN_WALL, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { waitKinds } from './agari';
 import { createRng, shuffle } from './rng';
@@ -62,6 +62,8 @@ export type Action =
   | { type: 'discard'; tile: TileId }
   | { type: 'riichi'; tile: TileId }
   | { type: 'tsumo' }
+  /** 九種九牌で流す（自分の最初のツモで、么九牌が 9 種類以上） */
+  | { type: 'kyushu' }
   /** 流局したときの宣言 */
   | { type: 'tenpai' }
   | { type: 'noten' }
@@ -166,13 +168,19 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
   // アガリの形で、役がある（縛りに届く）ときだけツモアガリできる
   const drawn = view.drawn[seat];
   if (drawn !== null && scoreTsumo(view, seat, hand, drawn)) out.push({ type: 'tsumo' });
+  // 九種九牌：ルールが「必ず流す」なら、流すしかない（国士無双でツモアガリできるときだけアガりも選べる）
+  if (kyushuOk(view, seat)) {
+    out.push({ type: 'kyushu' });
+    if (view.rules?.family === 'jp' && view.rules.values.kyushuHow === 'force') return out;
+  }
   // リーチのあとはツモった牌を切るだけ（待ちが変わらない暗槓はできる）
   if (view.riichi[seat] !== 'none') {
     if (drawn !== null) out.push({ type: 'discard', tile: drawn });
     out.push(...kanOptions(view, seat));
     return out;
   }
-  for (const tile of hand) out.push({ type: 'discard', tile });
+  // 喰い替え禁止のときは、鳴いた直後に切れない牌を除く
+  for (const tile of hand) if (!view.kuikaeBan.includes(kindOf(tile))) out.push({ type: 'discard', tile });
   for (const tile of riichiTiles(view, seat)) out.push({ type: 'riichi', tile });
   out.push(...kanOptions(view, seat));
   return out;
@@ -181,7 +189,7 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
 /** 流局したときに言えること。テンパイならテンパイと言える。ノーテンと言えるのはノーテンのとき、
  *  またはテンパイでもリーチしておらず、ルールが「テンパイでもノーテンと言える」のとき */
 function declareOptions(view: GameState, seat: Seat): Action[] {
-  const tenpai = waitKinds(view.hands[seat]).length > 0;
+  const tenpai = tenpaiForDeclare(view, seat, view.hands[seat]);
   const out: Action[] = [];
   if (tenpai) out.push({ type: 'tenpai' });
   const mayHide = view.riichi[seat] === 'none' && view.rules?.family === 'jp' && view.rules.values.tenpaiHide === 'ok';
@@ -255,8 +263,13 @@ export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
   if (full.phase !== 'discard' || full.turn !== seat) throw new Error(`席 ${seat} の番ではない`);
   const hand = full.hands[seat];
   switch (action.type) {
+    case 'kyushu':
+      if (!kyushuOk(full, seat)) throw new Error('九種九牌で流せない');
+      return [at('all', { type: 'kyushu', seat, hand: hand.slice() })];
     case 'discard':
       if (!hand.includes(action.tile)) throw new Error(`持っていない牌は切れない（背番号 ${action.tile}）`);
+      if (full.kuikaeBan.includes(kindOf(action.tile))) throw new Error('喰い替えになる牌は切れない');
+      if (full.rules?.family === 'jp' && full.rules.values.kyushuHow === 'force' && kyushuOk(full, seat)) throw new Error('九種九牌は必ず流すルール');
       if (full.riichi[seat] !== 'none' && action.tile !== full.drawn[seat]) throw new Error('リーチのあとはツモった牌しか切れない');
       // 打牌のときに、まだめくっていない明槓のカンドラをめくる（この打牌へのロンにも乗る）
       return [at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat] }), ...revealDora(full, full.pendingDora, at)];

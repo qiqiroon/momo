@@ -141,6 +141,15 @@ h1 .version-tag {
   border-color: var(--orange-mid);
 }
 
+/* 画面切替：文字のボタン（高さは歯車にそろえる） */
+.layout-btn {
+  width: auto;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .lang-select {
   background: var(--surface2);
   border: 1px solid var(--border-strong);
@@ -546,7 +555,7 @@ body.in-game .site-header .subtitle {
   padding: 0.7cqw 2.2cqw;
 }
 
-/* ---- 狭い画面：横に 4 列 ---- */
+/* ---- 横に 4 列（狭い画面の既定。広い画面でも切り替えで選べる） ---- */
 
 .lanes-wrap {
   position: relative;
@@ -559,7 +568,16 @@ body.in-game .site-header .subtitle {
   --res-tw: min(6vw, 30px);
   /* 手牌の 1 枚の幅＝横幅いっぱいに 14 枚（＋ツモ牌の前の隙間 0.45 枚・牌の間 1px×13） */
   /* 手牌の列の長さ（--hand-units＝牌何枚ぶんか。鳴いた面子が入ると長くなる）で横幅いっぱいに収める */
-  --hand-tw: min(calc((100vw - 16px - 13px) / var(--hand-units, 14.45)), 46px);
+  --hand-tw: min(calc((min(100vw, 776px) - 16px - 13px) / var(--hand-units, 14.45)), 46px);
+}
+
+/* 広い画面で横4列を選んだとき：携帯と同じ幅（776px）で真ん中に置く（横に間延びさせない） */
+@media (min-width: 777px) {
+  .lanes-wrap {
+    width: 776px;
+    max-width: 100%;
+    margin: 0 auto;
+  }
 }
 
 .lanes-info {

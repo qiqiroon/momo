@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTable } from './game/useTable';
 import { LANG_MODES, baseOf, changeMode, currentMode, initLang, translate, type LangMode, type MessageKey } from './i18n/strings';
 import { Table } from './ui/Table';
+import { useLayout } from './ui/useLayout';
 import { APP_VERSION } from './version';
 
 /** 歯車の絵（MOMO Hanafuda・Sudoku と同じ意匠） */
@@ -12,6 +13,7 @@ export function App() {
   const [lang, setLang] = useState(initLang);
   const [mode, setMode] = useState<LangMode>(currentMode);
   const { view, legal, start, choose, started } = useTable();
+  const { layout, canSwitch, toggle } = useLayout();
   const t = (k: MessageKey) => translate(lang, k);
 
   useEffect(() => {
@@ -38,6 +40,12 @@ export function App() {
           <div className={`subtitle${baseOf(lang) === 'zh' ? ' zh' : ''}`}>{t('subtitle')}</div>
         </div>
         <div className="header-right">
+          {/* 画面切替：正方形の卓を出せない狭い画面（携帯）ではボタンごと出さない（見出しをはみ出させないため・利用者指示） */}
+          {canSwitch && (
+            <button type="button" className="icon-btn layout-btn" onClick={toggle}>
+              {t('layoutSwitch')}
+            </button>
+          )}
           {/* 設定の中身はまだ無い（入れる段階で作る）。ボタンだけ先に置く */}
           <button type="button" className="icon-btn" aria-label={t('settings')} title={t('settings')}>
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
@@ -55,7 +63,7 @@ export function App() {
       </header>
       {started ? (
         <main className="game">
-          <Table view={view} legal={legal} lang={lang} onChoose={choose} onAgain={start} />
+          <Table narrow={layout === 'lanes'} view={view} legal={legal} lang={lang} onChoose={choose} onAgain={start} />
         </main>
       ) : (
         <main className="title">

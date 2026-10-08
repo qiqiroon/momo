@@ -13,11 +13,12 @@ import { HUMAN } from '../game/useTable';
 import { translate, type Lang, type MessageKey } from '../i18n/strings';
 import { DraggableDialog } from './DraggableDialog';
 import { Tile } from './Tile';
-import { useNarrow } from './useNarrow';
 import { HAND_ROW, handRowUnits, handTileWidth, riverRows, riverTileWidth } from './squareLayout';
 import type { Rules } from '../engine/rules';
 
 interface Props {
+  /** 横4列で並べるか（false＝正方形の卓）。どちらにするかは useLayout が決める */
+  narrow: boolean;
   view: GameState;
   legal: Action[];
   lang: Lang;
@@ -32,8 +33,7 @@ const seatAt = (rel: number): Seat => ((rel + HUMAN) % 4) as Seat;
 /** 手牌の並べ替え：種類順、同じ種類なら背番号順 */
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kindOf(a) - kindOf(b) || a - b);
 
-export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
-  const narrow = useNarrow();
+export function Table({ narrow, view, legal, lang, onChoose, onAgain }: Props) {
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
   const windOf = (seat: number) => t(`wind${(seat - view.dealer + 4) % 4}` as MessageKey);
   const nameOf = (seat: number) => (seat === HUMAN ? t('you') : t('cpu', { n: relOf(seat) }));

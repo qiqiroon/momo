@@ -8,7 +8,7 @@ import { furitenOf } from '../engine/furiten';
 import type { Action } from '../engine/round';
 import type { ScoreResult } from '../engine/score';
 import { liveWallLeft, type GameState, type OpenMeld } from '../engine/state';
-import { kindOf, type TileId } from '../engine/tiles';
+import { isRed, kindOf, type TileId } from '../engine/tiles';
 import { HUMAN } from '../game/useTable';
 import { translate, type Lang, type MessageKey } from '../i18n/strings';
 import { DraggableDialog } from './DraggableDialog';
@@ -95,7 +95,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onAgain }: Props) {
     );
 
   // 狭い画面の自分の手牌の列の長さ（横幅いっぱいに収める）
-  const narrowUnits = handRowUnits(view.hands[HUMAN].length, view.drawn[HUMAN] !== null, view.melds[HUMAN].length);
+  const narrowUnits = handRowUnits(view.hands[HUMAN].length, view.drawn[HUMAN] !== null, view.melds[HUMAN]);
   const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} melds={meldsOf(HUMAN)} />;
 
   // ドラ表示牌（めくられた順）
@@ -222,7 +222,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onAgain }: Props) {
   // 正方形の卓の大きさ（squareLayout.ts の決め方）
   const handWidths = [0, 1, 2, 3].map((rel) => {
     const seat = seatAt(rel);
-    const units = handRowUnits(view.hands[seat].length, seat === HUMAN && view.drawn[seat] !== null, view.melds[seat].length);
+    const units = handRowUnits(view.hands[seat].length, seat === HUMAN && view.drawn[seat] !== null, view.melds[seat]);
     return handTileWidth(units, rel === 0 ? HAND_ROW.me : HAND_ROW.other);
   });
   const riverTw = riverTileWidth(handWidths);
@@ -327,17 +327,33 @@ function ScoreView({ score, lang }: { score: ScoreResult; lang: Lang }) {
   );
 }
 
-/** 鳴いた面子 1 組。鳴いた牌は横に曲げ、曲げる位置で誰から鳴いたかを示す（上家＝左・対面＝真ん中・下家＝右） */
+/**
+ * 鳴いた面子 1 組。鳴いた牌は横に曲げ、曲げる位置で誰から鳴いたかを示す（上家＝左・対面＝真ん中・下家＝右）。
+ * 大明槓は 4 枚（下家からは右端）。加槓は鳴いた牌の隣に足した牌も曲げる。暗槓は両端を伏せる
+ */
 function MeldView({ meld, seat, rules }: { meld: OpenMeld; seat: number; rules: Rules | null }) {
+  if (meld.type === 'ankan') {
+    // 赤5があれば表に見える真ん中へ
+    const tiles = meld.tiles.slice().sort((a, b) => Number(rules !== null && isRed(b, rules)) - Number(rules !== null && isRed(a, rules)));
+    const shown = [HIDDEN, tiles[0], tiles[1], HIDDEN];
+    return (
+      <span className="meld meld-ankan">
+        {shown.map((id, i) => (
+          <Tile key={i} id={id} rules={rules} />
+        ))}
+      </span>
+    );
+  }
   const rel = (meld.from - seat + 4) % 4; // 1＝下家 2＝対面 3＝上家
-  const others = meld.tiles.filter((t) => t !== meld.called);
-  const at = rel === 3 ? 0 : rel === 2 ? 1 : 2;
+  const turned = new Set([meld.called, meld.added].filter((x): x is TileId => x !== undefined && x !== null));
+  const others = meld.tiles.filter((t) => !turned.has(t));
+  const at = rel === 3 ? 0 : rel === 2 ? 1 : others.length;
   const order = [...others];
-  order.splice(at, 0, meld.called);
+  order.splice(at, 0, ...turned);
   return (
-    <span className="meld">
+    <span className={`meld meld-${meld.type}`}>
       {order.map((id) => (
-        <Tile key={id} id={id} rules={rules} className={id === meld.called ? 'called-tile' : ''} />
+        <Tile key={id} id={id} rules={rules} className={turned.has(id) ? 'called-tile' : ''} />
       ))}
     </span>
   );
@@ -355,8 +371,10 @@ function MyHand({ view, legal, lang, onChoose, melds }: { view: GameState; legal
   const canTsumo = legal.some((a) => a.type === 'tsumo');
   // 切られた牌でロン・チー・ポンできるときだけボタンを出す（できないときは自動で見送る）
   const canRon = legal.some((a) => a.type === 'ron');
-  const calls = legal.filter((a) => a.type === 'chi' || a.type === 'pon');
+  const calls = legal.filter((a) => a.type === 'chi' || a.type === 'pon' || (a.type === 'kan' && a.kan === 'minkan'));
   const replying = canRon || calls.length > 0;
+  // 自分の番のカン（暗槓・加槓）。押すとその場でカンする
+  const ownKans = legal.filter((a) => a.type === 'kan' && a.kan !== 'minkan');
   // 流局の宣言（テンパイを隠せるときだけボタンが出る。1 つしか言えないときは自動で言う）
   const declaring = view.phase === 'declare' && legal.length > 1;
   const riichiable = new Set(legal.flatMap((a) => (a.type === 'riichi' ? [a.tile] : [])));
@@ -397,9 +415,9 @@ function MyHand({ view, legal, lang, onChoose, melds }: { view: GameState; legal
                 {translate(lang, 'ron')}
               </button>
             )}
-            {/* チー・ポンは手牌から出す 2 枚を見せる（同じ牌で組み合わせが複数あるときも選べる） */}
+            {/* チー・ポン・カンは手牌から出す牌を見せる（同じ牌で組み合わせが複数あるときも選べる） */}
             {calls.map((a, i) =>
-              a.type === 'chi' || a.type === 'pon' ? (
+              a.type === 'chi' || a.type === 'pon' || a.type === 'kan' ? (
                 <button key={i} type="button" className={`btn-primary btn-call btn-${a.type}`} onClick={() => onChoose(a)}>
                   {translate(lang, a.type)}
                   <span className="call-tiles">
@@ -426,6 +444,16 @@ function MyHand({ view, legal, lang, onChoose, melds }: { view: GameState; legal
             </button>
             <span className="hint">{translate(lang, 'declareHint')}</span>
           </>
+        )}
+        {ownKans.map((a, i) =>
+          a.type === 'kan' ? (
+            <button key={`kan${i}`} type="button" className="btn-primary btn-call btn-kan" onClick={() => onChoose(a)}>
+              {translate(lang, 'kan')}
+              <span className="call-tiles">
+                <Tile id={a.tiles[0]} rules={view.rules} className="mini" />
+              </span>
+            </button>
+          ) : null,
         )}
         {riichiable.size > 0 && (
           <button

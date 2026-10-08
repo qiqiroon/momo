@@ -18,7 +18,7 @@ export interface SelfplayResult {
   /** 終わり方の内訳（ツモアガリ・流局・途中で止まった） */
   endings: { tsumo: number; ron: number; exhaust: number; tripleRon: number; unfinished: number };
   /** 通った道の数（0 なら、その道は検査に乗っていない）：リーチ・ダブル立直・リーチでのツモ・一発・裏ドラが乗ったアガリ */
-  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[]; doubleRon: number; missed: number; calls: number; chi: number; openWin: number };
+  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[]; doubleRon: number; missed: number; calls: number; chi: number; openWin: number; kan: { ankan: number; kakan: number; minkan: number; riichiAnkan: number; rinshanWin: number; chankan: number; kanDora: number; fourKans: number } };
   failures: { seed: string; seq: number; reasons: string[] }[];
 }
 
@@ -83,7 +83,7 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
     games: 0,
     events: 0,
     endings: { tsumo: 0, ron: 0, exhaust: 0, tripleRon: 0, unfinished: 0 },
-    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0, calls: 0, chi: 0, openWin: 0 },
+    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0, calls: 0, chi: 0, openWin: 0, kan: { ankan: 0, kakan: 0, minkan: 0, riichiAnkan: 0, rinshanWin: 0, chankan: 0, kanDora: 0, fourKans: 0 } },
     failures: [],
   };
   for (let i = 0; i < games; i++) {
@@ -91,9 +91,30 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
     result.games++;
     result.events += r.events;
     result.endings[r.ending]++;
+    const k = result.paths.kan;
+    const riichiSeats = new Set<number>();
+    let indicators = 0;
+    let kans = 0;
     for (const e of r.log) {
-      if (e.ev.type === 'discard' && e.ev.riichi) result.paths.riichi++;
+      if (e.ev.type === 'discard' && e.ev.riichi) {
+        result.paths.riichi++;
+        riichiSeats.add(e.ev.seat);
+      }
+      if (e.ev.type === 'kan') {
+        k[e.ev.kan]++;
+        kans++;
+        if (e.ev.kan === 'ankan' && riichiSeats.has(e.ev.seat)) k.riichiAnkan++;
+      }
+      if (e.ev.type === 'call' && e.ev.meld === 'kan') {
+        k.minkan++;
+        kans++;
+      }
+      if (e.ev.type === 'doraReveal') indicators++;
     }
+    k.kanDora += Math.max(0, indicators - 1);
+    if (kans === 4) k.fourKans++;
+    if (r.result?.type === 'tsumo' && r.result.score.yaku.some((y) => y.id === 'rinshan')) k.rinshanWin++;
+    if (r.result?.type === 'ron' && r.result.robbed) k.chankan++;
     if (r.result?.type === 'ron' && r.result.wins.length > 1) result.paths.doubleRon++;
     const melds = r.finalMelds;
     result.paths.calls += melds.reduce((n, ms) => n + ms.length, 0);

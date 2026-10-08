@@ -15,7 +15,7 @@ export type Lang = BaseLang | 'cat';
 
 const ja = {
   subtitle: 'Any Rule, Any Table',
-  trial: '段階3の試作：ロン・チー・ポンまでできます（カンはまだありません。CPU は鳴きません）',
+  trial: '段階3の試作：ロン・チー・ポン・カンまでできます（CPU は鳴きません）',
   start: 'CPU と対局する',
   again: 'もう一局',
   you: 'あなた',
@@ -105,6 +105,7 @@ const ja = {
   ron: 'ロン',
   chi: 'チー',
   pon: 'ポン',
+  kan: 'カン',
   callHint: '鳴けます。鳴きますか？',
   pass: '見送る',
   ronHint: '切られた牌でアガれます。ロンしますか？',
@@ -119,7 +120,7 @@ type Dict = Record<MessageKey, string>;
 
 const en: Dict = {
   subtitle: 'Any Rule, Any Table',
-  trial: 'Stage 3 prototype: ron, chi and pon (no kan yet; the CPUs do not call)',
+  trial: 'Stage 3 prototype: ron, chi, pon and kan (the CPUs do not call)',
   start: 'Play vs CPU',
   again: 'Play again',
   you: 'You',
@@ -209,6 +210,7 @@ const en: Dict = {
   ron: 'Ron',
   chi: 'Chi',
   pon: 'Pon',
+  kan: 'Kan',
   callHint: 'You can call this discard.',
   pass: 'Pass',
   ronHint: 'You can win on this discard. Call ron?',
@@ -220,7 +222,7 @@ const en: Dict = {
 
 const zh: Dict = {
   subtitle: '百般规则，随心成局',
-  trial: '第3阶段试作：可以荣和、吃、碰（还没有杠；电脑不鸣牌）',
+  trial: '第3阶段试作：可以荣和、吃、碰、杠（电脑不鸣牌）',
   start: '与电脑对局',
   again: '再来一局',
   you: '你',
@@ -310,6 +312,7 @@ const zh: Dict = {
   ron: '荣和',
   chi: '吃',
   pon: '碰',
+  kan: '杠',
   callHint: '可以鸣牌。要鸣牌吗？',
   pass: '过',
   ronHint: '可以用这张牌和牌。要荣和吗？',

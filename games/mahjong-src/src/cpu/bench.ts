@@ -1,7 +1,7 @@
 // 検査用の打ち手（対局の画面では使わない）。ツモ切りだけだとアガリがほぼ起きず、
 // 自動対局でアガリの道が通らない＝検査にならないので、形を寄せる素朴な打ち方を用意する。
 // 強さは目的ではない：孤立した牌から切り、アガリの形ならアガる。切る牌でリーチできるならリーチする（リーチ・一発・裏ドラの道を通すため）。
-// 字牌の対子はポンし、一度鳴いたらチー・ポンできるときはする（鳴きの道を通すため）。
+// 字牌の対子はポンし、一度鳴いたらチー・ポンできるときはする（鳴きの道を通すため）。カンはできるときはする（大明槓は鳴いたあとだけ）。
 
 import { kindCounts } from '../engine/agari';
 import type { Seat } from '../engine/events';
@@ -28,6 +28,9 @@ export function benchCpu(view: GameState, seat: Seat): Action {
   if (win) return win;
   const noten = legal.find((a) => a.type === 'noten');
   if (noten) return noten;
+  // カンの道を検査に乗らせるため：暗槓・加槓はできるときはする（リーチのあとの暗槓も）。大明槓は字牌か、鳴いたあとならする
+  const kan = legal.find((a) => a.type === 'kan' && (a.kan !== 'minkan' || kindOf(a.tiles[0]) >= 27 || view.melds[seat].length > 0));
+  if (kan) return kan;
   // 鳴きの道を検査に乗せるため：字牌の対子はポンする。一度鳴いたら、チー・ポンできるときはする
   const pon = legal.find((a) => a.type === 'pon');
   if (pon && pon.type === 'pon' && (kindOf(pon.tiles[0]) >= 27 || view.melds[seat].length > 0)) return pon;

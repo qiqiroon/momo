@@ -17,6 +17,8 @@ console.log(`見逃しのフリテンが起きた局：${r.paths.missed}`);
 console.log(`鳴き：${r.paths.calls} 回（うちチー ${r.paths.chi}）・鳴いた手のアガリ ${r.paths.openWin}`);
 const p = r.paths;
 console.log(`流局のテンパイの人数：${p.tenpaiCounts.map((n, i) => `${i}人 ${n}`).join('・')}`);
+const k = p.kan;
+console.log(`カン：暗槓 ${k.ankan}（リーチのあと ${k.riichiAnkan}）・加槓 ${k.kakan}・大明槓 ${k.minkan}・カンドラ ${k.kanDora} 枚・嶺上開花 ${k.rinshanWin}・槍槓 ${k.chankan}・4回カンした局 ${k.fourKans}`);
 console.log(`通った道：リーチ ${p.riichi}（ダブル立直のアガリ ${p.double}）・リーチでのツモ ${p.riichiWin}・一発 ${p.ippatsu}・裏ドラが乗った ${p.ura}`);
 if (r.games === 0 || r.events === 0) {
   console.log('★1件も回っていない＝検査になっていない');

@@ -1,6 +1,7 @@
 // 見張り役。出来事を1つ当てはめるたびに、どの段階でも崩れてはいけない決まりを確かめる。
 // 段階が進んで出来事が増えたら、ここに決まりを足していく。
 // 段階1：ツモったあとは番の人 14 枚・ほかは 13 枚（最後の1枚を配り忘れても、並びの決まりでは気づけないため）
+// 段階3の 3：カンの数・嶺上牌の数・カンドラの枚数・嶺上牌は王牌の頭から順に取られている
 //
 // 全部を知る局面（全体）と、4つの席から見た局面を並べて持ち、同じ出来事を当てはめていく。
 // 席から見た局面には、その席に渡す形（mask 済み）だけを当てはめる＝実際に渡すものと同じ。
@@ -8,7 +9,7 @@
 import { HIDDEN, SEATS, mask, type Envelope, type Seat } from './events';
 import { isWinningHand, waitKinds } from './agari';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
-import { apply, initialState, type GameState } from './state';
+import { apply, initialState, isKanMeld, MAX_KANS, type GameState } from './state';
 import { kindOf, tileSetFor } from './tiles';
 
 export class Watcher {
@@ -50,7 +51,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   }
 
   // 手牌の枚数：ツモったあと（切る前）は番の人 14 枚・ほかは 13 枚、ツモる前は全員 13 枚
-  // 鳴いた面子 1 組につき 3 枚減る
+  // 鳴いた面子 1 組につき 3 枚減る（カンは 4 枚出して嶺上牌を 1 枚引くので、引く前も引いたあとも同じ数え方になる）
   if (full.phase === 'draw' || full.phase === 'discard' || full.phase === 'claim') {
     full.hands.forEach((h, seat) => {
       const want = (full.phase === 'discard' && seat === full.turn ? 14 : 13) - 3 * full.melds[seat].length;
@@ -63,7 +64,24 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     bad.push(`アガリの形でないのにツモアガリした（席 ${full.result.seat}）`);
   }
 
-  // ドラ表示牌は王牌の決まった場所の牌（1 枚目は配り終えたとき、2 枚目からはカンのたび＝段階3）
+  // カンの数：1 局 4 回まで・面子の数と合う（槍槓で崩れた加槓も面子に残す）・嶺上牌はカンの数まで
+  const kanMelds = full.melds.reduce((n, ms) => n + ms.filter(isKanMeld).length, 0);
+  if (full.kans > MAX_KANS) bad.push(`カンが 1 局 ${MAX_KANS} 回を超えた（${full.kans} 回）`);
+  if (kanMelds !== full.kans) bad.push(`カンの数と槓子の数が合わない（カン ${full.kans}・槓子 ${kanMelds}）`);
+  const lag = full.kans - full.rinshanTaken;
+  const mayLag = full.rinshanDue || (full.claim !== null && full.claim.kind !== 'discard') || full.phase === 'ended';
+  if (lag < 0 || lag > 1 || (lag === 1 && !mayLag)) {
+    bad.push(`嶺上牌の数がカンの数と合わない（嶺上 ${full.rinshanTaken}・カン ${full.kans}）`);
+  }
+  // カンドラ：めくった枚数＝1＋カンの数−まだめくっていない数（カンドラありのとき）。なしなら 1 枚だけ
+  if (full.rules.family === 'jp' && full.doraIndicators.length > 0) {
+    const want = full.rules.values.kandora === 'on' ? 1 + full.kans - full.pendingDora : 1;
+    if (full.doraIndicators.length !== want) bad.push(`ドラ表示牌の枚数が合わない（${full.doraIndicators.length} 枚・正しくは ${want} 枚）`);
+    // 打牌まで待てるのは最後の 1 枚だけ。番の人が切る前・ツモる前に、それより多く残っていない
+    if (full.pendingDora > 1 && full.phase === 'discard') bad.push(`めくるはずのカンドラが残っている（${full.pendingDora} 枚）`);
+  }
+
+  // ドラ表示牌は王牌の決まった場所の牌（1 枚目は配り終えたとき、2 枚目からはカンのたび）
   if (full.wall) {
     full.doraIndicators.forEach((t, i) => {
       if (t !== doraIndicatorAt(full.wall!, i)) bad.push(`ドラ表示牌が王牌の決まった場所の牌でない（${i + 1} 枚目）`);
@@ -78,20 +96,30 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       if (t !== uraIndicatorAt(full.wall!, i)) bad.push(`裏ドラ表示牌がドラ表示牌の真下の牌でない（${i + 1} 枚目）`);
     });
   }
-  // 鳴いた面子は正しい形（ポン＝同じ 3 枚・チー＝同じ色の続いた 3 枚）で、鳴いた牌は切った人の河の、鳴かれた位置の牌
+  // 鳴いた面子は正しい形（ポン＝同じ 3 枚・チー＝同じ色の続いた 3 枚・カン＝同じ 4 枚）で、鳴いた牌は切った人の河の、鳴かれた位置の牌
   full.melds.forEach((ms, seat) => {
     for (const m of ms) {
       const ks = m.tiles.map(kindOf).sort((a, b) => a - b);
-      const ok = m.type === 'pon' ? ks.every((k) => k === ks[0]) : ks[0] < 27 && Math.floor(ks[0] / 9) === Math.floor(ks[2] / 9) && ks[1] === ks[0] + 1 && ks[2] === ks[0] + 2;
+      const size = isKanMeld(m) ? 4 : 3;
+      const same = ks.every((k) => k === ks[0]);
+      const ok =
+        ks.length === size &&
+        (m.type === 'chi' ? ks[0] < 27 && Math.floor(ks[0] / 9) === Math.floor(ks[2] / 9) && ks[1] === ks[0] + 1 && ks[2] === ks[0] + 2 : same);
       if (!ok) bad.push(`席 ${seat}：鳴いた面子の形が違う（${m.type}）`);
-      if (!m.tiles.includes(m.called)) bad.push(`席 ${seat}：鳴いた面子に鳴いた牌が入っていない`);
+      if (m.type === 'ankan') {
+        if (m.called !== null || m.from !== seat) bad.push(`席 ${seat}：暗槓に鳴いた牌がある`);
+        continue;
+      }
+      if (m.called === null || !m.tiles.includes(m.called)) bad.push(`席 ${seat}：鳴いた面子に鳴いた牌が入っていない`);
+      if (m.from === seat) bad.push(`席 ${seat}：自分の捨て牌を鳴いた`);
+      if (m.type === 'kakan' && (m.added === undefined || !m.tiles.includes(m.added))) bad.push(`席 ${seat}：加槓に足した牌が入っていない`);
       if (m.type === 'chi' && m.from !== (seat + 3) % 4) bad.push(`席 ${seat}：上家でない人からチーした`);
       if (!full.calledAway[m.from].some((i) => full.discards[m.from][i] === m.called)) bad.push(`席 ${seat}：鳴いた牌が切った人の河の鳴かれた位置に無い`);
     }
   });
-  // リーチのあとは鳴けない・鳴いていればリーチできない
+  // リーチのあとは鳴けない・鳴いていればリーチできない（暗槓は鳴きに数えない）
   full.riichi.forEach((r, seat) => {
-    if (r !== 'none' && full.melds[seat].length > 0) bad.push(`席 ${seat}：鳴いているのにリーチしている`);
+    if (r !== 'none' && full.melds[seat].some((m) => m.type !== 'ankan')) bad.push(`席 ${seat}：鳴いているのにリーチしている`);
   });
 
   // リーチの状態と宣言牌の位置が食い違わない・宣言牌は河にある
@@ -124,11 +152,15 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       });
     }
   }
-  // 返事を集めているあいだ：切られた牌は切った人の河の最後にある
+  // 返事を集めているあいだ：切られた牌は切った人の河の最後にある（カンの牌は、カンした人の槓子の中にある）
   if (full.phase === 'claim') {
     const c = full.claim;
     if (!c) bad.push('返事を集めているのに、切られた牌の記録が無い');
-    else if (full.discards[c.from][full.discards[c.from].length - 1] !== c.tile) bad.push('返事を待っている牌が、切った人の河の最後に無い');
+    else if (c.kind === 'discard') {
+      if (full.discards[c.from][full.discards[c.from].length - 1] !== c.tile) bad.push('返事を待っている牌が、切った人の河の最後に無い');
+    } else if (!full.melds[c.from].some((m) => m.type === c.kind && m.tiles.includes(c.tile))) {
+      bad.push('返事を待っているカンの牌が、カンした人の槓子に無い');
+    }
   }
 
   // ツモアガリには点数が付いている（役が無いアガリは局面を作る側が止める）
@@ -151,10 +183,11 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     }
   }
 
-  // 山の並びを知っているなら、配った牌・ツモった牌は山の先頭から順に取られている
+  // 山の並びを知っているなら、配った牌・ツモった牌は山の先頭から順に、嶺上牌は王牌の頭から順に取られている
   // （手牌と山の残りが一緒にずれると「数」では気づけないので、並びで確かめる）
   if (full.wall) {
-    const used = full.wall.slice(0, set.length - full.wallLeft);
+    const n = full.wall.length;
+    const used = [...full.wall.slice(0, n - full.wallLeft - full.rinshanTaken), ...full.wall.slice(n - 14, n - 14 + full.rinshanTaken)];
     const handSet = new Set([...full.hands.flat(), ...full.discards.flat(), ...full.melds.flatMap((ms) => ms.flatMap((m) => m.tiles))]);
     if (used.length !== handSet.size || used.some((t) => !handSet.has(t))) {
       bad.push('配った牌が山の先頭から順に取られていない');
@@ -173,6 +206,9 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     if (v.phase !== full.phase || v.turn !== full.turn) bad.push(`席 ${viewer}：進み具合（番・段取り）が全体と違う`);
     if (v.opened.join() !== full.opened.join()) bad.push(`席 ${viewer}：手牌を開けた席が全体と違う`);
     if (JSON.stringify(v.melds) !== JSON.stringify(full.melds) || JSON.stringify(v.calledAway) !== JSON.stringify(full.calledAway)) bad.push(`席 ${viewer}：鳴きが全体と違う`);
+    if (v.kans !== full.kans || v.rinshanTaken !== full.rinshanTaken || v.rinshanDue !== full.rinshanDue || v.pendingDora !== full.pendingDora || v.deferDora !== full.deferDora) {
+      bad.push(`席 ${viewer}：カンの進み具合が全体と違う`);
+    }
     if (JSON.stringify(v.claim) !== JSON.stringify(full.claim)) bad.push(`席 ${viewer}：返事の集まり方が全体と違う`);
     // 見逃しのフリテンは本人と全体だけが知る＝本人の局面は全体と同じ
     if (v.missedTurn[viewer] !== full.missedTurn[viewer] || v.missedRiichi[viewer] !== full.missedRiichi[viewer]) bad.push(`席 ${viewer}：自分の見逃しのフリテンが全体と違う`);

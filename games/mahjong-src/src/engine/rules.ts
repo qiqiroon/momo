@@ -1,6 +1,6 @@
 // ルールの値。項目の名前は見本 mock/settings.html の項目名をそのまま使う（段階6でセット選びをつなぐときに付け替えが要らないように）。
 // 正本はルール設定 v0.03（作業側の games/mahjong/docs/）。値はコードの中で直接書かず、ここから読む。
-// 日本式 65 項目・中国式 35 項目。
+// 日本式 66 項目・中国式 35 項目。
 
 export const JP_RULE_KEYS = [
   'length',
@@ -19,6 +19,7 @@ export const JP_RULE_KEYS = [
   'ippatsu',
   'ura',
   'kandora',
+  'kandoraWhen',
   'kuitan',
   'kuikae',
   'shibari',
@@ -134,6 +135,7 @@ export const GENERAL_RULES: Rules = {
     ippatsu: 'on', // 一発
     ura: 'on', // 裏ドラ・カン裏
     kandora: 'on', // カンドラ
+    kandoraWhen: 'split', // カンドラをめくる時（split＝暗槓はすぐ・明槓は打牌のとき／now＝どのカンもすぐ）
     kuitan: 'on', // 喰いタン
     kuikae: 'ng', // 喰い替え
     shibari: '1', // 縛り

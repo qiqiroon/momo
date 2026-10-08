@@ -23,10 +23,10 @@ export type GameEvent =
   | { type: 'wallSeed'; seed: string | null }
   /** 配牌。本人だけに見える */
   | { type: 'deal'; seat: Seat; tiles: readonly TileId[] }
-  /** ドラ表示牌をめくる。全員に見える（配り終えたとき。段階3でカンのたびにも） */
+  /** ドラ表示牌をめくる。全員に見える（配り終えたとき・カンのあと。めくる時機はルールの kandoraWhen） */
   | { type: 'doraReveal'; tile: TileId }
-  /** ツモ。本人だけに見える */
-  | { type: 'draw'; seat: Seat; tile: TileId }
+  /** ツモ。本人だけに見える。rinshan＝カンのあとの補充（王牌の嶺上牌から引く） */
+  | { type: 'draw'; seat: Seat; tile: TileId; rinshan?: boolean }
   /** 打牌。全員に見える。tsumogiri＝引いた牌をそのまま切った。riichi＝この牌でリーチを宣言した（横に曲げて置く） */
   | { type: 'discard'; seat: Seat; tile: TileId; tsumogiri: boolean; riichi?: boolean }
   /** ツモアガリ。全員に見える。手牌（14 枚）とアガリ牌（ツモった牌）を開ける。
@@ -34,9 +34,12 @@ export type GameEvent =
   | { type: 'tsumo'; seat: Seat; hand: readonly TileId[]; winTile: TileId; ura: readonly TileId[] }
   /** 切られた牌への返事「見送る」。全員に見える（オンラインでは、ロンできない人の端末も自動でこれを返す＝誰が迷ったか漏れない） */
   | { type: 'pass'; seat: Seat }
-  /** 切られた牌への返事「チー」「ポン」。全員に見える。tiles＝手牌から出す 2 枚（切られた牌と合わせて面子になる）。
-   *  返事がそろったとき、ロンが無く、優先順位（ポン＞チー）で勝てば鳴ける */
-  | { type: 'call'; seat: Seat; meld: 'chi' | 'pon'; tiles: readonly TileId[] }
+  /** 切られた牌への返事「チー」「ポン」「カン（大明槓）」。全員に見える。tiles＝手牌から出す 2 枚（カンは 3 枚。切られた牌と合わせて面子になる）。
+   *  返事がそろったとき、ロンが無く、優先順位（ポン・カン＞チー）で勝てば鳴ける */
+  | { type: 'call'; seat: Seat; meld: 'chi' | 'pon' | 'kan'; tiles: readonly TileId[] }
+  /** 自分の番のカン。全員に見える。ankan＝暗槓（手牌から 4 枚）／kakan＝加槓（ポンした面子に手牌から 1 枚足す）。
+   *  加槓は、ほかの 3 人の返事（槍槓のロン・見送る）を待ってから嶺上牌を引く。暗槓も国士無双のロンがあり得るルールなら待つ */
+  | { type: 'kan'; seat: Seat; kan: 'ankan' | 'kakan'; tiles: readonly TileId[] }
   /** 切られた牌への返事「ロン」。全員に見える。手牌（13 枚）を開ける。ura＝めくった裏ドラ表示牌（リーチしているときだけ） */
   | { type: 'ron'; seat: Seat; hand: readonly TileId[]; ura: readonly TileId[] }
   /** 山が尽きて流局。全員に見える。このあと親から順にテンパイかノーテンかを宣言する */

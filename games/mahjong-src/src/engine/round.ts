@@ -3,13 +3,15 @@
 
 import { HIDDEN, SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
 import { furitenOf } from './furiten';
-import { callProblem, liveWallLeft, RIICHI_MIN_WALL, scoreRon, scoreTsumo, type GameState } from './state';
+import { callProblem, kanProblem, liveWallLeft, RIICHI_MIN_WALL, scoreRon, scoreTsumo, type GameState } from './state';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { waitKinds } from './agari';
 import { createRng, shuffle } from './rng';
 import { isRed, kindOf, tileSetFor, type TileId } from './tiles';
 
 const HAND_SIZE = 13;
+/** 王牌の枚数（日本式）。嶺上牌は王牌の頭 4 枚（dora.ts の山 0・1） */
+const DEAD_WALL = 14;
 
 /** 対局の種から、その局の山の種を決める（「同じ山で勝負」では対局の種をリンクで配る） */
 export function roundSeed(gameSeed: string, roundIndex: number): string {
@@ -66,7 +68,9 @@ export type Action =
   /** 切られた牌への返事。chi・pon の tiles は手牌から出す 2 枚 */
   | { type: 'pass' }
   | { type: 'ron' }
-  | { type: 'chi' | 'pon'; tiles: TileId[] };
+  | { type: 'chi' | 'pon'; tiles: TileId[] }
+  /** カン。minkan＝大明槓（切られた牌への返事・手牌から 3 枚）／ankan＝暗槓（自分の番・4 枚）／kakan＝加槓（自分の番・ポンに足す 1 枚） */
+  | { type: 'kan'; kan: 'minkan' | 'ankan' | 'kakan'; tiles: TileId[] };
 
 /** 牌の見分け（赤5かどうかまで）。同じ見分けの牌はどれを出しても同じ＝選ぶ候補を 1 つにまとめる */
 const faceOf = (view: GameState, t: TileId) => `${kindOf(t)}${view.rules && isRed(t, view.rules) ? 'r' : ''}`;
@@ -89,6 +93,8 @@ export function callOptions(view: GameState, seat: Seat): Action[] {
   const ofKind = (kind: number) => hand.filter((t) => kindOf(t) === kind);
   const same = ofKind(k);
   for (let i = 0; i < same.length; i++) for (let j = i + 1; j < same.length; j++) offer('pon', [same[i], same[j]]);
+  // 大明槓：同じ牌を 3 枚持っている（出す牌は 3 枚とも決まっている）
+  if (same.length === 3 && !callProblem(view, seat, 'kan', same)) out.push({ type: 'kan', kan: 'minkan', tiles: same.slice() });
   if (k < 27) {
     for (const [a, b] of [[-2, -1], [-1, 1], [1, 2]]) {
       const ka = k + a;
@@ -110,12 +116,27 @@ export function canRon(view: GameState, seat: Seat): boolean {
   return scoreRon(view, seat, hand, c.tile) !== null;
 }
 
+/** 自分の番にできるカン（暗槓・加槓）。リーチのあとは、待ちが変わらない暗槓だけ（kanProblem が決める） */
+export function kanOptions(view: GameState, seat: Seat): Action[] {
+  if (view.phase !== 'discard' || view.turn !== seat) return [];
+  const hand = view.hands[seat];
+  if (hand.includes(HIDDEN)) return [];
+  const out: Action[] = [];
+  const kinds = [...new Set(hand.map(kindOf))];
+  for (const k of kinds) {
+    const tiles = hand.filter((t) => kindOf(t) === k);
+    if (tiles.length === 4 && !kanProblem(view, seat, 'ankan', tiles)) out.push({ type: 'kan', kan: 'ankan', tiles });
+    if (tiles.length === 1 && !kanProblem(view, seat, 'kakan', tiles)) out.push({ type: 'kan', kan: 'kakan', tiles });
+  }
+  return out;
+}
+
 /** リーチを宣言して切れる牌（切ったあとテンパイになる牌）。リーチできないときは空 */
 export function riichiTiles(view: GameState, seat: Seat): TileId[] {
   if (view.phase !== 'discard' || view.turn !== seat) return [];
   if (view.rules?.family !== 'jp' || view.riichi[seat] !== 'none') return [];
-  // 鳴いている手はリーチできない（暗槓は鳴きに数えない＝段階3の 3 で足す）。1000 点未満のリーチの扱いは持ち点が入る段階4で足す
-  if (view.melds[seat].length > 0) return [];
+  // 鳴いている手はリーチできない（暗槓は鳴きに数えない）。1000 点未満のリーチの扱いは持ち点が入る段階4で足す
+  if (view.melds[seat].some((m) => m.type !== 'ankan')) return [];
   if (liveWallLeft(view) < RIICHI_MIN_WALL) return [];
   const hand = view.hands[seat];
   const byKind = new Map<number, boolean>();
@@ -145,13 +166,15 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
   // アガリの形で、役がある（縛りに届く）ときだけツモアガリできる
   const drawn = view.drawn[seat];
   if (drawn !== null && scoreTsumo(view, seat, hand, drawn)) out.push({ type: 'tsumo' });
-  // リーチのあとはツモった牌を切るだけ
+  // リーチのあとはツモった牌を切るだけ（待ちが変わらない暗槓はできる）
   if (view.riichi[seat] !== 'none') {
     if (drawn !== null) out.push({ type: 'discard', tile: drawn });
+    out.push(...kanOptions(view, seat));
     return out;
   }
   for (const tile of hand) out.push({ type: 'discard', tile });
   for (const tile of riichiTiles(view, seat)) out.push({ type: 'riichi', tile });
+  out.push(...kanOptions(view, seat));
   return out;
 }
 
@@ -166,15 +189,38 @@ function declareOptions(view: GameState, seat: Seat): Action[] {
   return out;
 }
 
-const envelopeAt = (state: GameState) => (to: Visibility, ev: GameEvent): Envelope => ({ seq: state.nextSeq, to, ev });
+/** 局面のあとに続けて出す出来事の封筒を作る（呼ぶたびに通し番号を 1 つ進める） */
+const envelopesFrom = (state: GameState) => {
+  let seq = state.nextSeq;
+  return (to: Visibility, ev: GameEvent): Envelope => ({ seq: seq++, to, ev });
+};
 
-/** ツモる前の局面から、次の出来事（ツモ、または山が尽きての流局）を作る */
+/** めくっていないカンドラを n 枚めくる出来事（王牌の決まった場所から順に） */
+function revealDora(full: GameState, n: number, at: (to: Visibility, ev: GameEvent) => Envelope): Envelope[] {
+  if (n <= 0) return [];
+  if (!full.wall) throw new Error('山の並びを知らない端末は進行役になれない');
+  const wall = full.wall;
+  return Array.from({ length: n }, (_, i) => at('all', { type: 'doraReveal', tile: doraIndicatorAt(wall, full.doraIndicators.length + i) }));
+}
+
+/**
+ * ツモる前の局面から、次の出来事（ツモ、または山が尽きての流局）を作る。
+ * カンのあとは嶺上牌を引く。その前に、めくる時機の来たカンドラをめくる
+ * （すぐめくるカンの分と、前の明槓の分。最後の明槓の分はルールが split なら打牌のとき）
+ */
 export function advance(full: GameState): Envelope[] {
   if (full.phase !== 'draw' && full.phase !== 'deal') throw new Error('ツモる時ではない');
   if (!full.wall) throw new Error('山の並びを知らない端末は進行役になれない');
-  const at = envelopeAt(full);
+  const at = envelopesFrom(full);
+  const wall = full.wall;
+  if (full.rinshanDue) {
+    const reveals = revealDora(full, full.pendingDora - (full.deferDora ? 1 : 0), at);
+    const tile = wall[wall.length - DEAD_WALL + full.rinshanTaken];
+    return [...reveals, at([full.turn], { type: 'draw', seat: full.turn, tile, rinshan: true })];
+  }
   if (liveWallLeft(full) <= 0) return [at('all', { type: 'exhaust' })];
-  const tile = full.wall[full.wall.length - full.wallLeft];
+  // 山の頭から順に取る。引いた嶺上牌の数だけ、王牌が山の尻から補われている（その分は数えない）
+  const tile = wall[wall.length - full.wallLeft - full.rinshanTaken];
   return [at([full.turn], { type: 'draw', seat: full.turn, tile })];
 }
 
@@ -185,21 +231,26 @@ export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
     const tenpai = action.type === 'tenpai';
     return [{ seq: full.nextSeq, to: 'all', ev: { type: 'declare', seat, tenpai, hand: tenpai ? full.hands[seat].slice() : null } }];
   }
-  const at = envelopeAt(full);
+  const at = envelopesFrom(full);
   if (full.phase === 'claim') {
     if (full.claim?.replies[seat] !== null) throw new Error(`席 ${seat} は返事をする人ではない（または返事をした）`);
     if (action.type === 'pass') return [at('all', { type: 'pass', seat })];
-    if (action.type === 'chi' || action.type === 'pon') {
-      const problem = callProblem(full, seat, action.type, action.tiles);
+    if (action.type === 'chi' || action.type === 'pon' || (action.type === 'kan' && action.kan === 'minkan')) {
+      const meld = action.type === 'kan' ? 'kan' : action.type;
+      const problem = callProblem(full, seat, meld, action.tiles);
       if (problem) throw new Error(problem);
-      return [at('all', { type: 'call', seat, meld: action.type, tiles: action.tiles.slice() })];
+      return [at('all', { type: 'call', seat, meld, tiles: action.tiles.slice() })];
     }
     if (action.type !== 'ron') throw new Error(`いまは返事しかできない（${action.type}）`);
     if (!canRon(full, seat)) throw new Error('ロンできない（アガリの形でない・役が無い・フリテン）');
     if (!full.wall) throw new Error('山の並びを知らない端末は進行役になれない');
     const wall = full.wall;
-    const ura = full.riichi[seat] === 'none' ? [] : full.doraIndicators.map((_, i) => uraIndicatorAt(wall, i));
-    return [at('all', { type: 'ron', seat, hand: full.hands[seat].slice(), ura })];
+    // 槍槓で崩れたカンのカンドラ：ルールが「めくる」なら、ロンの前にめくる
+    const v = full.rules?.family === 'jp' ? full.rules.values : null;
+    const reveals = full.claim.kind === 'kakan' && v?.chankanDora === 'yes' ? revealDora(full, full.pendingDora, at) : [];
+    const shown = full.doraIndicators.length + reveals.length;
+    const ura = full.riichi[seat] === 'none' ? [] : Array.from({ length: shown }, (_, i) => uraIndicatorAt(wall, i));
+    return [...reveals, at('all', { type: 'ron', seat, hand: full.hands[seat].slice(), ura })];
   }
   if (full.phase !== 'discard' || full.turn !== seat) throw new Error(`席 ${seat} の番ではない`);
   const hand = full.hands[seat];
@@ -207,10 +258,20 @@ export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
     case 'discard':
       if (!hand.includes(action.tile)) throw new Error(`持っていない牌は切れない（背番号 ${action.tile}）`);
       if (full.riichi[seat] !== 'none' && action.tile !== full.drawn[seat]) throw new Error('リーチのあとはツモった牌しか切れない');
-      return [at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat] })];
+      // 打牌のときに、まだめくっていない明槓のカンドラをめくる（この打牌へのロンにも乗る）
+      return [at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat] }), ...revealDora(full, full.pendingDora, at)];
     case 'riichi':
       if (!riichiTiles(full, seat).includes(action.tile)) throw new Error(`その牌ではリーチできない（背番号 ${action.tile}）`);
-      return [at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat], riichi: true })];
+      return [
+        at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat], riichi: true }),
+        ...revealDora(full, full.pendingDora, at),
+      ];
+    case 'kan': {
+      if (action.kan === 'minkan') throw new Error('大明槓は切られた牌への返事');
+      const problem = kanProblem(full, seat, action.kan, action.tiles);
+      if (problem) throw new Error(problem);
+      return [at('all', { type: 'kan', seat, kan: action.kan, tiles: action.tiles.slice() })];
+    }
     case 'tsumo': {
       const winTile = full.drawn[seat];
       if (winTile === null || !scoreTsumo(full, seat, hand, winTile)) throw new Error('アガリの形になっていない（または役が無い）');

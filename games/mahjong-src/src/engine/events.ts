@@ -34,6 +34,9 @@ export type GameEvent =
   | { type: 'tsumo'; seat: Seat; hand: readonly TileId[]; winTile: TileId; ura: readonly TileId[] }
   /** 切られた牌への返事「見送る」。全員に見える（オンラインでは、ロンできない人の端末も自動でこれを返す＝誰が迷ったか漏れない） */
   | { type: 'pass'; seat: Seat }
+  /** 切られた牌への返事「チー」「ポン」。全員に見える。tiles＝手牌から出す 2 枚（切られた牌と合わせて面子になる）。
+   *  返事がそろったとき、ロンが無く、優先順位（ポン＞チー）で勝てば鳴ける */
+  | { type: 'call'; seat: Seat; meld: 'chi' | 'pon'; tiles: readonly TileId[] }
   /** 切られた牌への返事「ロン」。全員に見える。手牌（13 枚）を開ける。ura＝めくった裏ドラ表示牌（リーチしているときだけ） */
   | { type: 'ron'; seat: Seat; hand: readonly TileId[]; ura: readonly TileId[] }
   /** 山が尽きて流局。全員に見える。このあと親から順にテンパイかノーテンかを宣言する */

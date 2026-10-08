@@ -18,9 +18,14 @@ export const HAND_ROW = {
 /** ツモ牌の前の隙間（牌何枚ぶんか） */
 export const DRAWN_GAP = 0.45;
 
-/** 手牌の列の長さ（基本の大きさの牌で何枚ぶんか）。鳴いた面子は段階3でここに足す */
-export function handRowUnits(tiles: number, drawnGap: boolean): number {
-  return tiles + (drawnGap ? DRAWN_GAP : 0);
+/** 鳴いた面子 1 組の長さ（牌 2 枚＋横に曲げた牌 1 枚＝縦の長さ 1.36 枚ぶん） */
+export const MELD_UNITS = 3.36;
+/** 手牌と鳴いた面子の間・面子どうしの間（牌何枚ぶんか） */
+export const MELD_GAP = 0.3;
+
+/** 手牌の列の長さ（基本の大きさの牌で何枚ぶんか）。鳴いた面子も足す */
+export function handRowUnits(tiles: number, drawnGap: boolean, melds = 0): number {
+  return tiles + (drawnGap ? DRAWN_GAP : 0) + melds * (MELD_UNITS + MELD_GAP);
 }
 
 /** 手牌の列の牌の幅：基本の大きさを超えず、置ける幅に収まる */

@@ -76,7 +76,10 @@ describe('切られた牌への返事', () => {
     expect(t.s.phase).toBe('claim');
     expect(legalActions(t.s, 0)).toEqual([]); // 切った本人は返事しない
     for (const seat of [1, 2, 3] as const) {
-      expect(legalActions(t.s, seat)).toEqual([{ type: 'pass' }]);
+      // ロンは無い（ポン・チーできる人はいてもよい）。見送りは必ず選べる
+      const types = legalActions(t.s, seat).map((a) => a.type);
+      expect(types).not.toContain('ron');
+      expect(types).toContain('pass');
       t.reply(seat, 'pass');
     }
     expect(t.s.phase).toBe('draw');
@@ -96,7 +99,9 @@ describe('ロン', () => {
   it('待ち牌が切られたらロンできる。子の 40 符 1 翻（タンヤオ）は 1300 点を切った人から', () => {
     const { t } = setup([DEALER, TANYAO, QUIET2, QUIET3], '5s');
     expect(canRon(t.s, 1)).toBe(true);
-    expect(legalActions(t.s, 1)).toEqual([{ type: 'ron' }, { type: 'pass' }]);
+    const types = legalActions(t.s, 1).map((a) => a.type);
+    expect(types[0]).toBe('ron');
+    expect(types[types.length - 1]).toBe('pass');
     t.reply(1, 'ron');
     expect(t.s.phase).toBe('claim'); // ほかの 2 人の返事がまだ
     t.reply(2, 'pass');
@@ -127,7 +132,7 @@ describe('ロン', () => {
     // 789s と 9m 入り＝タンヤオなし・門前のロンで役なし
     const { t } = setup([DEALER, '2m3m4m4p5p6p7s8s9s7m7m5s5s', QUIET2, QUIET3], '5s');
     expect(canRon(t.s, 1)).toBe(false);
-    expect(legalActions(t.s, 1)).toEqual([{ type: 'pass' }]);
+    expect(legalActions(t.s, 1).map((a) => a.type)).not.toContain('ron');
     expect(() => act(t.s, 1, { type: 'ron' })).toThrow(/ロンできない/);
   });
 

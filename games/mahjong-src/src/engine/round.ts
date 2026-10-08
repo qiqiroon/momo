@@ -3,11 +3,11 @@
 
 import { HIDDEN, SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
 import { furitenOf } from './furiten';
-import { liveWallLeft, RIICHI_MIN_WALL, scoreRon, scoreTsumo, type GameState } from './state';
+import { callProblem, liveWallLeft, RIICHI_MIN_WALL, scoreRon, scoreTsumo, type GameState } from './state';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { waitKinds } from './agari';
 import { createRng, shuffle } from './rng';
-import { kindOf, tileSetFor, type TileId } from './tiles';
+import { isRed, kindOf, tileSetFor, type TileId } from './tiles';
 
 const HAND_SIZE = 13;
 
@@ -63,9 +63,42 @@ export type Action =
   /** 流局したときの宣言 */
   | { type: 'tenpai' }
   | { type: 'noten' }
-  /** 切られた牌への返事 */
+  /** 切られた牌への返事。chi・pon の tiles は手牌から出す 2 枚 */
   | { type: 'pass' }
-  | { type: 'ron' };
+  | { type: 'ron' }
+  | { type: 'chi' | 'pon'; tiles: TileId[] };
+
+/** 牌の見分け（赤5かどうかまで）。同じ見分けの牌はどれを出しても同じ＝選ぶ候補を 1 つにまとめる */
+const faceOf = (view: GameState, t: TileId) => `${kindOf(t)}${view.rules && isRed(t, view.rules) ? 'r' : ''}`;
+
+/** その席が切られた牌でできるチー・ポン（手牌が見えている本人の局面で決まる）。赤5を出すかどうかは別の候補 */
+export function callOptions(view: GameState, seat: Seat): Action[] {
+  const c = view.claim;
+  if (view.phase !== 'claim' || !c || c.replies[seat] !== null) return [];
+  const hand = view.hands[seat];
+  if (hand.includes(HIDDEN)) return [];
+  const out: Action[] = [];
+  const seen = new Set<string>();
+  const offer = (meld: 'chi' | 'pon', tiles: TileId[]) => {
+    const key = meld + tiles.map((t) => faceOf(view, t)).sort().join(',');
+    if (seen.has(key) || callProblem(view, seat, meld, tiles)) return;
+    seen.add(key);
+    out.push({ type: meld, tiles });
+  };
+  const k = kindOf(c.tile);
+  const ofKind = (kind: number) => hand.filter((t) => kindOf(t) === kind);
+  const same = ofKind(k);
+  for (let i = 0; i < same.length; i++) for (let j = i + 1; j < same.length; j++) offer('pon', [same[i], same[j]]);
+  if (k < 27) {
+    for (const [a, b] of [[-2, -1], [-1, 1], [1, 2]]) {
+      const ka = k + a;
+      const kb = k + b;
+      if (Math.floor(ka / 9) !== Math.floor(k / 9) || Math.floor(kb / 9) !== Math.floor(k / 9) || ka < 0 || kb < 0) continue;
+      for (const ta of ofKind(ka)) for (const tb of ofKind(kb)) offer('chi', [ta, tb]);
+    }
+  }
+  return out;
+}
 
 /** 切られた牌でロンできるか（手牌が見えている本人の局面で決まる）。フリテン・役なしはできない */
 export function canRon(view: GameState, seat: Seat): boolean {
@@ -81,7 +114,8 @@ export function canRon(view: GameState, seat: Seat): boolean {
 export function riichiTiles(view: GameState, seat: Seat): TileId[] {
   if (view.phase !== 'discard' || view.turn !== seat) return [];
   if (view.rules?.family !== 'jp' || view.riichi[seat] !== 'none') return [];
-  // 鳴いている手はリーチできない（鳴きは段階3）。1000 点未満のリーチの扱いは持ち点が入る段階4で足す
+  // 鳴いている手はリーチできない（暗槓は鳴きに数えない＝段階3の 3 で足す）。1000 点未満のリーチの扱いは持ち点が入る段階4で足す
+  if (view.melds[seat].length > 0) return [];
   if (liveWallLeft(view) < RIICHI_MIN_WALL) return [];
   const hand = view.hands[seat];
   const byKind = new Map<number, boolean>();
@@ -103,7 +137,7 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
   if (view.phase === 'declare' && view.turn === seat) return declareOptions(view, seat);
   if (view.phase === 'claim') {
     if (view.claim?.replies[seat] !== null) return [];
-    return canRon(view, seat) ? [{ type: 'ron' }, { type: 'pass' }] : [{ type: 'pass' }];
+    return [...(canRon(view, seat) ? [{ type: 'ron' } as Action] : []), ...callOptions(view, seat), { type: 'pass' }];
   }
   if (view.phase !== 'discard' || view.turn !== seat) return [];
   const hand = view.hands[seat];
@@ -155,6 +189,11 @@ export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
   if (full.phase === 'claim') {
     if (full.claim?.replies[seat] !== null) throw new Error(`席 ${seat} は返事をする人ではない（または返事をした）`);
     if (action.type === 'pass') return [at('all', { type: 'pass', seat })];
+    if (action.type === 'chi' || action.type === 'pon') {
+      const problem = callProblem(full, seat, action.type, action.tiles);
+      if (problem) throw new Error(problem);
+      return [at('all', { type: 'call', seat, meld: action.type, tiles: action.tiles.slice() })];
+    }
     if (action.type !== 'ron') throw new Error(`いまは返事しかできない（${action.type}）`);
     if (!canRon(full, seat)) throw new Error('ロンできない（アガリの形でない・役が無い・フリテン）');
     if (!full.wall) throw new Error('山の並びを知らない端末は進行役になれない');

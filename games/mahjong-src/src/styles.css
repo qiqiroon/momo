@@ -558,7 +558,8 @@ body.in-game .site-header .subtitle {
   padding: 0 8px calc(env(safe-area-inset-bottom, 0px) + 10px);
   --res-tw: min(6vw, 30px);
   /* 手牌の 1 枚の幅＝横幅いっぱいに 14 枚（＋ツモ牌の前の隙間 0.45 枚・牌の間 1px×13） */
-  --hand-tw: min(calc((100vw - 16px - 13px) / 14.45), 46px);
+  /* 手牌の列の長さ（--hand-units＝牌何枚ぶんか。鳴いた面子が入ると長くなる）で横幅いっぱいに収める */
+  --hand-tw: min(calc((100vw - 16px - 13px) / var(--hand-units, 14.45)), 46px);
 }
 
 .lanes-info {
@@ -733,6 +734,58 @@ body.in-game .site-header .subtitle {
 /* ---- リーチ（段階2） ---- */
 
 /* 宣言牌は横に曲げて置く（牌の絵は縦横 19:26＝横にすると左右に 0.18 枚ぶん広がる） */
+/* ---- 鳴いた面子（段階3） ---- */
+
+.melds {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: calc(var(--tw, 32px) * 0.3);
+  margin-left: calc(var(--tw, 32px) * 0.3);
+}
+
+.meld {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+/* 鳴いた牌は横に曲げる（リーチの宣言牌と同じ曲げ方） */
+.tile.called-tile {
+  transform: rotate(-90deg);
+  margin-left: calc(var(--tw, 32px) * 0.18);
+  margin-right: calc(var(--tw, 32px) * 0.18);
+  margin-bottom: calc(var(--tw, 32px) * -0.1);
+}
+
+/* 狭い画面の CPU の鳴き：名札の行に小さく */
+.lane-melds {
+  --tw: 13px;
+  margin-left: 4px;
+}
+
+.lane-melds .tile {
+  box-shadow: none;
+  margin-bottom: 0;
+}
+
+/* チー・ポンのボタン：手牌から出す 2 枚を小さく見せる */
+.btn-call {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.call-tiles {
+  display: inline-flex;
+  gap: 1px;
+}
+
+.call-tiles .tile.mini {
+  --tw: 16px;
+  margin-bottom: 0;
+  box-shadow: none;
+}
+
 .tile.riichi-tile {
   transform: rotate(-90deg);
   margin-left: calc(var(--tw, 32px) * 0.18);

@@ -84,8 +84,12 @@ describe('卓の画面（段階1）', () => {
     expect(container.querySelectorAll('.my-hand .hand-tile')).toHaveLength(13);
     expect(container.querySelectorAll('.river .tile, .river-row .tile').length).toBe(1);
 
-    // CPU 3 人が打つ（それぞれツモと打牌の間を置く）
-    run(5000);
+    // CPU 3 人が打つ（それぞれツモと打牌の間を置く）。CPU の牌でチー・ポンできるときは止まるので見送る
+    for (let i = 0; i < 10; i++) {
+      run(600);
+      const pass = container.querySelector('.btn-pass');
+      if (pass) fireEvent.click(pass);
+    }
     expect(container.querySelectorAll('.river .tile, .river-row .tile').length).toBeGreaterThanOrEqual(4);
     expect(myTiles(container)).toHaveLength(14);
   });
@@ -110,7 +114,10 @@ describe('卓の画面（段階1）', () => {
       const tsumo = Array.from(container.querySelectorAll('.hand-actions .btn-tsumo'));
       const mine = myTiles(container);
       const tenpai = container.querySelector('.btn-tenpai');
-      if (tenpai) fireEvent.click(tenpai);
+      // 鳴ける・ロンできるときは止まって待つ＝見送る
+      const pass = container.querySelector('.btn-pass');
+      if (pass) fireEvent.click(pass);
+      else if (tenpai) fireEvent.click(tenpai);
       else if (tsumo.length) fireEvent.click(tsumo[0]);
       else if (mine.length) fireEvent.pointerUp(mine[mine.length - 1], { pointerType: 'mouse' });
     }

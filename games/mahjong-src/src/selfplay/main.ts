@@ -14,6 +14,7 @@ const ms = Date.now() - started;
 console.log(`回した対局 ${r.games}・見張った出来事 ${r.events}・失敗 ${r.failures.length}（${ms} ms）`);
 console.log(`終わり方：ツモアガリ ${r.endings.tsumo}・ロン ${r.endings.ron}（2人以上 ${r.paths.doubleRon}）・流局 ${r.endings.exhaust}・3人ロンで流局 ${r.endings.tripleRon}・途中で止まった ${r.endings.unfinished}`);
 console.log(`見逃しのフリテンが起きた局：${r.paths.missed}`);
+console.log(`鳴き：${r.paths.calls} 回（うちチー ${r.paths.chi}）・鳴いた手のアガリ ${r.paths.openWin}`);
 const p = r.paths;
 console.log(`流局のテンパイの人数：${p.tenpaiCounts.map((n, i) => `${i}人 ${n}`).join('・')}`);
 console.log(`通った道：リーチ ${p.riichi}（ダブル立直のアガリ ${p.double}）・リーチでのツモ ${p.riichiWin}・一発 ${p.ippatsu}・裏ドラが乗った ${p.ura}`);

@@ -15,7 +15,7 @@ export type Lang = BaseLang | 'cat';
 
 const ja = {
   subtitle: 'Any Rule, Any Table',
-  trial: '段階2の試作：リーチ・ツモアガリ・流局の支払いまでできます（鳴き・ロンはまだありません）',
+  trial: '段階3の試作：ロン・チー・ポンまでできます（カンはまだありません。CPU は鳴きません）',
   start: 'CPU と対局する',
   again: 'もう一局',
   you: 'あなた',
@@ -102,6 +102,9 @@ const ja = {
   riichiCancel: 'やめる',
   furiten: 'フリテン',
   ron: 'ロン',
+  chi: 'チー',
+  pon: 'ポン',
+  callHint: '鳴けます。鳴きますか？',
   pass: '見送る',
   ronHint: '切られた牌でアガれます。ロンしますか？',
   uraIndicator: '裏ドラ表示',
@@ -115,7 +118,7 @@ type Dict = Record<MessageKey, string>;
 
 const en: Dict = {
   subtitle: 'Any Rule, Any Table',
-  trial: 'Stage 2 prototype: riichi, self-draw wins and draw payments (no calls or ron yet)',
+  trial: 'Stage 3 prototype: ron, chi and pon (no kan yet; the CPUs do not call)',
   start: 'Play vs CPU',
   again: 'Play again',
   you: 'You',
@@ -202,6 +205,9 @@ const en: Dict = {
   riichiCancel: 'Cancel',
   furiten: 'Furiten',
   ron: 'Ron',
+  chi: 'Chi',
+  pon: 'Pon',
+  callHint: 'You can call this discard.',
   pass: 'Pass',
   ronHint: 'You can win on this discard. Call ron?',
   uraIndicator: 'Ura indicator',
@@ -212,7 +218,7 @@ const en: Dict = {
 
 const zh: Dict = {
   subtitle: '百般规则，随心成局',
-  trial: '第2阶段试作：可以立直、自摸和牌和流局罚符（还没有吃碰杠和荣和）',
+  trial: '第3阶段试作：可以荣和、吃、碰（还没有杠；电脑不鸣牌）',
   start: '与电脑对局',
   again: '再来一局',
   you: '你',
@@ -299,6 +305,9 @@ const zh: Dict = {
   riichiCancel: '取消',
   furiten: '振听',
   ron: '荣和',
+  chi: '吃',
+  pon: '碰',
+  callHint: '可以鸣牌。要鸣牌吗？',
   pass: '过',
   ronHint: '可以用这张牌和牌。要荣和吗？',
   uraIndicator: '里宝牌指示牌',

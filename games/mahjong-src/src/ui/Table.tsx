@@ -2,12 +2,12 @@
 // 広い画面＝正方形の卓（自分が手前・下家が右・対面が奥・上家が左）。
 // 狭い画面＝横に 4 列（下家→対面→上家→自分の順＝打つ順に上から下へ流れる）＋手牌。
 
-import { Fragment, useState, type CSSProperties, type PointerEvent } from 'react';
+import { Fragment, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
 import { HIDDEN, type Seat } from '../engine/events';
 import { furitenOf } from '../engine/furiten';
 import type { Action } from '../engine/round';
 import type { ScoreResult } from '../engine/score';
-import { liveWallLeft, type GameState } from '../engine/state';
+import { liveWallLeft, type GameState, type OpenMeld } from '../engine/state';
 import { kindOf, type TileId } from '../engine/tiles';
 import { HUMAN } from '../game/useTable';
 import { translate, type Lang, type MessageKey } from '../i18n/strings';
@@ -15,6 +15,7 @@ import { DraggableDialog } from './DraggableDialog';
 import { Tile } from './Tile';
 import { useNarrow } from './useNarrow';
 import { HAND_ROW, handRowUnits, handTileWidth, riverRows, riverTileWidth } from './squareLayout';
+import type { Rules } from '../engine/rules';
 
 interface Props {
   view: GameState;
@@ -46,11 +47,22 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
   const furiten = view.phase === 'draw' || view.phase === 'discard' || view.phase === 'claim' ? furitenOf(view, HUMAN) : null;
   const furitenCauses = new Set(furiten?.causes ?? []);
 
+  /** 横に曲げて置く河の位置：リーチの宣言牌。鳴かれて河から消えたら、次に切った牌を曲げる */
+  const riichiShown = (seat: number) => {
+    let at = view.riichiAt[seat];
+    if (at === null) return null;
+    while (view.calledAway[seat].includes(at)) at++;
+    return at;
+  };
+  /** 河に見えている牌（鳴かれて持っていかれた牌は消す） */
+  const riverTiles = (seat: number) =>
+    view.discards[seat].map((id, i) => ({ id, i })).filter(({ i }) => !view.calledAway[seat].includes(i));
+
   /** 河の牌の印：直前に切られた牌・リーチの宣言牌（横に曲げる）・自分のフリテンの元になっている牌 */
   const riverClass = (seat: number, i: number) =>
     [
       seat === lastDiscarder && i === view.discards[seat].length - 1 ? 'last' : '',
-      view.riichiAt[seat] === i ? 'riichi-tile' : '',
+      riichiShown(seat) === i ? 'riichi-tile' : '',
       seat === HUMAN && furitenCauses.has(i) ? 'furiten-cause' : '',
     ]
       .filter(Boolean)
@@ -64,13 +76,27 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
 
   const river = (seat: number) => (
     <div className="river">
-      {view.discards[seat].map((id, i) => (
+      {riverTiles(seat).map(({ id, i }) => (
         <Tile key={i} id={id} rules={view.rules} className={riverClass(seat, i)} />
       ))}
     </div>
   );
+  /** 鳴いた面子の並び（最初に鳴いた面子を右端に置く＝実際の卓と同じ） */
+  const meldsOf = (seat: number, className = '') =>
+    view.melds[seat].length > 0 && (
+      <span className={`melds ${className}`}>
+        {view.melds[seat]
+          .slice()
+          .reverse()
+          .map((m, i) => (
+            <MeldView key={i} meld={m} seat={seat} rules={view.rules} />
+          ))}
+      </span>
+    );
 
-  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} />;
+  // 狭い画面の自分の手牌の列の長さ（横幅いっぱいに収める）
+  const narrowUnits = handRowUnits(view.hands[HUMAN].length, view.drawn[HUMAN] !== null, view.melds[HUMAN].length);
+  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} melds={meldsOf(HUMAN)} />;
 
   // ドラ表示牌（めくられた順）
   const indicators = view.doraIndicators.length > 0 && (
@@ -103,6 +129,7 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
             ))}
             <span className="drawn-gap" />
             <Tile id={won.winTile} rules={view.rules} className="win-tile" />
+            {meldsOf(won.seat)}
           </div>
           {won.ura.length > 0 && (
             <span className="dora-ind">
@@ -140,6 +167,7 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
                           {sortTiles(view.hands[seat]).map((id) => (
                             <Tile key={id} id={id} rules={view.rules} className="mini" />
                           ))}
+                          {meldsOf(seat)}
                         </div>
                       </td>
                     </tr>
@@ -158,7 +186,7 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
 
   if (narrow) {
     return (
-      <div className="lanes-wrap felt">
+      <div className="lanes-wrap felt" style={{ '--hand-units': narrowUnits } as CSSProperties}>
         <div className="lanes-info">
           <span className="round-label">{roundLabel}</span>
           <span className="wall-left">{t('wallLeft', { n: left })}</span>
@@ -178,6 +206,7 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
                       <Tile id={HIDDEN} rules={view.rules} className="mini" />×{view.hands[seat].length}
                     </span>
                   )}
+                  {seat !== HUMAN && meldsOf(seat, 'lane-melds')}
                 </div>
                 {river(seat)}
               </section>
@@ -193,7 +222,7 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
   // 正方形の卓の大きさ（squareLayout.ts の決め方）
   const handWidths = [0, 1, 2, 3].map((rel) => {
     const seat = seatAt(rel);
-    const units = handRowUnits(view.hands[seat].length, seat === HUMAN && view.drawn[seat] !== null);
+    const units = handRowUnits(view.hands[seat].length, seat === HUMAN && view.drawn[seat] !== null, view.melds[seat].length);
     return handTileWidth(units, rel === 0 ? HAND_ROW.me : HAND_ROW.other);
   });
   const riverTw = riverTileWidth(handWidths);
@@ -201,7 +230,7 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
 
   const squareRiver = (seat: number) => (
     <div className="river-rows">
-      {riverRows(view.discards[seat].map((id, i) => ({ id, i }))).map((row, r) => (
+      {riverRows(riverTiles(seat)).map((row, r) => (
         <div key={r} className="river-row">
           {row.map(({ id, i }) => (
             <Tile key={i} id={id} rules={view.rules} className={riverClass(seat, i)} />
@@ -238,6 +267,7 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
             {view.hands[seatAt(rel)].map((id, i) => (
               <Tile key={i} id={id} rules={view.rules} />
             ))}
+            {meldsOf(seatAt(rel))}
           </div>
         ))}
         <div className="seat-hand rel-0" style={cq(handWidths[0])}>
@@ -297,8 +327,24 @@ function ScoreView({ score, lang }: { score: ScoreResult; lang: Lang }) {
   );
 }
 
+/** 鳴いた面子 1 組。鳴いた牌は横に曲げ、曲げる位置で誰から鳴いたかを示す（上家＝左・対面＝真ん中・下家＝右） */
+function MeldView({ meld, seat, rules }: { meld: OpenMeld; seat: number; rules: Rules | null }) {
+  const rel = (meld.from - seat + 4) % 4; // 1＝下家 2＝対面 3＝上家
+  const others = meld.tiles.filter((t) => t !== meld.called);
+  const at = rel === 3 ? 0 : rel === 2 ? 1 : 2;
+  const order = [...others];
+  order.splice(at, 0, meld.called);
+  return (
+    <span className="meld">
+      {order.map((id) => (
+        <Tile key={id} id={id} rules={rules} className={id === meld.called ? 'called-tile' : ''} />
+      ))}
+    </span>
+  );
+}
+
 /** 自分の手牌。マウスは 1 回押すと切る／指は 1 回目で浮かせ、2 回目で切る（押し間違いを防ぐ） */
-function MyHand({ view, legal, lang, onChoose }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void }) {
+function MyHand({ view, legal, lang, onChoose, melds }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; melds: ReactNode }) {
   const [raised, setRaised] = useState<TileId | null>(null);
   // リーチを押したあと＝切る牌を選んでいるところ（もう一度押すとやめる）
   const [riichiPick, setRiichiPick] = useState(false);
@@ -307,8 +353,10 @@ function MyHand({ view, legal, lang, onChoose }: { view: GameState; legal: Actio
   const mine = view.hands[HUMAN];
   const rest = sortTiles(drawn === null ? mine : mine.filter((x) => x !== drawn));
   const canTsumo = legal.some((a) => a.type === 'tsumo');
-  // 切られた牌でロンできるときだけ「ロン」「見送る」を出す（できないときは自動で見送る）
+  // 切られた牌でロン・チー・ポンできるときだけボタンを出す（できないときは自動で見送る）
   const canRon = legal.some((a) => a.type === 'ron');
+  const calls = legal.filter((a) => a.type === 'chi' || a.type === 'pon');
+  const replying = canRon || calls.length > 0;
   // 流局の宣言（テンパイを隠せるときだけボタンが出る。1 つしか言えないときは自動で言う）
   const declaring = view.phase === 'declare' && legal.length > 1;
   const riichiable = new Set(legal.flatMap((a) => (a.type === 'riichi' ? [a.tile] : [])));
@@ -342,15 +390,30 @@ function MyHand({ view, legal, lang, onChoose }: { view: GameState; legal: Actio
             {translate(lang, 'tsumo')}
           </button>
         )}
-        {canRon && (
+        {replying && (
           <>
-            <button type="button" className="btn-primary btn-ron" onClick={() => onChoose({ type: 'ron' })}>
-              {translate(lang, 'ron')}
-            </button>
+            {canRon && (
+              <button type="button" className="btn-primary btn-ron" onClick={() => onChoose({ type: 'ron' })}>
+                {translate(lang, 'ron')}
+              </button>
+            )}
+            {/* チー・ポンは手牌から出す 2 枚を見せる（同じ牌で組み合わせが複数あるときも選べる） */}
+            {calls.map((a, i) =>
+              a.type === 'chi' || a.type === 'pon' ? (
+                <button key={i} type="button" className={`btn-primary btn-call btn-${a.type}`} onClick={() => onChoose(a)}>
+                  {translate(lang, a.type)}
+                  <span className="call-tiles">
+                    {sortTiles(a.tiles).map((id) => (
+                      <Tile key={id} id={id} rules={view.rules} className="mini" />
+                    ))}
+                  </span>
+                </button>
+              ) : null,
+            )}
             <button type="button" className="btn-primary btn-pass" onClick={() => onChoose({ type: 'pass' })}>
               {translate(lang, 'pass')}
             </button>
-            <span className="hint">{translate(lang, 'ronHint')}</span>
+            <span className="hint">{translate(lang, canRon ? 'ronHint' : 'callHint')}</span>
           </>
         )}
         {declaring && (
@@ -383,6 +446,7 @@ function MyHand({ view, legal, lang, onChoose }: { view: GameState; legal: Actio
         {rest.map(tile)}
         {drawn !== null && <span className="drawn-gap" />}
         {drawn !== null && tile(drawn)}
+        {melds}
       </div>
     </div>
   );

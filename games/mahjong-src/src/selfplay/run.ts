@@ -10,7 +10,7 @@ import type { Envelope, Seat } from '../engine/events';
 import { Watcher } from '../engine/invariants';
 import { act, advance, startRound } from '../engine/round';
 import { GENERAL_RULES, type Rules } from '../engine/rules';
-import type { RoundResult } from '../engine/state';
+import type { OpenMeld, RoundResult } from '../engine/state';
 
 export interface SelfplayResult {
   games: number;
@@ -18,7 +18,7 @@ export interface SelfplayResult {
   /** 終わり方の内訳（ツモアガリ・流局・途中で止まった） */
   endings: { tsumo: number; ron: number; exhaust: number; tripleRon: number; unfinished: number };
   /** 通った道の数（0 なら、その道は検査に乗っていない）：リーチ・ダブル立直・リーチでのツモ・一発・裏ドラが乗ったアガリ */
-  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[]; doubleRon: number; missed: number };
+  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[]; doubleRon: number; missed: number; calls: number; chi: number; openWin: number };
   failures: { seed: string; seq: number; reasons: string[] }[];
 }
 
@@ -34,7 +34,7 @@ export function playOne(
   seed: string,
   rules: Rules = GENERAL_RULES,
   player: Player = tsumogiriCpu,
-): { events: number; missed: boolean; log: Envelope[]; ending: keyof SelfplayResult['endings']; result: RoundResult | null; failure: Failure | null } {
+): { events: number; missed: boolean; finalMelds: OpenMeld[][]; log: Envelope[]; ending: keyof SelfplayResult['endings']; result: RoundResult | null; failure: Failure | null } {
   const w = new Watcher();
   const log: Envelope[] = [];
   let sawMissed = false;
@@ -50,6 +50,7 @@ export function playOne(
   const done = (failure: Failure | null) => ({
     events: w.checked,
     missed: sawMissed,
+    finalMelds: w.full.melds,
     log,
     ending: w.full.result?.type ?? ('unfinished' as const),
     result: w.full.result,
@@ -82,7 +83,7 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
     games: 0,
     events: 0,
     endings: { tsumo: 0, ron: 0, exhaust: 0, tripleRon: 0, unfinished: 0 },
-    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0 },
+    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0, calls: 0, chi: 0, openWin: 0 },
     failures: [],
   };
   for (let i = 0; i < games; i++) {
@@ -94,6 +95,11 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
       if (e.ev.type === 'discard' && e.ev.riichi) result.paths.riichi++;
     }
     if (r.result?.type === 'ron' && r.result.wins.length > 1) result.paths.doubleRon++;
+    const melds = r.finalMelds;
+    result.paths.calls += melds.reduce((n, ms) => n + ms.length, 0);
+    result.paths.chi += melds.reduce((n, ms) => n + ms.filter((m) => m.type === 'chi').length, 0);
+    const winners = r.result?.type === 'tsumo' ? [r.result.seat] : r.result?.type === 'ron' ? r.result.wins.map((w) => w.seat) : [];
+    if (winners.some((seat) => melds[seat].length > 0)) result.paths.openWin++;
     if (r.missed) result.paths.missed++;
     const last = r.log[r.log.length - 1]?.ev;
     if (last?.type === 'tsumo' && last.ura.length > 0) result.paths.riichiWin++;

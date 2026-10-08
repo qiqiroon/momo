@@ -11,6 +11,7 @@
 import { HIDDEN, SEATS, mask, type Envelope, type Seat } from './events';
 import { isWinningHand, waitKinds } from './agari';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
+import { finalResult } from './final';
 import { apply, initialState, isKanMeld, MAX_KANS, RIICHI_STICK, startPoints, type GameState } from './state';
 import { kindOf, tileSetFor } from './tiles';
 
@@ -184,6 +185,14 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   if ((full.phase === 'ended' || full.phase === 'gameover') !== (full.settlement !== null)) bad.push('局の終わりと点の動きの有る無しが食い違う');
   // 局の進め方：対局が終わったら理由がある・局の番号は延長の最後（西 4 局）を超えない・親は局の番号から決まる
   if ((full.phase === 'gameover') !== (full.gameOver !== null)) bad.push('対局の終わりと終わった理由が食い違う');
+  // 終局：順位は 1〜4 が 1 人ずつ（分け合う同点を除く）・返し点ありで供託が残らなければ最終得点の合計は 0
+  if (full.phase === 'gameover' && full.rules.family === 'jp') {
+    const rows = finalResult(full);
+    if (rows.length !== 4 || new Set(rows.map((r) => r.seat)).size !== 4) bad.push('終局の順位表に 4 人いない');
+    const v = full.rules.values;
+    const sum = Math.round(rows.reduce((a, r) => a + r.total, 0) * 10) / 10;
+    if (v.kaeshi !== 'none' && (v.kyotaku === 'top' || full.kyotaku === 0) && sum !== 0) bad.push(`最終得点の合計が 0 でない（${sum}）`);
+  }
   if (full.roundIndex > 11) bad.push(`局の番号が延長の最後を超えた（${full.roundIndex}）`);
   if (full.roundIndex >= 0 && full.dealer !== full.roundIndex % 4) bad.push(`親が局の番号と合わない（局 ${full.roundIndex}・親 ${full.dealer}）`);
   // リーチ棒を出したのはリーチした人だけ

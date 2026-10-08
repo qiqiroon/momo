@@ -8,8 +8,13 @@
 import type { Seat } from './events';
 import type { GameState } from './state';
 
-/** 返し点 */
+/** 返し点（ルールの kaeshi が 30 のとき）。延長の終わり・アガリやめの「原点」もこの値 */
 export const RETURN_POINTS = 30000;
+
+/** 返し点。ルールが「なし（素点のまま）」なら null */
+export function returnPoints(s: GameState): number | null {
+  return s.rules?.family === 'jp' && s.rules.values.kaeshi === 'none' ? null : RETURN_POINTS;
+}
 
 export type GameEndReason = 'last' | 'tobi' | 'yame' | 'extension';
 
@@ -84,7 +89,8 @@ export function nextStep(s: GameState): NextStep {
     : { type: 'round', roundIndex: s.roundIndex + 1, dealer: ((s.dealer + 1) % 4) as Seat, honba };
   const last = lastScheduledRound(s);
   const inExtension = s.roundIndex > last;
-  const westOn = v?.west === 'on';
+  // 西入は返し点が要る（返し点「なし」のルールでは設定画面で押せない。値が来ても延長しない）
+  const westOn = v?.west === 'on' && returnPoints(s) !== null;
   const sudden = v?.westEnd !== 'full';
   const finalHand = s.roundIndex === last || (inExtension && (sudden || s.roundIndex === lastExtensionRound(s)));
   if (!finalHand) return next;
@@ -95,7 +101,9 @@ export function nextStep(s: GameState): NextStep {
     const tenpaiStay = r.type === 'exhaust';
     const rule = won ? v?.agariyame : tenpaiStay ? v?.tenpaiyame : 'off';
     // 天鳳の条文「親が原点以上のトップなら和了止め/聴牌止め」：返し点以上（供託は数えない）で、ほかの全員より多い
-    if (rule && rule !== 'off' && dealerIsTop(s) && s.scores[s.dealer] >= RETURN_POINTS) {
+    // 返し点「なし」のルールなら、トップならやめられる
+    const kaeshi = returnPoints(s);
+    if (rule && rule !== 'off' && dealerIsTop(s) && (kaeshi === null || s.scores[s.dealer] >= kaeshi)) {
       if (rule === 'auto') return { type: 'end', reason: 'yame' };
       if (s.yame === null) return { type: 'yame', seat: s.dealer };
       if (s.yame) return { type: 'end', reason: 'yame' };

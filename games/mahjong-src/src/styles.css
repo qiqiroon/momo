@@ -933,3 +933,42 @@ body.in-game .site-header .subtitle {
   font-variant-numeric: tabular-nums;
   text-align: right !important;
 }
+
+/* ---- 終局の順位表（段階4） ---- */
+
+.final-list {
+  margin: 8px auto;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.final-list th,
+.final-list td {
+  padding: 2px 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 携帯の幅：折り返さずに収まるよう詰める */
+@media (max-width: 480px) {
+  .final-list {
+    font-size: 0.82em;
+  }
+
+  .final-list th,
+  .final-list td {
+    padding: 2px 4px;
+  }
+}
+
+.final-list tbody th {
+  text-align: left;
+}
+
+.final-list .final-total {
+  font-weight: 700;
+}
+
+.final-rank-1 .final-total {
+  color: var(--accent, #f97316);
+}

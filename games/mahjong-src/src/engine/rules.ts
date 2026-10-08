@@ -1,10 +1,11 @@
 // ルールの値。項目の名前は見本 mock/settings.html の項目名をそのまま使う（段階6でセット選びをつなぐときに付け替えが要らないように）。
 // 正本はルール設定 v0.03（作業側の games/mahjong/docs/）。値はコードの中で直接書かず、ここから読む。
-// 日本式 71 項目・中国式 35 項目。
+// 日本式 72 項目・中国式 35 項目。
 
 export const JP_RULE_KEYS = [
   'length',
   'start',
+  'kaeshi',
   'oka',
   'uma',
   'hasu',
@@ -126,6 +127,7 @@ export const GENERAL_RULES: Rules = {
   values: {
     length: 'half', // 長さ
     start: '25', // 持ち点
+    kaeshi: '30', // 返し点（30＝30000／none＝なし・素点のまま）
     oka: 'on', // オカ（トップ賞）
     uma: '10-20', // ウマ（順位点）
     hasu: 'gosha', // 最終得点の端数（1000点未満）

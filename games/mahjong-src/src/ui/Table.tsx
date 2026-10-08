@@ -5,6 +5,7 @@
 import { Fragment, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
 import { HIDDEN, type Seat } from '../engine/events';
 import { furitenOf } from '../engine/furiten';
+import { finalResult } from '../engine/final';
 import { nextStep } from '../engine/game';
 import type { Action } from '../engine/round';
 import type { ScoreResult } from '../engine/score';
@@ -46,6 +47,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame }
   /** 持ち点（3 桁区切り） */
   const pointsOf = (seat: number) => <span className="points">{view.scores[seat].toLocaleString('en-US')}</span>;
   const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '±0');
+  /** 最終得点の表示（千点＝1。小数は 1 桁まで） */
+  const fmt = (n: number) => signed(Math.round(n * 10) / 10);
   const sticks = <span className="sticks">{t('honbaKyotaku', { h: view.honba, k: view.kyotaku })}</span>;
   const playing = view.phase !== 'ended';
   // 直前に切った人（その河の最後の牌に印を付ける）
@@ -133,6 +136,34 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame }
         <>
           <p className="result-title game-over-title">{t('gameOverTitle')}</p>
           <p className="game-over-reason">{t(`gameEnd_${view.gameOver}` as MessageKey)}</p>
+          {/* 順位と最終得点（素点・ウマ・オカの内訳） */}
+          <table className="final-list">
+            <thead>
+              <tr>
+                <th />
+                <th />
+                <th>{t('finalPoints')}</th>
+                <th>{t('finalBase')}</th>
+                <th>{t('finalUma')}</th>
+                <th>{t('finalOka')}</th>
+                <th>{t('finalTotal')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {finalResult(view).map((row) => (
+                <tr key={row.seat} className={`final-rank-${row.rank}`}>
+                  <td>{t('finalRank', { n: row.rank })}</td>
+                  <th>{nameOf(row.seat)}</th>
+                  <td>{(row.points + row.kyotaku).toLocaleString('en-US')}</td>
+                  <td>{fmt(row.base)}</td>
+                  <td>{fmt(row.uma)}</td>
+                  <td>{row.oka ? fmt(row.oka) : ''}</td>
+                  <td className="final-total">{fmt(row.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="hint no-money">{t('noMoney')}</p>
         </>
       )}
       {r.type === 'exhaust' && <p className="result-title">{t('resultExhaust')}</p>}

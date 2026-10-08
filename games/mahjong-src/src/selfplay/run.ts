@@ -18,7 +18,7 @@ export interface SelfplayResult {
   /** 終わり方の内訳（ツモアガリ・流局・途中で止まった） */
   endings: { tsumo: number; ron: number; exhaust: number; tripleRon: number; unfinished: number };
   /** 通った道の数（0 なら、その道は検査に乗っていない）：リーチ・ダブル立直・リーチでのツモ・一発・裏ドラが乗ったアガリ */
-  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[]; doubleRon: number; missed: number; calls: number; chi: number; openWin: number; kan: { ankan: number; kakan: number; minkan: number; riichiAnkan: number; rinshanWin: number; chankan: number; kanDora: number; fourKans: number } };
+  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[]; doubleRon: number; missed: number; calls: number; chi: number; openWin: number; kan: { ankan: number; kakan: number; minkan: number; riichiAnkan: number; rinshanWin: number; chankan: number; kanDora: number; fourKans: number }; clash: { total: number; ronWon: number; ponWon: number; chiLost: number } };
   failures: { seed: string; seq: number; reasons: string[] }[];
 }
 
@@ -34,13 +34,27 @@ export function playOne(
   seed: string,
   rules: Rules = GENERAL_RULES,
   player: Player = tsumogiriCpu,
-): { events: number; missed: boolean; finalMelds: OpenMeld[][]; log: Envelope[]; ending: keyof SelfplayResult['endings']; result: RoundResult | null; failure: Failure | null } {
+): { events: number; missed: boolean; clashes: { won: string; chi: boolean }[]; finalMelds: OpenMeld[][]; log: Envelope[]; ending: keyof SelfplayResult['endings']; result: RoundResult | null; failure: Failure | null } {
   const w = new Watcher();
+  const seedNumber = [...seed].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
   const log: Envelope[] = [];
   let sawMissed = false;
+  // 同じ牌に 2 人以上が宣言した（見送り以外の返事が 2 つ以上）ときの、勝った宣言
+  const clashes: { won: string; chi: boolean }[] = [];
   const feed = (envs: Envelope[]): Failure | null => {
     for (const env of envs) {
+      const before = w.full;
       const reasons = w.push(env);
+      const c = before.claim;
+      if (c && w.full.claim === null) {
+        const said = c.calls.map((x) => x.meld as string).concat(c.rons.map(() => 'ron'));
+        if (env.ev.type === 'ron') said.push('ron');
+        if (env.ev.type === 'call') said.push(env.ev.meld);
+        if (said.length >= 2) {
+          const won = w.full.result?.type === 'ron' || w.full.result?.type === 'tripleRon' ? 'ron' : (w.full.melds[w.full.turn].at(-1)?.type ?? 'none');
+          clashes.push({ won: won === 'minkan' ? 'kan' : won, chi: said.includes('chi') });
+        }
+      }
       if (w.full.missedTurn.some(Boolean)) sawMissed = true;
       if (reasons.length) return { seed, seq: env.seq, reasons };
       log.push(env);
@@ -50,6 +64,7 @@ export function playOne(
   const done = (failure: Failure | null) => ({
     events: w.checked,
     missed: sawMissed,
+    clashes,
     finalMelds: w.full.melds,
     log,
     ending: w.full.result?.type ?? ('unfinished' as const),
@@ -64,8 +79,10 @@ export function playOne(
     const s = w.full;
     try {
       if (s.phase === 'claim') {
-        // 返事がまだの人が、その席から見える局面で返事をする（下家から順に）
-        const seat = ([1, 2, 3].map((d) => (s.claim!.from + d) % 4) as Seat[]).find((x) => s.claim!.replies[x] === null)!;
+        // 返事がまだの人が、その席から見える局面で返事をする。オンラインでは届く順番が決まらないので、
+        // 返事の順番は種と通し番号から決めて毎回変える（順番で結果が変わらないことも見張る）
+        const waiting = ([1, 2, 3].map((d) => (s.claim!.from + d) % 4) as Seat[]).filter((x) => s.claim!.replies[x] === null);
+        const seat = waiting[(seedNumber + s.nextSeq) % waiting.length];
         failure = feed(act(s, seat, player(w.views[seat], seat)));
       } else {
         failure =
@@ -83,7 +100,7 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
     games: 0,
     events: 0,
     endings: { tsumo: 0, ron: 0, exhaust: 0, tripleRon: 0, unfinished: 0 },
-    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0, calls: 0, chi: 0, openWin: 0, kan: { ankan: 0, kakan: 0, minkan: 0, riichiAnkan: 0, rinshanWin: 0, chankan: 0, kanDora: 0, fourKans: 0 } },
+    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0, calls: 0, chi: 0, openWin: 0, kan: { ankan: 0, kakan: 0, minkan: 0, riichiAnkan: 0, rinshanWin: 0, chankan: 0, kanDora: 0, fourKans: 0 }, clash: { total: 0, ronWon: 0, ponWon: 0, chiLost: 0 } },
     failures: [],
   };
   for (let i = 0; i < games; i++) {
@@ -112,6 +129,11 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
       if (e.ev.type === 'doraReveal') indicators++;
     }
     k.kanDora += Math.max(0, indicators - 1);
+    const c = result.paths.clash;
+    c.total += r.clashes.length;
+    c.ronWon += r.clashes.filter((x) => x.won === 'ron').length;
+    c.ponWon += r.clashes.filter((x) => x.won === 'pon' || x.won === 'kan').length;
+    c.chiLost += r.clashes.filter((x) => x.chi && x.won !== 'chi').length;
     if (kans === 4) k.fourKans++;
     if (r.result?.type === 'tsumo' && r.result.score.yaku.some((y) => y.id === 'rinshan')) k.rinshanWin++;
     if (r.result?.type === 'ron' && r.result.robbed) k.chankan++;

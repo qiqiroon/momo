@@ -16,16 +16,16 @@ export interface SelfplayResult {
   games: number;
   events: number;
   /** 終わり方の内訳（ツモアガリ・流局・途中で止まった） */
-  endings: { tsumo: number; exhaust: number; unfinished: number };
+  endings: { tsumo: number; ron: number; exhaust: number; tripleRon: number; unfinished: number };
   /** 通った道の数（0 なら、その道は検査に乗っていない）：リーチ・ダブル立直・リーチでのツモ・一発・裏ドラが乗ったアガリ */
-  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[] };
+  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[]; doubleRon: number; missed: number };
   failures: { seed: string; seq: number; reasons: string[] }[];
 }
 
 type Failure = SelfplayResult['failures'][number];
 
-/** 1 局を最後まで回しても終わらないときの打ち切り（ツモは山の数より多くならない） */
-const MAX_EVENTS = 1000;
+/** 1 局を最後まで回しても終わらないときの打ち切り（ツモは山の数より多くならない。打牌のたびに 3 人の返事が付く） */
+const MAX_EVENTS = 2000;
 
 /** 1対局（いまは 1 局）を回す。出来事の列も返す（牌譜の土台・失敗の再現用） */
 export type Player = typeof tsumogiriCpu;
@@ -34,12 +34,14 @@ export function playOne(
   seed: string,
   rules: Rules = GENERAL_RULES,
   player: Player = tsumogiriCpu,
-): { events: number; log: Envelope[]; ending: keyof SelfplayResult['endings']; result: RoundResult | null; failure: Failure | null } {
+): { events: number; missed: boolean; log: Envelope[]; ending: keyof SelfplayResult['endings']; result: RoundResult | null; failure: Failure | null } {
   const w = new Watcher();
   const log: Envelope[] = [];
+  let sawMissed = false;
   const feed = (envs: Envelope[]): Failure | null => {
     for (const env of envs) {
       const reasons = w.push(env);
+      if (w.full.missedTurn.some(Boolean)) sawMissed = true;
       if (reasons.length) return { seed, seq: env.seq, reasons };
       log.push(env);
     }
@@ -47,6 +49,7 @@ export function playOne(
   };
   const done = (failure: Failure | null) => ({
     events: w.checked,
+    missed: sawMissed,
     log,
     ending: w.full.result?.type ?? ('unfinished' as const),
     result: w.full.result,
@@ -59,8 +62,14 @@ export function playOne(
     if (w.checked > MAX_EVENTS) return done({ seed, seq: w.full.nextSeq, reasons: ['局が終わらない'] });
     const s = w.full;
     try {
-      failure =
-        s.phase === 'discard' || s.phase === 'declare' ? feed(act(s, s.turn, player(w.views[s.turn], s.turn))) : feed(advance(s));
+      if (s.phase === 'claim') {
+        // 返事がまだの人が、その席から見える局面で返事をする（下家から順に）
+        const seat = ([1, 2, 3].map((d) => (s.claim!.from + d) % 4) as Seat[]).find((x) => s.claim!.replies[x] === null)!;
+        failure = feed(act(s, seat, player(w.views[seat], seat)));
+      } else {
+        failure =
+          s.phase === 'discard' || s.phase === 'declare' ? feed(act(s, s.turn, player(w.views[s.turn], s.turn))) : feed(advance(s));
+      }
     } catch (e) {
       failure = { seed, seq: s.nextSeq, reasons: [`進行役が止まった：${(e as Error).message}`] };
     }
@@ -72,8 +81,8 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
   const result: SelfplayResult = {
     games: 0,
     events: 0,
-    endings: { tsumo: 0, exhaust: 0, unfinished: 0 },
-    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0] },
+    endings: { tsumo: 0, ron: 0, exhaust: 0, tripleRon: 0, unfinished: 0 },
+    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0 },
     failures: [],
   };
   for (let i = 0; i < games; i++) {
@@ -84,6 +93,8 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
     for (const e of r.log) {
       if (e.ev.type === 'discard' && e.ev.riichi) result.paths.riichi++;
     }
+    if (r.result?.type === 'ron' && r.result.wins.length > 1) result.paths.doubleRon++;
+    if (r.missed) result.paths.missed++;
     const last = r.log[r.log.length - 1]?.ev;
     if (last?.type === 'tsumo' && last.ura.length > 0) result.paths.riichiWin++;
     if (r.result?.type === 'exhaust') result.paths.tenpaiCounts[r.result.tenpai.filter(Boolean).length]++;

@@ -49,7 +49,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
 
   // 手牌の枚数：ツモったあと（切る前）は番の人 14 枚・ほかは 13 枚、ツモる前は全員 13 枚
   // （鳴きが入る段階3で「鳴いた面子 1 組につき 3 枚減る」を足す）
-  if (full.phase === 'draw' || full.phase === 'discard') {
+  if (full.phase === 'draw' || full.phase === 'discard' || full.phase === 'claim') {
     full.hands.forEach((h, seat) => {
       const want = full.phase === 'discard' && seat === full.turn ? 14 : 13;
       if (h.length !== want) bad.push(`手牌の枚数が違う（席 ${seat}：${h.length} 枚・正しくは ${want} 枚）`);
@@ -93,6 +93,26 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     });
   }
 
+  // ロンアガリは、開けた手牌＋切られた牌がアガリの形で、点数が付いている。切った人はアガれない
+  if (full.result?.type === 'ron') {
+    const r = full.result;
+    if (r.wins.length === 0) bad.push('ロンの結果にアガった人がいない');
+    for (const win of r.wins) {
+      if (win.seat === r.from) bad.push('切った人が自分の牌でロンした');
+      if (!isWinningHand([...full.hands[win.seat], r.winTile])) bad.push(`アガリの形でないのにロンした（席 ${win.seat}）`);
+      if (!(win.score.total > 0)) bad.push(`ロンアガリの点数が 0（席 ${win.seat}）`);
+      win.ura.forEach((t, i) => {
+        if (full.wall && t !== uraIndicatorAt(full.wall, i)) bad.push(`裏ドラ表示牌がドラ表示牌の真下の牌でない（席 ${win.seat}・${i + 1} 枚目）`);
+      });
+    }
+  }
+  // 返事を集めているあいだ：切られた牌は切った人の河の最後にある
+  if (full.phase === 'claim') {
+    const c = full.claim;
+    if (!c) bad.push('返事を集めているのに、切られた牌の記録が無い');
+    else if (full.discards[c.from][full.discards[c.from].length - 1] !== c.tile) bad.push('返事を待っている牌が、切った人の河の最後に無い');
+  }
+
   // ツモアガリには点数が付いている（役が無いアガリは局面を作る側が止める）
   if (full.result?.type === 'tsumo' && !(full.result.score.total > 0)) bad.push('ツモアガリの点数が 0');
 
@@ -129,6 +149,10 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     // 局の結果（アガリの点数・流局の点の動き）は、見える局面からも全体と同じに出る（どの端末でも同じ）
     if (JSON.stringify(v.result) !== JSON.stringify(full.result)) bad.push(`席 ${viewer}：局の結果が全体と違う`);
     if (v.phase !== full.phase || v.turn !== full.turn) bad.push(`席 ${viewer}：進み具合（番・段取り）が全体と違う`);
+    if (v.opened.join() !== full.opened.join()) bad.push(`席 ${viewer}：手牌を開けた席が全体と違う`);
+    if (JSON.stringify(v.claim) !== JSON.stringify(full.claim)) bad.push(`席 ${viewer}：返事の集まり方が全体と違う`);
+    // 見逃しのフリテンは本人と全体だけが知る＝本人の局面は全体と同じ
+    if (v.missedTurn[viewer] !== full.missedTurn[viewer] || v.missedRiichi[viewer] !== full.missedRiichi[viewer]) bad.push(`席 ${viewer}：自分の見逃しのフリテンが全体と違う`);
     full.discards.forEach((d, seat) => {
       const vd = v.discards[seat];
       if (vd.length !== d.length || vd.some((t, i) => t !== d[i])) bad.push(`席 ${viewer}：席 ${seat} の河が全体と違う`);
@@ -142,8 +166,8 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       if (vh.length !== h.length) bad.push(`席 ${viewer}：席 ${seat} の手牌の枚数が全体と違う`);
       else if (seat === viewer) {
         if (vh.some((t, i) => t !== h[i])) bad.push(`席 ${viewer}：自分の手牌が全体と違う`);
-      } else if ((full.phase === 'ended' && full.result?.type === 'tsumo' && full.result.seat === seat) || full.declared[seat] === true) {
-        // ツモアガリした人・流局でテンパイと言った人の手牌は全員に開けている
+      } else if (full.opened[seat]) {
+        // ツモアガリした人・ロンと言った人・流局でテンパイと言った人の手牌は全員に開けている
         if (vh.some((t, i) => t !== h[i])) bad.push(`席 ${viewer}：開けた席 ${seat} の手牌が全体と違う`);
       } else if (vh.some((t) => t !== HIDDEN)) {
         bad.push(`席 ${viewer}：席 ${seat} の手牌が見えている`);

@@ -32,6 +32,10 @@ export type GameEvent =
   /** ツモアガリ。全員に見える。手牌（14 枚）とアガリ牌（ツモった牌）を開ける。
    *  ura＝めくった裏ドラ表示牌（リーチでアガったときだけ。ドラ表示牌の真下を同じ枚数） */
   | { type: 'tsumo'; seat: Seat; hand: readonly TileId[]; winTile: TileId; ura: readonly TileId[] }
+  /** 切られた牌への返事「見送る」。全員に見える（オンラインでは、ロンできない人の端末も自動でこれを返す＝誰が迷ったか漏れない） */
+  | { type: 'pass'; seat: Seat }
+  /** 切られた牌への返事「ロン」。全員に見える。手牌（13 枚）を開ける。ura＝めくった裏ドラ表示牌（リーチしているときだけ） */
+  | { type: 'ron'; seat: Seat; hand: readonly TileId[]; ura: readonly TileId[] }
   /** 山が尽きて流局。全員に見える。このあと親から順にテンパイかノーテンかを宣言する */
   | { type: 'exhaust' }
   /** 流局したときの宣言。全員に見える。テンパイなら手牌（13 枚）を開ける（ノーテンなら null） */

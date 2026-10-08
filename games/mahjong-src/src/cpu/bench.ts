@@ -23,10 +23,12 @@ function connection(tile: TileId, counts: readonly number[]): number {
 
 export function benchCpu(view: GameState, seat: Seat): Action {
   const legal = legalActions(view, seat);
-  const win = legal.find((a) => a.type === 'tsumo' || a.type === 'tenpai');
+  const win = legal.find((a) => a.type === 'tsumo' || a.type === 'ron' || a.type === 'tenpai');
   if (win) return win;
   const noten = legal.find((a) => a.type === 'noten');
   if (noten) return noten;
+  const pass = legal.find((a) => a.type === 'pass');
+  if (pass) return pass;
   const counts = kindCounts(view.hands[seat]);
   let best: Action = legal[0];
   let bestScore = Infinity;

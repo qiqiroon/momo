@@ -11,6 +11,7 @@ import { liveWallLeft, type GameState } from '../engine/state';
 import { kindOf, type TileId } from '../engine/tiles';
 import { HUMAN } from '../game/useTable';
 import { translate, type Lang, type MessageKey } from '../i18n/strings';
+import { DraggableDialog } from './DraggableDialog';
 import { Tile } from './Tile';
 import { useNarrow } from './useNarrow';
 import { HAND_ROW, handRowUnits, handTileWidth, riverRows, riverTileWidth } from './squareLayout';
@@ -39,10 +40,10 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
   const left = Math.max(0, liveWallLeft(view));
   const playing = view.phase !== 'ended';
   // 直前に切った人（その河の最後の牌に印を付ける）
-  const lastDiscarder = view.phase === 'draw' ? (view.turn + 3) % 4 : -1;
+  const lastDiscarder = view.phase === 'draw' ? (view.turn + 3) % 4 : view.phase === 'claim' && view.claim ? view.claim.from : -1;
 
   // 自分のフリテン（手牌が見えるのは自分だけなので、出すのも自分の分だけ）。局の途中だけ出す
-  const furiten = view.phase === 'draw' || view.phase === 'discard' ? furitenOf(view, HUMAN) : null;
+  const furiten = view.phase === 'draw' || view.phase === 'discard' || view.phase === 'claim' ? furitenOf(view, HUMAN) : null;
   const furitenCauses = new Set(furiten?.causes ?? []);
 
   /** 河の牌の印：直前に切られた牌・リーチの宣言牌（横に曲げる）・自分のフリテンの元になっている牌 */
@@ -81,31 +82,40 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
     </span>
   );
 
-  const won = view.result?.type === 'tsumo' ? view.result : null;
-  const result = view.phase === 'ended' && view.result && (
-    <div className="result" role="dialog">
-      <p className="result-title">
-        {won ? t('resultTsumo', { name: nameOf(won.seat) }) : t('resultExhaust')}
-      </p>
-      {won && (
-        <div className="result-hand">
-          {sortTiles(view.hands[won.seat].filter((x) => x !== won.winTile)).map((id) => (
-            <Tile key={id} id={id} rules={view.rules} />
-          ))}
-          <span className="drawn-gap" />
-          <Tile id={won.winTile} rules={view.rules} className="win-tile" />
-        </div>
-      )}
-      {won && won.ura.length > 0 && (
-        <span className="dora-ind">
-          <span className="dora-ind-label">{t('uraIndicator')}</span>
-          {won.ura.map((id) => (
-            <Tile key={id} id={id} rules={view.rules} className="mini" />
-          ))}
-        </span>
-      )}
-      {won && <ScoreView score={won.score} lang={lang} />}
-      {view.result.type === 'exhaust' && (
+  // アガった人（ツモは 1 人・ロンは 1〜3 人）。手牌はアガリ牌を除いた形で並べ、アガリ牌を少し離して置く
+  const r = view.result;
+  const wins =
+    r?.type === 'tsumo'
+      ? [{ seat: r.seat, hand: view.hands[r.seat].filter((x) => x !== r.winTile), winTile: r.winTile, ura: r.ura, score: r.score, title: t('resultTsumo', { name: nameOf(r.seat) }) }]
+      : r?.type === 'ron'
+        ? r.wins.map((w) => ({ seat: w.seat, hand: view.hands[w.seat], winTile: r.winTile, ura: w.ura, score: w.score, title: t('resultRon', { name: nameOf(w.seat), from: nameOf(r.from) }) }))
+        : [];
+  const result = view.phase === 'ended' && r && (
+    <DraggableDialog className="result">
+      {r.type === 'exhaust' && <p className="result-title">{t('resultExhaust')}</p>}
+      {r.type === 'tripleRon' && <p className="result-title">{t('resultTripleRon')}</p>}
+      {wins.map((won) => (
+        <Fragment key={won.seat}>
+          <p className="result-title">{won.title}</p>
+          <div className="result-hand">
+            {sortTiles(won.hand).map((id) => (
+              <Tile key={id} id={id} rules={view.rules} />
+            ))}
+            <span className="drawn-gap" />
+            <Tile id={won.winTile} rules={view.rules} className="win-tile" />
+          </div>
+          {won.ura.length > 0 && (
+            <span className="dora-ind">
+              <span className="dora-ind-label">{t('uraIndicator')}</span>
+              {won.ura.map((id) => (
+                <Tile key={id} id={id} rules={view.rules} className="mini" />
+              ))}
+            </span>
+          )}
+          <ScoreView score={won.score} lang={lang} />
+        </Fragment>
+      ))}
+      {r.type === 'exhaust' && (
         <table className="exhaust-list">
           <tbody>
             {[0, 1, 2, 3].map((rel) => {
@@ -143,7 +153,7 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
       <button type="button" className="btn-primary" onClick={onAgain}>
         {t('again')}
       </button>
-    </div>
+    </DraggableDialog>
   );
 
   if (narrow) {
@@ -297,6 +307,8 @@ function MyHand({ view, legal, lang, onChoose }: { view: GameState; legal: Actio
   const mine = view.hands[HUMAN];
   const rest = sortTiles(drawn === null ? mine : mine.filter((x) => x !== drawn));
   const canTsumo = legal.some((a) => a.type === 'tsumo');
+  // 切られた牌でロンできるときだけ「ロン」「見送る」を出す（できないときは自動で見送る）
+  const canRon = legal.some((a) => a.type === 'ron');
   // 流局の宣言（テンパイを隠せるときだけボタンが出る。1 つしか言えないときは自動で言う）
   const declaring = view.phase === 'declare' && legal.length > 1;
   const riichiable = new Set(legal.flatMap((a) => (a.type === 'riichi' ? [a.tile] : [])));
@@ -329,6 +341,17 @@ function MyHand({ view, legal, lang, onChoose }: { view: GameState; legal: Actio
           <button type="button" className="btn-primary btn-tsumo" onClick={() => onChoose({ type: 'tsumo' })}>
             {translate(lang, 'tsumo')}
           </button>
+        )}
+        {canRon && (
+          <>
+            <button type="button" className="btn-primary btn-ron" onClick={() => onChoose({ type: 'ron' })}>
+              {translate(lang, 'ron')}
+            </button>
+            <button type="button" className="btn-primary btn-pass" onClick={() => onChoose({ type: 'pass' })}>
+              {translate(lang, 'pass')}
+            </button>
+            <span className="hint">{translate(lang, 'ronHint')}</span>
+          </>
         )}
         {declaring && (
           <>

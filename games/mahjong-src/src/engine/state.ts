@@ -3,20 +3,42 @@
 
 import { HIDDEN, mask, type Envelope, type Seat } from './events';
 import { kindCounts, waitKinds } from './agari';
+import { furitenOf } from './furiten';
 import { createRng, shuffle } from './rng';
 import type { Rules } from './rules';
 import { scoreWin, type ScoreResult } from './score';
 import { kindOf, tileSetFor, type TileId } from './tiles';
 
 /** 局の進み具合。deal＝配っている途中／draw＝番の人がツモる前／discard＝番の人が切る（またはアガる）前／
+ *  claim＝切られた牌にほかの 3 人が返事をしている（見送る・ロン。鳴きは段階3の 2 番目）／
  *  declare＝流局してテンパイ・ノーテンを宣言している（番の人が宣言する）／ended＝局が終わった */
-export type Phase = 'idle' | 'deal' | 'draw' | 'discard' | 'declare' | 'ended';
+export type Phase = 'idle' | 'deal' | 'draw' | 'discard' | 'claim' | 'declare' | 'ended';
+
+/** ロンでアガった 1 人分。score は開けた手牌・ドラ表示牌など全員に見えるものだけから出す */
+export interface RonWin {
+  seat: Seat;
+  ura: TileId[];
+  score: ScoreResult;
+}
+
+/** 切られた牌への返事を集めているところ。replies は席ごと（切った人は最初から 'self'） */
+export interface Claim {
+  from: Seat;
+  tile: TileId;
+  replies: (null | 'self' | 'pass' | 'ron')[];
+  /** ロンと言った人（言った順）。点数は返事がそろってから result に移す */
+  rons: RonWin[];
+}
 
 /** ツモアガリの結果。score は開けた手牌・ドラ表示牌など全員に見えるものだけから出す＝どの端末でも同じ点数になる */
 export type RoundResult =
   | { type: 'tsumo'; seat: Seat; winTile: TileId; ura: TileId[]; score: ScoreResult }
+  /** ロンアガリ。from＝切った人／wins＝アガった人（切った人から見て下家・対面・上家の順。2 人以上はダブロン・3 人アガリ） */
+  | { type: 'ron'; from: Seat; winTile: TileId; wins: RonWin[] }
   /** 流局。tenpai＝席ごとの宣言／payments＝席ごとの点の動き（受け取りが＋、払いが−。合計 0） */
-  | { type: 'exhaust'; tenpai: boolean[]; payments: number[] };
+  | { type: 'exhaust'; tenpai: boolean[]; payments: number[] }
+  /** 3 人が同じ牌でロンして、ルールで流局になった（三家和） */
+  | { type: 'tripleRon'; from: Seat; seats: Seat[] };
 
 /** 流局したときにノーテンの人からテンパイの人へ動く点の合計（変えられない決まり） */
 export const NOTEN_PENALTY = 3000;
@@ -67,6 +89,10 @@ export interface GameState {
   missedTurn: boolean[];
   /** 席ごとの、リーチ後の見逃しによるフリテン（局の終わりまで解けない）。立てるのは段階3 */
   missedRiichi: boolean[];
+  /** 切られた牌への返事を集めているところ（phase が claim のときだけ） */
+  claim: Claim | null;
+  /** 席ごとの、手牌を全員に開けたか（ツモ・ロンと言った・流局でテンパイと言った） */
+  opened: boolean[];
   result: RoundResult | null;
 }
 
@@ -89,6 +115,8 @@ export const initialState = (): GameState => ({
   declared: [null, null, null, null],
   missedTurn: [false, false, false, false],
   missedRiichi: [false, false, false, false],
+  claim: null,
+  opened: [false, false, false, false],
   result: null,
 });
 
@@ -141,6 +169,8 @@ export function apply(state: GameState, env: Envelope): GameState {
         declared: [null, null, null, null],
         missedTurn: [false, false, false, false],
         missedRiichi: [false, false, false, false],
+        claim: null,
+        opened: [false, false, false, false],
         result: null,
       };
     }
@@ -204,7 +234,51 @@ export function apply(state: GameState, env: Envelope): GameState {
       // 同じ巡の見逃しは、自分が切ったところで解ける
       const missedTurn = s.missedTurn.slice();
       missedTurn[ev.seat] = false;
-      return { ...s, phase: 'draw', turn: nextSeat(ev.seat), hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn };
+      // ほかの 3 人の返事を待つ（番は切った人のまま。全員見送ったら次の人へ）
+      const replies: Claim['replies'] = [null, null, null, null];
+      replies[ev.seat] = 'self';
+      const claim: Claim = { from: ev.seat, tile: ev.tile, replies, rons: [] };
+      return { ...s, phase: 'claim', hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn, claim };
+    }
+    case 'pass': {
+      const c = s.claim;
+      if (s.phase !== 'claim' || !c) throw new Error('返事をする時ではない');
+      if (c.replies[ev.seat] !== null) throw new Error(`席 ${ev.seat} はもう返事をした（または切った本人）`);
+      // アガれる牌を見送ったら見逃し＝フリテン（役が無くても待ちの牌なら見逃しになる）。
+      // 手牌が見える端末でだけ分かる＝本人の端末と全体の局面でだけ立つ
+      const missedTurn = s.missedTurn.slice();
+      const missedRiichi = s.missedRiichi.slice();
+      const hand = s.hands[ev.seat];
+      if (!hand.includes(HIDDEN) && waitKinds(hand).includes(kindOf(c.tile))) {
+        missedTurn[ev.seat] = true;
+        if (s.riichi[ev.seat] !== 'none') missedRiichi[ev.seat] = true;
+      }
+      const replies = c.replies.slice();
+      replies[ev.seat] = 'pass';
+      return settleClaim({ ...s, missedTurn, missedRiichi, claim: { ...c, replies } });
+    }
+    case 'ron': {
+      const c = s.claim;
+      if (s.phase !== 'claim' || !c) throw new Error('ロンできる時ではない');
+      if (c.replies[ev.seat] !== null) throw new Error(`席 ${ev.seat} はもう返事をした（または切った本人）`);
+      const known = s.hands[ev.seat];
+      if (known.length !== ev.hand.length) throw new Error('開けた手牌の枚数が違う');
+      if (!known.includes(HIDDEN)) {
+        if (!sameTiles(known, ev.hand)) throw new Error('開けた手牌が持っている牌と違う');
+        if (furitenOf(s, ev.seat)?.reasons.length) throw new Error('フリテンなのにロンした');
+      }
+      const uraWant = s.riichi[ev.seat] === 'none' ? 0 : s.doraIndicators.length;
+      if (ev.ura.length !== uraWant) throw new Error(`裏ドラ表示牌の枚数が違う（${ev.ura.length} 枚・正しくは ${uraWant} 枚）`);
+      const score = scoreRon(s, ev.seat, ev.hand, c.tile, ev.ura);
+      if (!score) throw new Error('アガリの形でない、または役が無いのにロンした');
+      const hands = s.hands.map((h) => h.slice());
+      hands[ev.seat] = ev.hand.slice();
+      const replies = c.replies.slice();
+      replies[ev.seat] = 'ron';
+      const rons = [...c.rons, { seat: ev.seat, ura: ev.ura.slice(), score }];
+      const opened = s.opened.slice();
+      opened[ev.seat] = true;
+      return settleClaim({ ...s, hands, opened, claim: { ...c, replies, rons } });
     }
     case 'tsumo': {
       if (s.phase !== 'discard' || ev.seat !== s.turn) throw new Error('ツモアガリできる時ではない');
@@ -221,7 +295,9 @@ export function apply(state: GameState, env: Envelope): GameState {
       const score = scoreTsumo(s, ev.seat, ev.hand, ev.winTile, ev.ura);
       if (!score) throw new Error('アガリの形でない、または役が無いのにツモアガリした');
       hands[ev.seat] = ev.hand.slice();
-      return { ...s, phase: 'ended', hands, result: { type: 'tsumo', seat: ev.seat, winTile: ev.winTile, ura: ev.ura.slice(), score } };
+      const opened = s.opened.slice();
+      opened[ev.seat] = true;
+      return { ...s, phase: 'ended', hands, opened, result: { type: 'tsumo', seat: ev.seat, winTile: ev.winTile, ura: ev.ura.slice(), score } };
     }
     case 'exhaust': {
       if (s.phase !== 'draw' || liveWallLeft(s) > 0) throw new Error('山が残っているのに流局した');
@@ -246,16 +322,41 @@ export function apply(state: GameState, env: Envelope): GameState {
         }
       }
       const hands = s.hands.map((h) => h.slice());
-      if (ev.hand) hands[ev.seat] = ev.hand.slice();
+      const opened = s.opened.slice();
+      if (ev.hand) {
+        hands[ev.seat] = ev.hand.slice();
+        opened[ev.seat] = true;
+      }
       const declared = s.declared.slice();
       declared[ev.seat] = ev.tenpai;
       if (declared.every((d) => d !== null)) {
         const tenpai = declared as boolean[];
-        return { ...s, hands, declared, phase: 'ended', result: { type: 'exhaust', tenpai, payments: notenPayments(tenpai) } };
+        return { ...s, hands, opened, declared, phase: 'ended', result: { type: 'exhaust', tenpai, payments: notenPayments(tenpai) } };
       }
-      return { ...s, hands, declared, turn: nextSeat(ev.seat) };
+      return { ...s, hands, opened, declared, turn: nextSeat(ev.seat) };
     }
   }
+}
+
+/**
+ * 返事がそろったら局を進める。全員見送り＝次の人のツモへ。ロンがあれば、同時ロンの決まり（ルールの値）で結果を出す。
+ * 2 人＝double（ダブロン＝2 人ともアガる／頭ハネ＝切った人の下家に近い 1 人）、3 人＝triple（流局／3 人とも／頭ハネ）
+ */
+function settleClaim(s: GameState): GameState {
+  const c = s.claim!;
+  if (c.replies.some((r) => r === null)) return s;
+  if (c.rons.length === 0) return { ...s, phase: 'draw', turn: nextSeat(c.from), claim: null };
+  // 切った人の下家から順に並べる（頭ハネで先に来る人が先頭）
+  const order = (seat: Seat) => (seat - c.from + 4) % 4;
+  const rons = c.rons.slice().sort((a, b) => order(a.seat) - order(b.seat));
+  const v = s.rules?.family === 'jp' ? s.rules.values : null;
+  let wins = rons;
+  if (rons.length === 2 && v?.double === 'atama') wins = rons.slice(0, 1);
+  if (rons.length === 3) {
+    if (v?.triple === 'ryukyoku') return { ...s, phase: 'ended', claim: null, result: { type: 'tripleRon', from: c.from, seats: rons.map((r) => r.seat) } };
+    if (v?.triple === 'atama') wins = rons.slice(0, 1);
+  }
+  return { ...s, phase: 'ended', claim: null, result: { type: 'ron', from: c.from, winTile: c.tile, wins } };
 }
 
 /** 自風（27＝東 … 30＝北）。親が東 */
@@ -287,6 +388,33 @@ export function scoreTsumo(s: GameState, seat: Seat, hand: readonly TileId[], wi
       rules: s.rules,
     },
     tiles: hand,
+    indicators: s.doraIndicators,
+    ura,
+    dealer: seat === s.dealer,
+  });
+}
+
+/**
+ * ロンアガリしたときの点数（切られた牌に返事をしている局面で呼ぶ）。hand は 13 枚、winTile は切られた牌。役が無ければ null
+ */
+export function scoreRon(s: GameState, seat: Seat, hand: readonly TileId[], winTile: TileId, ura: readonly TileId[] = []): ScoreResult | null {
+  if (!s.rules || s.rules.family !== 'jp') return null;
+  const tiles = [...hand, winTile];
+  return scoreWin({
+    ctx: {
+      concealed: kindCounts(tiles),
+      melds: [],
+      winTile: kindOf(winTile),
+      tsumo: false,
+      seatWind: seatWindOf(s, seat),
+      roundWind: roundWindOf(s),
+      houtei: liveWallLeft(s) === 0,
+      riichi: s.riichi[seat],
+      ippatsu: s.ippatsu[seat],
+      // 人和（ルールの jinho）は段階3の途中で足す
+      rules: s.rules,
+    },
+    tiles,
     indicators: s.doraIndicators,
     ura,
     dealer: seat === s.dealer,

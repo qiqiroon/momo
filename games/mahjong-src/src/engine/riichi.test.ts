@@ -30,6 +30,13 @@ class Table {
   s: GameState = initialState();
   push(ev: GameEvent, to: Envelope['to'] = 'all') {
     this.s = apply(this.s, { seq: this.s.nextSeq, to, ev });
+    // 切られた牌には、ほかの 3 人とも見送る（返事そのものの検査は ron.test.ts）
+    if (ev.type === 'discard') {
+      for (const d of [1, 2, 3]) {
+        const seat = ((ev.seat + d) % 4) as Seat;
+        this.s = apply(this.s, { seq: this.s.nextSeq, to: 'all', ev: { type: 'pass', seat } });
+      }
+    }
   }
 }
 

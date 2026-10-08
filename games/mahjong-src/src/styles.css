@@ -352,18 +352,33 @@ body.in-game .site-header .subtitle {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);
+  /* --dx・--dy＝つかんで動かした量（DraggableDialog） */
+  transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px)));
   z-index: 20;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
   padding: 20px 24px;
-  background: rgba(10, 10, 10, 0.9);
+  /* 少し透かして、後ろの卓が見えるように（2026-10-08 利用者指示で 0.9 → 0.75） */
+  background: rgba(10, 10, 10, 0.75);
   border: 1px solid var(--orange);
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
   max-width: calc(100% - 24px);
+}
+
+/* つかんで動かせる枠：どこでもつかめる（指で動かしても画面が流れないように touch-action を止める）。
+   縦に長いとき（ダブロン・3 人アガリ）は、動かして見えていない所を出す */
+.draggable {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.draggable.dragging {
+  cursor: grabbing;
 }
 
 .result-title {

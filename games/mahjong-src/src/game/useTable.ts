@@ -56,8 +56,36 @@ export function useTable() {
     dispatch({ type: 'push', envs: [first, ...startRound(afterStart, newSeed(), 0, 0)] });
   }, []);
 
-  // 自動で進むところ：ツモ（人間の番はすぐ・CPU の番は少し間を置く）と CPU の打牌
+  // 自動で進むところ：ツモ（人間の番はすぐ・CPU の番は少し間を置く）と CPU の打牌・切られた牌への返事
   useEffect(() => {
+    // 切られた牌への返事：CPU は自分の見える局面で決める。人間はロンできるときだけ止まって押すのを待つ（制限時間なし）、
+    // できないときは自動で見送る。返事は下家から順にまとめて出す（ロンが無ければ待たずに次のツモへ）
+    if (full.phase === 'claim' && full.claim) {
+      const from = full.claim.from;
+      let next = full;
+      const envs: Envelope[] = [];
+      let cpuRon = false;
+      for (const d of [1, 2, 3]) {
+        const seat = ((from + d) % 4) as Seat;
+        if (next.claim?.replies[seat] !== null) continue;
+        let a: Action;
+        if (seat === HUMAN) {
+          const options = legalActions(next, HUMAN);
+          if (options.length !== 1) continue;
+          a = options[0];
+        } else {
+          const cpuView = [...s.log, ...envs].reduce((st, e) => apply(st, mask(e, seat)), initialState());
+          a = tsumogiriCpu(cpuView, seat);
+          if (a.type === 'ron') cpuRon = true;
+        }
+        const out = act(next, seat, a);
+        for (const e of out) next = apply(next, e);
+        envs.push(...out);
+      }
+      if (envs.length === 0) return undefined;
+      const id = setTimeout(() => dispatch({ type: 'push', envs }), cpuRon ? CPU_DELAY : 0);
+      return () => clearTimeout(id);
+    }
     if (full.phase === 'deal' || full.phase === 'draw') {
       const wait = full.turn === HUMAN || full.phase === 'deal' ? 0 : CPU_DELAY / 2;
       const id = setTimeout(() => dispatch({ type: 'push', envs: advance(full) }), wait);
@@ -82,7 +110,8 @@ export function useTable() {
 
   const choose = useCallback(
     (a: Action) => {
-      if ((full.phase !== 'discard' && full.phase !== 'declare') || full.turn !== HUMAN) return;
+      const replying = full.phase === 'claim' && full.claim?.replies[HUMAN] === null;
+      if (!replying && ((full.phase !== 'discard' && full.phase !== 'declare') || full.turn !== HUMAN)) return;
       dispatch({ type: 'push', envs: act(full, HUMAN, a) });
     },
     [full],

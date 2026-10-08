@@ -103,6 +103,7 @@ describe('見張り役（ツモと打牌）', () => {
   it('山の順番を飛ばしてツモると気づく', () => {
     const w = dealtWatcher('skip');
     w.push(act(w.full, 0, { type: 'discard', tile: w.full.hands[0][0] })[0]);
+    for (const seat of [1, 2, 3] as const) w.push(act(w.full, seat, { type: 'pass' })[0]);
     const right = advance(w.full)[0];
     if (right.ev.type !== 'draw') throw new Error('ツモのはず');
     const skipped = { ...right, ev: { ...right.ev, tile: w.full.wall![w.full.wall!.length - w.full.wallLeft + 1] } };
@@ -146,12 +147,12 @@ describe('見張り役（ツモと打牌）', () => {
 });
 
 describe('自動対局の台', () => {
-  it('ツモ切りだけの 1 局は必ず流局まで行き、出来事は 165 件（始まり3＋配牌16回＋ドラ表示1＋ツモ70＋打牌70＋流局1＋宣言4）', () => {
+  it('ツモ切りだけの 1 局は必ず流局まで行き、出来事は 375 件（始まり3＋配牌16回＋ドラ表示1＋ツモ70＋打牌70＋見送り210＋流局1＋宣言4）', () => {
     // 136 枚−配牌 52−王牌 14＝ツモは 70 回
     const r = playOne('count', GENERAL_RULES, tsumogiriCpu);
     expect(r.failure).toBeNull();
     expect(r.ending).toBe('exhaust');
-    expect(r.events).toBe(165);
+    expect(r.events).toBe(375);
   });
 
   it('100局回して失敗0件・ツモアガリと流局の両方の道を通る', () => {

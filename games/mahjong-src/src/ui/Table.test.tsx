@@ -131,6 +131,7 @@ describe('流局の宣言と結果（段階2）', () => {
   function exhaustView() {
     let s = riichiView();
     s = apply(s, { seq: s.nextSeq, to: 'all', ev: { type: 'discard', seat: 0, tile: 29 * 4 + 3, tsumogiri: true } });
+    for (const seat of [1, 2, 3] as const) s = apply(s, { seq: s.nextSeq, to: 'all', ev: { type: 'pass', seat } });
     s = { ...s, wallLeft: 14 }; // 山を尽きさせる
     return apply(s, { seq: s.nextSeq, to: 'all', ev: { type: 'exhaust' } });
   }
@@ -156,5 +157,60 @@ describe('流局の宣言と結果（段階2）', () => {
     // テンパイの 3 人だけ手牌を開ける（名前の行の下に 1 行ずつ）
     expect(document.querySelectorAll('.exhaust-hand-row')).toHaveLength(3);
     expect(document.querySelectorAll('.exhaust-hand-row .tile')).toHaveLength(39);
+  });
+});
+
+describe('ロン（段階3）', () => {
+  /** 席 0（あなた・親）が 2p・5s のシャンポン待ち（タンヤオ）。一巡して席 3 が 5s を切ったところ */
+  function ronView() {
+    let s = initialState();
+    const push = (ev: GameEvent, to: Envelope['to'] = 'all') => (s = apply(s, { seq: s.nextSeq, to, ev }));
+    const used = new Map<number, number>();
+    const tiles = (str: string) =>
+      [...str.matchAll(/(\d)([mpsz])/g)].map(([, d, suit]) => {
+        const kind = { m: 0, p: 9, s: 18, z: 27 }[suit as 'm'] + Number(d) - 1;
+        const n = used.get(kind) ?? 0;
+        used.set(kind, n + 1);
+        return kind * 4 + 3 - n;
+      });
+    push({ type: 'gameStart', rules: GENERAL_RULES });
+    push({ type: 'roundStart', roundIndex: 0, dealer: 0 });
+    push({ type: 'deal', seat: 0, tiles: tiles('2m3m4m4p5p6p6s7s8s2p2p5s5s') }, [0]);
+    push({ type: 'deal', seat: 1, tiles: tiles('1m1m1m9m9m9m1p1p1p9p9p9p1z') }, [1]);
+    push({ type: 'deal', seat: 2, tiles: tiles('2z2z3z3z4z4z6z6z1s1s9s9s7z') }, [2]);
+    push({ type: 'deal', seat: 3, tiles: tiles('1m2m7m7m8p8p3s3s5z5z6z1z9m') }, [3]);
+    push({ type: 'doraReveal', tile: tiles('8s')[0] });
+    const round = (seat: 0 | 1 | 2 | 3, t: string) => {
+      const tile = tiles(t)[0];
+      push({ type: 'draw', seat, tile }, [seat]);
+      push({ type: 'discard', seat, tile, tsumogiri: true });
+      if (seat !== 3) for (const d of [1, 2, 3]) push({ type: 'pass', seat: ((seat + d) % 4) as 0 | 1 | 2 | 3 });
+    };
+    round(0, '7z');
+    round(1, '5z');
+    round(2, '4z');
+    round(3, '5s');
+    return s;
+  }
+
+  it('ロンできるときだけ「ロン」「見送る」が出て、押すとその返事を選ぶ', () => {
+    const view = ronView();
+    const chosen: Action[] = [];
+    render(<Table view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onAgain={() => {}} />);
+    expect(screen.getByText('切られた牌でアガれます。ロンしますか？')).toBeInTheDocument();
+    fireEvent.click(document.querySelector('.btn-ron')!);
+    fireEvent.click(document.querySelector('.btn-pass')!);
+    expect(chosen).toEqual([{ type: 'ron' }, { type: 'pass' }]);
+  });
+
+  it('ロンの結果に、誰から・役・点数が出る（親の 40 符 1 翻＝2000 点）', () => {
+    let view = ronView();
+    for (const ev of [{ type: 'ron', seat: 0, hand: view.hands[0].slice(), ura: [] }, { type: 'pass', seat: 1 }, { type: 'pass', seat: 2 }] as GameEvent[]) {
+      view = apply(view, { seq: view.nextSeq, to: 'all', ev });
+    }
+    render(<Table view={view} legal={[]} lang="ja" onChoose={() => {}} onAgain={() => {}} />);
+    expect(screen.getByText('あなたのロンアガリ（CPU 3から）')).toBeInTheDocument();
+    expect(screen.getByText('断么九')).toBeInTheDocument();
+    expect(screen.getByText('2000点')).toBeInTheDocument();
   });
 });

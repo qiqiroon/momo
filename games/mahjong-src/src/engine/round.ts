@@ -1,8 +1,9 @@
 // 局を始める側（一人用ではその端末、オンラインでは段階5で決める配り役）が出す出来事を作る。
 // ここは山の並びを知っている側だけが呼ぶ。作った出来事は列に積み、局面は state.ts の apply で作る。
 
-import { SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
-import { liveWallLeft, RIICHI_MIN_WALL, scoreTsumo, type GameState } from './state';
+import { HIDDEN, SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
+import { furitenOf } from './furiten';
+import { liveWallLeft, RIICHI_MIN_WALL, scoreRon, scoreTsumo, type GameState } from './state';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { waitKinds } from './agari';
 import { createRng, shuffle } from './rng';
@@ -61,7 +62,20 @@ export type Action =
   | { type: 'tsumo' }
   /** 流局したときの宣言 */
   | { type: 'tenpai' }
-  | { type: 'noten' };
+  | { type: 'noten' }
+  /** 切られた牌への返事 */
+  | { type: 'pass' }
+  | { type: 'ron' };
+
+/** 切られた牌でロンできるか（手牌が見えている本人の局面で決まる）。フリテン・役なしはできない */
+export function canRon(view: GameState, seat: Seat): boolean {
+  const c = view.claim;
+  if (view.phase !== 'claim' || !c || c.replies[seat] !== null) return false;
+  const hand = view.hands[seat];
+  if (hand.includes(HIDDEN)) return false;
+  if (furitenOf(view, seat)?.reasons.length) return false;
+  return scoreRon(view, seat, hand, c.tile) !== null;
+}
 
 /** リーチを宣言して切れる牌（切ったあとテンパイになる牌）。リーチできないときは空 */
 export function riichiTiles(view: GameState, seat: Seat): TileId[] {
@@ -87,6 +101,10 @@ export function riichiTiles(view: GameState, seat: Seat): TileId[] {
 /** その席がいま選べること（その席から見える局面だけで決まる＝画面と CPU が使う） */
 export function legalActions(view: GameState, seat: Seat): Action[] {
   if (view.phase === 'declare' && view.turn === seat) return declareOptions(view, seat);
+  if (view.phase === 'claim') {
+    if (view.claim?.replies[seat] !== null) return [];
+    return canRon(view, seat) ? [{ type: 'ron' }, { type: 'pass' }] : [{ type: 'pass' }];
+  }
   if (view.phase !== 'discard' || view.turn !== seat) return [];
   const hand = view.hands[seat];
   const out: Action[] = [];
@@ -133,9 +151,19 @@ export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
     const tenpai = action.type === 'tenpai';
     return [{ seq: full.nextSeq, to: 'all', ev: { type: 'declare', seat, tenpai, hand: tenpai ? full.hands[seat].slice() : null } }];
   }
+  const at = envelopeAt(full);
+  if (full.phase === 'claim') {
+    if (full.claim?.replies[seat] !== null) throw new Error(`席 ${seat} は返事をする人ではない（または返事をした）`);
+    if (action.type === 'pass') return [at('all', { type: 'pass', seat })];
+    if (action.type !== 'ron') throw new Error(`いまは返事しかできない（${action.type}）`);
+    if (!canRon(full, seat)) throw new Error('ロンできない（アガリの形でない・役が無い・フリテン）');
+    if (!full.wall) throw new Error('山の並びを知らない端末は進行役になれない');
+    const wall = full.wall;
+    const ura = full.riichi[seat] === 'none' ? [] : full.doraIndicators.map((_, i) => uraIndicatorAt(wall, i));
+    return [at('all', { type: 'ron', seat, hand: full.hands[seat].slice(), ura })];
+  }
   if (full.phase !== 'discard' || full.turn !== seat) throw new Error(`席 ${seat} の番ではない`);
   const hand = full.hands[seat];
-  const at = envelopeAt(full);
   switch (action.type) {
     case 'discard':
       if (!hand.includes(action.tile)) throw new Error(`持っていない牌は切れない（背番号 ${action.tile}）`);

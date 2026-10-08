@@ -917,6 +917,12 @@ body.in-game .site-header .subtitle {
   font-variant-numeric: tabular-nums;
 }
 
+/* 正方形の卓の真ん中では小さく（局の名前より目立たせない） */
+.center-box .sticks {
+  font-size: 0.72em;
+  opacity: 0.85;
+}
+
 .points-list {
   margin: 8px auto;
   border-collapse: collapse;
@@ -971,4 +977,65 @@ body.in-game .site-header .subtitle {
 
 .final-rank-1 .final-total {
   color: var(--accent, #f97316);
+}
+
+/* ---- 牌譜（段階4） ---- */
+
+.title-block.to-top {
+  cursor: pointer;
+}
+
+.kifu-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.kifu-row,
+.game-over-actions,
+.replay-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.save-note {
+  text-align: center;
+  word-break: break-all;
+}
+
+.replay {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.replay-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px 10px;
+}
+
+.replay-pos {
+  font-variant-numeric: tabular-nums;
+  min-width: 7em;
+  text-align: center;
+}
+
+.lane-hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  --tw: 20px;
+  margin: 2px 0 4px;
+}
+
+/* 再生：ほかの人の手牌の列が入るぶん、各列は中身の高さまで伸ばす（重ならないように） */
+.replay .lane {
+  flex: 1 0 auto;
 }

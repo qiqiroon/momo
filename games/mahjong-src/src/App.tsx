@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import type { Envelope } from './engine/events';
 import { useTable } from './game/useTable';
+import { buildKifu, kifuFileName, parseKifu, type Kifu, type KifuSource } from './kifu/kifu';
+import { downloadText, loadLastGame, saveToDrive } from './kifu/store';
+import { Replay } from './ui/Replay';
 import { LANG_MODES, baseOf, changeMode, currentMode, initLang, translate, type LangMode, type MessageKey } from './i18n/strings';
 import { Table } from './ui/Table';
 import { useLayout } from './ui/useLayout';
@@ -12,15 +16,73 @@ const GEAR =
 export function App() {
   const [lang, setLang] = useState(initLang);
   const [mode, setMode] = useState<LangMode>(currentMode);
-  const { view, legal, start, next, choose, started } = useTable();
+  const { view, legal, start, next, choose, quit, source, started } = useTable();
   const { layout, canSwitch, toggle } = useLayout();
-  const t = (k: MessageKey) => translate(lang, k);
+  const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
+  /** 再生している牌譜の出来事の列（再生していなければ null） */
+  const [replaying, setReplaying] = useState<readonly Envelope[] | null>(null);
+  /** トップ画面で覚えている最後の対局（トップへ戻るたびに読み直す） */
+  const [last, setLast] = useState<KifuSource | null>(() => loadLastGame());
+  /** 保存・読み込みの結果の一言 */
+  const [note, setNote] = useState('');
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  /** 牌譜を作る（名前は保存するときの表示の言葉で入れる） */
+  const kifuOf = (src: KifuSource): Kifu =>
+    buildKifu({ ...src, players: [0, 1, 2, 3].map((seat) => ({ name: seat === 0 ? t('you') : t('cpu', { n: seat }), kind: seat === 0 ? 'human' : 'cpu' })) }, APP_VERSION);
+  /** ファイルの文字：上の項目は字下げ、出来事の列は 1 行に 1 つ */
+  const kifuText = (k: Kifu) =>
+    JSON.stringify({ ...k, events: '__EVENTS__' }, null, 2).replace('"__EVENTS__"', () => `[\n${k.events.map((e) => `    ${JSON.stringify(e)}`).join(',\n')}\n  ]`);
+  const saveFile = (src: KifuSource) => {
+    const k = kifuOf(src);
+    const name = kifuFileName(k);
+    downloadText(name, kifuText(k));
+    setNote(t('savedFile', { name }));
+  };
+  const saveDrive = async (src: KifuSource) => {
+    const k = kifuOf(src);
+    try {
+      const name = await saveToDrive(kifuFileName(k), kifuText(k));
+      setNote(t('savedDrive', { name }));
+    } catch (e) {
+      setNote(t('saveFailed', { why: (e as Error).message }));
+    }
+  };
+  const toTop = () => {
+    quit();
+    setReplaying(null);
+    setLast(loadLastGame());
+    setNote('');
+  };
+  /** 見出しのアプリ名：対局の途中なら確かめてからトップへ */
+  const onTitle = () => {
+    if (replaying) return toTop();
+    if (!started) return;
+    if (view.phase !== 'gameover' && !window.confirm(t('quitConfirm'))) return;
+    toTop();
+  };
+  const openFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      setReplaying(parseKifu(await f.text()).events);
+      setNote('');
+    } catch (err) {
+      setNote(t('kifuBad', { why: (err as Error).message }));
+    }
+  };
+  const startGame = () => {
+    setNote('');
+    start();
+  };
 
   useEffect(() => {
-    document.body.classList.toggle('in-game', started);
+    // 再生中も対局中と同じ見出しの形（小さく）にする
+    document.body.classList.toggle('in-game', started || replaying !== null);
     const base = baseOf(lang);
     document.documentElement.lang = base === 'zh' ? 'zh-CN' : base;
-  }, [started, lang]);
+  }, [started, replaying, lang]);
 
   const onLang = (m: LangMode) => {
     setMode(m);
@@ -31,7 +93,7 @@ export function App() {
     <>
       <header className="site-header">
         <img className="cat-icon" src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" />
-        <div className="title-block">
+        <div className={`title-block${started || replaying ? ' to-top' : ''}`} onClick={onTitle} role={started || replaying ? 'button' : undefined} title={started || replaying ? t('toTop') : undefined}>
           <h1>
             <span className="momo">MOMO</span>
             <span className="mahjong">Mahjong</span>
@@ -61,16 +123,53 @@ export function App() {
           </select>
         </div>
       </header>
-      {started ? (
+      {replaying ? (
         <main className="game">
-          <Table narrow={layout === 'lanes'} view={view} legal={legal} lang={lang} onChoose={choose} onNext={next} onNewGame={start} />
+          <Replay events={replaying} narrow={layout === 'lanes'} lang={lang} onExit={toTop} />
+        </main>
+      ) : started ? (
+        <main className="game">
+          <Table
+            narrow={layout === 'lanes'}
+            view={view}
+            legal={legal}
+            lang={lang}
+            onChoose={choose}
+            onNext={next}
+            onNewGame={startGame}
+            onTop={toTop}
+            onSaveFile={() => saveFile(source)}
+            onSaveDrive={() => void saveDrive(source)}
+            saveNote={note}
+          />
         </main>
       ) : (
         <main className="title">
           <p className="trial">{t('trial')}</p>
-          <button type="button" className="btn-primary btn-start" onClick={start}>
+          <button type="button" className="btn-primary btn-start" onClick={startGame}>
             {t('start')}
           </button>
+          {/* 牌譜：最後の対局（覚えているときだけ）と、ファイルを選んで再生 */}
+          <div className="kifu-menu">
+            {last && (
+              <div className="kifu-row">
+                <button type="button" className="btn-primary btn-replay-last" onClick={() => setReplaying(last.events)}>
+                  {t('replayLastGame')}
+                </button>
+                <button type="button" className="btn-primary btn-save-file" onClick={() => saveFile(last)}>
+                  {t('saveFile')}
+                </button>
+                <button type="button" className="btn-primary btn-save-drive" onClick={() => void saveDrive(last)}>
+                  {t('saveDrive')}
+                </button>
+              </div>
+            )}
+            <button type="button" className="btn-primary btn-replay-file" onClick={() => fileInput.current?.click()}>
+              {t('replayFromFile')}
+            </button>
+            <input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={(e) => void openFile(e)} />
+            {note && <p className="hint save-note">{note}</p>}
+          </div>
         </main>
       )}
     </>

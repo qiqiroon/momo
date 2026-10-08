@@ -10,6 +10,8 @@ import { nextStep } from '../engine/game';
 import { act, advance, legalActions, nextHand, startRound, type Action } from '../engine/round';
 import { GENERAL_RULES } from '../engine/rules';
 import { apply, initialState, type GameState } from '../engine/state';
+import { isoLocal, type KifuSource } from '../kifu/kifu';
+import { saveLastGame } from '../kifu/store';
 
 export const HUMAN: Seat = 0;
 /** CPU が考えているように見せる間（ミリ秒） */
@@ -18,12 +20,14 @@ const CPU_DELAY = 420;
 interface TableState {
   /** 対局の種（局ごとの山の種はここから作る） */
   seed: string;
+  /** 対局を始めた日時（牌譜のファイル名と記録に使う） */
+  startedAt: string;
   log: Envelope[];
   full: GameState;
   view: GameState;
 }
 
-const empty = (seed = ''): TableState => ({ seed, log: [], full: initialState(), view: initialState() });
+const empty = (seed = '', startedAt = ''): TableState => ({ seed, startedAt, log: [], full: initialState(), view: initialState() });
 
 function pushAll(s: TableState, envs: readonly Envelope[]): TableState {
   // 古い局面から作った出来事（二重に届いたもの）は捨てる
@@ -33,14 +37,21 @@ function pushAll(s: TableState, envs: readonly Envelope[]): TableState {
     full = apply(full, e);
     view = apply(view, mask(e, HUMAN));
   }
-  return { seed: s.seed, log: [...s.log, ...envs], full, view };
+  return { seed: s.seed, startedAt: s.startedAt, log: [...s.log, ...envs], full, view };
 }
 
-type Msg = { type: 'reset'; seed: string } | { type: 'push'; envs: Envelope[] };
+type Msg = { type: 'reset'; seed: string; startedAt: string } | { type: 'push'; envs: Envelope[] } | { type: 'clear' };
 
 function reducer(s: TableState, m: Msg): TableState {
-  return m.type === 'reset' ? empty(m.seed) : pushAll(s, m.envs);
+  if (m.type === 'clear') return empty();
+  return m.type === 'reset' ? empty(m.seed, m.startedAt) : pushAll(s, m.envs);
 }
+
+/** 最後の対局として端末に覚える形（名前は保存するときの表示の言葉で入れる） */
+const sourceOf = (s: TableState): KifuSource => ({ seed: s.seed, startedAt: s.startedAt, players: [], set: 'general', events: s.log });
+
+/** 端末に書く間隔（出来事のたびに全部を書くと重いので、まとめて書く） */
+const SAVE_DELAY = 800;
 
 function newSeed(): string {
   const a = new Uint32Array(2);
@@ -56,9 +67,26 @@ export function useTable() {
     const first: Envelope = { seq: 0, to: 'all', ev: { type: 'gameStart', rules: GENERAL_RULES } };
     const afterStart = apply(initialState(), first);
     const seed = newSeed();
-    dispatch({ type: 'reset', seed });
+    dispatch({ type: 'reset', seed, startedAt: isoLocal(new Date()) });
     dispatch({ type: 'push', envs: [first, ...startRound(afterStart, seed, 0, 0)] });
   }, []);
+
+  // 最後の対局を端末に覚える（少し待ってまとめて書く。対局が終わったらすぐ書く）
+  useEffect(() => {
+    if (s.log.length === 0) return undefined;
+    if (s.full.phase === 'gameover') {
+      saveLastGame(sourceOf(s));
+      return undefined;
+    }
+    const id = setTimeout(() => saveLastGame(sourceOf(s)), SAVE_DELAY);
+    return () => clearTimeout(id);
+  }, [s]);
+
+  /** トップへ戻る（対局は最後の対局として覚えたまま） */
+  const quit = useCallback(() => {
+    if (s.log.length > 0) saveLastGame(sourceOf(s));
+    dispatch({ type: 'clear' });
+  }, [s]);
 
   // 局が終わったあと「次の局へ」：次の局を配る（オーラスでやめるか選ぶ番なら、親が選ぶまで何もしない）
   const next = useCallback(() => {
@@ -138,5 +166,5 @@ export function useTable() {
     [full],
   );
 
-  return { view, legal: legalActions(view, HUMAN), start, next, choose, started: s.log.length > 0 };
+  return { view, legal: legalActions(view, HUMAN), start, next, choose, quit, source: sourceOf(s), started: s.log.length > 0 };
 }

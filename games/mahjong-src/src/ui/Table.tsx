@@ -29,6 +29,14 @@ interface Props {
   onNext: () => void;
   /** 新しい対局（対局が終わったとき） */
   onNewGame: () => void;
+  /** 牌譜の再生（全員の手牌を表向きにし、進めるボタンは出さない） */
+  replay?: boolean;
+  /** 対局が終わったとき：トップへ・ファイルに保存・Google ドライブに保存 */
+  onTop?: () => void;
+  onSaveFile?: () => void;
+  onSaveDrive?: () => void;
+  /** 保存の結果の一言（保存しました・できませんでした） */
+  saveNote?: string;
 }
 
 /** 自分から見た位置（0＝自分・1＝下家・2＝対面・3＝上家） */
@@ -38,7 +46,7 @@ const seatAt = (rel: number): Seat => ((rel + HUMAN) % 4) as Seat;
 /** 手牌の並べ替え：種類順、同じ種類なら背番号順 */
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kindOf(a) - kindOf(b) || a - b);
 
-export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, replay = false, onTop, onSaveFile, onSaveDrive, saveNote }: Props) {
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
   const windOf = (seat: number) => t(`wind${(seat - view.dealer + 4) % 4}` as MessageKey);
   const nameOf = (seat: number) => (seat === HUMAN ? t('you') : t('cpu', { n: relOf(seat) }));
@@ -260,10 +268,28 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame }
           </tbody>
         </table>
       )}
-      {view.phase === 'gameover' ? (
-        <button type="button" className="btn-primary btn-new-game" onClick={onNewGame}>
-          {t('newGame')}
-        </button>
+      {replay ? null : view.phase === 'gameover' ? (
+        <div className="game-over-actions">
+          <button type="button" className="btn-primary btn-new-game" onClick={onNewGame}>
+            {t('newGame')}
+          </button>
+          {onSaveFile && (
+            <button type="button" className="btn-primary btn-save-file" onClick={onSaveFile}>
+              {t('saveFile')}
+            </button>
+          )}
+          {onSaveDrive && (
+            <button type="button" className="btn-primary btn-save-drive" onClick={onSaveDrive}>
+              {t('saveDrive')}
+            </button>
+          )}
+          {onTop && (
+            <button type="button" className="btn-primary btn-top" onClick={onTop}>
+              {t('toTop')}
+            </button>
+          )}
+          {saveNote && <p className="hint save-note">{saveNote}</p>}
+        </div>
       ) : yameMine.length > 0 ? (
         <div className="yame-choice">
           <p className="hint">{t('yameHint')}</p>
@@ -311,6 +337,14 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame }
                   )}
                   {seat !== HUMAN && meldsOf(seat, 'lane-melds')}
                 </div>
+                {/* 牌譜の再生：ほかの人の手牌も表向きで並べる */}
+                {replay && seat !== HUMAN && (
+                  <div className="lane-hand">
+                    {sortTiles(view.hands[seat]).map((id) => (
+                      <Tile key={id} id={id} rules={view.rules} className="mini" />
+                    ))}
+                  </div>
+                )}
                 {river(seat)}
               </section>
             );

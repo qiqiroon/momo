@@ -29,6 +29,9 @@ export function benchCpu(view: GameState, seat: Seat): Action {
   // 途中流局の道を検査に乗せるため：九種九牌で流せるなら流す
   const kyushu = legal.find((a) => a.type === 'kyushu');
   if (kyushu) return kyushu;
+  // 検査用：オーラスでトップの親は続ける（続ける道を検査に乗せるため。画面の CPU はやめる）
+  const go = legal.find((a) => a.type === 'yame' && !a.stop);
+  if (go) return go;
   const noten = legal.find((a) => a.type === 'noten');
   if (noten) return noten;
   // カンの道を検査に乗らせるため：暗槓・加槓はできるときはする（リーチのあとの暗槓も）。大明槓は字牌か、鳴いたあとならする

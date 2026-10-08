@@ -8,7 +8,8 @@ import { benchCpu } from '../cpu/bench';
 import { tsumogiriCpu } from '../cpu/tsumogiri';
 import type { Envelope, Seat } from '../engine/events';
 import { Watcher } from '../engine/invariants';
-import { act, advance, startRound } from '../engine/round';
+import { nextStep } from '../engine/game';
+import { act, advance, nextHand, startRound } from '../engine/round';
 import { GENERAL_RULES, type Rules } from '../engine/rules';
 import type { GameState, OpenMeld, RoundResult } from '../engine/state';
 import { kindOf } from '../engine/tiles';
@@ -27,6 +28,8 @@ type Failure = SelfplayResult['failures'][number];
 
 /** 1 局を最後まで回しても終わらないときの打ち切り（ツモは山の数より多くならない。打牌のたびに 3 人の返事が付く） */
 const MAX_EVENTS = 2000;
+/** 1 対局の局の数の上限（連荘が続いても普通はこれより少ない。超えたら止まったものとして失敗にする） */
+const MAX_HANDS = 120;
 
 /** 1対局（いまは 1 局）を回す。出来事の列も返す（牌譜の土台・失敗の再現用） */
 export type Player = typeof tsumogiriCpu;
@@ -35,6 +38,8 @@ export function playOne(
   seed: string,
   rules: Rules = GENERAL_RULES,
   player: Player = tsumogiriCpu,
+  /** true＝対局の終わりまで続けて打つ（局の進め方・半荘の完走を見る） */
+  wholeGame = false,
 ): { events: number; missed: boolean; kuikaeBanned: number; final: GameState; clashes: { won: string; chi: boolean }[]; finalMelds: OpenMeld[][]; log: Envelope[]; ending: keyof SelfplayResult['endings']; result: RoundResult | null; failure: Failure | null } {
   const w = new Watcher();
   const seedNumber = [...seed].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
@@ -80,11 +85,21 @@ export function playOne(
 
   let failure = feed([{ seq: 0, to: 'all', ev: { type: 'gameStart', rules } }]);
   if (!failure) failure = feed(startRound(w.full, seed, 0, 0 as Seat));
-  while (!failure && w.full.phase !== 'ended') {
-    if (w.checked > MAX_EVENTS) return done({ seed, seq: w.full.nextSeq, reasons: ['局が終わらない'] });
+  let hands = 1;
+  while (!failure && w.full.phase !== 'gameover' && (wholeGame || w.full.phase !== 'ended')) {
+    if (w.checked > MAX_EVENTS * hands) return done({ seed, seq: w.full.nextSeq, reasons: ['局が終わらない'] });
+    if (hands > MAX_HANDS) return done({ seed, seq: w.full.nextSeq, reasons: [`対局が ${MAX_HANDS} 局で終わらない`] });
     const s = w.full;
     try {
-      if (s.phase === 'claim') {
+      if (s.phase === 'ended') {
+        // 局の終わり：親がやめるか選ぶ番なら親が選ぶ。そうでなければ次の局か対局の終わり
+        const n = nextStep(s);
+        if (n.type === 'yame') failure = feed(act(s, n.seat, player(w.views[n.seat], n.seat)));
+        else {
+          if (n.type === 'round') hands++;
+          failure = feed(nextHand(s, seed));
+        }
+      } else if (s.phase === 'claim') {
         // 返事がまだの人が、その席から見える局面で返事をする。オンラインでは届く順番が決まらないので、
         // 返事の順番は種と通し番号から決めて毎回変える（順番で結果が変わらないことも見張る）
         const waiting = ([1, 2, 3].map((d) => (s.claim!.from + d) % 4) as Seat[]).filter((x) => s.claim!.replies[x] === null);
@@ -167,4 +182,47 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
     if (r.failure) result.failures.push(r.failure);
   }
   return result;
+}
+
+export interface GameRunResult {
+  games: number;
+  hands: number;
+  maxHands: number;
+  events: number;
+  /** 対局の終わり方（last＝予定どおり・tobi・yame・extension＝延長の終わり・unfinished） */
+  ends: Record<string, number>;
+  /** 通った道：延長に入った対局・連荘した局・親が流れた局・アガリやめ/テンパイやめを選ぶ番になった回数・本場の最大 */
+  paths: { extension: number; renchan: number; rotated: number; yameAsked: number; maxHonba: number; tobiSeats: number };
+  failures: { seed: string; seq: number; reasons: string[] }[];
+}
+
+/** 対局（半荘など）を終わりまで回す。打ち手は種の番号で交互に替える */
+export function runGames(games: number, seedPrefix = 'game', rules: Rules = GENERAL_RULES): GameRunResult {
+  const out: GameRunResult = { games: 0, hands: 0, maxHands: 0, events: 0, ends: {}, paths: { extension: 0, renchan: 0, rotated: 0, yameAsked: 0, maxHonba: 0, tobiSeats: 0 }, failures: [] };
+  const lastRound = rules.family === 'jp' && rules.values.length === 'east' ? 3 : 7;
+  for (let i = 0; i < games; i++) {
+    const r = playOne(`${seedPrefix}-${i}`, rules, i % 2 === 0 ? tsumogiriCpu : benchCpu, true);
+    out.games++;
+    out.events += r.events;
+    const starts = r.log.filter((e) => e.ev.type === 'roundStart');
+    out.hands += starts.length;
+    out.maxHands = Math.max(out.maxHands, starts.length);
+    const end = r.log.find((e) => e.ev.type === 'gameEnd');
+    const reason = end && end.ev.type === 'gameEnd' ? end.ev.reason : 'unfinished';
+    out.ends[reason] = (out.ends[reason] ?? 0) + 1;
+    if (starts.some((e) => e.ev.type === 'roundStart' && e.ev.roundIndex > lastRound)) out.paths.extension++;
+    for (let j = 1; j < starts.length; j++) {
+      const a = starts[j - 1].ev;
+      const b = starts[j].ev;
+      if (a.type !== 'roundStart' || b.type !== 'roundStart') continue;
+      if (a.dealer === b.dealer) out.paths.renchan++;
+      else out.paths.rotated++;
+      out.paths.maxHonba = Math.max(out.paths.maxHonba, b.honba ?? 0);
+    }
+    if (r.log.some((e) => e.ev.type === 'yame')) out.paths.yameAsked++;
+    if (reason === 'tobi') out.paths.tobiSeats++;
+    if (r.failure) out.failures.push(r.failure);
+    else if (reason === 'unfinished') out.failures.push({ seed: `${seedPrefix}-${i}`, seq: -1, reasons: ['対局の終わりまで行かなかった'] });
+  }
+  return out;
 }

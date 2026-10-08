@@ -4,6 +4,7 @@
 // 出来事には「誰に見えるか」を付ける。見えない人には、中身を伏せた形（HIDDEN）で渡す。
 // 伏せても列から抜かない＝通し番号が飛ばないので、取りこぼしに気づける（仕様書 §9.2）。
 
+import type { GameEndReason } from './game';
 import type { Rules } from './rules';
 import type { TileId } from './tiles';
 
@@ -47,6 +48,10 @@ export type GameEvent =
   | { type: 'kyushu'; seat: Seat; hand: readonly TileId[] }
   /** 山が尽きて流局。全員に見える。このあと親から順にテンパイかノーテンかを宣言する */
   | { type: 'exhaust' }
+  /** オーラスでトップの親が、やめるか（stop）続けるかを選んだ。全員に見える（ルールが「本人が選ぶ」のとき） */
+  | { type: 'yame'; seat: Seat; stop: boolean }
+  /** 対局の終わり。全員に見える。reason は局の進め方（game.ts の nextStep）と同じでなければ止める */
+  | { type: 'gameEnd'; reason: GameEndReason }
   /** 流局したときの宣言。全員に見える。テンパイなら手牌（13 枚）を開ける（ノーテンなら null） */
   | { type: 'declare'; seat: Seat; tenpai: boolean; hand: readonly TileId[] | null };
 

@@ -6,6 +6,7 @@ import { furitenOf } from './furiten';
 import { callProblem, kanProblem, kyushuOk, liveWallLeft, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { waitKinds } from './agari';
+import { nextStep } from './game';
 import { createRng, shuffle } from './rng';
 import { isRed, kindOf, tileSetFor, type TileId } from './tiles';
 
@@ -13,9 +14,9 @@ const HAND_SIZE = 13;
 /** 王牌の枚数（日本式）。嶺上牌は王牌の頭 4 枚（dora.ts の山 0・1） */
 const DEAD_WALL = 14;
 
-/** 対局の種から、その局の山の種を決める（「同じ山で勝負」では対局の種をリンクで配る） */
-export function roundSeed(gameSeed: string, roundIndex: number): string {
-  return `${gameSeed}#${roundIndex}`;
+/** 対局の種から、その局の山の種を決める（「同じ山で勝負」では対局の種をリンクで配る）。hand＝この対局で何局目か（0 から。連荘でも別の山） */
+export function roundSeed(gameSeed: string, hand: number): string {
+  return `${gameSeed}#${hand}`;
 }
 
 /** 配る順に山から取る。親から 4 枚ずつ 3 周、そのあと 1 枚ずつ 1 周（親の 14 枚目は最初のツモ）。
@@ -32,10 +33,10 @@ function dealChunks(wall: readonly TileId[], dealer: Seat): { seat: Seat; tiles:
   return chunks;
 }
 
-/** 局の始まりから配牌までの出来事 */
-export function startRound(state: GameState, gameSeed: string, roundIndex: number, dealer: Seat): Envelope[] {
+/** 局の始まりから配牌までの出来事。honba＝本場（2 局目からは局の進め方 nextStep が決めた値を渡す） */
+export function startRound(state: GameState, gameSeed: string, roundIndex: number, dealer: Seat, honba = 0): Envelope[] {
   if (!state.rules) throw new Error('対局が始まっていない');
-  const seed = roundSeed(gameSeed, roundIndex);
+  const seed = roundSeed(gameSeed, state.handCount);
   const wall = shuffle(tileSetFor(state.rules), createRng(seed));
   const chunks = dealChunks(wall, dealer);
   for (const seat of SEATS) {
@@ -45,7 +46,7 @@ export function startRound(state: GameState, gameSeed: string, roundIndex: numbe
 
   const out: Envelope[] = [];
   const push = (to: Visibility, ev: GameEvent) => out.push({ seq: state.nextSeq + out.length, to, ev });
-  push('all', { type: 'roundStart', roundIndex, dealer });
+  push('all', { type: 'roundStart', roundIndex, dealer, honba });
   push([], { type: 'wallSeed', seed });
   for (const c of chunks) push([c.seat], { type: 'deal', seat: c.seat, tiles: c.tiles });
   // 配り終えたらドラ表示牌をめくる（日本式だけ）
@@ -72,7 +73,20 @@ export type Action =
   | { type: 'ron' }
   | { type: 'chi' | 'pon'; tiles: TileId[] }
   /** カン。minkan＝大明槓（切られた牌への返事・手牌から 3 枚）／ankan＝暗槓（自分の番・4 枚）／kakan＝加槓（自分の番・ポンに足す 1 枚） */
-  | { type: 'kan'; kan: 'minkan' | 'ankan' | 'kakan'; tiles: TileId[] };
+  | { type: 'kan'; kan: 'minkan' | 'ankan' | 'kakan'; tiles: TileId[] }
+  /** オーラスでトップの親が、やめる（stop）か続けるか */
+  | { type: 'yame'; stop: boolean };
+
+/**
+ * 局が終わった局面から、次の局（配牌まで）か対局の終わりの出来事を作る（進行役だけが呼ぶ）。
+ * 親がやめるか続けるかを選ぶ番なら、何も作らない（親の act の yame を待つ）
+ */
+export function nextHand(full: GameState, gameSeed: string): Envelope[] {
+  const n = nextStep(full);
+  if (n.type === 'yame') return [];
+  if (n.type === 'end') return [{ seq: full.nextSeq, to: 'all', ev: { type: 'gameEnd', reason: n.reason } }];
+  return startRound(full, gameSeed, n.roundIndex, n.dealer, n.honba);
+}
 
 /** 牌の見分け（赤5かどうかまで）。同じ見分けの牌はどれを出しても同じ＝選ぶ候補を 1 つにまとめる */
 const faceOf = (view: GameState, t: TileId) => `${kindOf(t)}${view.rules && isRed(t, view.rules) ? 'r' : ''}`;
@@ -158,6 +172,10 @@ export function riichiTiles(view: GameState, seat: Seat): TileId[] {
 
 /** その席がいま選べること（その席から見える局面だけで決まる＝画面と CPU が使う） */
 export function legalActions(view: GameState, seat: Seat): Action[] {
+  if (view.phase === 'ended') {
+    const n = nextStep(view);
+    return n.type === 'yame' && n.seat === seat ? [{ type: 'yame', stop: true }, { type: 'yame', stop: false }] : [];
+  }
   if (view.phase === 'declare' && view.turn === seat) return declareOptions(view, seat);
   if (view.phase === 'claim') {
     if (view.claim?.replies[seat] !== null) return [];
@@ -235,6 +253,10 @@ export function advance(full: GameState): Envelope[] {
 
 /** 番の人が選んだことを出来事にする。選べないことなら例外 */
 export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
+  if (full.phase === 'ended') {
+    if (action.type !== 'yame' || !legalActions(full, seat).length) throw new Error('いまはできない');
+    return [{ seq: full.nextSeq, to: 'all', ev: { type: 'yame', seat, stop: action.stop } }];
+  }
   if (full.phase === 'declare' && full.turn === seat) {
     if (!declareOptions(full, seat).some((a) => a.type === action.type)) throw new Error(`その宣言はできない（${action.type}）`);
     const tenpai = action.type === 'tenpai';

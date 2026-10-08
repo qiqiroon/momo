@@ -130,8 +130,16 @@ describe('見逃しのフリテン（置き場だけ。立てるのは段階3）
 
   it('局が始まると見逃しは消える', () => {
     const { t } = setup('3z');
-    t.s = { ...t.s, missedTurn: [true, true, true, true], missedRiichi: [true, true, true, true] };
-    t.push({ type: 'roundStart', roundIndex: 1, dealer: 1 });
+    // 局が終わった（全員ノーテンの流局で親が流れた）ところで次の局を始める（段階4から、次の局は局の進め方どおりでないと止まる）
+    t.s = {
+      ...t.s,
+      missedTurn: [true, true, true, true],
+      missedRiichi: [true, true, true, true],
+      phase: 'ended',
+      result: { type: 'exhaust', tenpai: [false, false, false, false], payments: [0, 0, 0, 0] },
+      settlement: [0, 0, 0, 0],
+    };
+    t.push({ type: 'roundStart', roundIndex: 1, dealer: 1, honba: 1 });
     expect(t.s.missedTurn).toEqual([false, false, false, false]);
     expect(t.s.missedRiichi).toEqual([false, false, false, false]);
   });

@@ -2,7 +2,7 @@
 // 例）npm run selfplay -- 1000 test
 // 失敗したら、表示された種をそのまま playOne(種) に渡すと同じ対局が再現できる。
 
-import { runSelfplay } from './run';
+import { runGames, runSelfplay } from './run';
 
 const games = Number(process.argv[2] ?? 500);
 const prefix = process.argv[3] ?? 'selfplay';
@@ -32,3 +32,17 @@ for (const f of r.failures.slice(0, 5)) {
   for (const reason of f.reasons) console.log(`    ${reason}`);
 }
 if (r.failures.length) process.exitCode = 1;
+
+// 対局を終わりまで（半荘の完走）
+const gameCount = Number(process.argv[4] ?? Math.max(1, Math.round(games / 10)));
+const g0 = Date.now();
+const g = runGames(gameCount, `${prefix}-game`);
+console.log(`
+半荘の完走：${g.games} 対局・${g.hands} 局（最多 ${g.maxHands} 局）・見張った出来事 ${g.events}・失敗 ${g.failures.length}（${Date.now() - g0} ms）`);
+console.log(`終わり方：${Object.entries(g.ends).map(([k, n]) => `${k} ${n}`).join('・')}`);
+console.log(`通った道：延長（西入）${g.paths.extension}・連荘 ${g.paths.renchan}・親流れ ${g.paths.rotated}・本場の最大 ${g.paths.maxHonba}・やめるか選んだ対局 ${g.paths.yameAsked}`);
+for (const f of g.failures.slice(0, 5)) {
+  console.log(`  失敗：種 ${f.seed}・通し番号 ${f.seq}`);
+  for (const reason of f.reasons) console.log(`    ${reason}`);
+}
+if (g.games === 0 || g.failures.length) process.exitCode = 1;

@@ -5,6 +5,7 @@
 import { Fragment, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
 import { HIDDEN, type Seat } from '../engine/events';
 import { furitenOf } from '../engine/furiten';
+import { nextStep } from '../engine/game';
 import type { Action } from '../engine/round';
 import type { ScoreResult } from '../engine/score';
 import { liveWallLeft, type GameState, type OpenMeld } from '../engine/state';
@@ -23,7 +24,10 @@ interface Props {
   legal: Action[];
   lang: Lang;
   onChoose: (a: Action) => void;
-  onAgain: () => void;
+  /** 次の局へ（局が終わったとき） */
+  onNext: () => void;
+  /** 新しい対局（対局が終わったとき） */
+  onNewGame: () => void;
 }
 
 /** 自分から見た位置（0＝自分・1＝下家・2＝対面・3＝上家） */
@@ -33,11 +37,11 @@ const seatAt = (rel: number): Seat => ((rel + HUMAN) % 4) as Seat;
 /** 手牌の並べ替え：種類順、同じ種類なら背番号順 */
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kindOf(a) - kindOf(b) || a - b);
 
-export function Table({ narrow, view, legal, lang, onChoose, onAgain }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame }: Props) {
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
   const windOf = (seat: number) => t(`wind${(seat - view.dealer + 4) % 4}` as MessageKey);
   const nameOf = (seat: number) => (seat === HUMAN ? t('you') : t('cpu', { n: relOf(seat) }));
-  const roundLabel = t('round', { wind: t('roundWind0'), n: view.roundIndex + 1 });
+  const roundLabel = t('round', { wind: t(`roundWind${Math.floor(Math.max(0, view.roundIndex) / 4) % 3}` as MessageKey), n: (Math.max(0, view.roundIndex) % 4) + 1 });
   const left = Math.max(0, liveWallLeft(view));
   /** 持ち点（3 桁区切り） */
   const pointsOf = (seat: number) => <span className="points">{view.scores[seat].toLocaleString('en-US')}</span>;
@@ -120,8 +124,17 @@ export function Table({ narrow, view, legal, lang, onChoose, onAgain }: Props) {
       : r?.type === 'ron'
         ? r.wins.map((w) => ({ seat: w.seat, hand: view.hands[w.seat], winTile: r.winTile, ura: w.ura, score: w.score, title: t('resultRon', { name: nameOf(w.seat), from: nameOf(r.from) }) }))
         : [];
-  const result = view.phase === 'ended' && r && (
+  // 局が終わったあと：次に起きること（オーラスでトップの親がやめるか選ぶ・次の局・対局の終わり）
+  const step = view.phase === 'ended' ? nextStep(view) : null;
+  const yameMine = legal.filter((a) => a.type === 'yame');
+  const result = (view.phase === 'ended' || view.phase === 'gameover') && r && (
     <DraggableDialog className="result">
+      {view.phase === 'gameover' && view.gameOver && (
+        <>
+          <p className="result-title game-over-title">{t('gameOverTitle')}</p>
+          <p className="game-over-reason">{t(`gameEnd_${view.gameOver}` as MessageKey)}</p>
+        </>
+      )}
       {r.type === 'exhaust' && <p className="result-title">{t('resultExhaust')}</p>}
       {r.type === 'tripleRon' && <p className="result-title">{t('resultTripleRon')}</p>}
       {r.type === 'abort' && <p className="result-title">{t(`resultAbort_${r.reason}`, { name: r.seat === undefined ? '' : nameOf(r.seat) })}</p>}
@@ -216,9 +229,28 @@ export function Table({ narrow, view, legal, lang, onChoose, onAgain }: Props) {
           </tbody>
         </table>
       )}
-      <button type="button" className="btn-primary" onClick={onAgain}>
-        {t('again')}
-      </button>
+      {view.phase === 'gameover' ? (
+        <button type="button" className="btn-primary btn-new-game" onClick={onNewGame}>
+          {t('newGame')}
+        </button>
+      ) : yameMine.length > 0 ? (
+        <div className="yame-choice">
+          <p className="hint">{t('yameHint')}</p>
+          {yameMine.map((a, i) =>
+            a.type === 'yame' ? (
+              <button key={i} type="button" className={`btn-primary btn-yame-${a.stop ? 'stop' : 'go'}`} onClick={() => onChoose(a)}>
+                {t(a.stop ? 'yameStop' : 'yameGo')}
+              </button>
+            ) : null,
+          )}
+        </div>
+      ) : step?.type === 'yame' ? (
+        <p className="hint">{t('yameWait', { name: nameOf(step.seat) })}</p>
+      ) : (
+        <button type="button" className="btn-primary btn-next" onClick={onNext}>
+          {t(step?.type === 'end' ? 'gameOverTitle' : 'nextHand')}
+        </button>
+      )}
     </DraggableDialog>
   );
 

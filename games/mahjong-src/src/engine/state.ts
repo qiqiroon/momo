@@ -5,6 +5,7 @@ import { HIDDEN, mask, type Envelope, type Seat } from './events';
 import { kindCounts, TERMINAL_HONOR_KINDS, waitKinds } from './agari';
 import { decompose } from './yaku';
 import { furitenOf } from './furiten';
+import { nextStep, type GameEndReason } from './game';
 import { createRng, shuffle } from './rng';
 import type { Rules } from './rules';
 import { scoreWin, type ScoreResult } from './score';
@@ -14,7 +15,7 @@ import { kindOf, tileSetFor, type TileId } from './tiles';
 /** 局の進み具合。deal＝配っている途中／draw＝番の人がツモる前（カンのあとは嶺上牌を引く前）／discard＝番の人が切る（またはアガる・カンする）前／
  *  claim＝切られた牌（または加槓・暗槓の牌）にほかの 3 人が返事をしている（見送る・ロン・鳴く）／
  *  declare＝流局してテンパイ・ノーテンを宣言している（番の人が宣言する）／ended＝局が終わった */
-export type Phase = 'idle' | 'deal' | 'draw' | 'discard' | 'claim' | 'declare' | 'ended';
+export type Phase = 'idle' | 'deal' | 'draw' | 'discard' | 'claim' | 'declare' | 'ended' | 'gameover';
 
 /** ロンでアガった 1 人分。score は開けた手牌・ドラ表示牌など全員に見えるものだけから出す */
 export interface RonWin {
@@ -166,6 +167,12 @@ export interface GameState {
   pao: (Pao | null)[];
   /** 局の終わりの点の動き（席ごと。リーチ棒は出したときに引いてあるので入らない）。局が終わるまで null */
   settlement: number[] | null;
+  /** オーラスでトップの親が選んだこと（true＝やめる／false＝続ける／null＝まだ・聞いていない） */
+  yame: boolean | null;
+  /** この対局で始めた局の数（山の種を局ごとに変えるため。連荘で局の番号が同じでも別の山になる） */
+  handCount: number;
+  /** 対局が終わった理由（終わるまで null） */
+  gameOver: GameEndReason | null;
   result: RoundResult | null;
 }
 
@@ -224,6 +231,9 @@ export const initialState = (): GameState => ({
   riichiStick: [false, false, false, false],
   pao: [null, null, null, null],
   settlement: null,
+  yame: null,
+  handCount: 0,
+  gameOver: null,
   result: null,
 });
 
@@ -260,6 +270,14 @@ export function apply(state: GameState, env: Envelope): GameState {
     }
     case 'roundStart': {
       if (!s.rules) throw new Error('対局が始まる前に局が始まった');
+      if (s.phase === 'gameover') throw new Error('対局が終わったあとに局が始まった');
+      // 2 局目からは、局の進め方（nextStep）と同じ局・親・本場でなければ止める
+      if (s.roundIndex >= 0) {
+        const n = nextStep(s);
+        if (n.type !== 'round' || n.roundIndex !== ev.roundIndex || n.dealer !== ev.dealer || n.honba !== (ev.honba ?? 0)) {
+          throw new Error(`局の進め方と違う局が始まった（${JSON.stringify(n)}）`);
+        }
+      }
       return {
         ...s,
         roundIndex: ev.roundIndex,
@@ -291,6 +309,8 @@ export function apply(state: GameState, env: Envelope): GameState {
         deferDora: false,
         kuikaeBan: [],
         honba: ev.honba ?? 0,
+        yame: null,
+        handCount: s.handCount + 1,
         riichiStick: [false, false, false, false],
         pao: [null, null, null, null],
         settlement: null,
@@ -533,6 +553,16 @@ export function apply(state: GameState, env: Envelope): GameState {
       if (s.phase !== 'draw' || s.rinshanDue || liveWallLeft(s) > 0) throw new Error('山が残っているのに流局した');
       // 親から順に宣言する
       return { ...s, phase: 'declare', turn: s.dealer, drawn: [null, null, null, null] };
+    }
+    case 'yame': {
+      const n = s.phase === 'ended' ? nextStep(s) : null;
+      if (!n || n.type !== 'yame' || n.seat !== ev.seat) throw new Error('アガリやめ・テンパイやめを選ぶ時・席ではない');
+      return { ...s, yame: ev.stop };
+    }
+    case 'gameEnd': {
+      const n = s.phase === 'ended' ? nextStep(s) : null;
+      if (!n || n.type !== 'end' || n.reason !== ev.reason) throw new Error(`対局が終わる時ではない（${JSON.stringify(n)}）`);
+      return { ...s, phase: 'gameover', gameOver: ev.reason };
     }
     case 'declare': {
       if (s.phase !== 'declare' || ev.seat !== s.turn) throw new Error('宣言する時・席ではない');

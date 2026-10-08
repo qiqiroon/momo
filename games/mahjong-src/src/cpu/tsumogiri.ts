@@ -12,6 +12,9 @@ export function tsumogiriCpu(view: GameState, seat: Seat): Action {
   if (win) return win;
   const noten = legal.find((a) => a.type === 'noten');
   if (noten) return noten;
+  // オーラスでトップの親なら、やめる
+  const stop = legal.find((a) => a.type === 'yame' && a.stop);
+  if (stop) return stop;
   const drawn = view.drawn[seat];
   return legal.find((a) => a.type === 'discard' && a.tile === drawn) ?? legal[legal.length - 1];
 }

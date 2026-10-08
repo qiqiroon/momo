@@ -12,7 +12,7 @@ const GEAR =
 export function App() {
   const [lang, setLang] = useState(initLang);
   const [mode, setMode] = useState<LangMode>(currentMode);
-  const { view, legal, start, choose, started } = useTable();
+  const { view, legal, start, next, choose, started } = useTable();
   const { layout, canSwitch, toggle } = useLayout();
   const t = (k: MessageKey) => translate(lang, k);
 
@@ -63,7 +63,7 @@ export function App() {
       </header>
       {started ? (
         <main className="game">
-          <Table narrow={layout === 'lanes'} view={view} legal={legal} lang={lang} onChoose={choose} onAgain={start} />
+          <Table narrow={layout === 'lanes'} view={view} legal={legal} lang={lang} onChoose={choose} onNext={next} onNewGame={start} />
         </main>
       ) : (
         <main className="title">

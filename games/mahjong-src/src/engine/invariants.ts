@@ -181,7 +181,11 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   if (full.settlement && full.result && full.result.type !== 'tsumo' && full.result.type !== 'ron' && full.settlement.reduce((a, b) => a + b, 0) !== 0) {
     bad.push('流局・途中流局の点の動きの合計が 0 でない');
   }
-  if ((full.phase === 'ended') !== (full.settlement !== null)) bad.push('局の終わりと点の動きの有る無しが食い違う');
+  if ((full.phase === 'ended' || full.phase === 'gameover') !== (full.settlement !== null)) bad.push('局の終わりと点の動きの有る無しが食い違う');
+  // 局の進め方：対局が終わったら理由がある・局の番号は延長の最後（西 4 局）を超えない・親は局の番号から決まる
+  if ((full.phase === 'gameover') !== (full.gameOver !== null)) bad.push('対局の終わりと終わった理由が食い違う');
+  if (full.roundIndex > 11) bad.push(`局の番号が延長の最後を超えた（${full.roundIndex}）`);
+  if (full.roundIndex >= 0 && full.dealer !== full.roundIndex % 4) bad.push(`親が局の番号と合わない（局 ${full.roundIndex}・親 ${full.dealer}）`);
   // リーチ棒を出したのはリーチした人だけ
   full.riichiStick.forEach((st, seat) => {
     if (st && full.riichi[seat] === 'none') bad.push(`席 ${seat}：リーチしていないのにリーチ棒を出した`);
@@ -230,6 +234,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     if (v.phase !== full.phase || v.turn !== full.turn) bad.push(`席 ${viewer}：進み具合（番・段取り）が全体と違う`);
     if (v.opened.join() !== full.opened.join()) bad.push(`席 ${viewer}：手牌を開けた席が全体と違う`);
     if (JSON.stringify(v.melds) !== JSON.stringify(full.melds) || JSON.stringify(v.calledAway) !== JSON.stringify(full.calledAway)) bad.push(`席 ${viewer}：鳴きが全体と違う`);
+    if (JSON.stringify([v.roundIndex, v.dealer, v.handCount, v.yame, v.gameOver]) !== JSON.stringify([full.roundIndex, full.dealer, full.handCount, full.yame, full.gameOver])) bad.push(`席 ${viewer}：局の進み具合が全体と違う`);
     if (JSON.stringify([v.scores, v.kyotaku, v.honba, v.riichiStick, v.pao, v.settlement]) !== JSON.stringify([full.scores, full.kyotaku, full.honba, full.riichiStick, full.pao, full.settlement])) {
       bad.push(`席 ${viewer}：点棒（持ち点・供託・本場・包・点の動き）が全体と違う`);
     }

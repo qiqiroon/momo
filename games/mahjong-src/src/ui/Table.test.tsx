@@ -23,7 +23,7 @@ describe('卓の画面（段階2）', () => {
     const view = viewFor(wonLog(), 0);
     if (view.result?.type !== 'tsumo') throw new Error('ツモアガリのはず');
     const score = view.result.score;
-    render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onAgain={() => {}} />);
+    render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
     expect(screen.getByText('門前清自摸和')).toBeInTheDocument(); // 鳴きの無い段階2のツモには必ず付く
     expect(screen.getByText(`合計 ${score.total}点`)).toBeInTheDocument();
     expect(document.querySelector('.score-level')!.textContent).toMatch(/翻|役満/);
@@ -37,11 +37,11 @@ describe('卓の画面（段階2）', () => {
   it('英語・中国語でも役の名前と合計が出る', () => {
     const view = viewFor(wonLog(), 0);
     if (view.result?.type !== 'tsumo') throw new Error('ツモアガリのはず');
-    const { unmount } = render(<Table narrow={false} view={view} legal={[]} lang="en" onChoose={() => {}} onAgain={() => {}} />);
+    const { unmount } = render(<Table narrow={false} view={view} legal={[]} lang="en" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
     expect(screen.getByText('Menzen Tsumo')).toBeInTheDocument();
     expect(screen.getByText(`Total ${view.result.score.total}`)).toBeInTheDocument();
     unmount();
-    render(<Table narrow={false} view={view} legal={[]} lang="zh" onChoose={() => {}} onAgain={() => {}} />);
+    render(<Table narrow={false} view={view} legal={[]} lang="zh" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
     expect(screen.getByText('门前清自摸和')).toBeInTheDocument();
     expect(screen.getByText(`合计 ${view.result.score.total}点`)).toBeInTheDocument();
   });
@@ -69,7 +69,7 @@ describe('リーチのボタン（段階2）', () => {
   it('リーチを押すとリーチできる牌だけ押せて、押すとリーチで切る。もう一度押すとやめる', () => {
     const view = riichiView();
     const chosen: Action[] = [];
-    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onAgain={() => {}} />);
+    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onNext={() => {}} onNewGame={() => {}} />);
     const riichi = () => document.querySelector<HTMLButtonElement>('.btn-riichi')!;
     const enabled = () => [...document.querySelectorAll<HTMLButtonElement>('.my-hand .hand-tile')].filter((b) => !b.disabled);
     expect(enabled()).toHaveLength(14);
@@ -86,7 +86,7 @@ describe('リーチのボタン（段階2）', () => {
   it('リーチした人の宣言牌は横に曲げ、名札に印が出る', () => {
     let view = riichiView();
     view = apply(view, { seq: view.nextSeq, to: 'all', ev: { type: 'discard', seat: 0, tile: 29 * 4 + 3, tsumogiri: true, riichi: true } });
-    render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onAgain={() => {}} />);
+    render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
     expect(document.querySelectorAll('.riichi-tile')).toHaveLength(1);
     expect(document.querySelectorAll('.riichi-mark').length).toBeGreaterThan(0);
   });
@@ -100,7 +100,7 @@ describe('フリテンの表示（段階2）', () => {
   }
 
   it('フリテンでなければ印も枠も出ない', () => {
-    render(<Table narrow={false} view={afterDiscard()} legal={[]} lang="ja" onChoose={() => {}} onAgain={() => {}} />);
+    render(<Table narrow={false} view={afterDiscard()} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
     expect(document.querySelectorAll('.furiten-mark')).toHaveLength(0);
     expect(document.querySelectorAll('.furiten-cause')).toHaveLength(0);
   });
@@ -108,7 +108,7 @@ describe('フリテンの表示（段階2）', () => {
   it('待ち牌が自分の河にあれば、名札に「フリテン」が出て、その牌に枠が付く（他人の河の同じ牌には付かない）', () => {
     const v = afterDiscard();
     const view = { ...v, discards: [[27 * 4 + 0, ...v.discards[0]], [27 * 4 + 1], v.discards[2], v.discards[3]] };
-    render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onAgain={() => {}} />);
+    render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
     expect(screen.getAllByText('フリテン').length).toBeGreaterThan(0);
     const causes = [...document.querySelectorAll('.furiten-cause')];
     expect(causes).toHaveLength(1);
@@ -117,11 +117,11 @@ describe('フリテンの表示（段階2）', () => {
 
   it('見逃しだけのフリテンは、印だけで枠は付かない（英語・中国語の印）', () => {
     const view = { ...afterDiscard(), missedRiichi: [true, false, false, false] };
-    const { unmount } = render(<Table narrow={false} view={view} legal={[]} lang="en" onChoose={() => {}} onAgain={() => {}} />);
+    const { unmount } = render(<Table narrow={false} view={view} legal={[]} lang="en" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
     expect(screen.getAllByText('Furiten').length).toBeGreaterThan(0);
     expect(document.querySelectorAll('.furiten-cause')).toHaveLength(0);
     unmount();
-    render(<Table narrow={false} view={view} legal={[]} lang="zh" onChoose={() => {}} onAgain={() => {}} />);
+    render(<Table narrow={false} view={view} legal={[]} lang="zh" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
     expect(screen.getAllByText('振听').length).toBeGreaterThan(0);
   });
 });
@@ -141,7 +141,7 @@ describe('流局の宣言と結果（段階2）', () => {
   it('テンパイでリーチしていなければ「テンパイ」「ノーテン」のボタンが出る', () => {
     const view = exhaustView();
     const chosen: Action[] = [];
-    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onAgain={() => {}} />);
+    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onNext={() => {}} onNewGame={() => {}} />);
     expect(document.querySelector('.btn-tenpai')).not.toBeNull();
     fireEvent.click(document.querySelector('.btn-noten')!);
     expect(chosen).toEqual([{ type: 'noten' }]);
@@ -152,7 +152,7 @@ describe('流局の宣言と結果（段階2）', () => {
     // 自分（親）はテンパイを隠してノーテン、ほかの 3 人はテンパイ
     for (const e of act(view, 0, { type: 'noten' })) view = apply(view, e);
     while (view.phase === 'declare') for (const e of act(view, view.turn, legalActions(view, view.turn)[0])) view = apply(view, e);
-    render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onAgain={() => {}} />);
+    render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
     // 表は自分から下家・対面・上家の順
     const pays = [...document.querySelectorAll('.exhaust-list tr:not(.exhaust-hand-row)')].map((r) => r.querySelector('.exhaust-pay')!.textContent);
     expect(pays).toEqual(['−3000', '+1000', '+1000', '+1000']);
@@ -203,7 +203,7 @@ describe('ロン（段階3）', () => {
   it('ロンできるときだけ「ロン」「見送る」が出て、押すとその返事を選ぶ', () => {
     const view = ronView();
     const chosen: Action[] = [];
-    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onAgain={() => {}} />);
+    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onNext={() => {}} onNewGame={() => {}} />);
     expect(screen.getByText('切られた牌でアガれます。ロンしますか？')).toBeInTheDocument();
     fireEvent.click(document.querySelector('.btn-ron')!);
     fireEvent.click(document.querySelector('.btn-pass')!);
@@ -215,7 +215,7 @@ describe('ロン（段階3）', () => {
     for (const ev of [{ type: 'ron', seat: 0, hand: view.hands[0].slice(), ura: [] }, { type: 'pass', seat: 1 }, { type: 'pass', seat: 2 }] as GameEvent[]) {
       view = apply(view, { seq: view.nextSeq, to: 'all', ev });
     }
-    render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onAgain={() => {}} />);
+    render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
     expect(screen.getByText('あなたのロンアガリ（CPU 3から）')).toBeInTheDocument();
     expect(screen.getByText('断么九')).toBeInTheDocument();
     expect(screen.getByText('2000点')).toBeInTheDocument();
@@ -229,7 +229,7 @@ describe('チー・ポン（段階3）', () => {
   it('ポンできるときは「ポン」と出す 2 枚・「見送る」が出て、押すとそのポンを選ぶ', () => {
     const view = ponView();
     const chosen: Action[] = [];
-    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onAgain={() => {}} />);
+    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onNext={() => {}} onNewGame={() => {}} />);
     expect(screen.getByText('鳴けます。鳴きますか？')).toBeInTheDocument();
     expect(document.querySelector('.btn-ron')).toBeNull();
     const pon = document.querySelector('.btn-pon')!;
@@ -247,7 +247,7 @@ describe('チー・ポン（段階3）', () => {
     }
     expect(view.melds[0]).toHaveLength(1);
     const riverBefore = view.discards[3].length;
-    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={() => {}} onAgain={() => {}} />);
+    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
     const meld = document.querySelector('.my-hand .meld')!;
     const tiles = [...meld.querySelectorAll('.tile')];
     expect(tiles).toHaveLength(3);

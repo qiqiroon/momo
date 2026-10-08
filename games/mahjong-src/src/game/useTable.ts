@@ -6,7 +6,8 @@
 import { useCallback, useEffect, useReducer } from 'react';
 import { tsumogiriCpu } from '../cpu/tsumogiri';
 import { mask, type Envelope, type Seat } from '../engine/events';
-import { act, advance, legalActions, startRound, type Action } from '../engine/round';
+import { nextStep } from '../engine/game';
+import { act, advance, legalActions, nextHand, startRound, type Action } from '../engine/round';
 import { GENERAL_RULES } from '../engine/rules';
 import { apply, initialState, type GameState } from '../engine/state';
 
@@ -15,12 +16,14 @@ export const HUMAN: Seat = 0;
 const CPU_DELAY = 420;
 
 interface TableState {
+  /** 対局の種（局ごとの山の種はここから作る） */
+  seed: string;
   log: Envelope[];
   full: GameState;
   view: GameState;
 }
 
-const empty = (): TableState => ({ log: [], full: initialState(), view: initialState() });
+const empty = (seed = ''): TableState => ({ seed, log: [], full: initialState(), view: initialState() });
 
 function pushAll(s: TableState, envs: readonly Envelope[]): TableState {
   // 古い局面から作った出来事（二重に届いたもの）は捨てる
@@ -30,13 +33,13 @@ function pushAll(s: TableState, envs: readonly Envelope[]): TableState {
     full = apply(full, e);
     view = apply(view, mask(e, HUMAN));
   }
-  return { log: [...s.log, ...envs], full, view };
+  return { seed: s.seed, log: [...s.log, ...envs], full, view };
 }
 
-type Msg = { type: 'reset' } | { type: 'push'; envs: Envelope[] };
+type Msg = { type: 'reset'; seed: string } | { type: 'push'; envs: Envelope[] };
 
 function reducer(s: TableState, m: Msg): TableState {
-  return m.type === 'reset' ? empty() : pushAll(s, m.envs);
+  return m.type === 'reset' ? empty(m.seed) : pushAll(s, m.envs);
 }
 
 function newSeed(): string {
@@ -52,9 +55,17 @@ export function useTable() {
   const start = useCallback(() => {
     const first: Envelope = { seq: 0, to: 'all', ev: { type: 'gameStart', rules: GENERAL_RULES } };
     const afterStart = apply(initialState(), first);
-    dispatch({ type: 'reset' });
-    dispatch({ type: 'push', envs: [first, ...startRound(afterStart, newSeed(), 0, 0)] });
+    const seed = newSeed();
+    dispatch({ type: 'reset', seed });
+    dispatch({ type: 'push', envs: [first, ...startRound(afterStart, seed, 0, 0)] });
   }, []);
+
+  // 局が終わったあと「次の局へ」：次の局を配る（オーラスでやめるか選ぶ番なら、親が選ぶまで何もしない）
+  const next = useCallback(() => {
+    if (full.phase !== 'ended') return;
+    const envs = nextHand(full, s.seed);
+    if (envs.length > 0) dispatch({ type: 'push', envs });
+  }, [full, s.seed]);
 
   // 自動で進むところ：ツモ（人間の番はすぐ・CPU の番は少し間を置く）と CPU の打牌・切られた牌への返事
   useEffect(() => {
@@ -98,6 +109,15 @@ export function useTable() {
       const id = setTimeout(() => dispatch({ type: 'push', envs: act(full, HUMAN, options[0]) }), CPU_DELAY / 2);
       return () => clearTimeout(id);
     }
+    // オーラスでトップの親が CPU なら、やめるか続けるかを CPU が選ぶ
+    if (full.phase === 'ended') {
+      const n = nextStep(full);
+      if (n.type !== 'yame' || n.seat === HUMAN) return undefined;
+      const seat = n.seat;
+      const cpuView = s.log.reduce((st, e) => apply(st, mask(e, seat)), initialState());
+      const id = setTimeout(() => dispatch({ type: 'push', envs: act(full, seat, tsumogiriCpu(cpuView, seat)) }), CPU_DELAY);
+      return () => clearTimeout(id);
+    }
     if ((full.phase === 'discard' || full.phase === 'declare') && full.turn !== HUMAN) {
       const seat = full.turn;
       // CPU には、その席から見える局面だけを渡す
@@ -111,11 +131,12 @@ export function useTable() {
   const choose = useCallback(
     (a: Action) => {
       const replying = full.phase === 'claim' && full.claim?.replies[HUMAN] === null;
-      if (!replying && ((full.phase !== 'discard' && full.phase !== 'declare') || full.turn !== HUMAN)) return;
+      const yame = full.phase === 'ended' && a.type === 'yame';
+      if (!replying && !yame && ((full.phase !== 'discard' && full.phase !== 'declare') || full.turn !== HUMAN)) return;
       dispatch({ type: 'push', envs: act(full, HUMAN, a) });
     },
     [full],
   );
 
-  return { view, legal: legalActions(view, HUMAN), start, choose, started: s.log.length > 0 };
+  return { view, legal: legalActions(view, HUMAN), start, next, choose, started: s.log.length > 0 };
 }

@@ -1,6 +1,6 @@
 // ルールの値。項目の名前は見本 mock/settings.html の項目名をそのまま使う（段階6でセット選びをつなぐときに付け替えが要らないように）。
 // 正本はルール設定 v0.03（作業側の games/mahjong/docs/）。値はコードの中で直接書かず、ここから読む。
-// 日本式 66 項目・中国式 35 項目。
+// 日本式 71 項目・中国式 35 項目。
 
 export const JP_RULE_KEYS = [
   'length',
@@ -15,6 +15,7 @@ export const JP_RULE_KEYS = [
   'agariyame',
   'tenpaiyame',
   'riichiUnder',
+  'riichiNoDraw',
   'aka',
   'ippatsu',
   'ura',
@@ -29,6 +30,7 @@ export const JP_RULE_KEYS = [
   'ankanCond',
   'double',
   'triple',
+  'multiWinSticks',
   'kyushu',
   'kyushuHow',
   'sufon',
@@ -47,6 +49,9 @@ export const JP_RULE_KEYS = [
   'paoHonba',
   'tenpaiHide',
   'kyotaku',
+  'renchan',
+  'honba',
+  'abortRenchan',
   'kiriage',
   'kazoe',
   'renpu',
@@ -131,6 +136,7 @@ export const GENERAL_RULES: Rules = {
     agariyame: 'choose', // オーラスのアガリやめ（トップの親）
     tenpaiyame: 'choose', // オーラスのテンパイやめ（トップの親）
     riichiUnder: 'ng', // 1000点未満のリーチ
+    riichiNoDraw: 'ng', // ツモ番の無いリーチ（ok＝山に1枚以上ならできる／ng＝ツモ番があるときだけ）
     aka: 'on', // 赤ドラ（5萬・5筒・5索 各1枚）
     ippatsu: 'on', // 一発
     ura: 'on', // 裏ドラ・カン裏
@@ -145,6 +151,7 @@ export const GENERAL_RULES: Rules = {
     ankanCond: 'wait', // リーチ後の暗槓の条件
     double: 'double', // 2人同時ロン
     triple: 'ryukyoku', // 3人同時ロン
+    multiWinSticks: 'first', // 2人以上がアガったときの積み棒・供託（first＝上家取り／each＝積み棒は全員・リーチ棒は本人に戻す）
     kyushu: 'on', // 九種九牌で流せる
     kyushuHow: 'choose', // 九種九牌の流し方
     sufon: 'on', // 四風連打で流局
@@ -163,6 +170,9 @@ export const GENERAL_RULES: Rules = {
     paoHonba: 'pao', // 包のときの積み棒
     tenpaiHide: 'ok', // テンパイでも「ノーテン」と言える（リーチ者以外）
     kyotaku: 'top', // 終局時に残った供託
+    renchan: 'tenpai', // 親の連荘（流局のとき）：tenpai＝テンパイなら連荘／agari＝アガったときだけ連荘
+    honba: 'on', // 本場（積み棒・1本300点）
+    abortRenchan: 'renchan', // 途中流局のあとの親：renchan＝連荘／pass＝親が流れる
     kiriage: 'on', // 切り上げ満貫（30符4翻・60符3翻）
     kazoe: 'on', // 数え役満（13翻以上）
     renpu: '2', // 連風牌（場風かつ自風）の雀頭の符

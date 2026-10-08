@@ -904,3 +904,32 @@ body.in-game .site-header .subtitle {
   font-weight: 700;
   color: var(--text);
 }
+
+/* ---- 点棒（段階4） ---- */
+
+.points {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+  margin-left: 0.35em;
+}
+
+.sticks {
+  font-variant-numeric: tabular-nums;
+}
+
+.points-list {
+  margin: 8px auto;
+  border-collapse: collapse;
+}
+
+.points-list th,
+.points-list td {
+  padding: 2px 10px;
+  text-align: left;
+}
+
+.points-delta,
+.points-after {
+  font-variant-numeric: tabular-nums;
+  text-align: right !important;
+}

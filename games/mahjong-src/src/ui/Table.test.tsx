@@ -133,6 +133,8 @@ describe('流局の宣言と結果（段階2）', () => {
     s = apply(s, { seq: s.nextSeq, to: 'all', ev: { type: 'discard', seat: 0, tile: 29 * 4 + 3, tsumogiri: true } });
     for (const seat of [1, 2, 3] as const) s = apply(s, { seq: s.nextSeq, to: 'all', ev: { type: 'pass', seat } });
     s = { ...s, wallLeft: 14 }; // 山を尽きさせる
+    // 席 0 の河は西 1 枚だけ＝流し満貫が成り立ってしまうので、この検査では流し満貫を「なし」にする（流し満貫は points.test で確かめる）
+    if (s.rules?.family === 'jp') s = { ...s, rules: { family: 'jp', values: { ...s.rules.values, nagashi: 'off' } } };
     return apply(s, { seq: s.nextSeq, to: 'all', ev: { type: 'exhaust' } });
   }
 

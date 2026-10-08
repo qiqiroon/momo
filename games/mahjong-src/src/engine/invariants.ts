@@ -1,6 +1,7 @@
 // 見張り役。出来事を1つ当てはめるたびに、どの段階でも崩れてはいけない決まりを確かめる。
 // 段階が進んで出来事が増えたら、ここに決まりを足していく。
 // 段階1：ツモったあとは番の人 14 枚・ほかは 13 枚（最後の1枚を配り忘れても、並びの決まりでは気づけないため）
+// 段階4の 1：点棒の合計は変わらない・リーチ棒・点の動きはどの席から見ても同じ
 // 段階3の 5：九種九牌の条件・喰い替え禁止の残り方
 // 段階3の 3：カンの数・嶺上牌の数・カンドラの枚数・嶺上牌は王牌の頭から順に取られている
 //
@@ -10,7 +11,7 @@
 import { HIDDEN, SEATS, mask, type Envelope, type Seat } from './events';
 import { isWinningHand, waitKinds } from './agari';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
-import { apply, initialState, isKanMeld, MAX_KANS, type GameState } from './state';
+import { apply, initialState, isKanMeld, MAX_KANS, RIICHI_STICK, startPoints, type GameState } from './state';
 import { kindOf, tileSetFor } from './tiles';
 
 export class Watcher {
@@ -173,6 +174,19 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   // 喰い替え禁止の牌が残っているのは、鳴いた人が切る前だけ
   if (full.kuikaeBan.length > 0 && full.phase !== 'discard') bad.push('喰い替え禁止の牌が、切る番の外で残っている');
 
+  // 点棒：4 人の持ち点と卓のリーチ棒を合わせると、いつも持ち点 4 人分（点は動くだけで増えも減りもしない）
+  const total = full.scores.reduce((a, b) => a + b, 0) + full.kyotaku * RIICHI_STICK;
+  if (total !== startPoints(full.rules) * 4) bad.push(`点棒の合計が合わない（${total}・正しくは ${startPoints(full.rules) * 4}）`);
+  // 流局・途中流局の点の動きは 4 人で合計 0（アガリは卓の供託の分だけ増える）
+  if (full.settlement && full.result && full.result.type !== 'tsumo' && full.result.type !== 'ron' && full.settlement.reduce((a, b) => a + b, 0) !== 0) {
+    bad.push('流局・途中流局の点の動きの合計が 0 でない');
+  }
+  if ((full.phase === 'ended') !== (full.settlement !== null)) bad.push('局の終わりと点の動きの有る無しが食い違う');
+  // リーチ棒を出したのはリーチした人だけ
+  full.riichiStick.forEach((st, seat) => {
+    if (st && full.riichi[seat] === 'none') bad.push(`席 ${seat}：リーチしていないのにリーチ棒を出した`);
+  });
+
   // ツモアガリには点数が付いている（役が無いアガリは局面を作る側が止める）
   if (full.result?.type === 'tsumo' && !(full.result.score.total > 0)) bad.push('ツモアガリの点数が 0');
 
@@ -216,6 +230,9 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     if (v.phase !== full.phase || v.turn !== full.turn) bad.push(`席 ${viewer}：進み具合（番・段取り）が全体と違う`);
     if (v.opened.join() !== full.opened.join()) bad.push(`席 ${viewer}：手牌を開けた席が全体と違う`);
     if (JSON.stringify(v.melds) !== JSON.stringify(full.melds) || JSON.stringify(v.calledAway) !== JSON.stringify(full.calledAway)) bad.push(`席 ${viewer}：鳴きが全体と違う`);
+    if (JSON.stringify([v.scores, v.kyotaku, v.honba, v.riichiStick, v.pao, v.settlement]) !== JSON.stringify([full.scores, full.kyotaku, full.honba, full.riichiStick, full.pao, full.settlement])) {
+      bad.push(`席 ${viewer}：点棒（持ち点・供託・本場・包・点の動き）が全体と違う`);
+    }
     if (v.kans !== full.kans || v.rinshanTaken !== full.rinshanTaken || v.rinshanDue !== full.rinshanDue || v.pendingDora !== full.pendingDora || v.deferDora !== full.deferDora) {
       bad.push(`席 ${viewer}：カンの進み具合が全体と違う`);
     }

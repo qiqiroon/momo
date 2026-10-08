@@ -18,7 +18,8 @@ export type Visibility = 'all' | readonly Seat[];
 
 export type GameEvent =
   | { type: 'gameStart'; rules: Rules }
-  | { type: 'roundStart'; roundIndex: number; dealer: Seat }
+  /** 局の始まり。honba＝この局の本場の数（局の進め方が決める・段階4の 2） */
+  | { type: 'roundStart'; roundIndex: number; dealer: Seat; honba?: number }
   /** 山の種。局の終わりまで誰にも見せない */
   | { type: 'wallSeed'; seed: string | null }
   /** 配牌。本人だけに見える */

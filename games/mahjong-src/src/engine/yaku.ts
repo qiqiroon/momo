@@ -37,6 +37,8 @@ export interface WinContext {
   chankan?: boolean;
   /** 親の配牌でアガった */
   tenhou?: boolean;
+  /** 本場の数（縛り「5本場から2翻」で使う） */
+  honba?: number;
   /** 子の最初のツモでアガった（それまでに鳴きが無い） */
   chiihou?: boolean;
   rules: Rules;

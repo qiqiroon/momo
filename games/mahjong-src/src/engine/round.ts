@@ -3,7 +3,7 @@
 
 import { HIDDEN, SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
 import { furitenOf } from './furiten';
-import { callProblem, kanProblem, kyushuOk, liveWallLeft, RIICHI_MIN_WALL, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
+import { callProblem, kanProblem, kyushuOk, liveWallLeft, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { waitKinds } from './agari';
 import { createRng, shuffle } from './rng';
@@ -137,9 +137,10 @@ export function kanOptions(view: GameState, seat: Seat): Action[] {
 export function riichiTiles(view: GameState, seat: Seat): TileId[] {
   if (view.phase !== 'discard' || view.turn !== seat) return [];
   if (view.rules?.family !== 'jp' || view.riichi[seat] !== 'none') return [];
-  // 鳴いている手はリーチできない（暗槓は鳴きに数えない）。1000 点未満のリーチの扱いは持ち点が入る段階4で足す
+  // 鳴いている手はリーチできない（暗槓は鳴きに数えない）。持ち点が 1000 点未満ならルールの riichiUnder
   if (view.melds[seat].some((m) => m.type !== 'ankan')) return [];
-  if (liveWallLeft(view) < RIICHI_MIN_WALL) return [];
+  if (liveWallLeft(view) < riichiMinWall(view.rules)) return [];
+  if (!riichiAffordable(view, seat)) return [];
   const hand = view.hands[seat];
   const byKind = new Map<number, boolean>();
   return hand.filter((tile) => {

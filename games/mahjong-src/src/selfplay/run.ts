@@ -10,7 +10,7 @@ import type { Envelope, Seat } from '../engine/events';
 import { Watcher } from '../engine/invariants';
 import { act, advance, startRound } from '../engine/round';
 import { GENERAL_RULES, type Rules } from '../engine/rules';
-import type { OpenMeld, RoundResult } from '../engine/state';
+import type { GameState, OpenMeld, RoundResult } from '../engine/state';
 import { kindOf } from '../engine/tiles';
 
 export interface SelfplayResult {
@@ -19,7 +19,7 @@ export interface SelfplayResult {
   /** 終わり方の内訳（ツモアガリ・流局・途中で止まった） */
   endings: { tsumo: number; ron: number; exhaust: number; tripleRon: number; abort: number; unfinished: number };
   /** 通った道の数（0 なら、その道は検査に乗っていない）：リーチ・ダブル立直・リーチでのツモ・一発・裏ドラが乗ったアガリ */
-  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[]; doubleRon: number; missed: number; calls: number; chi: number; openWin: number; kan: { ankan: number; kakan: number; minkan: number; riichiAnkan: number; rinshanWin: number; chankan: number; kanDora: number; fourKans: number }; clash: { total: number; ronWon: number; ponWon: number; chiLost: number }; aborts: Record<string, number>; kuikaeBanned: number };
+  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[]; doubleRon: number; missed: number; calls: number; chi: number; openWin: number; kan: { ankan: number; kakan: number; minkan: number; riichiAnkan: number; rinshanWin: number; chankan: number; kanDora: number; fourKans: number }; clash: { total: number; ronWon: number; ponWon: number; chiLost: number }; aborts: Record<string, number>; kuikaeBanned: number; nagashi: number; paoSet: number; riichiSticks: number };
   failures: { seed: string; seq: number; reasons: string[] }[];
 }
 
@@ -35,7 +35,7 @@ export function playOne(
   seed: string,
   rules: Rules = GENERAL_RULES,
   player: Player = tsumogiriCpu,
-): { events: number; missed: boolean; kuikaeBanned: number; clashes: { won: string; chi: boolean }[]; finalMelds: OpenMeld[][]; log: Envelope[]; ending: keyof SelfplayResult['endings']; result: RoundResult | null; failure: Failure | null } {
+): { events: number; missed: boolean; kuikaeBanned: number; final: GameState; clashes: { won: string; chi: boolean }[]; finalMelds: OpenMeld[][]; log: Envelope[]; ending: keyof SelfplayResult['endings']; result: RoundResult | null; failure: Failure | null } {
   const w = new Watcher();
   const seedNumber = [...seed].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
   const log: Envelope[] = [];
@@ -69,6 +69,7 @@ export function playOne(
     events: w.checked,
     missed: sawMissed,
     kuikaeBanned,
+    final: w.full,
     clashes,
     finalMelds: w.full.melds,
     log,
@@ -105,7 +106,7 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
     games: 0,
     events: 0,
     endings: { tsumo: 0, ron: 0, exhaust: 0, tripleRon: 0, abort: 0, unfinished: 0 },
-    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0, calls: 0, chi: 0, openWin: 0, kan: { ankan: 0, kakan: 0, minkan: 0, riichiAnkan: 0, rinshanWin: 0, chankan: 0, kanDora: 0, fourKans: 0 }, clash: { total: 0, ronWon: 0, ponWon: 0, chiLost: 0 }, aborts: {}, kuikaeBanned: 0 },
+    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0, calls: 0, chi: 0, openWin: 0, kan: { ankan: 0, kakan: 0, minkan: 0, riichiAnkan: 0, rinshanWin: 0, chankan: 0, kanDora: 0, fourKans: 0 }, clash: { total: 0, ronWon: 0, ponWon: 0, chiLost: 0 }, aborts: {}, kuikaeBanned: 0, nagashi: 0, paoSet: 0, riichiSticks: 0 },
     failures: [],
   };
   for (let i = 0; i < games; i++) {
@@ -136,6 +137,9 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
     k.kanDora += Math.max(0, indicators - 1);
     if (r.result?.type === 'abort') result.paths.aborts[r.result.reason] = (result.paths.aborts[r.result.reason] ?? 0) + 1;
     result.paths.kuikaeBanned += r.kuikaeBanned;
+    if (r.result?.type === 'exhaust' && r.result.nagashi) result.paths.nagashi++;
+    result.paths.paoSet += r.final.pao.filter(Boolean).length;
+    result.paths.riichiSticks += r.final.riichiStick.filter(Boolean).length;
     const c = result.paths.clash;
     c.total += r.clashes.length;
     c.ronWon += r.clashes.filter((x) => x.won === 'ron').length;

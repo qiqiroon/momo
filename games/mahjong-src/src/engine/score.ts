@@ -134,7 +134,7 @@ function scoreReading(input: WinInput, y: YakuResult, dora: DoraCount): ScoreRes
     const base = 8000 * y.yakuman;
     return { reading: y.reading, yaku: y.yaku, dora: { dora: 0, aka: 0, ura: 0 }, han: 0, fu: 0, yakuman: y.yakuman, limit: 'yakuman', base, ...paymentOf(base, input.dealer, ctx.tsumo), winds: windsOf(ctx) };
   }
-  if (y.han < minHan(ctx.rules)) return null;
+  if (y.han < minHan(ctx.rules, ctx.honba ?? 0)) return null;
   const pinfu = y.yaku.some((h) => h.id === 'pinfu');
   const fu = fuOf(ctx, y.reading, pinfu);
   const han = y.han + dora.dora + dora.aka + dora.ura;

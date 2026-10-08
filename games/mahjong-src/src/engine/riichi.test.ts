@@ -116,11 +116,18 @@ describe('リーチ', () => {
     expect(() => t.push({ type: 'discard', seat: 0, tile: t.s.hands[0][0], tsumogiri: false, riichi: true })).toThrow(/テンパイでない/);
   });
 
-  it('ツモれる牌が 3 枚以下ならリーチできない', () => {
+  it('一般ルール（ツモ番の無いリーチはできない）：ツモれる牌が 3 枚以下ならリーチできない', () => {
     const { t } = setup('123m456p789s1z1z2z2z', '3z');
     const near = { ...t.s, wallLeft: 14 + 3 };
     expect(riichiTiles(near, 0)).toEqual([]);
     expect(riichiTiles({ ...t.s, wallLeft: 14 + 4 }, 0).length).toBeGreaterThan(0);
+  });
+
+  it('ツモ番の無いリーチ「できる」なら、山に 1 枚あればリーチできる。海底牌を引いたあとはできない', () => {
+    const { t } = setup('123m456p789s1z1z2z2z', '3z');
+    const rules = GENERAL_RULES.family === 'jp' ? { family: 'jp' as const, values: { ...GENERAL_RULES.values, riichiNoDraw: 'ok' } } : GENERAL_RULES;
+    expect(riichiTiles({ ...t.s, rules, wallLeft: 14 + 1 }, 0).length).toBeGreaterThan(0);
+    expect(riichiTiles({ ...t.s, rules, wallLeft: 14 }, 0)).toEqual([]);
   });
 });
 

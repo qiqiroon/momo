@@ -39,6 +39,10 @@ export function Table({ narrow, view, legal, lang, onChoose, onAgain }: Props) {
   const nameOf = (seat: number) => (seat === HUMAN ? t('you') : t('cpu', { n: relOf(seat) }));
   const roundLabel = t('round', { wind: t('roundWind0'), n: view.roundIndex + 1 });
   const left = Math.max(0, liveWallLeft(view));
+  /** 持ち点（3 桁区切り） */
+  const pointsOf = (seat: number) => <span className="points">{view.scores[seat].toLocaleString('en-US')}</span>;
+  const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '±0');
+  const sticks = <span className="sticks">{t('honbaKyotaku', { h: view.honba, k: view.kyotaku })}</span>;
   const playing = view.phase !== 'ended';
   // 直前に切った人（その河の最後の牌に印を付ける）
   const lastDiscarder = view.phase === 'draw' ? (view.turn + 3) % 4 : view.phase === 'claim' && view.claim ? view.claim.from : -1;
@@ -150,6 +154,31 @@ export function Table({ narrow, view, legal, lang, onChoose, onAgain }: Props) {
           <ScoreView score={won.score} lang={lang} />
         </Fragment>
       ))}
+      {r.type === 'exhaust' &&
+        r.nagashi?.map((seat) => (
+          <p key={seat} className="result-title">
+            {t('resultNagashi', { name: nameOf(seat) })}
+          </p>
+        ))}
+      {/* 点の動きと、動いたあとの持ち点（流局は下の表に出す） */}
+      {r.type !== 'exhaust' && view.settlement && (
+        <table className="points-list">
+          <tbody>
+            {[0, 1, 2, 3].map((rel) => {
+              const seat = seatAt(rel);
+              return (
+                <tr key={rel}>
+                  <th>
+                    <b>{windOf(seat)}</b> {nameOf(seat)}
+                  </th>
+                  <td className="points-delta">{signed(view.settlement![seat])}</td>
+                  <td className="points-after">{view.scores[seat].toLocaleString('en-US')}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
       {r.type === 'exhaust' && (
         <table className="exhaust-list">
           <tbody>
@@ -166,11 +195,12 @@ export function Table({ narrow, view, legal, lang, onChoose, onAgain }: Props) {
                       <b>{windOf(seat)}</b> {nameOf(seat)}
                     </th>
                     <td className="exhaust-state">{t(r.tenpai[seat] ? 'declareTenpai' : 'declareNoten')}</td>
-                    <td className="exhaust-pay">{pay > 0 ? `+${pay}` : pay < 0 ? `−${-pay}` : '±0'}</td>
+                    <td className="exhaust-pay">{signed(pay)}</td>
+                    <td className="points-after">{view.scores[seat].toLocaleString('en-US')}</td>
                   </tr>
                   {r.tenpai[seat] && (
                     <tr className="exhaust-hand-row">
-                      <td colSpan={3}>
+                      <td colSpan={4}>
                         <div className="exhaust-hand">
                           {sortTiles(view.hands[seat]).map((id) => (
                             <Tile key={id} id={id} rules={view.rules} className="mini" />
@@ -198,6 +228,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onAgain }: Props) {
         <div className="lanes-info">
           <span className="round-label">{roundLabel}</span>
           <span className="wall-left">{t('wallLeft', { n: left })}</span>
+          {sticks}
           {indicators}
         </div>
         <div className="lanes">
@@ -208,6 +239,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onAgain }: Props) {
                 <div className="lane-who">
                   <span className="lane-wind">{windOf(seat)}</span>
                   <span className="lane-name">{nameOf(seat)}</span>
+                  {pointsOf(seat)}
                   {riichiMark(seat)}
                   {seat !== HUMAN && (
                     <span className="lane-count">
@@ -254,12 +286,13 @@ export function Table({ narrow, view, legal, lang, onChoose, onAgain }: Props) {
         <div className="center-box">
           <span className="round-label">{roundLabel}</span>
           <span className="wall-left">{t('wallLeft', { n: left })}</span>
+          {sticks}
           {indicators}
           {[0, 1, 2, 3].map((rel) => {
             const seat = seatAt(rel);
             return (
               <span key={rel} className={`center-wind rel-${rel}${view.turn === seat && playing ? ' is-turn' : ''}`}>
-                <b>{windOf(seat)}</b> {nameOf(seat)}
+                <b>{windOf(seat)}</b> {nameOf(seat)} {pointsOf(seat)}
                 {riichiMark(seat)}
               </span>
             );

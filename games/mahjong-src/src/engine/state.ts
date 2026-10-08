@@ -66,8 +66,9 @@ export type RoundResult =
   | { type: 'tsumo'; seat: Seat; winTile: TileId; ura: TileId[]; score: ScoreResult }
   /** ロンアガリ。from＝切った人／wins＝アガった人（切った人から見て下家・対面・上家の順。2 人以上はダブロン・3 人アガリ） */
   | { type: 'ron'; from: Seat; winTile: TileId; wins: RonWin[]; robbed?: 'kakan' | 'ankan' }
-  /** 流局。tenpai＝席ごとの宣言／payments＝席ごとの点の動き（受け取りが＋、払いが−。合計 0） */
-  | { type: 'exhaust'; tenpai: boolean[]; payments: number[] }
+  /** 流局。tenpai＝席ごとの宣言／payments＝席ごとの点の動き（受け取りが＋、払いが−。合計 0）。
+   *  nagashi＝流し満貫が成り立った席（いれば、テンパイ・ノーテンの支払いの代わりに満貫のツモと同じ支払い） */
+  | { type: 'exhaust'; tenpai: boolean[]; payments: number[]; nagashi?: Seat[] }
   /** 3 人が同じ牌でロンして、ルールで流局になった（三家和） */
   | { type: 'tripleRon'; from: Seat; seats: Seat[] }
   /** 途中流局。kyushu＝九種九牌（seat が流した）／sufon＝四風連打／suricchi＝四家立直／sukan＝四開槓 */
@@ -88,8 +89,13 @@ export function notenPayments(tenpai: readonly boolean[]): number[] {
 /** リーチの状態。double＝ダブル立直（最初の打牌でリーチ） */
 export type RiichiState = 'none' | 'riichi' | 'double';
 
-/** リーチできるのは、宣言したあとにまだ自分のツモが来る（ツモれる牌が 4 枚以上残っている）とき */
+/** ルールが「ツモ番の無いリーチはできない」のとき：宣言したあとにまだ自分のツモが来る（ツモれる牌が 4 枚以上残っている）ときだけ */
 export const RIICHI_MIN_WALL = 4;
+
+/** リーチできる山の残りの下限。ツモ番の無いリーチが「できる」なら 1 枚（海底牌を引いたあとはできない） */
+export function riichiMinWall(rules: Rules | null): number {
+  return rules?.family === 'jp' && rules.values.riichiNoDraw === 'ok' ? 1 : RIICHI_MIN_WALL;
+}
 
 export interface GameState {
   /** 次に来るはずの通し番号 */
@@ -148,7 +154,37 @@ export interface GameState {
   deferDora: boolean;
   /** 喰い替え禁止で、番の人が次に切れない牌の種類（チー・ポンした直後だけ。切ったら空） */
   kuikaeBan: number[];
+  /** 席ごとの持ち点（局をまたいで続く） */
+  scores: number[];
+  /** この局の本場の数 */
+  honba: number;
+  /** 卓に出ているリーチ棒（供託）の本数（局をまたいで残る） */
+  kyotaku: number;
+  /** 席ごとの、この局でリーチ棒を出したか（宣言牌が通ったとき出す。ロンされたら出さない） */
+  riichiStick: boolean[];
+  /** 席ごとの責任払い（包）：その席が役満を仕上げる鳴きをさせた人と役（鳴かせた時点で決まる） */
+  pao: (Pao | null)[];
+  /** 局の終わりの点の動き（席ごと。リーチ棒は出したときに引いてあるので入らない）。局が終わるまで null */
+  settlement: number[] | null;
   result: RoundResult | null;
+}
+
+/** 責任払い（包）。seat＝包の人／yaku＝その役 */
+export interface Pao {
+  seat: Seat;
+  yaku: 'daisangen' | 'daisuushii' | 'suukantsu';
+}
+
+/** 本場 1 本の点（ロンは 300 点・ツモは 1 人 100 点。変えられない決まり） */
+export const HONBA_POINTS = 300;
+/** リーチ棒 1 本 */
+export const RIICHI_STICK = 1000;
+
+/** ルールの持ち点（日本式の start は千点単位の文字） */
+export function startPoints(rules: Rules | null): number {
+  if (!rules) return 0;
+  const n = Number(rules.values.start);
+  return Number.isFinite(n) ? n * 1000 : 0;
 }
 
 export const initialState = (): GameState => ({
@@ -182,6 +218,12 @@ export const initialState = (): GameState => ({
   pendingDora: 0,
   deferDora: false,
   kuikaeBan: [],
+  scores: [0, 0, 0, 0],
+  honba: 0,
+  kyotaku: 0,
+  riichiStick: [false, false, false, false],
+  pao: [null, null, null, null],
+  settlement: null,
   result: null,
 });
 
@@ -212,8 +254,10 @@ export function apply(state: GameState, env: Envelope): GameState {
   const s: GameState = { ...state, nextSeq: state.nextSeq + 1 };
   const ev = env.ev;
   switch (ev.type) {
-    case 'gameStart':
-      return { ...s, rules: ev.rules };
+    case 'gameStart': {
+      const p = startPoints(ev.rules);
+      return { ...s, rules: ev.rules, scores: [p, p, p, p], honba: 0, kyotaku: 0 };
+    }
     case 'roundStart': {
       if (!s.rules) throw new Error('対局が始まる前に局が始まった');
       return {
@@ -246,6 +290,10 @@ export function apply(state: GameState, env: Envelope): GameState {
         pendingDora: 0,
         deferDora: false,
         kuikaeBan: [],
+        honba: ev.honba ?? 0,
+        riichiStick: [false, false, false, false],
+        pao: [null, null, null, null],
+        settlement: null,
         result: null,
       };
     }
@@ -314,8 +362,9 @@ export function apply(state: GameState, env: Envelope): GameState {
         if (!ev.tsumogiri) throw new Error('リーチのあとにツモった牌以外を切った');
         ippatsu[ev.seat] = false;
       } else if (ev.riichi) {
-        if (liveWallLeft(s) < RIICHI_MIN_WALL) throw new Error('山が足りないのにリーチした');
+        if (liveWallLeft(s) < riichiMinWall(s.rules)) throw new Error('山が足りないのにリーチした');
         if (s.melds[ev.seat].some((m) => m.type !== 'ankan')) throw new Error('鳴いているのにリーチした');
+        if (!riichiAffordable(s, ev.seat)) throw new Error('持ち点が 1000 点未満なのにリーチした（このルールではできない）');
         // 手牌が見えている端末では、切ったあとテンパイかも確かめる
         if (!hand.includes(HIDDEN) && waitKinds(hand).length === 0) throw new Error('テンパイでないのにリーチした');
         // 最初の打牌でのリーチはダブル立直（鳴きで消えるのは段階3）
@@ -338,7 +387,8 @@ export function apply(state: GameState, env: Envelope): GameState {
       // 四家立直：ルールが「4 人目が宣言したとき」なら、宣言牌への返事を待たずに流局
       const v = s.rules?.family === 'jp' ? s.rules.values : null;
       if (ev.riichi && v?.suricchi === 'on' && v.suricchiWhen === 'declare' && riichi.every((r) => r !== 'none')) {
-        return { ...after, phase: 'ended', claim: null, result: { type: 'abort', reason: 'suricchi' } };
+        // 宣言した時点で成り立つ＝リーチ棒も出す
+        return finish({ ...depositRiichi(after, ev.seat), claim: null }, { type: 'abort', reason: 'suricchi' }, [0, 0, 0, 0]);
       }
       return after;
     }
@@ -352,7 +402,7 @@ export function apply(state: GameState, env: Envelope): GameState {
       hands[ev.seat] = ev.hand.slice();
       const opened = s.opened.slice();
       opened[ev.seat] = true;
-      return { ...s, phase: 'ended', hands, opened, result: { type: 'abort', reason: 'kyushu', seat: ev.seat } };
+      return finish({ ...s, hands, opened }, { type: 'abort', reason: 'kyushu', seat: ev.seat }, [0, 0, 0, 0]);
     }
     case 'kan': {
       if (s.phase !== 'discard' || ev.seat !== s.turn) throw new Error('カンできる時ではない');
@@ -476,7 +526,8 @@ export function apply(state: GameState, env: Envelope): GameState {
       hands[ev.seat] = ev.hand.slice();
       const opened = s.opened.slice();
       opened[ev.seat] = true;
-      return { ...s, phase: 'ended', hands, opened, result: { type: 'tsumo', seat: ev.seat, winTile: ev.winTile, ura: ev.ura.slice(), score } };
+      const result: RoundResult = { type: 'tsumo', seat: ev.seat, winTile: ev.winTile, ura: ev.ura.slice(), score };
+      return finish({ ...s, hands, opened }, result, tsumoSettlement(s, ev.seat, score));
     }
     case 'exhaust': {
       if (s.phase !== 'draw' || s.rinshanDue || liveWallLeft(s) > 0) throw new Error('山が残っているのに流局した');
@@ -510,7 +561,11 @@ export function apply(state: GameState, env: Envelope): GameState {
       declared[ev.seat] = ev.tenpai;
       if (declared.every((d) => d !== null)) {
         const tenpai = declared as boolean[];
-        return { ...s, hands, opened, declared, phase: 'ended', result: { type: 'exhaust', tenpai, payments: notenPayments(tenpai) } };
+        // 流し満貫が成り立つ人がいれば、テンパイ・ノーテンの支払いの代わりに満貫のツモと同じ支払い
+        const nagashi = nagashiSeats(s);
+        const payments = nagashi.length > 0 ? nagashiPayments(s, nagashi) : notenPayments(tenpai);
+        const result: RoundResult = nagashi.length > 0 ? { type: 'exhaust', tenpai, payments, nagashi } : { type: 'exhaust', tenpai, payments };
+        return finish({ ...s, hands, opened, declared }, result, payments);
       }
       return { ...s, hands, opened, declared, turn: nextSeat(ev.seat) };
     }
@@ -521,9 +576,12 @@ export function apply(state: GameState, env: Envelope): GameState {
  * 返事がそろったら局を進める。全員見送り＝次の人のツモへ。ロンがあれば、同時ロンの決まり（ルールの値）で結果を出す。
  * 2 人＝double（ダブロン＝2 人ともアガる／頭ハネ＝切った人の下家に近い 1 人）、3 人＝triple（流局／3 人とも／頭ハネ）
  */
-function settleClaim(s: GameState): GameState {
-  const c = s.claim!;
-  if (c.replies.some((r) => r === null)) return s;
+function settleClaim(s0: GameState): GameState {
+  const c = s0.claim!;
+  if (c.replies.some((r) => r === null)) return s0;
+  // リーチの宣言牌が通った（ロンされなかった）ら、リーチ棒を出す
+  const declaredNow = c.kind === 'discard' && s0.riichi[c.from] !== 'none' && s0.riichiAt[c.from] === s0.discards[c.from].length - 1 && !s0.riichiStick[c.from];
+  const s = declaredNow && c.rons.length === 0 ? depositRiichi(s0, c.from) : s0;
   if (c.rons.length === 0 && c.kind !== 'discard') {
     // カンの牌を誰もロンしなかった＝カンした人が嶺上牌を引く。加槓の一発は、ルールが「槍槓の確認のあと」ならここで消える
     return { ...s, phase: 'draw', turn: c.from, claim: null, rinshanDue: true, ippatsu: c.kind === 'kakan' ? [false, false, false, false] : s.ippatsu };
@@ -534,7 +592,7 @@ function settleClaim(s: GameState): GameState {
     if (!call) {
       // 打牌が通った（誰もロンも鳴きもしない）ところで、途中流局を確かめる
       const reason = abortAfterPass(s, c);
-      if (reason) return { ...s, phase: 'ended', claim: null, result: { type: 'abort', reason } };
+      if (reason) return finish({ ...s, claim: null }, { type: 'abort', reason }, [0, 0, 0, 0]);
       return { ...s, phase: 'draw', turn: nextSeat(c.from), claim: null };
     }
     return applyCall(s, c, call);
@@ -546,11 +604,142 @@ function settleClaim(s: GameState): GameState {
   let wins = rons;
   if (rons.length === 2 && v?.double === 'atama') wins = rons.slice(0, 1);
   if (rons.length === 3) {
-    if (v?.triple === 'ryukyoku') return { ...s, phase: 'ended', claim: null, result: { type: 'tripleRon', from: c.from, seats: rons.map((r) => r.seat) } };
+    if (v?.triple === 'ryukyoku') return finish({ ...s, claim: null }, { type: 'tripleRon', from: c.from, seats: rons.map((r) => r.seat) }, [0, 0, 0, 0]);
     if (v?.triple === 'atama') wins = rons.slice(0, 1);
   }
   const robbed = c.kind === 'discard' ? {} : { robbed: c.kind };
-  return { ...s, phase: 'ended', claim: null, result: { type: 'ron', from: c.from, winTile: c.tile, wins, ...robbed } };
+  const result: RoundResult = { type: 'ron', from: c.from, winTile: c.tile, wins, ...robbed };
+  return finish({ ...s, claim: null }, result, ronSettlement(s, c.from, wins));
+}
+
+/** 局を終える：結果を置き、点の動きを持ち点に足す。供託は、アガった人に渡した分（settlement に入れた分）だけ卓から消える */
+function finish(s: GameState, result: RoundResult, settlement: number[]): GameState {
+  const scores = s.scores.map((p, i) => p + settlement[i]);
+  const taken = result.type === 'tsumo' || result.type === 'ron' ? s.kyotaku : 0;
+  return { ...s, phase: 'ended', result, settlement, scores, kyotaku: s.kyotaku - taken };
+}
+
+/** リーチ棒を出す（持ち点から 1000 点を卓へ） */
+function depositRiichi(s: GameState, seat: Seat): GameState {
+  const scores = s.scores.slice();
+  scores[seat] -= RIICHI_STICK;
+  const riichiStick = s.riichiStick.slice();
+  riichiStick[seat] = true;
+  return { ...s, scores, riichiStick, kyotaku: s.kyotaku + 1 };
+}
+
+/** リーチ棒を出せるか（1000 点未満のリーチがルールで「できない」なら、持ち点 1000 点以上） */
+export function riichiAffordable(s: GameState, seat: Seat): boolean {
+  const v = s.rules?.family === 'jp' ? s.rules.values : null;
+  return v?.riichiUnder === 'ok' || s.scores[seat] >= RIICHI_STICK;
+}
+
+const honbaOn = (s: GameState) => s.rules?.family === 'jp' && s.rules.values.honba === 'on';
+
+/**
+ * 役満のうち、包の人が受け持つ割合（0〜1）。包が無い・その役が成り立っていないなら 0。
+ * 「その役満分だけ包」なら、包の役の倍数 ÷ 全部の役満の倍数。「全額を包」なら 1
+ */
+function paoShare(s: GameState, seat: Seat, score: ScoreResult): { pao: Seat; share: number } | null {
+  const p = s.pao[seat];
+  if (!p || score.limit !== 'yakuman' || score.yakuman <= 0) return null;
+  const hit = score.yaku.find((y) => y.id === p.yaku);
+  if (!hit) return null;
+  const v = s.rules?.family === 'jp' ? s.rules.values : null;
+  const share = v?.paoMix === 'all' ? 1 : hit.yakuman / score.yakuman;
+  return { pao: p.seat, share };
+}
+
+/** ツモアガリの点の動き：払う人は本場 1 本につき 100 点ずつ足す（包があれば包の人が受け持つ分と本場を払う）。供託はアガった人へ */
+function tsumoSettlement(s: GameState, winner: Seat, score: ScoreResult): number[] {
+  const out = [0, 0, 0, 0];
+  const pay = (from: Seat, n: number) => {
+    out[from] -= n;
+    out[winner] += n;
+  };
+  const p = score.payment;
+  if (p.type !== 'tsumo') throw new Error('ツモの支払いでない');
+  const honba = honbaOn(s) ? s.honba : 0;
+  const pao = paoShare(s, winner, score);
+  const rest = pao ? 1 - pao.share : 1;
+  for (const seat of SEATS_) {
+    if (seat === winner) continue;
+    pay(seat, Math.round((seat === s.dealer ? p.fromDealer || p.fromOthers : p.fromOthers) * rest));
+  }
+  if (pao) pay(pao.pao, Math.round(score.total * pao.share));
+  // 本場：包があれば包の人がまとめて、無ければ 1 人 100 点ずつ
+  if (pao) pay(pao.pao, honba * HONBA_POINTS);
+  else for (const seat of SEATS_) if (seat !== winner) pay(seat, honba * (HONBA_POINTS / 3));
+  out[winner] += s.kyotaku * RIICHI_STICK;
+  return out;
+}
+
+/**
+ * ロンアガリの点の動き。アガった人ごとに、切った人が払う（包があれば受け持つ分を包の人と折半）。
+ * 本場と供託：1 人なら全部その人。2 人以上はルールの multiWinSticks（上家取り／積み棒は全員・リーチ棒は本人に戻す）。
+ * 包のときの本場はルールの paoHonba（包の人／放銃者）
+ */
+function ronSettlement(s: GameState, from: Seat, wins: readonly RonWin[]): number[] {
+  const out = [0, 0, 0, 0];
+  const pay = (payer: Seat, to: Seat, n: number) => {
+    out[payer] -= n;
+    out[to] += n;
+  };
+  const v = s.rules?.family === 'jp' ? s.rules.values : null;
+  const honba = honbaOn(s) ? s.honba : 0;
+  const each = wins.length > 1 && v?.multiWinSticks === 'each';
+  wins.forEach((w, i) => {
+    const pao = paoShare(s, w.seat, w.score);
+    const paoPart = pao ? Math.round(w.score.total * pao.share) : 0;
+    if (pao && pao.pao !== from) {
+      pay(pao.pao, w.seat, paoPart / 2);
+      pay(from, w.seat, w.score.total - paoPart / 2);
+    } else {
+      pay(from, w.seat, w.score.total);
+    }
+    if (i === 0 || each) {
+      const honbaPayer = pao && pao.pao !== from && v?.paoHonba === 'pao' ? pao.pao : from;
+      pay(honbaPayer, w.seat, honba * HONBA_POINTS);
+    }
+  });
+  // 供託：積み棒は全員のルールでは、この局でリーチしたアガった人が自分のリーチ棒を取り戻し、残りは最初の人
+  let sticks = s.kyotaku;
+  if (each) {
+    for (const w of wins) {
+      if (s.riichiStick[w.seat] && sticks > 0) {
+        out[w.seat] += RIICHI_STICK;
+        sticks--;
+      }
+    }
+  }
+  out[wins[0].seat] += sticks * RIICHI_STICK;
+  return out;
+}
+
+const SEATS_: readonly Seat[] = [0, 1, 2, 3];
+
+/** 流し満貫が成り立つ席：ルールが「あり」、河が全部么九牌で、1 枚も鳴かれていない（自分が鳴いていても成り立つ） */
+export function nagashiSeats(s: GameState): Seat[] {
+  const v = s.rules?.family === 'jp' ? s.rules.values : null;
+  if (v?.nagashi !== 'on') return [];
+  return SEATS_.filter((seat) => {
+    const d = s.discards[seat];
+    return d.length > 0 && s.calledAway[seat].length === 0 && d.every((t) => TERMINAL_HONOR_KINDS.includes(kindOf(t)));
+  });
+}
+
+/** 流し満貫の支払い：満貫のツモと同じ（親 4000 オール・子は親 4000／子 2000）。何人でもそれぞれ */
+function nagashiPayments(s: GameState, seats: readonly Seat[]): number[] {
+  const out = [0, 0, 0, 0];
+  for (const w of seats) {
+    for (const seat of SEATS_) {
+      if (seat === w) continue;
+      const n = w === s.dealer || seat === s.dealer ? 4000 : 2000;
+      out[seat] -= n;
+      out[w] += n;
+    }
+  }
+  return out;
 }
 
 /** チー・ポンの申し出がおかしければ理由を返す（無ければ null）。手牌が見える局面では持っている牌かも確かめる */
@@ -715,6 +904,9 @@ function applyCall(s: GameState, c: Claim, call: CallOffer): GameState {
   const tiles = [...call.tiles, c.tile].sort((a, b) => kindOf(a) - kindOf(b) || a - b);
   const kan = call.meld === 'kan';
   melds[call.seat].push({ type: call.meld === 'kan' ? 'minkan' : call.meld, tiles, called: c.tile, from: c.from });
+  const pao = s.pao.slice();
+  const p = paoFromCall(s, melds[call.seat], c.from);
+  if (p && !pao[call.seat]) pao[call.seat] = p;
   const calledAway = s.calledAway.map((x) => x.slice());
   calledAway[c.from].push(s.discards[c.from].length - 1);
   const v = s.rules?.family === 'jp' ? s.rules.values : null;
@@ -727,6 +919,7 @@ function applyCall(s: GameState, c: Claim, call: CallOffer): GameState {
     kans: s.kans + (kan ? 1 : 0),
     pendingDora: s.pendingDora + (kanDora ? 1 : 0),
     deferDora: kanDora && v?.kandoraWhen === 'split',
+    pao,
     turn: call.seat,
     hands,
     melds,
@@ -736,6 +929,23 @@ function applyCall(s: GameState, c: Claim, call: CallOffer): GameState {
     drawn: [null, null, null, null],
     claim: null,
   };
+}
+
+/**
+ * 鳴いたことで包が決まるか。ルールの pao：2＝大三元・大四喜／3＝それに四槓子。
+ * 大三元＝三元牌の 3 つ目の刻子・槓子を鳴かせた人／大四喜＝風牌の 4 つ目／四槓子＝4 つ目のカンを大明槓させた人
+ */
+function paoFromCall(s: GameState, melds: readonly OpenMeld[], from: Seat): Pao | null {
+  const v = s.rules?.family === 'jp' ? s.rules.values : null;
+  if (!v || (v.pao !== '2' && v.pao !== '3')) return null;
+  const last = melds[melds.length - 1];
+  if (last.type === 'chi') return null;
+  const k = kindOf(last.tiles[0]);
+  const triKinds = melds.filter((m) => m.type !== 'chi').map((m) => kindOf(m.tiles[0]));
+  if (k >= 31 && triKinds.filter((x) => x >= 31).length === 3) return { seat: from, yaku: 'daisangen' };
+  if (k >= 27 && k <= 30 && triKinds.filter((x) => x >= 27 && x <= 30).length === 4) return { seat: from, yaku: 'daisuushii' };
+  if (v.pao === '3' && last.type === 'minkan' && melds.filter(isKanMeld).length === 4) return { seat: from, yaku: 'suukantsu' };
+  return null;
 }
 
 /** 鳴いた面子を、役の判定が読む形にする */
@@ -770,6 +980,7 @@ export function scoreTsumo(s: GameState, seat: Seat, hand: readonly TileId[], wi
       roundWind: roundWindOf(s),
       haitei: liveWallLeft(s) === 0,
       rinshan: s.rinshanDraw,
+      honba: s.honba,
       riichi: s.riichi[seat],
       ippatsu: s.ippatsu[seat],
       tenhou: seat === s.dealer && noDiscards,
@@ -803,6 +1014,7 @@ export function scoreRon(s: GameState, seat: Seat, hand: readonly TileId[], winT
       roundWind: roundWindOf(s),
       houtei: kind === 'discard' && liveWallLeft(s) === 0,
       chankan: kind === 'kakan',
+      honba: s.honba,
       riichi: s.riichi[seat],
       ippatsu: s.ippatsu[seat] && (kind !== 'kakan' || v.ippatsuChankan === 'yes'),
       // 人和（ルールの jinho）は段階3の途中で足す

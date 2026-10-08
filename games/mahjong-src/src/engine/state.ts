@@ -63,6 +63,10 @@ export interface GameState {
   ippatsu: boolean[];
   /** 流局したときの、席ごとの宣言（まだなら null） */
   declared: (boolean | null)[];
+  /** 席ごとの、同じ巡の見逃しによるフリテン（次の自分の打牌で解ける）。立てるのはロンが入る段階3 */
+  missedTurn: boolean[];
+  /** 席ごとの、リーチ後の見逃しによるフリテン（局の終わりまで解けない）。立てるのは段階3 */
+  missedRiichi: boolean[];
   result: RoundResult | null;
 }
 
@@ -83,6 +87,8 @@ export const initialState = (): GameState => ({
   riichiAt: [null, null, null, null],
   ippatsu: [false, false, false, false],
   declared: [null, null, null, null],
+  missedTurn: [false, false, false, false],
+  missedRiichi: [false, false, false, false],
   result: null,
 });
 
@@ -133,6 +139,8 @@ export function apply(state: GameState, env: Envelope): GameState {
         riichiAt: [null, null, null, null],
         ippatsu: [false, false, false, false],
         declared: [null, null, null, null],
+        missedTurn: [false, false, false, false],
+        missedRiichi: [false, false, false, false],
         result: null,
       };
     }
@@ -193,7 +201,10 @@ export function apply(state: GameState, env: Envelope): GameState {
       discards[ev.seat].push(ev.tile);
       const drawn = s.drawn.slice();
       drawn[ev.seat] = null;
-      return { ...s, phase: 'draw', turn: nextSeat(ev.seat), hands, discards, drawn, riichi, riichiAt, ippatsu };
+      // 同じ巡の見逃しは、自分が切ったところで解ける
+      const missedTurn = s.missedTurn.slice();
+      missedTurn[ev.seat] = false;
+      return { ...s, phase: 'draw', turn: nextSeat(ev.seat), hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn };
     }
     case 'tsumo': {
       if (s.phase !== 'discard' || ev.seat !== s.turn) throw new Error('ツモアガリできる時ではない');

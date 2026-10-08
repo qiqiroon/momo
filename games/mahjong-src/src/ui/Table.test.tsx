@@ -92,6 +92,40 @@ describe('リーチのボタン（段階2）', () => {
   });
 });
 
+describe('フリテンの表示（段階2）', () => {
+  /** 席 0 が 3z をツモ切りしたところ（1z・2z のシャンポン待ち）。河に別の 1z を足すとフリテン */
+  function afterDiscard() {
+    const v = riichiView();
+    return apply(v, { seq: v.nextSeq, to: 'all', ev: { type: 'discard', seat: 0, tile: 29 * 4 + 3, tsumogiri: true } });
+  }
+
+  it('フリテンでなければ印も枠も出ない', () => {
+    render(<Table view={afterDiscard()} legal={[]} lang="ja" onChoose={() => {}} onAgain={() => {}} />);
+    expect(document.querySelectorAll('.furiten-mark')).toHaveLength(0);
+    expect(document.querySelectorAll('.furiten-cause')).toHaveLength(0);
+  });
+
+  it('待ち牌が自分の河にあれば、名札に「フリテン」が出て、その牌に枠が付く（他人の河の同じ牌には付かない）', () => {
+    const v = afterDiscard();
+    const view = { ...v, discards: [[27 * 4 + 0, ...v.discards[0]], [27 * 4 + 1], v.discards[2], v.discards[3]] };
+    render(<Table view={view} legal={[]} lang="ja" onChoose={() => {}} onAgain={() => {}} />);
+    expect(screen.getAllByText('フリテン').length).toBeGreaterThan(0);
+    const causes = [...document.querySelectorAll('.furiten-cause')];
+    expect(causes).toHaveLength(1);
+    expect(causes[0].getAttribute('data-tile')).toBe('1z');
+  });
+
+  it('見逃しだけのフリテンは、印だけで枠は付かない（英語・中国語の印）', () => {
+    const view = { ...afterDiscard(), missedRiichi: [true, false, false, false] };
+    const { unmount } = render(<Table view={view} legal={[]} lang="en" onChoose={() => {}} onAgain={() => {}} />);
+    expect(screen.getAllByText('Furiten').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('.furiten-cause')).toHaveLength(0);
+    unmount();
+    render(<Table view={view} legal={[]} lang="zh" onChoose={() => {}} onAgain={() => {}} />);
+    expect(screen.getAllByText('振听').length).toBeGreaterThan(0);
+  });
+});
+
 describe('流局の宣言と結果（段階2）', () => {
   /** 席 0 がテンパイ（リーチなし）のまま流局したところ */
   function exhaustView() {

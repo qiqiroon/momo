@@ -23,6 +23,8 @@
   --wood: #1c130d;
   --wood-edge: #4a3524;
   --tile-side: #cdbf9c;
+  /* フリテン（ロンできない）を知らせる色 */
+  --warn: #f87171;
 }
 
 * {
@@ -732,6 +734,29 @@ body.in-game .site-header .subtitle {
   font-size: 0.85em;
   font-weight: 700;
   line-height: 1.3;
+}
+
+/* 自分のフリテン：名札の印（オレンジ地に白い字＝利用者指定）と、元になっている河の牌の赤い枠（直前の牌の枠と重なっても両方見えるよう、枠は牌の内側に描く） */
+.furiten-mark {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  border: 1px solid var(--orange-mid);
+  border-radius: 3px;
+  background: var(--orange);
+  color: #fff;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.tile.furiten-cause::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--warn);
+  border-radius: inherit;
+  pointer-events: none;
 }
 
 .btn-riichi.active {

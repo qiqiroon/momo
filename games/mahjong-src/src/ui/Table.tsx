@@ -4,6 +4,7 @@
 
 import { Fragment, useState, type CSSProperties, type PointerEvent } from 'react';
 import { HIDDEN, type Seat } from '../engine/events';
+import { furitenOf } from '../engine/furiten';
 import type { Action } from '../engine/round';
 import type { ScoreResult } from '../engine/score';
 import { liveWallLeft, type GameState } from '../engine/state';
@@ -40,12 +41,25 @@ export function Table({ view, legal, lang, onChoose, onAgain }: Props) {
   // 直前に切った人（その河の最後の牌に印を付ける）
   const lastDiscarder = view.phase === 'draw' ? (view.turn + 3) % 4 : -1;
 
-  /** 河の牌の印：直前に切られた牌・リーチの宣言牌（横に曲げる） */
+  // 自分のフリテン（手牌が見えるのは自分だけなので、出すのも自分の分だけ）。局の途中だけ出す
+  const furiten = view.phase === 'draw' || view.phase === 'discard' ? furitenOf(view, HUMAN) : null;
+  const furitenCauses = new Set(furiten?.causes ?? []);
+
+  /** 河の牌の印：直前に切られた牌・リーチの宣言牌（横に曲げる）・自分のフリテンの元になっている牌 */
   const riverClass = (seat: number, i: number) =>
-    [seat === lastDiscarder && i === view.discards[seat].length - 1 ? 'last' : '', view.riichiAt[seat] === i ? 'riichi-tile' : '']
+    [
+      seat === lastDiscarder && i === view.discards[seat].length - 1 ? 'last' : '',
+      view.riichiAt[seat] === i ? 'riichi-tile' : '',
+      seat === HUMAN && furitenCauses.has(i) ? 'furiten-cause' : '',
+    ]
       .filter(Boolean)
       .join(' ');
-  const riichiMark = (seat: number) => view.riichi[seat] !== 'none' && <span className="riichi-mark">{t('riichi')}</span>;
+  const riichiMark = (seat: number) => (
+    <>
+      {view.riichi[seat] !== 'none' && <span className="riichi-mark">{t('riichi')}</span>}
+      {seat === HUMAN && furiten && furiten.reasons.length > 0 && <span className="furiten-mark">{t('furiten')}</span>}
+    </>
+  );
 
   const river = (seat: number) => (
     <div className="river">

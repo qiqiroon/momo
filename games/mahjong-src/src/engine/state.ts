@@ -104,6 +104,10 @@ export interface GameState {
   rules: Rules | null;
   roundIndex: number;
   dealer: Seat;
+  /** 起家（最初の親）。親決めが無い牌譜（10-09 より前）は席 0 */
+  chicha: Seat;
+  /** 親決めで振ったサイコロ（振っていなければ null） */
+  dealerDice: [number, number] | null;
   phase: Phase;
   /** 番の人 */
   turn: Seat;
@@ -199,6 +203,8 @@ export const initialState = (): GameState => ({
   rules: null,
   roundIndex: -1,
   dealer: 0,
+  chicha: 0,
+  dealerDice: null,
   phase: 'idle',
   turn: 0,
   hands: [[], [], [], []],
@@ -268,8 +274,18 @@ export function apply(state: GameState, env: Envelope): GameState {
       const p = startPoints(ev.rules);
       return { ...s, rules: ev.rules, scores: [p, p, p, p], honba: 0, kyotaku: 0 };
     }
+    case 'dealerDice': {
+      if (!s.rules) throw new Error('対局が始まる前に親決めをした');
+      if (s.roundIndex >= 0) throw new Error('局が始まったあとに親決めをした');
+      const [d1, d2] = ev.dice;
+      if (![d1, d2].every((d) => Number.isInteger(d) && d >= 1 && d <= 6)) throw new Error('サイコロの目が 1〜6 でない');
+      if (ev.dealer !== dealerByDice(ev.by, ev.dice)) throw new Error('サイコロの目と起家が合わない');
+      return { ...s, chicha: ev.dealer, dealerDice: ev.dice };
+    }
     case 'roundStart': {
       if (!s.rules) throw new Error('対局が始まる前に局が始まった');
+      // 最初の局の親は起家（親決めで決まった人）
+      if (s.roundIndex < 0 && ev.dealer !== s.chicha) throw new Error('最初の局の親が起家と違う');
       if (s.phase === 'gameover') throw new Error('対局が終わったあとに局が始まった');
       // 2 局目からは、局の進め方（nextStep）と同じ局・親・本場でなければ止める
       if (s.roundIndex >= 0) {
@@ -989,6 +1005,9 @@ const yakuMelds = (s: GameState, seat: Seat): Meld[] =>
 const meldTiles = (s: GameState, seat: Seat): TileId[] => s.melds[seat].flatMap((m) => m.tiles);
 
 /** 自風（27＝東 … 30＝北）。親が東 */
+/** サイコロの目の合計を、振った人＝1 として下家の向きへ数える（5・9 は振った人、2・6・10 は下家、3・7・11 は対面、4・8・12 は上家） */
+export const dealerByDice = (by: Seat, dice: readonly [number, number]): Seat => ((by + dice[0] + dice[1] - 1) % 4) as Seat;
+
 export const seatWindOf = (s: GameState, seat: Seat): number => 27 + ((seat - s.dealer + 4) % 4);
 /** 場風。東場の 4 局のあとが南場（局の進め方は段階4で決める） */
 export const roundWindOf = (s: GameState): number => 27 + (Math.floor(Math.max(0, s.roundIndex) / 4) % 4);

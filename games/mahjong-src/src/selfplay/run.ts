@@ -9,7 +9,7 @@ import { tsumogiriCpu } from '../cpu/tsumogiri';
 import type { Envelope, Seat } from '../engine/events';
 import { Watcher } from '../engine/invariants';
 import { nextStep } from '../engine/game';
-import { act, advance, nextHand, startRound } from '../engine/round';
+import { act, advance, nextHand, rollForDealer, startRound } from '../engine/round';
 import { GENERAL_RULES, type Rules } from '../engine/rules';
 import type { GameState, OpenMeld, RoundResult } from '../engine/state';
 import { kindOf } from '../engine/tiles';
@@ -84,7 +84,9 @@ export function playOne(
   });
 
   let failure = feed([{ seq: 0, to: 'all', ev: { type: 'gameStart', rules } }]);
-  if (!failure) failure = feed(startRound(w.full, seed, 0, 0 as Seat));
+  // 半荘を最後まで打つときは親決めから（起家が席 0 以外になる道も通す）。1 局だけのときは席 0 が親のまま
+  if (!failure && wholeGame) failure = feed([{ seq: w.full.nextSeq, to: 'all', ev: rollForDealer(seed) }]);
+  if (!failure) failure = feed(startRound(w.full, seed, 0, w.full.chicha));
   let hands = 1;
   while (!failure && w.full.phase !== 'gameover' && (wholeGame || w.full.phase !== 'ended')) {
     if (w.checked > MAX_EVENTS * hands) return done({ seed, seq: w.full.nextSeq, reasons: ['局が終わらない'] });

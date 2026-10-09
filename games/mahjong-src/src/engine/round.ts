@@ -3,7 +3,7 @@
 
 import { HIDDEN, SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
 import { furitenOf } from './furiten';
-import { callProblem, kanProblem, kyushuOk, liveWallLeft, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
+import { callProblem, dealerByDice, kanProblem, kyushuOk, liveWallLeft, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { waitKinds } from './agari';
 import { nextStep } from './game';
@@ -34,6 +34,16 @@ function dealChunks(wall: readonly TileId[], dealer: Seat): { seat: Seat; tiles:
 }
 
 /** 局の始まりから配牌までの出来事。honba＝本場（2 局目からは局の進め方 nextStep が決めた値を渡す） */
+/**
+ * 親決め（訂正26100917・利用者 Q7=A サイコロ）。仮親 by がサイコロを 2 つ振る。目は対局の種から決まる＝牌譜で同じ親決めになる。
+ * 一人用の仮親は席 0（自分）。
+ */
+export function rollForDealer(gameSeed: string, by: Seat = 0): GameEvent {
+  const rng = createRng(`${gameSeed}:dealerDice`);
+  const dice: [number, number] = [1 + Math.floor(rng() * 6), 1 + Math.floor(rng() * 6)];
+  return { type: 'dealerDice', by, dice, dealer: dealerByDice(by, dice) };
+}
+
 export function startRound(state: GameState, gameSeed: string, roundIndex: number, dealer: Seat, honba = 0): Envelope[] {
   if (!state.rules) throw new Error('対局が始まっていない');
   const seed = roundSeed(gameSeed, state.handCount);

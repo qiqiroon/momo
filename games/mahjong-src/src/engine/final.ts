@@ -70,8 +70,10 @@ export function finalResult(s: GameState): FinalRow[] {
   const v = s.rules.values;
   const kaeshi = v.kaeshi === 'none' ? null : RETURN_POINTS;
   const seats: Seat[] = [0, 1, 2, 3];
-  // 1. 順位（同点は席順で並べておき、分け合うルールなら同じ順位にする）
-  const order = seats.slice().sort((a, b) => s.scores[b] - s.scores[a] || a - b);
+  // 1. 順位（同点は起家に近い順で並べておき、分け合うルールなら同じ順位にする）
+  // 同点の並びは起家に近い順（起家から下家の向きに数える）
+  const fromChicha = (x: Seat) => (x - s.chicha + 4) % 4;
+  const order = seats.slice().sort((a, b) => s.scores[b] - s.scores[a] || fromChicha(a) - fromChicha(b));
   const split = v.tie === 'split';
   const groups: Seat[][] = [];
   for (const seat of order) {

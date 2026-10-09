@@ -97,6 +97,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
     ]
       .filter(Boolean)
       .join(' ');
+  /** 起家の印（親決めで最初の親になった人） */
+  const chichaMark = (seat: number) => seat === view.chicha && <span className="chicha-mark">{t('chichaMark')}</span>;
   const riichiMark = (seat: number) => (
     <>
       {view.riichi[seat] !== 'none' && <span className="riichi-mark">{t('riichi')}</span>}
@@ -373,6 +375,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
                 <div className="lane-who">
                   <span className="lane-wind">{windOf(seat)}</span>
                   <span className="lane-name">{nameOf(seat)}</span>
+                  {chichaMark(seat)}
                   {pointsOf(seat)}
                   {riichiMark(seat)}
                   {seat !== HUMAN && (
@@ -440,7 +443,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
             const seat = seatAt(rel);
             return (
               <span key={rel} className={`center-wind rel-${rel}${view.turn === seat && playing ? ' is-turn' : ''}`}>
-                <b>{windOf(seat)}</b> {nameOf(seat)} {pointsOf(seat)}
+                <b>{windOf(seat)}</b> {nameOf(seat)} {chichaMark(seat)} {pointsOf(seat)}
                 {riichiMark(seat)}
               </span>
             );

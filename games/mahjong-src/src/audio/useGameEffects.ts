@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Seat } from '../engine/events';
 import { finalResult } from '../engine/final';
 import type { GameState } from '../engine/state';
-import { HUMAN, dealShowOn } from '../game/useTable';
+import { DICE_SHOW_MS, HUMAN, dealShowOn, showsDice } from '../game/useTable';
 import { isAudioRunning, playRandomBgm, playSample, stopBgm, type BgmPool } from './engine';
 
 /** 混ぜる音を聞かせる長さ（素材は 8.95 秒あるので途中で消す） */
@@ -22,11 +22,13 @@ const DEAL_STEPS = [4, 8, 12, 13];
 /** 演出の全体の長さ（useTable の DEAL_SHOW_MS と同じにする） */
 export const DEAL_TOTAL_MS = SHUFFLE_MS + DEAL_STEP_MS * DEAL_STEPS.length;
 
-export type BannerKind = 'riichi' | 'ron' | 'tsumo' | 'dealIn' | 'win' | 'lose';
+export type BannerKind = 'dice' | 'riichi' | 'ron' | 'tsumo' | 'dealIn' | 'win' | 'lose';
 export interface Banner {
   kind: BannerKind;
-  /** リーチした席（流れる帯の高さを決める） */
+  /** リーチした席（流れる帯の高さを決める）・親決めで起家になった席 */
   seat?: Seat;
+  /** 親決めのサイコロの目 */
+  dice?: [number, number];
   /** 同じ種類を続けて出しても動き直すための番号 */
   key: number;
 }
@@ -64,14 +66,21 @@ export function useGameEffects(view: GameState, live: boolean) {
       setKusudama(false);
       if (!dealShowOn()) return;
       setDealt(0);
-      playSample('shuffle', { trimSec: SHUFFLE_MS / 1000 });
+      // 対局の最初の局は、先に親決めのサイコロを見せる
+      const t0 = showsDice(view) && view.dealerDice ? DICE_SHOW_MS : 0;
+      if (t0 > 0) {
+        show({ kind: 'dice', dice: view.dealerDice!, seat: view.chicha });
+        playSample('deal');
+        later(400, () => playSample('deal'));
+      }
+      later(t0, () => playSample('shuffle', { trimSec: SHUFFLE_MS / 1000 }));
       DEAL_STEPS.forEach((n, i) =>
-        later(SHUFFLE_MS + DEAL_STEP_MS * i, () => {
+        later(t0 + SHUFFLE_MS + DEAL_STEP_MS * i, () => {
           setDealt(n);
           playSample('deal');
         }),
       );
-      later(DEAL_TOTAL_MS, () => setDealt(null));
+      later(t0 + DEAL_TOTAL_MS, () => setDealt(null));
       return;
     }
     if (!p) return;

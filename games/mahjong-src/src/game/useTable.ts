@@ -7,7 +7,7 @@ import { useCallback, useEffect, useReducer } from 'react';
 import { tsumogiriCpu } from '../cpu/tsumogiri';
 import { mask, type Envelope, type Seat } from '../engine/events';
 import { nextStep } from '../engine/game';
-import { act, advance, legalActions, nextHand, startRound, type Action } from '../engine/round';
+import { act, advance, legalActions, nextHand, rollForDealer, startRound, type Action } from '../engine/round';
 import { GENERAL_RULES } from '../engine/rules';
 import { apply, initialState, type GameState } from '../engine/state';
 import { isoLocal, type KifuSource } from '../kifu/kifu';
@@ -18,6 +18,10 @@ export const HUMAN: Seat = 0;
 const CPU_DELAY = 420;
 /** 配り終えてから最初のツモまで待つ間＝牌を混ぜて配る演出の長さ（画面側 useGameEffects の DEAL_TOTAL_MS と同じ値） */
 export const DEAL_SHOW_MS = 2700;
+/** 対局の最初の局だけ、その前に親決めのサイコロを見せる長さ（useGameEffects の DICE_MS と同じ値） */
+export const DICE_SHOW_MS = 2200;
+/** 対局の最初の局で、親決めのサイコロを見せるか */
+export const showsDice = (s: GameState): boolean => s.dealerDice !== null && s.roundIndex === 0 && s.honba === 0 && s.discards.every((d) => d.length === 0);
 let dealHold = DEAL_SHOW_MS;
 /** 検査用：配る演出を待たない（src/test/setup.ts） */
 export function setDealHold(ms: number): void {
@@ -73,11 +77,13 @@ export function useTable() {
   const { full, view } = s;
 
   const start = useCallback(() => {
-    const first: Envelope = { seq: 0, to: 'all', ev: { type: 'gameStart', rules: GENERAL_RULES } };
-    const afterStart = apply(initialState(), first);
     const seed = newSeed();
+    const first: Envelope = { seq: 0, to: 'all', ev: { type: 'gameStart', rules: GENERAL_RULES } };
+    // 親決め（自分が仮親としてサイコロを振る）→ 起家から最初の局
+    const dice: Envelope = { seq: 1, to: 'all', ev: rollForDealer(seed, HUMAN) };
+    const afterDice = apply(apply(initialState(), first), dice);
     dispatch({ type: 'reset', seed, startedAt: isoLocal(new Date()) });
-    dispatch({ type: 'push', envs: [first, ...startRound(afterStart, seed, 0, 0)] });
+    dispatch({ type: 'push', envs: [first, dice, ...startRound(afterDice, seed, 0, afterDice.chicha)] });
   }, []);
 
   // 最後の対局を端末に覚える（少し待ってまとめて書く。対局が終わったらすぐ書く）
@@ -135,7 +141,7 @@ export function useTable() {
       return () => clearTimeout(id);
     }
     if (full.phase === 'deal' || full.phase === 'draw') {
-      const wait = full.phase === 'deal' ? dealHold : full.turn === HUMAN ? 0 : CPU_DELAY / 2;
+      const wait = full.phase === 'deal' ? dealHold + (dealHold > 0 && showsDice(full) ? DICE_SHOW_MS : 0) : full.turn === HUMAN ? 0 : CPU_DELAY / 2;
       const id = setTimeout(() => dispatch({ type: 'push', envs: advance(full) }), wait);
       return () => clearTimeout(id);
     }

@@ -194,7 +194,8 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     if (v.kaeshi !== 'none' && (v.kyotaku === 'top' || full.kyotaku === 0) && sum !== 0) bad.push(`最終得点の合計が 0 でない（${sum}）`);
   }
   if (full.roundIndex > 11) bad.push(`局の番号が延長の最後を超えた（${full.roundIndex}）`);
-  if (full.roundIndex >= 0 && full.dealer !== full.roundIndex % 4) bad.push(`親が局の番号と合わない（局 ${full.roundIndex}・親 ${full.dealer}）`);
+  // 親は起家から局の番号ぶん下家へ進んだ人（親決めの前の牌譜は起家＝席 0）
+  if (full.roundIndex >= 0 && full.dealer !== (full.chicha + full.roundIndex) % 4) bad.push(`親が局の番号と合わない（局 ${full.roundIndex}・起家 ${full.chicha}・親 ${full.dealer}）`);
   // リーチ棒を出したのはリーチした人だけ
   full.riichiStick.forEach((st, seat) => {
     if (st && full.riichi[seat] === 'none') bad.push(`席 ${seat}：リーチしていないのにリーチ棒を出した`);

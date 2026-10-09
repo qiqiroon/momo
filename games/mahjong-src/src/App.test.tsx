@@ -74,14 +74,25 @@ describe('卓の画面（段階1）', () => {
     for (let t = 0; t < ms; t += 100) act(() => vi.advanceTimersByTime(100));
   };
 
+  /** 河に出ている牌の数 */
+  const riverCount = (container: HTMLElement) => container.querySelectorAll('.river .tile, .river-row .tile').length;
+  /** 自分の番（14 枚で切れる）まで進める。親決めで起家が CPU のこともある。チー・ポンできるときは見送る */
+  const untilMyTurn = (container: HTMLElement) => {
+    for (let i = 0; i < 30 && myTiles(container).length !== 14; i++) {
+      run(600);
+      const pass = container.querySelector('.btn-pass');
+      if (pass) fireEvent.click(pass);
+    }
+  };
+
   /** 自分の手牌のボタン（押せるものだけ） */
   const myTiles = (container: HTMLElement) =>
     Array.from(container.querySelectorAll<HTMLButtonElement>('.hand-tile')).filter((b) => !b.disabled);
 
-  it('始めると親の自分に 14 枚。牌を 1 枚切ると河に出て、CPU の番が回って自分の番に戻る', () => {
+  it('自分の番になると 14 枚。牌を 1 枚切ると河に出て、CPU の番が回って自分の番に戻る', () => {
     const { container } = render(<App />);
     fireEvent.click(startButton());
-    run(100);
+    untilMyTurn(container);
 
     expect(container.querySelectorAll('.my-hand .hand-tile')).toHaveLength(14);
     // 他の人の手牌は伏せた絵だけ（表の絵が画面に届いていない）
@@ -89,10 +100,11 @@ describe('卓の画面（段階1）', () => {
     expect(others.length).toBeGreaterThan(0);
     others.forEach((el) => expect(el.querySelector('img')!.getAttribute('src')).toMatch(/back\.svg$/));
 
+    const before = riverCount(container);
     const first = myTiles(container)[0];
     fireEvent.pointerUp(first, { pointerType: 'mouse' });
     expect(container.querySelectorAll('.my-hand .hand-tile')).toHaveLength(13);
-    expect(container.querySelectorAll('.river .tile, .river-row .tile').length).toBe(1);
+    expect(riverCount(container)).toBe(before + 1);
 
     // CPU 3 人が打つ（それぞれツモと打牌の間を置く）。CPU の牌でチー・ポンできるときは止まるので見送る
     for (let i = 0; i < 10; i++) {
@@ -100,20 +112,21 @@ describe('卓の画面（段階1）', () => {
       const pass = container.querySelector('.btn-pass');
       if (pass) fireEvent.click(pass);
     }
-    expect(container.querySelectorAll('.river .tile, .river-row .tile').length).toBeGreaterThanOrEqual(4);
+    expect(riverCount(container)).toBeGreaterThanOrEqual(before + 4);
     expect(myTiles(container)).toHaveLength(14);
   });
 
   it('指で押すときは 1 回目で浮かせるだけ、2 回目で切る', () => {
     const { container } = render(<App />);
     fireEvent.click(startButton());
-    run(100);
+    untilMyTurn(container);
+    const before = riverCount(container);
     const tile = myTiles(container)[3];
     fireEvent.pointerUp(tile, { pointerType: 'touch' });
     expect(tile).toHaveClass('raised');
-    expect(container.querySelectorAll('.river .tile, .river-row .tile').length).toBe(0);
+    expect(riverCount(container)).toBe(before);
     fireEvent.pointerUp(tile, { pointerType: 'touch' });
-    expect(container.querySelectorAll('.river .tile, .river-row .tile').length).toBe(1);
+    expect(riverCount(container)).toBe(before + 1);
   });
 
   it('自分がツモ切りを続けると、局が終わって結果ともう一局のボタンが出る', () => {

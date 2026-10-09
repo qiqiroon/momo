@@ -19,6 +19,8 @@ export type Visibility = 'all' | readonly Seat[];
 
 export type GameEvent =
   | { type: 'gameStart'; rules: Rules }
+  /** 親決め（訂正26100917）：仮親 by がサイコロを 2 つ振り、目の合計を仮親＝1 として下家の向きへ数えた人が起家 dealer */
+  | { type: 'dealerDice'; by: Seat; dice: [number, number]; dealer: Seat }
   /** 局の始まり。honba＝この局の本場の数（局の進め方が決める・段階4の 2） */
   | { type: 'roundStart'; roundIndex: number; dealer: Seat; honba?: number }
   /** 山の種。局の終わりまで誰にも見せない */

@@ -154,7 +154,6 @@ export function App() {
         </main>
       ) : (
         <main className="title">
-          <p className="trial">{t('trial')}</p>
           <button type="button" className="btn-primary btn-start" onClick={startGame}>
             {t('start')}
           </button>

@@ -24,8 +24,3 @@ games/sudoku-src/public/data/
 # Windows thumbnail cache (never publish)
 Thumbs.db
 **/Thumbs.db
-
-# Mahjong: built output stays local until stage 4 (the page goes public then, under the WIP card).
-# Only the hub-card icon is published now. Remove these two lines at stage 4.
-games/mahjong/*
-!games/mahjong/favicon.svg

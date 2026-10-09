@@ -211,13 +211,6 @@ body.in-game .site-header .subtitle {
   gap: 16px;
 }
 
-.trial {
-  margin: 8px 0 0;
-  color: var(--text);
-  font-size: 14px;
-  line-height: 1.7;
-}
-
 .btn-primary {
   font: inherit;
   font-weight: 700;
@@ -234,6 +227,8 @@ body.in-game .site-header .subtitle {
 }
 
 .btn-start {
+  /* 見出しとのあき（説明文を消したぶん） */
+  margin-top: 24px;
   font-size: 16px;
   padding: 12px 28px;
 }

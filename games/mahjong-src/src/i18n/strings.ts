@@ -15,7 +15,6 @@ export type Lang = BaseLang | 'cat';
 
 const ja = {
   subtitle: 'Any Rule, Any Table',
-  trial: '段階3の試作：ロン・チー・ポン・カンまでできます（CPU は鳴きません）',
   start: 'CPU と対局する',
   again: 'もう一局',
   you: 'あなた',
@@ -167,7 +166,6 @@ type Dict = Record<MessageKey, string>;
 
 const en: Dict = {
   subtitle: 'Any Rule, Any Table',
-  trial: 'Stage 3 prototype: ron, chi, pon and kan (the CPUs do not call)',
   start: 'Play vs CPU',
   again: 'Play again',
   you: 'You',
@@ -316,7 +314,6 @@ const en: Dict = {
 
 const zh: Dict = {
   subtitle: '百般规则，随心成局',
-  trial: '第3阶段试作：可以荣和、吃、碰、杠（电脑不鸣牌）',
   start: '与电脑对局',
   again: '再来一局',
   you: '你',

@@ -1,8 +1,14 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { App } from './App';
 import { APP_VERSION } from './version';
+import { CONSENT_VERSION } from './i18n/notice';
+import { baseOf, translate } from './i18n/strings';
 
 const container = () => document.body;
+
+// 同意画面の検査以外は、同意済みの端末として始める
+beforeEach(() => localStorage.setItem('momo-mahjong.consent', CONSENT_VERSION));
+afterEach(() => localStorage.removeItem('momo-mahjong.consent'));
 /** 始めるボタン（言語が変わっても見つかるよう、主ボタンの印で探す） */
 const startButton = () => document.querySelector<HTMLButtonElement>('.btn-start')!;
 
@@ -124,5 +130,63 @@ describe('卓の画面（段階1）', () => {
     run(5000);
     expect(container.querySelector('.result')).not.toBeNull();
     expect(screen.getByRole('dialog').querySelector('button')).not.toBeNull();
+  });
+});
+
+describe('ご利用にあたって（同意画面）', () => {
+  const agree = () => document.querySelector<HTMLButtonElement>('.btn-agree');
+  beforeEach(() => localStorage.removeItem('momo-mahjong.consent'));
+
+  it('同意していない端末では開いた瞬間に出て、閉じるボタンは無く、同意すると消えて端末に覚える', () => {
+    render(<App />);
+    expect(screen.getByRole('dialog')).toHaveTextContent('賭けに使わないでください');
+    expect(screen.queryByText('閉じる')).toBeNull();
+    fireEvent.click(agree()!);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(localStorage.getItem('momo-mahjong.consent')).toBe(CONSENT_VERSION);
+  });
+
+  it('同意画面からリンク先（公平性）を開いて戻れる。戻るまで同意のボタンは出ない', () => {
+    render(<App />);
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '対局の公平性とルールの再現について' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('公平性について');
+    expect(agree()).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '戻る' }));
+    expect(agree()).not.toBeNull();
+  });
+
+  it('前の版の同意しか無い端末では、もう一度出す', () => {
+    localStorage.setItem('momo-mahjong.consent', 'v0.00');
+    render(<App />);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('同意したあとはトップ画面の下のリンクから読み返せて、閉じられる', () => {
+    localStorage.setItem('momo-mahjong.consent', CONSENT_VERSION);
+    render(<App />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(container().querySelector('.title-foot')).toHaveTextContent('娯楽目的のゲームです。賭けには使えません。');
+    fireEvent.click(screen.getByRole('button', { name: '対局の公平性とルールの再現について' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('ルールの再現は完全ではありません');
+    expect(screen.queryByRole('button', { name: '戻る' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '閉じる' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(container().querySelector('.title-foot a')?.getAttribute('href')).toBe('../../terms.html');
+  });
+
+  it('猫語のときも鳴き声にせず、猫語を選ぶ直前の言語で出す', () => {
+    render(<App />);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'en' } });
+    expect(screen.getByRole('dialog')).toHaveTextContent('Do not use it for gambling.');
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'cat' } });
+    expect(screen.getByRole('dialog')).toHaveTextContent('Do not use it for gambling.');
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'ja' } });
+  });
+});
+
+describe('対局終了の画面の1行', () => {
+  it('「賭博に使用しないことに同意しています」を含み、猫語でも鳴き声にしない', () => {
+    expect(translate('ja', 'noMoney')).toContain('賭博に使用しないことに同意しています');
+    expect(translate('cat', 'noMoney')).toBe(translate(baseOf('cat'), 'noMoney'));
   });
 });

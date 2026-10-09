@@ -59,7 +59,7 @@ const ja = {
   finalUma: 'ウマ',
   finalOka: 'オカ',
   finalTotal: '最終得点',
-  noMoney: '点数・順位に金銭的な価値はありません。',
+  noMoney: '点数・順位に金銭的な価値はありません。賭博に使用しないことに同意しています。',
   gameEnd_last: '予定の局をすべて打ち終えました',
   gameEnd_tobi: '持ち点が 0 点を下回った人がいるため終わりました（飛び）',
   gameEnd_yame: 'トップの親がやめたため終わりました',
@@ -211,7 +211,7 @@ const en: Dict = {
   finalUma: 'Uma',
   finalOka: 'Oka',
   finalTotal: 'Final',
-  noMoney: 'Scores and rankings have no monetary value.',
+  noMoney: 'Scores and rankings have no monetary value. You have agreed not to use this app for gambling.',
   gameEnd_last: 'All scheduled hands have been played',
   gameEnd_tobi: 'A player went below zero points',
   gameEnd_yame: 'The leading dealer chose to stop',
@@ -360,7 +360,7 @@ const zh: Dict = {
   finalUma: '马',
   finalOka: '冈',
   finalTotal: '最终得分',
-  noMoney: '分数与名次不具有任何金钱价值。',
+  noMoney: '分数与名次不具有任何金钱价值。您已同意不将本应用用于赌博。',
   gameEnd_last: '预定的局已全部打完',
   gameEnd_tobi: '有人的点数低于 0，对局结束',
   gameEnd_yame: '领先的庄家选择结束',
@@ -469,8 +469,8 @@ const DICTS: Record<BaseLang, Dict> = { ja, en, zh };
 
 /** 猫語にしないキー（猫語のときも、猫語を選ぶ直前の言語のまま出す）。利用者指示 2026-10-07：
  *  - サブタイトル（全アプリ共通で猫語にしない）
- *  - 利用規約・免責・賭博禁止・公平性の説明など、意味が伝わらないと困るもの（段階4で足す） */
-const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['subtitle']);
+ *  - 利用規約・免責・賭博禁止・公平性の説明など、意味が伝わらないと困るもの（同意画面の文面は i18n/notice.ts） */
+const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['subtitle', 'noMoney']);
 
 /** 攻撃的な鳴き声を返すキー（失敗・エラーの通知）。いまは無い（オンラインの段階で足す） */
 const ERROR_KEYS: ReadonlySet<MessageKey> = new Set([]);

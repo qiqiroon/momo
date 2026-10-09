@@ -4,6 +4,8 @@ import { useTable } from './game/useTable';
 import { buildKifu, kifuFileName, parseKifu, type Kifu, type KifuSource } from './kifu/kifu';
 import { downloadText, loadLastGame, saveToDrive } from './kifu/store';
 import { Replay } from './ui/Replay';
+import { NOTICE, hasConsented, saveConsent } from './i18n/notice';
+import { Notice, TERMS_URL, type NoticeKind } from './ui/Notice';
 import { LANG_MODES, baseOf, changeMode, currentMode, initLang, translate, type LangMode, type MessageKey } from './i18n/strings';
 import { Table } from './ui/Table';
 import { useLayout } from './ui/useLayout';
@@ -26,6 +28,11 @@ export function App() {
   /** 保存・読み込みの結果の一言 */
   const [note, setNote] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
+  /** ご利用にあたって：同意していなければ開いた瞬間に出し、同意するまで閉じない（利用者 Q2=A） */
+  const [consented, setConsented] = useState(hasConsented);
+  /** トップ画面の下のリンクから読み返している中身（読んでいなければ null） */
+  const [reading, setReading] = useState<NoticeKind | null>(null);
+  const notice = NOTICE[baseOf(lang)];
 
   /** 牌譜を作る（名前は保存するときの表示の言葉で入れる） */
   const kifuOf = (src: KifuSource): Kifu =>
@@ -80,9 +87,11 @@ export function App() {
   useEffect(() => {
     // 再生中も対局中と同じ見出しの形（小さく）にする
     document.body.classList.toggle('in-game', started || replaying !== null);
+    // ご利用にあたっての窓を出しているあいだも、見出し（言語の選択）は窓の上に出す
+    document.body.classList.toggle('notice-open', !consented || reading !== null);
     const base = baseOf(lang);
     document.documentElement.lang = base === 'zh' ? 'zh-CN' : base;
-  }, [started, replaying, lang]);
+  }, [started, replaying, lang, consented, reading]);
 
   const onLang = (m: LangMode) => {
     setMode(m);
@@ -170,8 +179,37 @@ export function App() {
             <input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={(e) => void openFile(e)} />
             {note && <p className="hint save-note">{note}</p>}
           </div>
+          {/* 賭けに使えないことの1行と、同意した文面・利用規約をあとから読み返すリンク（免責 v0.03 §3・§4） */}
+          <footer className="title-foot">
+            <p>{notice.titleNote}</p>
+            <p className="notice-links">
+              <button type="button" className="link-btn" onClick={() => setReading('about')}>
+                {notice.aboutLink}
+              </button>
+              <button type="button" className="link-btn" onClick={() => setReading('fairness')}>
+                {notice.fairnessLink}
+              </button>
+              <a href={TERMS_URL} target="_blank" rel="noopener">
+                {notice.terms}
+              </a>
+            </p>
+          </footer>
         </main>
       )}
+      {!consented ? (
+        <Notice
+          lang={baseOf(lang)}
+          first="about"
+          consent
+          onAgree={() => {
+            saveConsent();
+            setConsented(true);
+          }}
+          onClose={() => {}}
+        />
+      ) : reading ? (
+        <Notice key={reading} lang={baseOf(lang)} first={reading} consent={false} onAgree={() => {}} onClose={() => setReading(null)} />
+      ) : null}
     </>
   );
 }

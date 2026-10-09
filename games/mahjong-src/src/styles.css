@@ -1039,3 +1039,136 @@ body.in-game .site-header .subtitle {
 .replay .lane {
   flex: 1 0 auto;
 }
+
+/* ---- ご利用にあたって（同意画面・読み返し） ---- */
+
+.notice-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 上のあきは見出しの下端から決める（Notice.tsx）＝窓を出したまま言語を選び直せる */
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.notice-open .site-header {
+  z-index: 110;
+}
+
+.notice {
+  width: 100%;
+  max-width: 640px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  color: var(--text);
+}
+
+.notice-body {
+  overflow-y: auto;
+  padding: 18px 20px 8px;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.notice-title {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.notice-body h3 {
+  margin: 16px 0 4px;
+  font-size: 15px;
+}
+
+.notice-body p {
+  margin: 4px 0;
+}
+
+.notice-body ul {
+  margin: 4px 0;
+  padding-left: 1.3em;
+}
+
+.notice-foot {
+  margin-top: 14px !important;
+  font-size: 12px;
+}
+
+.notice-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 14px !important;
+}
+
+.notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.btn-agree {
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.btn-secondary {
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 10px 22px;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  border-color: var(--text);
+}
+
+/* 文字のリンクに見えるボタン（別の窓を開かずに中身を切り替えるもの） */
+.link-btn {
+  font: inherit;
+  color: var(--text);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+  text-align: left;
+}
+
+.notice-links a,
+.title-foot a {
+  color: var(--text);
+}
+
+/* トップ画面の下：賭けに使えないことの1行と、読み返すためのリンク */
+.title-foot {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.title-foot p {
+  margin: 0 0 4px;
+}
+
+.title-foot .notice-links {
+  margin-top: 0 !important;
+  gap: 4px 16px;
+}

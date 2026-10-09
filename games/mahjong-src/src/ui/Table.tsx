@@ -39,6 +39,10 @@ interface Props {
   saveNote?: string;
   /** 配っている途中で見せる手牌の枚数（null・未指定＝全部。演出は useGameEffects） */
   dealt?: number | null;
+  /** 対局を中断（横4列では見出しに置く余裕が無いので、卓の上の帯の左端に置く） */
+  onQuit?: () => void;
+  /** チャット欄（横4列は手牌の下・正方形の卓は卓の横） */
+  chat?: ReactNode;
 }
 
 /** 自分から見た位置（0＝自分・1＝下家・2＝対面・3＝上家） */
@@ -48,7 +52,7 @@ const seatAt = (rel: number): Seat => ((rel + HUMAN) % 4) as Seat;
 /** 手牌の並べ替え：種類順、同じ種類なら背番号順 */
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kindOf(a) - kindOf(b) || a - b);
 
-export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, replay = false, onTop, onSaveFile, onSaveDrive, saveNote, dealt = null }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, replay = false, onTop, onSaveFile, onSaveDrive, saveNote, dealt = null, onQuit, chat }: Props) {
   /** 配っている途中は手牌を先頭から決まった枚数だけ見せる */
   const dealing = <X,>(xs: readonly X[]): readonly X[] => (dealt === null ? xs : xs.slice(0, dealt));
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
@@ -350,6 +354,11 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
     return (
       <div className="lanes-wrap felt" style={{ '--hand-units': narrowUnits } as CSSProperties}>
         <div className="lanes-info">
+          {onQuit && view.phase !== 'gameover' && (
+            <button type="button" className="icon-btn layout-btn quit-btn lanes-quit" onClick={onQuit} aria-label={t('quitGame')}>
+              {t('quitGameShort')}
+            </button>
+          )}
           {lengthLabel && <span className="length-label">{lengthLabel}</span>}
           <span className="round-label">{roundLabel}</span>
           <span className="wall-left">{t('wallLeft', { n: left })}</span>
@@ -381,12 +390,17 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
                     ))}
                   </div>
                 )}
-                {river(seat)}
+                {/* 捨て牌は 1 行に並べ、入りきらないときは牌を小さくして全部見せる（2 段で下の列に重ねない＝利用者指示 10-09）。
+                    曲げたリーチの宣言牌は横に長いので 0.4 枚ぶん足す */}
+                <div className="lane-river" style={{ '--n': riverTiles(seat).length + (riichiShown(seat) === null ? 0 : 0.4) } as CSSProperties}>
+                  {river(seat)}
+                </div>
               </section>
             );
           })}
         </div>
         {hand}
+        {chat}
         {result}
       </div>
     );
@@ -450,6 +464,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         </div>
         {result}
       </div>
+      {chat}
     </div>
   );
 }

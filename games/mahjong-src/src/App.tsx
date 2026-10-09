@@ -8,6 +8,7 @@ import { useGameEffects } from './audio/useGameEffects';
 import { armAudioAsk, finishAudioAsk, rearmAudioAsk } from './audio/firstGesture';
 import { bindVisibility } from './audio/visibility';
 import { Effects } from './ui/Effects';
+import { Chat } from './ui/Chat';
 import { SettingsPanel, SoundPrompt } from './ui/Sound';
 import { Replay } from './ui/Replay';
 import { NOTICE, hasConsented, saveConsent } from './i18n/notice';
@@ -148,9 +149,11 @@ export function App() {
         <div className="header-right">
           {/* 画面切替：正方形の卓を出せない狭い画面（携帯）ではボタンごと出さない（見出しをはみ出させないため・利用者指示） */}
           {/* 対局の中断：確かめてからモード選択へ（途中までの対局は「前回の対局」として残る） */}
-          {started && !replaying && view.phase !== 'gameover' && (
-            <button type="button" className="icon-btn layout-btn quit-btn" onClick={onTitle}>
-              {t('quitGame')}
+          {started && !replaying && view.phase !== 'gameover' && layout !== 'lanes' && (
+            <button type="button" className="icon-btn layout-btn quit-btn" onClick={onTitle} aria-label={t('quitGame')}>
+              {/* 狭い画面は短く（見出しから言語選択をはみ出させない） */}
+              <span className="quit-long">{t('quitGame')}</span>
+              <span className="quit-short">{t('quitGameShort')}</span>
             </button>
           )}
           {/* 画面切替は卓を出す画面（対局・牌譜の再生）だけ（利用者指示 10-09）。卓を出す画面を足したら onBoard に入れる */}
@@ -193,6 +196,8 @@ export function App() {
             onSaveDrive={() => void saveDrive(source)}
             saveNote={note}
             dealt={fx.dealt}
+            onQuit={onTitle}
+            chat={<Chat t={t} you={t('you')} />}
           />
         </main>
       ) : (

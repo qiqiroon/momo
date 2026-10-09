@@ -37,6 +37,8 @@ interface Props {
   onSaveDrive?: () => void;
   /** 保存の結果の一言（保存しました・できませんでした） */
   saveNote?: string;
+  /** 配っている途中で見せる手牌の枚数（null・未指定＝全部。演出は useGameEffects） */
+  dealt?: number | null;
 }
 
 /** 自分から見た位置（0＝自分・1＝下家・2＝対面・3＝上家） */
@@ -46,7 +48,9 @@ const seatAt = (rel: number): Seat => ((rel + HUMAN) % 4) as Seat;
 /** 手牌の並べ替え：種類順、同じ種類なら背番号順 */
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kindOf(a) - kindOf(b) || a - b);
 
-export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, replay = false, onTop, onSaveFile, onSaveDrive, saveNote }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, replay = false, onTop, onSaveFile, onSaveDrive, saveNote, dealt = null }: Props) {
+  /** 配っている途中は手牌を先頭から決まった枚数だけ見せる */
+  const dealing = <X,>(xs: readonly X[]): readonly X[] => (dealt === null ? xs : xs.slice(0, dealt));
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
   const windOf = (seat: number) => t(`wind${(seat - view.dealer + 4) % 4}` as MessageKey);
   const nameOf = (seat: number) => (seat === HUMAN ? t('you') : t('cpu', { n: relOf(seat) }));
@@ -118,7 +122,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
 
   // 狭い画面の自分の手牌の列の長さ（横幅いっぱいに収める）
   const narrowUnits = handRowUnits(view.hands[HUMAN].length, view.drawn[HUMAN] !== null, view.melds[HUMAN]);
-  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} melds={meldsOf(HUMAN)} />;
+  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} melds={meldsOf(HUMAN)} dealt={dealt} />;
 
   // ドラ表示牌（めくられた順）
   const indicators = view.doraIndicators.length > 0 && (
@@ -364,7 +368,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
                   {riichiMark(seat)}
                   {seat !== HUMAN && (
                     <span className="lane-count">
-                      <Tile id={HIDDEN} rules={view.rules} className="mini" />×{view.hands[seat].length}
+                      <Tile id={HIDDEN} rules={view.rules} className="mini" />×{dealing(view.hands[seat]).length}
                     </span>
                   )}
                   {seat !== HUMAN && meldsOf(seat, 'lane-melds')}
@@ -435,7 +439,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         ))}
         {[1, 2, 3].map((rel) => (
           <div key={rel} className={`seat-hand rel-${rel}`} style={cq(handWidths[rel])}>
-            {view.hands[seatAt(rel)].map((id, i) => (
+            {dealing(view.hands[seatAt(rel)]).map((id, i) => (
               <Tile key={i} id={id} rules={view.rules} />
             ))}
             {meldsOf(seatAt(rel))}
@@ -531,14 +535,15 @@ function MeldView({ meld, seat, rules }: { meld: OpenMeld; seat: number; rules: 
 }
 
 /** 自分の手牌。マウスは 1 回押すと切る／指は 1 回目で浮かせ、2 回目で切る（押し間違いを防ぐ） */
-function MyHand({ view, legal, lang, onChoose, melds }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; melds: ReactNode }) {
+function MyHand({ view, legal, lang, onChoose, melds, dealt }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; melds: ReactNode; dealt: number | null }) {
   const [raised, setRaised] = useState<TileId | null>(null);
   // リーチを押したあと＝切る牌を選んでいるところ（もう一度押すとやめる）
   const [riichiPick, setRiichiPick] = useState(false);
   const myTurn = legal.length > 0;
   const drawn = view.drawn[HUMAN];
   const mine = view.hands[HUMAN];
-  const rest = sortTiles(drawn === null ? mine : mine.filter((x) => x !== drawn));
+  // 配っている途中は、配られた順の先頭から見せる（並べ替えは配り終えてから＝理牌）
+  const rest = dealt !== null ? mine.slice(0, dealt) : sortTiles(drawn === null ? mine : mine.filter((x) => x !== drawn));
   const canTsumo = legal.some((a) => a.type === 'tsumo');
   const canKyushu = legal.some((a) => a.type === 'kyushu');
   // 切られた牌でロン・チー・ポンできるときだけボタンを出す（できないときは自動で見送る）

@@ -4,6 +4,11 @@ import { useTable } from './game/useTable';
 import { buildKifu, kifuFileName, parseKifu, type Kifu, type KifuSource } from './kifu/kifu';
 import { downloadText, listDriveKifu, loadLastGame, readDriveFile, saveToDrive } from './kifu/store';
 import { CpuSetup, ModeRow, ReplayHub, SiteFooter } from './ui/Menu';
+import { useGameEffects } from './audio/useGameEffects';
+import { armAudioAsk, finishAudioAsk, rearmAudioAsk } from './audio/firstGesture';
+import { bindVisibility } from './audio/visibility';
+import { Effects } from './ui/Effects';
+import { SettingsPanel, SoundPrompt } from './ui/Sound';
 import { Replay } from './ui/Replay';
 import { NOTICE, hasConsented, saveConsent } from './i18n/notice';
 import { Notice, TERMS_URL, type NoticeKind } from './ui/Notice';
@@ -85,6 +90,17 @@ export function App() {
   };
   /** 卓を出している画面か（対局中・牌譜の再生中）。画面切替を出すのはここだけ */
   const onBoard = started || replaying !== null;
+  /** 対局の音と演出（再生中は鳴らさない） */
+  const fx = useGameEffects(view, started && !replaying);
+  /** 「音楽を再生しますか？」を出しているか・歯車の設定を開いているか */
+  const [soundAsk, setSoundAsk] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // 最初の操作で音を尋ねる（同意画面のあと＝同意のボタンは止めない）。1 時間以上離れて戻ったらもう一度
+  useEffect(() => {
+    if (!consented) return;
+    armAudioAsk(() => setSoundAsk(true));
+    bindVisibility(() => rearmAudioAsk());
+  }, [consented]);
   /** 再生を終えたら、入ってきた画面（対局の再生）へ戻る */
   const exitReplay = () => {
     setReplaying(null);
@@ -143,8 +159,8 @@ export function App() {
               {t('layoutSwitch')}
             </button>
           )}
-          {/* 設定の中身はまだ無い（入れる段階で作る）。ボタンだけ先に置く */}
-          <button type="button" className="icon-btn" aria-label={t('settings')} title={t('settings')}>
+          {/* 設定：BGM と効果音の音量・ミュート・音源クレジット（ルールの設定は段階6で足す） */}
+          <button type="button" className="icon-btn" aria-label={t('settings')} title={t('settings')} onClick={() => setSettingsOpen(true)}>
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
               <path fill="currentColor" d={GEAR} />
             </svg>
@@ -176,6 +192,7 @@ export function App() {
             onSaveFile={() => saveFile(source)}
             onSaveDrive={() => void saveDrive(source)}
             saveNote={note}
+            dealt={fx.dealt}
           />
         </main>
       ) : (
@@ -235,6 +252,18 @@ export function App() {
           </div>
         </SiteFooter>
       )}
+      <Effects t={t} banner={fx.banner} kusudama={fx.kusudama} />
+      {soundAsk && (
+        <SoundPrompt
+          t={t}
+          onDone={() => {
+            setSoundAsk(false);
+            finishAudioAsk();
+            fx.syncBgm();
+          }}
+        />
+      )}
+      {settingsOpen && <SettingsPanel t={t} onClose={() => setSettingsOpen(false)} />}
       {!consented ? (
         <Notice
           lang={baseOf(lang)}

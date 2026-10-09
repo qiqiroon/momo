@@ -16,6 +16,15 @@ import { saveLastGame } from '../kifu/store';
 export const HUMAN: Seat = 0;
 /** CPU が考えているように見せる間（ミリ秒） */
 const CPU_DELAY = 420;
+/** 配り終えてから最初のツモまで待つ間＝牌を混ぜて配る演出の長さ（画面側 useGameEffects の DEAL_TOTAL_MS と同じ値） */
+export const DEAL_SHOW_MS = 2700;
+let dealHold = DEAL_SHOW_MS;
+/** 検査用：配る演出を待たない（src/test/setup.ts） */
+export function setDealHold(ms: number): void {
+  dealHold = ms;
+}
+/** 配る演出をするか（待ちが 0 なら演出もしない） */
+export const dealShowOn = (): boolean => dealHold > 0;
 
 interface TableState {
   /** 対局の種（局ごとの山の種はここから作る） */
@@ -126,7 +135,7 @@ export function useTable() {
       return () => clearTimeout(id);
     }
     if (full.phase === 'deal' || full.phase === 'draw') {
-      const wait = full.turn === HUMAN || full.phase === 'deal' ? 0 : CPU_DELAY / 2;
+      const wait = full.phase === 'deal' ? dealHold : full.turn === HUMAN ? 0 : CPU_DELAY / 2;
       const id = setTimeout(() => dispatch({ type: 'push', envs: advance(full) }), wait);
       return () => clearTimeout(id);
     }

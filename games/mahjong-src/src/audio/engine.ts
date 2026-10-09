@@ -1,0 +1,388 @@
+/**
+ * MOMO Mahjong の音（MOMO Shogi の音響基盤 core/audio/audio-engine.ts を移したもの・2026-10-09）。
+ * 麻雀で変えたところ：保存の名前・効果音の一覧・BGM のプールに「立直」を足した。
+ *
+ * 以下は将棋の説明のまま：
+ *
+ * - AudioContext を 1 つだけ生成し、BGM 用 / SFX 用の GainNode を通す
+ * - 音量 (0〜100) は localStorage に保存
+ * - suspend/resume: バックグラウンド時 (visibilitychange hidden) は AudioContext を
+ *   suspend し、visible 復帰時に resume
+ * - 起動時と長期停止 (1 時間以上) 復帰時に「音楽再生確認モーダル」で
+ *   ユーザーに再生同意を取る (Darts 準拠・ブラウザ autoplay policy 対策)
+ *
+ * SE 合成コードは se-synth.ts、モーダルは MusicPrompt.tsx、
+ * visibility ハンドラは visibility.ts に分離。
+ */
+
+const KEY_BGM = 'momo-mahjong.audio.bgm';
+const KEY_SFX = 'momo-mahjong.audio.sfx';
+/**
+ * ★v2.01 ミュート (2026-10-03 ユーザー指示・Fireworks と同じ)。**音量とは別に持つ**＝
+ * 「鳴らさない」を選んでも音量は動かさず、ミュートを外せばその音量で鳴る。
+ */
+const KEY_BGM_MUTE = 'momo-mahjong.audio.bgmMute';
+const KEY_SFX_MUTE = 'momo-mahjong.audio.sfxMute';
+
+const DEFAULT_BGM = 30;
+const DEFAULT_SFX = 60;
+
+let ctx: AudioContext | null = null;
+let bgmGain: GainNode | null = null;
+let sfxGain: GainNode | null = null;
+let bgmVol = DEFAULT_BGM;
+let sfxVol = DEFAULT_SFX;
+let bgmMuted = false;
+let sfxMuted = false;
+let loaded = false;
+
+function loadPersisted(): void {
+  if (loaded) return;
+  loaded = true;
+  try {
+    const b = localStorage.getItem(KEY_BGM);
+    const s = localStorage.getItem(KEY_SFX);
+    if (b !== null) bgmVol = Math.max(0, Math.min(100, Number(b) | 0));
+    if (s !== null) sfxVol = Math.max(0, Math.min(100, Number(s) | 0));
+    bgmMuted = localStorage.getItem(KEY_BGM_MUTE) === '1';
+    sfxMuted = localStorage.getItem(KEY_SFX_MUTE) === '1';
+  } catch {
+    // localStorage 使えない環境 (SSR/シークレット) は無視
+  }
+}
+
+function ensureCtx(): void {
+  if (ctx) return;
+  const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  if (!AC) return;
+  ctx = new AC();
+  bgmGain = ctx.createGain();
+  sfxGain = ctx.createGain();
+  applyGains();
+  bgmGain.connect(ctx.destination);
+  sfxGain.connect(ctx.destination);
+}
+
+/** 実際に鳴らす大きさ＝ミュートなら 0・そうでなければ音量。**ここ 1 か所で決める**。 */
+function applyGains(): void {
+  if (bgmGain) bgmGain.gain.value = bgmMuted ? 0 : bgmVol / 100;
+  if (sfxGain) sfxGain.gain.value = sfxMuted ? 0 : sfxVol / 100;
+}
+
+export function getBgmMuted(): boolean {
+  loadPersisted();
+  return bgmMuted;
+}
+export function getSfxMuted(): boolean {
+  loadPersisted();
+  return sfxMuted;
+}
+export function setBgmMuted(m: boolean): void {
+  loadPersisted();
+  bgmMuted = m;
+  try { localStorage.setItem(KEY_BGM_MUTE, m ? '1' : '0'); } catch { /* ignore */ }
+  applyGains();
+}
+export function setSfxMuted(m: boolean): void {
+  loadPersisted();
+  sfxMuted = m;
+  try { localStorage.setItem(KEY_SFX_MUTE, m ? '1' : '0'); } catch { /* ignore */ }
+  applyGains();
+}
+
+export function getBgmVolume(): number {
+  loadPersisted();
+  return bgmVol;
+}
+export function getSfxVolume(): number {
+  loadPersisted();
+  return sfxVol;
+}
+
+export function setBgmVolume(v: number): void {
+  loadPersisted();
+  bgmVol = Math.max(0, Math.min(100, v | 0));
+  try { localStorage.setItem(KEY_BGM, String(bgmVol)); } catch { /* ignore */ }
+  applyGains();
+}
+export function setSfxVolume(v: number): void {
+  loadPersisted();
+  sfxVol = Math.max(0, Math.min(100, v | 0));
+  try { localStorage.setItem(KEY_SFX, String(sfxVol)); } catch { /* ignore */ }
+  applyGains();
+}
+
+/** ユーザー操作を契機に呼ぶ。以後 SFX/BGM が発音可能に。 */
+export async function resumeAudio(): Promise<void> {
+  loadPersisted();
+  ensureCtx();
+  if (!ctx) return;
+  if (ctx.state === 'suspended') {
+    try { await ctx.resume(); } catch { /* ignore */ }
+  }
+}
+
+/** ページ非表示や長期停止時に呼ぶ。次回 resumeAudio で復帰。 */
+export async function suspendAudio(): Promise<void> {
+  if (!ctx) return;
+  if (ctx.state === 'running') {
+    try { await ctx.suspend(); } catch { /* ignore */ }
+  }
+}
+
+export function isAudioRunning(): boolean {
+  return !!ctx && ctx.state === 'running';
+}
+
+/** SE 合成側から利用: SFX GainNode に接続して発音する。ctx 未初期化なら null。 */
+export function getSfxSink(): { ctx: AudioContext; gain: GainNode } | null {
+  if (!ctx || !sfxGain) return null;
+  return { ctx, gain: sfxGain };
+}
+/** BGM 再生側から利用: BGM GainNode に接続する。 */
+export function getBgmSink(): { ctx: AudioContext; gain: GainNode } | null {
+  if (!ctx || !bgmGain) return null;
+  return { ctx, gain: bgmGain };
+}
+
+// ─────────────────────────────────────────────
+// v0.75: 音源ファイル (MP3) の読み込み・再生
+// 合成音ではなく本物の駒音などを鳴らすため、fetch → decodeAudioData で
+// AudioBuffer にキャッシュしておき、playSample() でその場再生する。
+// ─────────────────────────────────────────────
+
+const sampleBufs = new Map<string, AudioBuffer>();
+const sampleFetching = new Map<string, Promise<AudioBuffer | null>>();
+
+/**
+ * v1.24: 音は MOMO 共通素材 (`assets/`) に集約した。アプリはどれも `games/○○/` の
+ * 深さにあるので、公開時の相対パスはどのアプリでも同じ書き方になる。
+ * 詳しくは `assets/readme.md`。
+ */
+const ASSETS = '../../assets/';
+
+/** 音源ファイルの URL 一覧。追加は自由 (効果音はフォルダ分けせず名前で一意)。 */
+export const SAMPLE_URLS: Record<string, string> = {
+  // 麻雀の牌の音（ノタの森 CC BY 3.0・音源クレジットに表示。前後の無音を落として MP3 にした＝改変）
+  shuffle: `${ASSETS}se/se-mahjong-shuffle.mp3`,
+  deal: `${ASSETS}se/se-mahjong-deal.mp3`,
+  draw: `${ASSETS}se/se-mahjong-draw.mp3`,
+  discard: `${ASSETS}se/se-mahjong-discard.mp3`,
+  // リーチ・勝ち負け（花札・将棋と同じ共通素材）
+  riichiSlide: `${ASSETS}se/se-gyun.mp3`,
+  riichiFlash: `${ASSETS}se/se-koikoi.mp3`,
+  fanfareWin: `${ASSETS}se/se-fanfare-win.mp3`,
+  fanfareWin2: `${ASSETS}se/se-fanfare-win-2.mp3`,
+  gameLose: `${ASSETS}se/se-game-lose.mp3`,
+}
+
+/**
+ * 名前で登録された音源をロードしてキャッシュする。既に読み込み済みなら即座に返す。
+ * base ('/momo/games/shogi/' 等) は import.meta.env.BASE_URL から取れるが、
+ * 相対パス指定にしてブラウザ解決に任せる (相対 URL は index.html の位置から解決される)。
+ */
+export async function loadSample(name: string): Promise<AudioBuffer | null> {
+  if (sampleBufs.has(name)) return sampleBufs.get(name)!;
+  const inflight = sampleFetching.get(name);
+  if (inflight) return inflight;
+  ensureCtx();
+  if (!ctx) return null;
+  const url = SAMPLE_URLS[name];
+  if (!url) return null;
+  const p = (async (): Promise<AudioBuffer | null> => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const bytes = await res.arrayBuffer();
+      const buf = await ctx!.decodeAudioData(bytes);
+      sampleBufs.set(name, buf);
+      return buf;
+    } catch {
+      return null;
+    } finally {
+      sampleFetching.delete(name);
+    }
+  })();
+  sampleFetching.set(name, p);
+  return p;
+}
+
+/**
+ * 登録済みの音源をその場で再生する。未ロードならこのタイミングで読み込む (少し遅れる)。
+ * opts.at: AudioContext currentTime に対する相対秒 (デフォルト 0 = 即時)
+ * opts.trimSec: 指定秒でフェードアウト+停止 (SE-select の 75ms 切りなど)
+ */
+export function playSample(name: string, opts?: { at?: number; trimSec?: number }): void {
+  if (!ctx || !sfxGain) return;
+  const buf = sampleBufs.get(name);
+  const at = opts?.at ?? 0;
+  const trimSec = opts?.trimSec;
+  const doPlay = (b: AudioBuffer) => {
+    if (!ctx || !sfxGain) return;
+    const src = ctx.createBufferSource();
+    src.buffer = b;
+    const startAt = ctx.currentTime + at;
+    if (trimSec && trimSec > 0) {
+      // trim: 途中で自然にフェードアウトして止める
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(1.0, startAt);
+      const fadeStart = startAt + Math.max(0, trimSec - 0.02);
+      g.gain.setValueAtTime(1.0, fadeStart);
+      g.gain.exponentialRampToValueAtTime(0.0001, startAt + trimSec);
+      src.connect(g).connect(sfxGain);
+      src.start(startAt, 0, trimSec);
+      src.stop(startAt + trimSec + 0.03);
+    } else {
+      src.connect(sfxGain);
+      src.start(startAt);
+    }
+  };
+  if (buf) { doPlay(buf); return; }
+  // 未ロード → 非同期で読み込み終わったら再生
+  loadSample(name).then((b) => { if (b) doPlay(b); });
+}
+
+/** すべての登録済み音源を事前ロード (音楽再生確認モーダルで「再生する」を選んだ直後などに呼ぶ) */
+export function preloadAllSamples(): void {
+  for (const name of Object.keys(SAMPLE_URLS)) {
+    loadSample(name);
+  }
+}
+
+// ─────────────────────────────────────────────
+// v0.77: BGM 再生機構
+// - lobby / game の 2 プール、それぞれ複数曲からランダム
+// - ループ再生
+// - プールを切り替えると前の曲は停止して新プールから 1 曲選ぶ
+// - 同じプール中でも各画面遷移で「もう 1 曲」を選び直したくはないので、
+//   現在のプールと同じなら何もしない
+// ─────────────────────────────────────────────
+
+/**
+ * v1.24: プール名 → 共通素材の BGM フォルダ名 (`assets/bgm/<フォルダ>/`)。
+ *
+ * **曲名はここに書かない。** どの曲が入っているかは目録 (`assets/bgm/manifest.json`) が持ち、
+ * 目録はフォルダを走査して作られる。したがって曲を増やすときプログラムは触らない
+ * (置く → `node assets/make-manifest.mjs` → 公開)。詳しくは `assets/readme.md`。
+ */
+export type BgmPool = 'lobby' | 'game' | 'riichi';
+export const BGM_FOLDERS: Record<BgmPool, string> = {
+  lobby: 'lobby',
+  game: 'game-mahjong',
+  riichi: 'game-mahjong-riichi',
+};
+
+/** 目録の中身 (フォルダ名 → ファイル名の並び)。読み込みは 1 回だけ。 */
+let bgmManifest: Record<string, string[]> | null = null;
+let bgmManifestFetching: Promise<Record<string, string[]> | null> | null = null;
+
+async function loadBgmManifest(): Promise<Record<string, string[]> | null> {
+  if (bgmManifest) return bgmManifest;
+  if (bgmManifestFetching) return bgmManifestFetching;
+  bgmManifestFetching = (async () => {
+    try {
+      const res = await fetch(`${ASSETS}bgm/manifest.json`);
+      if (!res.ok) return null;
+      bgmManifest = (await res.json()) as Record<string, string[]>;
+      return bgmManifest;
+    } catch {
+      return null;
+    } finally {
+      bgmManifestFetching = null;
+    }
+  })();
+  return bgmManifestFetching;
+}
+
+/**
+ * プールに入っている曲の URL 一覧。目録が読めなければ空 (= 無音)。
+ * 目録が無いのに曲名を推測して鳴らすと、名前を変えた瞬間に静かに壊れるので推測しない。
+ */
+async function bgmPoolUrls(pool: BgmPool): Promise<string[]> {
+  const manifest = await loadBgmManifest();
+  const folder = BGM_FOLDERS[pool];
+  const files = manifest?.[folder];
+  if (!files || files.length === 0) {
+    console.warn(`[audio] BGM の目録に "${folder}" がありません (assets/bgm/manifest.json)`);
+    return [];
+  }
+  return files.map((f) => `${ASSETS}bgm/${folder}/${f}`);
+}
+
+const bgmBufs = new Map<string, AudioBuffer>();
+const bgmFetching = new Map<string, Promise<AudioBuffer | null>>();
+let currentBgmSource: AudioBufferSourceNode | null = null;
+let currentBgmPool: BgmPool | null = null;
+// v0.79: 二重再生防止のリクエスト世代カウンタ。
+// playRandomBgm / stopBgm が呼ばれるたびに +1 する。
+// 非同期の await loadBgm から復帰したときに自分の gen が最新でなければ諦める。
+let bgmRequestGen = 0;
+
+async function loadBgm(url: string): Promise<AudioBuffer | null> {
+  if (bgmBufs.has(url)) return bgmBufs.get(url)!;
+  const inflight = bgmFetching.get(url);
+  if (inflight) return inflight;
+  ensureCtx();
+  if (!ctx) return null;
+  const p = (async (): Promise<AudioBuffer | null> => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const bytes = await res.arrayBuffer();
+      const buf = await ctx!.decodeAudioData(bytes);
+      bgmBufs.set(url, buf);
+      return buf;
+    } catch {
+      return null;
+    } finally {
+      bgmFetching.delete(url);
+    }
+  })();
+  bgmFetching.set(url, p);
+  return p;
+}
+
+/** 現在の BGM を停止 (次に playRandomBgm するまで無音) */
+export function stopBgm(): void {
+  bgmRequestGen++; // 進行中の playRandomBgm を無効化
+  if (currentBgmSource) {
+    try { currentBgmSource.stop(); } catch { /* ignore */ }
+    currentBgmSource = null;
+  }
+  currentBgmPool = null;
+}
+
+/**
+ * 指定プールからランダムに 1 曲選んでループ再生する。
+ * v0.79 修正: 世代カウンタで二重再生と重複ロードを防ぐ。
+ * - 既に同じプールが実際に鳴っている → 何もしない
+ * - 別プールへ切替 or まだ鳴っていない → gen を進めて新規ロード
+ * - await 中に別要求が入っていたら諦める (自分の gen が古ければ帰る)
+ */
+export async function playRandomBgm(pool: BgmPool): Promise<void> {
+  if (currentBgmPool === pool && currentBgmSource) return;
+  const myGen = ++bgmRequestGen;
+  ensureCtx();
+  if (!ctx || !bgmGain) return;
+  // v1.24: 曲名は目録から取る (初回だけ通信が入るので、ここでも世代を見張る)
+  const urls = await bgmPoolUrls(pool);
+  if (myGen !== bgmRequestGen) return;
+  if (urls.length === 0) return;
+  const url = urls[Math.floor(Math.random() * urls.length)];
+  const buf = await loadBgm(url);
+  // await 中に新しい要求 or stopBgm が入っていたら諦める (二重再生防止の要)
+  if (myGen !== bgmRequestGen) return;
+  if (!buf || !ctx || !bgmGain) return;
+  // 自分が勝者。stopBgm() は gen を進めてしまうのでインラインで既存 source を停止
+  if (currentBgmSource) {
+    try { currentBgmSource.stop(); } catch { /* ignore */ }
+    currentBgmSource = null;
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  src.connect(bgmGain);
+  src.start();
+  currentBgmSource = src;
+  currentBgmPool = pool;
+}

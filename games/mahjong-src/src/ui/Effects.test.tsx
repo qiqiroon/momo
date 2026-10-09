@@ -1,0 +1,32 @@
+// 対局の演出の検査：リーチは「流れる帯」→「中央の大きな文字」の 2 段、ほかは中央だけ。勝利はくす玉
+import { act, render } from '@testing-library/react';
+import { translate, type MessageKey } from '../i18n/strings';
+import { Effects } from './Effects';
+
+const t = (k: MessageKey) => translate('ja', k);
+
+describe('対局の演出', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('リーチは手牌の高さで「リーチ」が流れ、1 秒後に中央へ大きく出て、消える', () => {
+    render(<Effects t={t} banner={{ kind: 'riichi', seat: 1, key: 1 }} kusudama={false} />);
+    expect(document.querySelector('.fx-slide')).toHaveTextContent('リーチ');
+    expect(document.querySelector('.fx-flash')).toBeNull();
+    act(() => vi.advanceTimersByTime(1000));
+    expect(document.querySelector('.fx-slide')).toBeNull();
+    expect(document.querySelector('.fx-flash.fx-riichi')).toHaveTextContent('リーチ');
+    act(() => vi.advanceTimersByTime(1700));
+    expect(document.querySelector('.fx-flash')).toBeNull();
+  });
+
+  it('ロン・振り込み・勝利は中央に出る。勝利はくす玉', () => {
+    const { rerender } = render(<Effects t={t} banner={{ kind: 'ron', key: 1 }} kusudama={false} />);
+    expect(document.querySelector('.fx-flash.fx-ron')).toHaveTextContent('ロン！');
+    rerender(<Effects t={t} banner={{ kind: 'dealIn', key: 2 }} kusudama={false} />);
+    expect(document.querySelector('.fx-flash.fx-dealIn')).toHaveTextContent('振り込み');
+    rerender(<Effects t={t} banner={{ kind: 'win', key: 3 }} kusudama />);
+    expect(document.querySelector('.fx-flash.fx-win')).toHaveTextContent('勝利！');
+    expect(document.querySelectorAll('.fx-confetti span')).toHaveLength(64);
+  });
+});

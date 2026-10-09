@@ -5,6 +5,7 @@
 import { Fragment, useEffect, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
 import { HIDDEN, type Seat } from '../engine/events';
 import { furitenOf } from '../engine/furiten';
+import { establishedYaku, yakuHints } from '../engine/hints';
 import { finalResult } from '../engine/final';
 import { nextStep } from '../engine/game';
 import type { Action } from '../engine/round';
@@ -128,7 +129,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
 
   // 狭い画面の自分の手牌の列の長さ（横幅いっぱいに収める）
   const narrowUnits = handRowUnits(view.hands[HUMAN].length, view.drawn[HUMAN] !== null, view.melds[HUMAN]);
-  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} melds={meldsOf(HUMAN)} dealt={dealt} />;
+  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} melds={meldsOf(HUMAN)} dealt={dealt} hints={!replay && playing && dealt === null} />;
 
   // ドラ表示牌（めくられた順）
   const indicators = view.doraIndicators.length > 0 && (
@@ -553,7 +554,7 @@ function MeldView({ meld, seat, rules }: { meld: OpenMeld; seat: number; rules: 
 }
 
 /** 自分の手牌。マウスは 1 回押すと切る／指は 1 回目で浮かせ、2 回目で切る（押し間違いを防ぐ） */
-function MyHand({ view, legal, lang, onChoose, melds, dealt }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; melds: ReactNode; dealt: number | null }) {
+function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; melds: ReactNode; dealt: number | null; hints: boolean }) {
   const [raised, setRaised] = useState<TileId | null>(null);
   // リーチを押したあと＝切る牌を選んでいるところ（もう一度押すとやめる）
   const [riichiPick, setRiichiPick] = useState(false);
@@ -673,12 +674,45 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt }: { view: GameState
         {picking && <span className="hint">{translate(lang, 'riichiPick')}</span>}
         {raised !== null && myTurn && <span className="hint">{translate(lang, 'tapAgain')}</span>}
       </div>
+      {hints && <YakuHints view={view} legal={legal} lang={lang} />}
       <div className="hand-row">
         {rest.map(tile)}
         {drawn !== null && <span className="drawn-gap" />}
         {drawn !== null && tile(drawn)}
         {melds}
       </div>
+    </div>
+  );
+}
+
+/**
+ * 手牌の上の 1 行（訂正26100917・Q8=B「簡潔に役の名前と期待する牌のみ」）：
+ * アガれる牌が来ていれば「成立 役・役」、そうでなければ「役 [牌]」をあと 1 枚で付く役の数だけ並べる
+ */
+function YakuHints({ view, legal, lang }: { view: GameState; legal: Action[]; lang: Lang }) {
+  const t = (k: MessageKey) => translate(lang, k, { wind: '' });
+  const how = legal.some((a) => a.type === 'ron') ? 'ron' : legal.some((a) => a.type === 'tsumo') ? 'tsumo' : null;
+  const done = how ? establishedYaku(view, HUMAN, how) : null;
+  if (done && done.length > 0) {
+    return (
+      <div className="yaku-hints">
+        <span className="hint-done">{t('hintDone')}</span>
+        {done.map((id) => t(`yaku_${id}` as MessageKey)).join('・')}
+      </div>
+    );
+  }
+  const list = view.phase === 'draw' || view.phase === 'discard' || view.phase === 'claim' ? yakuHints(view, HUMAN) : [];
+  if (list.length === 0) return <div className="yaku-hints" />;
+  return (
+    <div className="yaku-hints">
+      {list.map((h) => (
+        <span key={h.id} className="hint-item">
+          {t(`yaku_${h.id}` as MessageKey)}
+          {h.kinds.map((k) => (
+            <Tile key={k} id={k * 4 + 3} rules={view.rules} className="mini" />
+          ))}
+        </span>
+      ))}
     </div>
   );
 }

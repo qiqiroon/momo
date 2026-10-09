@@ -286,3 +286,20 @@ describe('対局の終わり（2 度に分けて出す・保存のボタンは 1
     expect(document.querySelector('.length-label')).toHaveTextContent('半荘戦');
   });
 });
+
+describe('あと 1 枚で付く役の表示（訂正26100917）', () => {
+  it('テンパイの手（東と南のシャボ待ち）：手牌の上に「場風」「自風」と、来てほしい牌（東）の絵が出る', () => {
+    const view = riichiView();
+    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
+    const line = document.querySelector('.yaku-hints')!;
+    expect(line).toHaveTextContent('場風');
+    expect(line).toHaveTextContent('自風');
+    expect([...line.querySelectorAll('.hint-item .tile')].every((el) => el.getAttribute('data-tile') === '1z')).toBe(true);
+  });
+
+  it('牌譜の再生では出さない', () => {
+    const view = riichiView();
+    render(<Table narrow={false} view={view} legal={[]} lang="ja" replay onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
+    expect(document.querySelector('.yaku-hints')).toBeNull();
+  });
+});

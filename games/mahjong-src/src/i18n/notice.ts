@@ -1,11 +1,8 @@
 // 「ご利用にあたって」（同意画面＝2-A）と、そのリンク先「対局の公平性とルールの再現について」（2-B）の文面。
-// 正本は L:\momo\games\mahjong\docs\MOMO_Mahjong_免責と利用上の注意_案_v0.04.md（§2・§7）。文面を直すときは文書と一緒に直す。
+// 正本は L:\momo\games\mahjong\docs\MOMO_Mahjong_免責と利用上の注意_案_v0.05.md（§2・§7）。文面を直すときは文書と一緒に直す。
 // 意味が伝わらないと困る文なので猫語にしない（猫語のときは猫語を選ぶ直前の言語で出す）。
 
 import type { BaseLang } from './strings';
-
-/** 同意の版。文面の中身を変えて同意を取り直したいときだけ上げる（端末の記録と違えば同意画面をもう一度出す） */
-export const CONSENT_VERSION = 'v0.03';
 
 /** 見出しつきの段落。items は箇条書き、text は地の文 */
 export interface NoticeSection {
@@ -268,23 +265,3 @@ const zh: NoticeTexts = {
 };
 
 export const NOTICE: Record<BaseLang, NoticeTexts> = { ja, en, zh };
-
-const CONSENT_KEY = 'momo-mahjong.consent';
-
-/** この端末で、いまの版の「ご利用にあたって」に同意済みか */
-export function hasConsented(): boolean {
-  try {
-    return localStorage.getItem(CONSENT_KEY) === CONSENT_VERSION;
-  } catch {
-    return false;
-  }
-}
-
-/** 同意を端末に覚える（覚えられない端末でも、その場は遊べる） */
-export function saveConsent(): void {
-  try {
-    localStorage.setItem(CONSENT_KEY, CONSENT_VERSION);
-  } catch {
-    /* 覚えられないときは次に開いたとき、もう一度出す */
-  }
-}

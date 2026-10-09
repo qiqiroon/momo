@@ -1,14 +1,10 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { App } from './App';
 import { APP_VERSION } from './version';
-import { CONSENT_VERSION } from './i18n/notice';
 import { baseOf, translate } from './i18n/strings';
 
 const container = () => document.body;
 
-// 同意画面の検査以外は、同意済みの端末として始める
-beforeEach(() => localStorage.setItem('momo-mahjong.consent', CONSENT_VERSION));
-afterEach(() => localStorage.removeItem('momo-mahjong.consent'));
 /** 始めるボタン（言語が変わっても見つかるよう、主ボタンの印で探す） */
 const startButton = () => {
   // モード選択にいるときは「CPU と対局」を押して、ルールを選ぶ画面の始めるボタンを返す
@@ -18,7 +14,7 @@ const startButton = () => {
 
 describe('始める画面', () => {
   it('アプリ名・版番号・始めるボタンが出る', () => {
-    render(<App />);
+    render(<App startConsented />);
     const h1 = screen.getByRole('heading', { level: 1 });
     expect(h1).toHaveTextContent('MOMO');
     expect(h1).toHaveTextContent('Mahjong');
@@ -28,7 +24,7 @@ describe('始める画面', () => {
   });
 
   it('言語を選ぶと画面の言葉が切り替わる', () => {
-    render(<App />);
+    render(<App startConsented />);
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'en' } });
     expect(screen.getByText('Play vs CPU')).toBeInTheDocument();
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'zh' } });
@@ -37,7 +33,7 @@ describe('始める画面', () => {
   });
 
   it('CAT を選ぶと、日本語から選んだときは にゃあ 系の鳴き声になり、描き直しても同じ言葉のまま', () => {
-    render(<App />);
+    render(<App startConsented />);
     const sel = screen.getByRole('combobox');
     expect([...sel.querySelectorAll('option')].map((o) => o.textContent)).toContain('CAT');
     fireEvent.change(sel, { target: { value: 'ja' } });
@@ -54,7 +50,7 @@ describe('始める画面', () => {
   });
 
   it('対局中も見出しはアイコン・タイトル・バージョン・サブタイトルを出し、右上に歯車と言語選択がある', () => {
-    render(<App />);
+    render(<App startConsented />);
     fireEvent.click(startButton());
     const header = container().querySelector('.site-header')!;
     expect(header.querySelector('.cat-icon')).not.toBeNull();
@@ -90,7 +86,7 @@ describe('卓の画面（段階1）', () => {
     Array.from(container.querySelectorAll<HTMLButtonElement>('.hand-tile')).filter((b) => !b.disabled);
 
   it('自分の番になると 14 枚。牌を 1 枚切ると河に出て、CPU の番が回って自分の番に戻る', () => {
-    const { container } = render(<App />);
+    const { container } = render(<App startConsented />);
     fireEvent.click(startButton());
     untilMyTurn(container);
 
@@ -117,7 +113,7 @@ describe('卓の画面（段階1）', () => {
   });
 
   it('指で押すときは 1 回目で浮かせるだけ、2 回目で切る', () => {
-    const { container } = render(<App />);
+    const { container } = render(<App startConsented />);
     fireEvent.click(startButton());
     untilMyTurn(container);
     const before = riverCount(container);
@@ -130,7 +126,7 @@ describe('卓の画面（段階1）', () => {
   });
 
   it('自分がツモ切りを続けると、局が終わって結果ともう一局のボタンが出る', () => {
-    const { container } = render(<App />);
+    const { container } = render(<App startConsented />);
     fireEvent.click(startButton());
     for (let i = 0; i < 40 && !container.querySelector('.result'); i++) {
       run(5000);
@@ -152,15 +148,14 @@ describe('卓の画面（段階1）', () => {
 
 describe('ご利用にあたって（同意画面）', () => {
   const agree = () => document.querySelector<HTMLButtonElement>('.btn-agree');
-  beforeEach(() => localStorage.removeItem('momo-mahjong.consent'));
 
-  it('同意していない端末では開いた瞬間に出て、閉じるボタンは無く、同意すると消えて端末に覚える', () => {
+  it('開いた瞬間に出て、閉じるボタンは無く、同意すると消える。端末には覚えない', () => {
     render(<App />);
     expect(screen.getByRole('dialog')).toHaveTextContent('賭けに使わないでください');
     expect(screen.queryByText('閉じる')).toBeNull();
     fireEvent.click(agree()!);
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(localStorage.getItem('momo-mahjong.consent')).toBe(CONSENT_VERSION);
+    expect(localStorage.getItem('momo-mahjong.consent')).toBeNull();
   });
 
   it('同意画面からリンク先（公平性）を開いて戻れる。戻るまで同意のボタンは出ない', () => {
@@ -172,15 +167,18 @@ describe('ご利用にあたって（同意画面）', () => {
     expect(agree()).not.toBeNull();
   });
 
-  it('前の版の同意しか無い端末では、もう一度出す', () => {
-    localStorage.setItem('momo-mahjong.consent', 'v0.00');
+  it('起動するたびに出す（前に同意した記録が端末に残っていても出す）', () => {
+    const { unmount } = render(<App />);
+    fireEvent.click(agree()!);
+    unmount();
+    localStorage.setItem('momo-mahjong.consent', 'v0.03'); // v0.05 までの版が残した記録
     render(<App />);
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toHaveTextContent('賭けに使わないでください');
+    localStorage.removeItem('momo-mahjong.consent');
   });
 
   it('同意したあとはトップ画面の下のリンクから読み返せて、閉じられる', () => {
-    localStorage.setItem('momo-mahjong.consent', CONSENT_VERSION);
-    render(<App />);
+    render(<App startConsented />);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(container().querySelector('.title-foot')).toHaveTextContent('娯楽目的のゲームです。賭けには使えません。');
     fireEvent.click(screen.getByRole('button', { name: '対局の公平性とルールの再現について' }));
@@ -210,7 +208,7 @@ describe('対局終了の画面の1行', () => {
 
 describe('モード選択と、そこから入る画面', () => {
   it('3 つのメニューが牌（ピンズの 1〜3）の絵と並び、フッターにこのアプリの説明と MOMO Works へのリンクがある', () => {
-    render(<App />);
+    render(<App startConsented />);
     const rows = [...document.querySelectorAll('.mode-list .mode-row')];
     expect(rows.map((r) => r.querySelector('.mode-name')!.textContent)).toEqual(['CPU と対局', 'オンライン対局', '対局の再生']);
     expect(rows.map((r) => r.querySelector('img')!.getAttribute('src'))).toEqual(['/momo/games/mahjong/tiles/1p.svg', '/momo/games/mahjong/tiles/2p.svg', '/momo/games/mahjong/tiles/3p.svg']);
@@ -221,7 +219,7 @@ describe('モード選択と、そこから入る画面', () => {
   });
 
   it('CPU と対局：ルールセットは一般ルールが選ばれ、まだ動かないセットを押しても変わらない。モード選択へ戻れる', () => {
-    render(<App />);
+    render(<App startConsented />);
     fireEvent.click(screen.getByText('CPU と対局'));
     expect(document.querySelector('.sets .seg button.on')).toHaveTextContent('一般ルール');
     fireEvent.click(screen.getByRole('button', { name: /天鳳/ }));
@@ -237,7 +235,7 @@ describe('モード選択と、そこから入る画面', () => {
 
   it('対局の再生：前回の対局が無いときは、前回の対局の再生と保存は押せない。端末のファイルは選べる', () => {
     localStorage.removeItem('momo-mahjong.lastGame');
-    render(<App />);
+    render(<App startConsented />);
     fireEvent.click(screen.getByText('対局の再生'));
     fireEvent.click(screen.getByText('再生する'));
     expect(screen.getByRole('button', { name: '前回の対局' })).toBeDisabled();
@@ -252,7 +250,7 @@ describe('モード選択と、そこから入る画面', () => {
 
 describe('見出しのボタン（対局の中断・画面切替）と同意画面の赤い見出し', () => {
   it('モード選択には「対局を中断」も「画面切替」も出ない。対局中だけ出て、中断は確かめてからモード選択へ戻る', () => {
-    render(<App />);
+    render(<App startConsented />);
     expect(screen.queryByText('対局を中断')).toBeNull();
     expect(screen.queryByText('画面切替')).toBeNull();
     fireEvent.click(startButton());
@@ -267,7 +265,7 @@ describe('見出しのボタン（対局の中断・画面切替）と同意画�
   });
 
   it('牌譜の再生中も卓を出す画面なので「画面切替」が出る（再生の入口の画面には出ない）', () => {
-    render(<App />);
+    render(<App startConsented />);
     fireEvent.click(startButton());
     const ask = vi.spyOn(window, 'confirm').mockReturnValue(true);
     fireEvent.click(screen.getByText('対局を中断')); // 途中までの対局が「前回の対局」になる
@@ -282,7 +280,6 @@ describe('見出しのボタン（対局の中断・画面切替）と同意画�
   });
 
   it('同意画面は、隠れている所まで送って読むまで同意を押せない', () => {
-    localStorage.removeItem('momo-mahjong.consent');
     // 本文が窓より長い（1000px の中身を 300px で見ている）ことにする
     const h = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(1000);
     const c = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(300);
@@ -299,7 +296,6 @@ describe('見出しのボタン（対局の中断・画面切替）と同意画�
   });
 
   it('同意画面の「賭けに使わないでください」の見出しは赤い字の印が付く', () => {
-    localStorage.removeItem('momo-mahjong.consent');
     render(<App />);
     expect(document.querySelector('.notice-warn')).toHaveTextContent('賭けに使わないでください');
   });

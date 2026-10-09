@@ -11,7 +11,7 @@ import { Effects } from './ui/Effects';
 import { Chat } from './ui/Chat';
 import { SettingsPanel, SoundPrompt } from './ui/Sound';
 import { Replay } from './ui/Replay';
-import { NOTICE, hasConsented, saveConsent } from './i18n/notice';
+import { NOTICE } from './i18n/notice';
 import { Notice, TERMS_URL, type NoticeKind } from './ui/Notice';
 import { LANG_MODES, baseOf, changeMode, currentMode, initLang, translate, type LangMode, type MessageKey } from './i18n/strings';
 import { Table } from './ui/Table';
@@ -22,7 +22,7 @@ import { APP_VERSION } from './version';
 const GEAR =
   'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94 0 .31.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 0 1 8.4 12 3.6 3.6 0 0 1 12 8.4a3.6 3.6 0 0 1 3.6 3.6 3.6 3.6 0 0 1-3.6 3.6z';
 
-export function App() {
+export function App({ startConsented = false }: { startConsented?: boolean } = {}) {
   const [lang, setLang] = useState(initLang);
   const [mode, setMode] = useState<LangMode>(currentMode);
   const { view, legal, start, next, choose, quit, source, started } = useTable();
@@ -37,8 +37,9 @@ export function App() {
   const fileInput = useRef<HTMLInputElement>(null);
   /** トップ側の画面：モード選択／CPU と対局（ルールを選ぶ）／対局の再生 */
   const [screen, setScreen] = useState<'top' | 'cpu' | 'replay'>('top');
-  /** ご利用にあたって：同意していなければ開いた瞬間に出し、同意するまで閉じない（利用者 Q2=A） */
-  const [consented, setConsented] = useState(hasConsented);
+  /** ご利用にあたって：起動するたびに開いた瞬間に出し、同意するまで閉じない（利用者 Q2=A）。
+   *  端末には覚えない＝毎回、賭けに使わないことを思い出してもらう（利用者 10-09）。startConsented は検査用 */
+  const [consented, setConsented] = useState(startConsented);
   /** トップ画面の下のリンクから読み返している中身（読んでいなければ null） */
   const [reading, setReading] = useState<NoticeKind | null>(null);
   const notice = NOTICE[baseOf(lang)];
@@ -274,10 +275,7 @@ export function App() {
           lang={baseOf(lang)}
           first="about"
           consent
-          onAgree={() => {
-            saveConsent();
-            setConsented(true);
-          }}
+          onAgree={() => setConsented(true)}
           onClose={() => {}}
         />
       ) : reading ? (

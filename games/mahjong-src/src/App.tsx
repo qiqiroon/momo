@@ -15,12 +15,18 @@ import { NOTICE } from './i18n/notice';
 import { Notice, TERMS_URL, type NoticeKind } from './ui/Notice';
 import { LANG_MODES, baseOf, changeMode, currentMode, initLang, translate, type LangMode, type MessageKey } from './i18n/strings';
 import { Table } from './ui/Table';
+import { Lobby, WaitingRoom, useOnline } from './ui/Online';
+import { OnlineSession } from './online/session';
+import { matchmakingTransport } from './online/transport';
 import { useLayout } from './ui/useLayout';
 import { APP_VERSION } from './version';
 
 /** 歯車の絵（MOMO Hanafuda・Sudoku と同じ意匠） */
 const GEAR =
   'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94 0 .31.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 0 1 8.4 12 3.6 3.6 0 0 1 12 8.4a3.6 3.6 0 0 1 3.6 3.6 3.6 3.6 0 0 1-3.6 3.6z';
+
+/** オンライン対局（部屋の一覧と待合）。サーバーにつなぐのはオンライン対局の画面に入ったときだけ */
+const online = new OnlineSession(matchmakingTransport);
 
 export function App({ startConsented = false }: { startConsented?: boolean } = {}) {
   const [lang, setLang] = useState(initLang);
@@ -35,8 +41,9 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   /** 保存・読み込みの結果の一言 */
   const [note, setNote] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
-  /** トップ側の画面：モード選択／CPU と対局（ルールを選ぶ）／対局の再生 */
-  const [screen, setScreen] = useState<'top' | 'cpu' | 'replay'>('top');
+  /** トップ側の画面：モード選択／CPU と対局（ルールを選ぶ）／オンライン対局／対局の再生 */
+  const [screen, setScreen] = useState<'top' | 'cpu' | 'online' | 'replay'>('top');
+  const ol = useOnline(online);
   /** ご利用にあたって：起動するたびに開いた瞬間に出し、同意するまで閉じない（利用者 Q2=A）。
    *  端末には覚えない＝毎回、賭けに使わないことを思い出してもらう（利用者 10-09）。startConsented は検査用 */
   const [consented, setConsented] = useState(startConsented);
@@ -75,6 +82,12 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   /** 見出しのアプリ名：対局の途中なら確かめてからトップへ */
   const onTitle = () => {
     if (replaying) return toTop();
+    // 部屋にいるときは、確かめてから部屋を出る（ホストなら部屋が閉じる）
+    if (ol.where === 'room') {
+      if (!window.confirm(t(ol.room?.isHost ? 'olCloseConfirm' : 'olLeaveConfirm'))) return;
+      online.leave();
+    }
+    if (screen === 'online') online.clearNote();
     if (!started) return setScreen('top');
     if (view.phase !== 'gameover' && !window.confirm(t('quitConfirm'))) return;
     toTop();
@@ -205,6 +218,19 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
         <main className="title">
           {screen === 'cpu' ? (
             <CpuSetup t={t} onBack={() => setScreen('top')} onStart={startGame} />
+          ) : screen === 'online' ? (
+            ol.where === 'room' ? (
+              <WaitingRoom t={t} session={online} />
+            ) : (
+              <Lobby
+                t={t}
+                session={online}
+                onBack={() => {
+                  online.clearNote();
+                  setScreen('top');
+                }}
+              />
+            )
           ) : screen === 'replay' ? (
             <ReplayHub
               t={t}
@@ -229,8 +255,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
               {/* 将棋のモード選択にならい、牌（ピンズの 1〜3）の絵とメニューをそろえて並べる */}
               <div className="mode-list">
                 <ModeRow tile="1p" name={t('menuCpu')} desc={t('menuCpuDesc')} onClick={() => setScreen('cpu')} />
-                {/* オンライン対局は段階5で作る（いまは押しても何も起きない） */}
-                <ModeRow tile="2p" name={t('menuOnline')} desc={t('menuOnlineDesc')} onClick={() => {}} />
+                <ModeRow tile="2p" name={t('menuOnline')} desc={t('menuOnlineDesc')} onClick={() => setScreen('online')} />
                 <ModeRow tile="3p" name={t('menuReplay')} desc={t('menuReplayDesc')} onClick={() => setScreen('replay')} />
               </div>
             </>

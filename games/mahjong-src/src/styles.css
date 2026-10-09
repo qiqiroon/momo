@@ -1976,3 +1976,181 @@ body.in-game .site-header .subtitle {
   color: #fff;
   font-weight: 700;
 }
+
+/* ---- オンライン対局：部屋の一覧と待合（段階5の2） ---- */
+
+.ol-panel {
+  max-width: 520px;
+}
+
+.ol-server {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.ol-server.on::before {
+  content: '● ';
+  color: #4ade80;
+}
+
+.ol-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--warn);
+}
+
+.ol-input {
+  font: inherit;
+  font-size: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  background: #0c0c0c;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+
+.ol-input:focus {
+  outline: none;
+  border-color: var(--orange);
+}
+
+/* パスワード欄：ふつうの文字の欄を伏せ字に見せる（ブラウザに保存の候補を出させない） */
+.pw-mask {
+  -webkit-text-security: disc;
+  letter-spacing: 0.08em;
+}
+
+.ol-field {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.ol-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ol-check input {
+  accent-color: var(--orange);
+}
+
+.ol-join-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ol-rooms {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.ol-empty {
+  font-size: 13px;
+  color: var(--text);
+  padding: 8px 2px;
+}
+
+.ol-room {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 8px 10px;
+}
+
+.ol-room-name {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.ol-room-name small {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.ol-room-state {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.ol-room-pw {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.ol-seats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.ol-seats li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.ol-seat-no {
+  width: 1.4em;
+  text-align: center;
+  color: var(--text);
+}
+
+.ol-seat-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ol-seat-tags {
+  display: flex;
+  gap: 4px;
+}
+
+.ol-tag {
+  font-size: 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+.ol-tag.host {
+  border-color: var(--orange);
+}
+
+.ol-tag.you {
+  background: var(--bg-selected);
+  border-color: var(--orange);
+}
+
+.ol-seats li.away .ol-seat-name {
+  color: var(--warn);
+}
+
+.ol-started {
+  color: var(--text);
+}

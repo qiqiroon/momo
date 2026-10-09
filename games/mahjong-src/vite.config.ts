@@ -14,6 +14,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@momo-lib': resolve(__dirname, '..', '..', 'lib'),
+      // 通信の土台（MOMO Shogi と同じ取り込み方）
+      '@momo-mm': resolve(__dirname, '..', 'matchmaking'),
     },
   },
   server: {

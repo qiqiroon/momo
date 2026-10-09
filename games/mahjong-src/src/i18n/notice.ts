@@ -10,6 +10,8 @@ export const CONSENT_VERSION = 'v0.03';
 /** 見出しつきの段落。items は箇条書き、text は地の文 */
 export interface NoticeSection {
   heading: string;
+  /** 赤い字で強める見出し（賭けに使わないで＝利用者指示 10-09） */
+  warn?: boolean;
   text?: string;
   items?: string[];
 }
@@ -49,6 +51,7 @@ const ja: NoticeTexts = {
     sections: [
       {
         heading: '1. 娯楽のためのゲームです・賭けに使わないでください',
+        warn: true,
         text: 'MOMO Mahjong は娯楽を目的とした麻雀ゲームです。金銭その他の財物を賭けて遊ぶためのものではありません。',
         items: [
           '本アプリの点数・順位・成績に、金銭的な価値はありません。',
@@ -119,6 +122,7 @@ const en: NoticeTexts = {
     sections: [
       {
         heading: '1. This is a game for entertainment. Do not use it for gambling.',
+        warn: true,
         text: 'MOMO Mahjong is a mahjong game for entertainment only. It is not intended for playing for money or anything of value.',
         items: [
           'Scores, rankings and records in this app have no monetary value.',
@@ -191,6 +195,7 @@ const zh: NoticeTexts = {
     sections: [
       {
         heading: '1. 本游戏仅供娱乐，请勿用于赌博',
+        warn: true,
         text: 'MOMO Mahjong 是以娱乐为目的的麻将游戏，并非用于以金钱或其他财物作赌注进行游戏。',
         items: [
           '本应用中的分数、名次和成绩不具有任何金钱价值。',

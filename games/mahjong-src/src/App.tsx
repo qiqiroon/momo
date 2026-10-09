@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Envelope } from './engine/events';
 import { useTable } from './game/useTable';
 import { buildKifu, kifuFileName, parseKifu, type Kifu, type KifuSource } from './kifu/kifu';
-import { downloadText, loadLastGame, saveToDrive } from './kifu/store';
+import { downloadText, listDriveKifu, loadLastGame, readDriveFile, saveToDrive } from './kifu/store';
+import { CpuSetup, ModeRow, ReplayHub, SiteFooter } from './ui/Menu';
 import { Replay } from './ui/Replay';
 import { NOTICE, hasConsented, saveConsent } from './i18n/notice';
 import { Notice, TERMS_URL, type NoticeKind } from './ui/Notice';
@@ -28,6 +29,8 @@ export function App() {
   /** 保存・読み込みの結果の一言 */
   const [note, setNote] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
+  /** トップ側の画面：モード選択／CPU と対局（ルールを選ぶ）／対局の再生 */
+  const [screen, setScreen] = useState<'top' | 'cpu' | 'replay'>('top');
   /** ご利用にあたって：同意していなければ開いた瞬間に出し、同意するまで閉じない（利用者 Q2=A） */
   const [consented, setConsented] = useState(hasConsented);
   /** トップ画面の下のリンクから読み返している中身（読んでいなければ null） */
@@ -57,6 +60,7 @@ export function App() {
   };
   const toTop = () => {
     quit();
+    setScreen('top');
     setReplaying(null);
     setLast(loadLastGame());
     setNote('');
@@ -64,7 +68,7 @@ export function App() {
   /** 見出しのアプリ名：対局の途中なら確かめてからトップへ */
   const onTitle = () => {
     if (replaying) return toTop();
-    if (!started) return;
+    if (!started) return setScreen('top');
     if (view.phase !== 'gameover' && !window.confirm(t('quitConfirm'))) return;
     toTop();
   };
@@ -74,6 +78,21 @@ export function App() {
     if (!f) return;
     try {
       setReplaying(parseKifu(await f.text()).events);
+      setNote('');
+    } catch (err) {
+      setNote(t('kifuBad', { why: (err as Error).message }));
+    }
+  };
+  /** 卓を出している画面か（対局中・牌譜の再生中）。画面切替を出すのはここだけ */
+  const onBoard = started || replaying !== null;
+  /** 再生を終えたら、入ってきた画面（対局の再生）へ戻る */
+  const exitReplay = () => {
+    setReplaying(null);
+    setLast(loadLastGame());
+  };
+  const playDrive = async (id: string) => {
+    try {
+      setReplaying(parseKifu(await readDriveFile(id)).events);
       setNote('');
     } catch (err) {
       setNote(t('kifuBad', { why: (err as Error).message }));
@@ -102,7 +121,7 @@ export function App() {
     <>
       <header className="site-header">
         <img className="cat-icon" src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" />
-        <div className={`title-block${started || replaying ? ' to-top' : ''}`} onClick={onTitle} role={started || replaying ? 'button' : undefined} title={started || replaying ? t('toTop') : undefined}>
+        <div className={`title-block${started || replaying || screen !== 'top' ? ' to-top' : ''}`} onClick={onTitle} role={started || replaying || screen !== 'top' ? 'button' : undefined} title={started || replaying || screen !== 'top' ? t('toTop') : undefined}>
           <h1>
             <span className="momo">MOMO</span>
             <span className="mahjong">Mahjong</span>
@@ -112,7 +131,14 @@ export function App() {
         </div>
         <div className="header-right">
           {/* 画面切替：正方形の卓を出せない狭い画面（携帯）ではボタンごと出さない（見出しをはみ出させないため・利用者指示） */}
-          {canSwitch && (
+          {/* 対局の中断：確かめてからモード選択へ（途中までの対局は「前回の対局」として残る） */}
+          {started && !replaying && view.phase !== 'gameover' && (
+            <button type="button" className="icon-btn layout-btn quit-btn" onClick={onTitle}>
+              {t('quitGame')}
+            </button>
+          )}
+          {/* 画面切替は卓を出す画面（対局・牌譜の再生）だけ（利用者指示 10-09）。卓を出す画面を足したら onBoard に入れる */}
+          {canSwitch && onBoard && (
             <button type="button" className="icon-btn layout-btn" onClick={toggle}>
               {t('layoutSwitch')}
             </button>
@@ -134,7 +160,7 @@ export function App() {
       </header>
       {replaying ? (
         <main className="game">
-          <Replay events={replaying} narrow={layout === 'lanes'} lang={lang} onExit={toTop} />
+          <Replay events={replaying} narrow={layout === 'lanes'} lang={lang} onExit={exitReplay} />
         </main>
       ) : started ? (
         <main className="game">
@@ -154,45 +180,58 @@ export function App() {
         </main>
       ) : (
         <main className="title">
-          <button type="button" className="btn-primary btn-start" onClick={startGame}>
-            {t('start')}
-          </button>
-          {/* 牌譜：最後の対局（覚えているときだけ）と、ファイルを選んで再生 */}
-          <div className="kifu-menu">
-            {last && (
-              <div className="kifu-row">
-                <button type="button" className="btn-primary btn-replay-last" onClick={() => setReplaying(last.events)}>
-                  {t('replayLastGame')}
-                </button>
-                <button type="button" className="btn-primary btn-save-file" onClick={() => saveFile(last)}>
-                  {t('saveFile')}
-                </button>
-                <button type="button" className="btn-primary btn-save-drive" onClick={() => void saveDrive(last)}>
-                  {t('saveDrive')}
-                </button>
+          {screen === 'cpu' ? (
+            <CpuSetup t={t} onBack={() => setScreen('top')} onStart={startGame} />
+          ) : screen === 'replay' ? (
+            <ReplayHub
+              t={t}
+              hasLast={last !== null}
+              note={note}
+              onBack={() => {
+                setScreen('top');
+                setNote('');
+              }}
+              onPlayLast={() => last && setReplaying(last.events)}
+              onPlayFile={() => fileInput.current?.click()}
+              listDrive={listDriveKifu}
+              onPlayDrive={(id) => void playDrive(id)}
+              onSaveFile={() => last && saveFile(last)}
+              onSaveDrive={() => last && void saveDrive(last)}
+            />
+          ) : (
+            <>
+              <div className="screen-head">
+                <h2>{t('menuHead')}</h2>
               </div>
-            )}
-            <button type="button" className="btn-primary btn-replay-file" onClick={() => fileInput.current?.click()}>
-              {t('replayFromFile')}
-            </button>
-            <input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={(e) => void openFile(e)} />
-            {note && <p className="hint save-note">{note}</p>}
-          </div>
-          {/* 賭けに使えないことの1行と、同意した文面・利用規約をあとから読み返すリンク（免責 v0.03 §3・§4） */}
-          <footer className="title-foot">
-            <p>{notice.titleNote}</p>
-            <p className="notice-links">
-              <button type="button" className="link-btn" onClick={() => setReading('about')}>
-                {notice.aboutLink}
-              </button>
-              <button type="button" className="link-btn" onClick={() => setReading('fairness')}>
-                {notice.fairnessLink}
-              </button>
-              <a href={TERMS_URL} target="_blank" rel="noopener">
-                {notice.terms}
-              </a>
-            </p>
-          </footer>
+              {/* 将棋のモード選択にならい、牌（ピンズの 1〜3）の絵とメニューをそろえて並べる */}
+              <div className="mode-list">
+                <ModeRow tile="1p" name={t('menuCpu')} desc={t('menuCpuDesc')} onClick={() => setScreen('cpu')} />
+                {/* オンライン対局は段階5で作る（いまは押しても何も起きない） */}
+                <ModeRow tile="2p" name={t('menuOnline')} desc={t('menuOnlineDesc')} onClick={() => {}} />
+                <ModeRow tile="3p" name={t('menuReplay')} desc={t('menuReplayDesc')} onClick={() => setScreen('replay')} />
+              </div>
+            </>
+          )}
+          <input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={(e) => void openFile(e)} />
+          {screen === 'top' && (
+            <SiteFooter t={t}>
+              {/* 賭けに使えないことの1行と、同意した文面・利用規約をあとから読み返すリンク（免責 v0.04 §3・§4） */}
+              <div className="title-foot">
+                <p>{notice.titleNote}</p>
+                <p className="notice-links">
+                  <button type="button" className="link-btn" onClick={() => setReading('about')}>
+                    {notice.aboutLink}
+                  </button>
+                  <button type="button" className="link-btn" onClick={() => setReading('fairness')}>
+                    {notice.fairnessLink}
+                  </button>
+                  <a href={TERMS_URL} target="_blank" rel="noopener">
+                    {notice.terms}
+                  </a>
+                </p>
+              </div>
+            </SiteFooter>
+          )}
         </main>
       )}
       {!consented ? (

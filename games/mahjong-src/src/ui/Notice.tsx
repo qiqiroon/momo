@@ -28,7 +28,7 @@ function Page({ page }: { page: NoticePage }) {
       {page.lead && <p>{page.lead}</p>}
       {page.sections.map((s) => (
         <section key={s.heading}>
-          <h3>{s.heading}</h3>
+          <h3 className={s.warn ? 'notice-warn' : undefined}>{s.heading}</h3>
           {s.text && <p>{s.text}</p>}
           {s.items && (
             <ul>

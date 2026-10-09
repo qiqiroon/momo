@@ -6,6 +6,7 @@
   --bg: #0a0a0a;
   --surface: #111111;
   --surface2: #1a1a1a;
+  --bg-selected: rgba(194, 65, 12, 0.15);
   --orange: #c2410c;
   --orange-mid: #ea580c;
   --text: #e5e5e5;
@@ -56,7 +57,7 @@ body {
   gap: 10px;
   margin: 24px 0 0;
   width: 100%;
-  max-width: 460px;
+  max-width: 520px; /* 本文（.title）と同じ幅＝言語選択の右端とメニューの右端をそろえる */
   position: relative;
   z-index: 1;
 }
@@ -204,7 +205,7 @@ body.in-game .site-header .subtitle {
 
 .title {
   width: 100%;
-  max-width: 460px;
+  max-width: 520px; /* 見出し（.site-header）と同じ幅 */
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -980,15 +981,6 @@ body.in-game .site-header .subtitle {
   cursor: pointer;
 }
 
-.kifu-menu {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.kifu-row,
 .game-over-actions,
 .replay-row {
   display: flex;
@@ -1091,6 +1083,11 @@ body.in-game .site-header .subtitle {
   padding-left: 1.3em;
 }
 
+/* 賭けに使わないで：赤い字で強める */
+.notice-body h3.notice-warn {
+  color: var(--warn);
+}
+
 .notice-foot {
   margin-top: 14px !important;
   font-size: 12px;
@@ -1149,11 +1146,9 @@ body.in-game .site-header .subtitle {
   color: var(--text);
 }
 
-/* トップ画面の下：賭けに使えないことの1行と、読み返すためのリンク */
+/* フッターの頭：賭けに使えないことの1行と、読み返すためのリンク */
 .title-foot {
-  margin-top: 24px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
+  margin-bottom: 18px;
   font-size: 12px;
   line-height: 1.7;
   color: var(--text);
@@ -1166,4 +1161,323 @@ body.in-game .site-header .subtitle {
 .title-foot .notice-links {
   margin-top: 0 !important;
   gap: 4px 16px;
+}
+
+/* ---- モード選択（MOMO Shogi のモード選択にならう） ---- */
+
+.screen-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 4px;
+}
+
+.screen-head h2 {
+  margin: 0;
+  font-family: 'Fredoka One', 'Noto Sans JP', sans-serif;
+  font-weight: 400;
+  font-size: 1.35rem;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+
+:lang(zh) .screen-head h2 {
+  font-family: 'Fredoka One', 'Noto Sans SC', sans-serif;
+}
+
+.mode-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mode-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+
+.mode-row:hover:not(.disabled),
+.mode-row.open {
+  border-color: var(--orange);
+  background: var(--bg-selected);
+}
+
+.mode-row:hover:not(.disabled) {
+  transform: translateY(-1px);
+}
+
+.mode-row:focus-visible {
+  outline: 2px solid var(--orange-mid);
+  outline-offset: 2px;
+}
+
+.mode-row.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* 牌の絵：どの行も同じ大きさ・同じ厚みでそろえる */
+.mode-tile {
+  --tw: 36px;
+  flex-shrink: 0;
+}
+
+.mode-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mode-name {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.mode-desc {
+  font-size: 12px;
+  color: var(--text-sub);
+  margin-top: 3px;
+  line-height: 1.5;
+}
+
+.mode-arrow {
+  flex-shrink: 0;
+  color: var(--text-sub);
+  display: flex;
+}
+
+.mode-row:hover:not(.disabled) .mode-arrow,
+.mode-row.open .mode-arrow {
+  color: var(--orange-mid);
+}
+
+/* 行を押すと出る「どこから／どこへ」 */
+.mode-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 4px 6px 66px;
+}
+
+.choice-btn {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.choice-btn:hover:not(:disabled) {
+  border-color: var(--orange);
+}
+
+/* 灰色は押せないときだけ */
+.choice-btn:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.choice-note {
+  width: 100%;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.drive-list {
+  width: 100%;
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.back-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: 9px;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.back-btn:hover {
+  border-color: var(--orange);
+}
+
+/* ---- CPU と対局：ルールセット（見本 settings.html と同じ形） ---- */
+
+.gset {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.gset h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.guide {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.about-sets {
+  margin: 0 0 6px;
+}
+
+.about-sets summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline;
+  font-size: 0.74rem;
+  color: var(--orange-mid);
+  text-decoration: underline;
+}
+
+.about-sets summary::-webkit-details-marker {
+  display: none;
+}
+
+.about-sets[open] summary {
+  margin-bottom: 4px;
+  display: inline-block;
+}
+
+.sets {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.tier {
+  display: contents;
+}
+
+.tier > span:first-child {
+  font-size: 0.78rem;
+  color: var(--text);
+  padding-top: 7px;
+  white-space: nowrap;
+  line-height: 1.35;
+}
+
+.sets .seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.sets .seg button {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 0.78rem;
+  padding: 6px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.sets .seg button.on {
+  background: var(--orange);
+  color: #fff;
+  font-weight: 700;
+}
+
+.sets .seg button.tagged::after {
+  content: attr(data-tag);
+  font-size: 0.6rem;
+  margin-left: 4px;
+  color: var(--text-sub);
+}
+
+/* 携帯の幅：セットの段の名前を上に置く */
+@media (max-width: 480px) {
+  .sets {
+    grid-template-columns: 1fr;
+  }
+
+  .mode-choices {
+    padding-left: 4px;
+  }
+}
+
+/* ---- フッター（ほかの MOMO のゲームと同じ形） ---- */
+
+.site-footer {
+  width: 100%;
+  margin-top: 34px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  text-align: left;
+}
+
+.site-footer h2 {
+  font-family: 'Fredoka One', 'Noto Sans JP', sans-serif;
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--text);
+  margin: 0 0 9px;
+  letter-spacing: 0.02em;
+}
+
+.site-footer > p {
+  font-size: 12px;
+  line-height: 1.9;
+  margin: 0 0 14px;
+  color: var(--text);
+}
+
+.foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.foot-links a {
+  font-size: 12px;
+  color: var(--orange-mid);
+  text-decoration: none;
+}
+
+.foot-links a:hover {
+  text-decoration: underline;
 }

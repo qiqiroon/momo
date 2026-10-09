@@ -146,3 +146,29 @@ export async function saveToDrive(name: string, text: string): Promise<string> {
   await api(`${UPLOAD}/files?uploadType=multipart&fields=id`, { method: 'POST', body: form });
   return finalName;
 }
+
+export interface DriveFile {
+  id: string;
+  name: string;
+  modifiedTime: string;
+}
+
+/** Google ドライブの momo-works/mahjong/ にある牌譜の一覧（新しい順）。drive.file なので、このアプリが保存したものだけが見える */
+export async function listDriveKifu(): Promise<DriveFile[]> {
+  await signIn();
+  const folder = await ensureFolder();
+  const query = `'${folder}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`;
+  const found = await api<{ files: DriveFile[] }>(
+    `${API}/files?q=${encodeURIComponent(query)}&orderBy=modifiedTime desc&pageSize=100&fields=files(id,name,modifiedTime)`,
+  );
+  return found.files.filter((f) => f.name.endsWith('.json'));
+}
+
+/** Google ドライブのファイルの中身を読む */
+export async function readDriveFile(id: string): Promise<string> {
+  await signIn();
+  const r = await fetch(`${API}/files/${encodeURIComponent(id)}?alt=media`, { headers: { Authorization: `Bearer ${token}` } });
+  if (r.status === 401) token = null;
+  if (!r.ok) throw new Error(`Google ドライブ ${r.status}`);
+  return r.text();
+}

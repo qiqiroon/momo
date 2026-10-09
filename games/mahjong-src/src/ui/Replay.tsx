@@ -80,7 +80,7 @@ export function Replay({ events, narrow, lang, onExit }: Props) {
           </button>
           <span className="replay-pos">{t('replayPos', { n: at + 1, total: steps.length })}</span>
           <button type="button" className="btn-primary btn-replay-exit" onClick={onExit}>
-            {t('toTop')}
+            {t('replayExit')}
           </button>
         </div>
         <div className="replay-row">

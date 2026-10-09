@@ -10,12 +10,16 @@ const container = () => document.body;
 beforeEach(() => localStorage.setItem('momo-mahjong.consent', CONSENT_VERSION));
 afterEach(() => localStorage.removeItem('momo-mahjong.consent'));
 /** 始めるボタン（言語が変わっても見つかるよう、主ボタンの印で探す） */
-const startButton = () => document.querySelector<HTMLButtonElement>('.btn-start')!;
+const startButton = () => {
+  // モード選択にいるときは「CPU と対局」を押して、ルールを選ぶ画面の始めるボタンを返す
+  if (!document.querySelector('.btn-start')) fireEvent.click(document.querySelector('.mode-row')!);
+  return document.querySelector<HTMLButtonElement>('.btn-start')!;
+};
 
 describe('始める画面', () => {
   it('アプリ名・版番号・始めるボタンが出る', () => {
     render(<App />);
-    const h1 = screen.getByRole('heading');
+    const h1 = screen.getByRole('heading', { level: 1 });
     expect(h1).toHaveTextContent('MOMO');
     expect(h1).toHaveTextContent('Mahjong');
     expect(screen.getByText(APP_VERSION)).toBeInTheDocument();
@@ -188,5 +192,81 @@ describe('対局終了の画面の1行', () => {
   it('「賭博に使用しないことに同意しています」を含み、猫語でも鳴き声にしない', () => {
     expect(translate('ja', 'noMoney')).toContain('賭博に使用しないことに同意しています');
     expect(translate('cat', 'noMoney')).toBe(translate(baseOf('cat'), 'noMoney'));
+  });
+});
+
+describe('モード選択と、そこから入る画面', () => {
+  it('3 つのメニューが牌（ピンズの 1〜3）の絵と並び、フッターにこのアプリの説明と MOMO Works へのリンクがある', () => {
+    render(<App />);
+    const rows = [...document.querySelectorAll('.mode-list .mode-row')];
+    expect(rows.map((r) => r.querySelector('.mode-name')!.textContent)).toEqual(['CPU と対局', 'オンライン対局', '対局の再生']);
+    expect(rows.map((r) => r.querySelector('img')!.getAttribute('src'))).toEqual(['/momo/games/mahjong/tiles/1p.svg', '/momo/games/mahjong/tiles/2p.svg', '/momo/games/mahjong/tiles/3p.svg']);
+    const footer = document.querySelector('.site-footer')!;
+    expect(footer).toHaveTextContent('MOMO Mahjong について');
+    expect([...footer.querySelectorAll('.foot-links a')].map((a) => a.getAttribute('href'))).toEqual(['../../', '../../games/', '../../tools/']);
+    expect(footer.querySelector('.title-foot')).toHaveTextContent('賭けには使えません');
+  });
+
+  it('CPU と対局：ルールセットは一般ルールが選ばれ、まだ動かないセットを押しても変わらない。モード選択へ戻れる', () => {
+    render(<App />);
+    fireEvent.click(screen.getByText('CPU と対局'));
+    expect(document.querySelector('.sets .seg button.on')).toHaveTextContent('一般ルール');
+    fireEvent.click(screen.getByRole('button', { name: /天鳳/ }));
+    expect(document.querySelector('.sets .seg button.on')).toHaveTextContent('一般ルール');
+    expect(document.querySelector('.site-footer')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'モード選択' }));
+    expect(document.querySelectorAll('.mode-list .mode-row')).toHaveLength(3);
+  });
+
+  it('対局の再生：前回の対局が無いときは、前回の対局の再生と保存は押せない。端末のファイルは選べる', () => {
+    localStorage.removeItem('momo-mahjong.lastGame');
+    render(<App />);
+    fireEvent.click(screen.getByText('対局の再生'));
+    fireEvent.click(screen.getByText('再生する'));
+    expect(screen.getByRole('button', { name: '前回の対局' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'この端末のファイル' })).not.toBeDisabled();
+    fireEvent.click(screen.getByText('前回の対局を保存する'));
+    // 開くのは押した行の下だけ（再生の選択肢は閉じる）＝出ている選択肢は保存先の 2 つ
+    const choices = [...document.querySelectorAll('.mode-choices button')];
+    expect(choices.map((b) => b.textContent)).toEqual(['この端末のファイル', 'Google ドライブ']);
+    for (const b of choices) expect(b).toBeDisabled();
+  });
+});
+
+describe('見出しのボタン（対局の中断・画面切替）と同意画面の赤い見出し', () => {
+  it('モード選択には「対局を中断」も「画面切替」も出ない。対局中だけ出て、中断は確かめてからモード選択へ戻る', () => {
+    render(<App />);
+    expect(screen.queryByText('対局を中断')).toBeNull();
+    expect(screen.queryByText('画面切替')).toBeNull();
+    fireEvent.click(startButton());
+    expect(screen.getByText('対局を中断')).toBeInTheDocument();
+    const ask = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    fireEvent.click(screen.getByText('対局を中断'));
+    expect(document.querySelectorAll('.mode-list .mode-row')).toHaveLength(0); // やめるを選べば対局のまま
+    fireEvent.click(screen.getByText('対局を中断'));
+    expect(ask).toHaveBeenCalledTimes(2);
+    expect(document.querySelectorAll('.mode-list .mode-row')).toHaveLength(3);
+    ask.mockRestore();
+  });
+
+  it('牌譜の再生中も卓を出す画面なので「画面切替」が出る（再生の入口の画面には出ない）', () => {
+    render(<App />);
+    fireEvent.click(startButton());
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    fireEvent.click(screen.getByText('対局を中断')); // 途中までの対局が「前回の対局」になる
+    ask.mockRestore();
+    fireEvent.click(screen.getByText('対局の再生'));
+    expect(screen.queryByText('画面切替')).toBeNull();
+    fireEvent.click(screen.getByText('再生する'));
+    fireEvent.click(screen.getByRole('button', { name: '前回の対局' }));
+    expect(screen.getByText('画面切替')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('再生を終える'));
+    expect(screen.queryByText('画面切替')).toBeNull();
+  });
+
+  it('同意画面の「賭けに使わないでください」の見出しは赤い字の印が付く', () => {
+    localStorage.removeItem('momo-mahjong.consent');
+    render(<App />);
+    expect(document.querySelector('.notice-warn')).toHaveTextContent('賭けに使わないでください');
   });
 });

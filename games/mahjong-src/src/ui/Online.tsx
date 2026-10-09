@@ -3,7 +3,7 @@
 // 部屋の名前・パスワード（任意）・非公開にする／一覧の 🔒 とパスワードつき／非公開の部屋を表示／
 // 一覧の下のパスワード欄に入れてから参加。パスワード欄はブラウザに保存の候補を出させない（ふつうの文字の欄を伏せ字に見せる）。
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { MessageKey } from '../i18n/strings';
 import { MAX_SEATS, type OnlineNote, type OnlineSession, type RoomInfo } from '../online/session';
 import { BackButton, ScreenHead } from './Menu';
@@ -85,6 +85,11 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
   const [joinPw, setJoinPw] = useState('');
   const [showPrivate, setShowPrivate] = useState(false);
   useEffect(() => session.open(), [session]);
+  // 知らせは画面の上に出す。携帯で一覧まで下げていても見えるよう、出たらそこまで戻す
+  const noteRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (s.note) noteRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+  }, [s.note]);
   const rename = (v: string) => {
     setName(v);
     saveName(v.trim());
@@ -99,7 +104,7 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
         <span className={`ol-server${s.wsOpen ? ' on' : ''}`}>{t(s.wsOpen ? 'olServerOn' : 'olServerConnecting')}</span>
       </div>
       {s.note && (
-        <p className="ol-note" role="alert">
+        <p ref={noteRef} className="ol-note" role="alert">
           {noteText(t, s.note)}
         </p>
       )}

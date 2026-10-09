@@ -1,5 +1,5 @@
 // 「ご利用にあたって」（同意画面＝2-A）と、そのリンク先「対局の公平性とルールの再現について」（2-B）の文面。
-// 正本は L:\momo\games\mahjong\docs\MOMO_Mahjong_免責と利用上の注意_案_v0.03.md（§2・§7）。文面を直すときは文書と一緒に直す。
+// 正本は L:\momo\games\mahjong\docs\MOMO_Mahjong_免責と利用上の注意_案_v0.04.md（§2・§7）。文面を直すときは文書と一緒に直す。
 // 意味が伝わらないと困る文なので猫語にしない（猫語のときは猫語を選ぶ直前の言語で出す）。
 
 import type { BaseLang } from './strings';

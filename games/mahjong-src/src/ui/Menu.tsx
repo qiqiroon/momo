@@ -43,23 +43,22 @@ export function ModeRow({ tile, name, desc, disabled, open, onClick }: RowProps)
   );
 }
 
-/** モード選択へ戻るボタン（家の絵） */
-export function HomeButton({ t, onClick }: { t: T; onClick: () => void }) {
+/** モード選択へ戻るボタン（「← 戻る」。見出しと見分けがつくよう、ボタンの形で操作の行に置く＝利用者指示 10-09） */
+export function BackButton({ t, onClick }: { t: T; onClick: () => void }) {
   return (
-    <button type="button" className="back-btn" onClick={onClick}>
+    <button type="button" className="btn-secondary back-btn" onClick={onClick}>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <path d="M3 12l9-9 9 9M5 10v10h14V10" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      {t('backToMenu')}
+      {t('backBtn')}
     </button>
   );
 }
 
-/** 画面の見出し（左に戻るボタン） */
-export function ScreenHead({ t, title, onBack }: { t: T; title: string; onBack: () => void }) {
+/** 画面の見出し */
+export function ScreenHead({ title }: { title: string }) {
   return (
     <div className="screen-head">
-      <HomeButton t={t} onClick={onBack} />
       <h2>{title}</h2>
     </div>
   );
@@ -69,13 +68,16 @@ export function ScreenHead({ t, title, onBack }: { t: T; title: string; onBack: 
 export function SiteFooter({ t, children }: { t: T; children?: ReactNode }) {
   return (
     <footer className="site-footer">
-      {children}
-      <h2>{t('footerAbout')}</h2>
-      <p>{t('footerDesc')}</p>
-      <div className="foot-links">
-        <a href="../../">{t('footerTop')}</a>
-        <a href="../../games/">{t('footerGames')}</a>
-        <a href="../../tools/">{t('footerTools')}</a>
+      <div className="site-footer-inner">
+        {children}
+        <h2>{t('footerAbout')}</h2>
+        <p>{t('footerDesc')}</p>
+        {/* MOMO Works へのリンクは一番下（利用者指示 10-09） */}
+        <div className="foot-links">
+          <a href="../../">{t('footerTop')}</a>
+          <a href="../../games/">{t('footerGames')}</a>
+          <a href="../../tools/">{t('footerTools')}</a>
+        </div>
       </div>
     </footer>
   );
@@ -97,7 +99,14 @@ export function CpuSetup({ t, onBack, onStart }: { t: T; onBack: () => void; onS
   const [preset, setPreset] = useState('general');
   return (
     <>
-      <ScreenHead t={t} title={t('menuCpu')} onBack={onBack} />
+      <ScreenHead title={t('menuCpu')} />
+      {/* 対局を始めるは見出しのすぐ下（ルールセットの説明を開いても隠れない）。戻るはその右 */}
+      <div className="screen-actions">
+        <button type="button" className="btn-primary btn-start" onClick={onStart}>
+          {t('start')}
+        </button>
+        <BackButton t={t} onClick={onBack} />
+      </div>
       <section className="gset">
         <h3>{t('ruleSet')}</h3>
         <details className="about-sets">
@@ -125,9 +134,6 @@ export function CpuSetup({ t, onBack, onStart }: { t: T; onBack: () => void; onS
           ))}
         </div>
       </section>
-      <button type="button" className="btn-primary btn-start" onClick={onStart}>
-        {t('start')}
-      </button>
     </>
   );
 }
@@ -168,7 +174,10 @@ export function ReplayHub({ t, hasLast, note, onBack, onPlayLast, onPlayFile, li
   };
   return (
     <>
-      <ScreenHead t={t} title={t('menuReplay')} onBack={onBack} />
+      <ScreenHead title={t('menuReplay')} />
+      <div className="screen-actions">
+        <BackButton t={t} onClick={onBack} />
+      </div>
       <div className="mode-list">
         <ModeRow tile="4p" name={t('replayPlay')} desc={t('replayPlayDesc')} open={open === 'play'} onClick={() => toggle('play')} />
         {open === 'play' && (

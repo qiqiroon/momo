@@ -52,8 +52,21 @@ export function Notice({ lang, first, consent, onAgree, onClose }: Props) {
   useEffect(() => {
     if (body.current) body.current.scrollTop = 0;
   }, [kind]);
+  // 同意画面は、隠れている所まで送って全部読むまで同意を押せない（利用者指示 10-09）。一度最後まで読めば押せるまま
+  const [readAll, setReadAll] = useState(false);
+  const checkRead = () => {
+    const el = body.current;
+    // 窓の位置（上のあき）が決まる前は背が高く、全部見えているように測れてしまうので判定しない
+    if (top === null) return;
+    if (el && kind === 'about' && el.scrollTop + el.clientHeight >= el.scrollHeight - 4) setReadAll(true);
+  };
+  useEffect(() => {
+    checkRead();
+    window.addEventListener('resize', checkRead);
+    return () => window.removeEventListener('resize', checkRead);
+  });
   // 窓の上は見出しの下端まであける（言語を選び直せるように）。携帯では見出しが2段になるので実際の高さで測る
-  const [top, setTop] = useState(16);
+  const [top, setTop] = useState<number | null>(null);
   useEffect(() => {
     const measure = () => {
       const h = document.querySelector('.site-header')?.getBoundingClientRect().bottom ?? 0;
@@ -65,9 +78,9 @@ export function Notice({ lang, first, consent, onAgree, onClose }: Props) {
   }, []);
 
   return (
-    <div className="notice-backdrop" style={{ paddingTop: top }} role="dialog" aria-modal="true" aria-label={tx[kind].title}>
+    <div className="notice-backdrop" style={{ paddingTop: top ?? 16 }} role="dialog" aria-modal="true" aria-label={tx[kind].title}>
       <div className="notice">
-        <div className="notice-body" ref={body}>
+        <div className="notice-body" ref={body} onScroll={checkRead}>
           <Page page={tx[kind]} />
           {kind === 'about' && (
             <p className="notice-links">
@@ -87,9 +100,12 @@ export function Notice({ lang, first, consent, onAgree, onClose }: Props) {
               {tx.back}
             </button>
           ) : consent ? (
-            <button type="button" className="btn-primary btn-agree" onClick={onAgree}>
-              {tx.agree}
-            </button>
+            <>
+              {!readAll && <p className="agree-hint">{tx.scrollToAgree}</p>}
+              <button type="button" className="btn-primary btn-agree" disabled={!readAll} onClick={onAgree}>
+                {tx.agree}
+              </button>
+            </>
           ) : null}
           {!consent && (
             <button type="button" className="btn-secondary" onClick={onClose}>

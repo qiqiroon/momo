@@ -214,7 +214,11 @@ describe('モード選択と、そこから入る画面', () => {
     fireEvent.click(screen.getByRole('button', { name: /天鳳/ }));
     expect(document.querySelector('.sets .seg button.on')).toHaveTextContent('一般ルール');
     expect(document.querySelector('.site-footer')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'モード選択' }));
+    // 対局を始めるは見出しのすぐ下（ルールセットより前）、戻るはその右
+    const start = document.querySelector('.btn-start')!;
+    expect(start.compareDocumentPosition(document.querySelector('.gset')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(start.nextElementSibling).toHaveTextContent('戻る');
+    fireEvent.click(screen.getByRole('button', { name: '戻る' }));
     expect(document.querySelectorAll('.mode-list .mode-row')).toHaveLength(3);
   });
 
@@ -262,6 +266,23 @@ describe('見出しのボタン（対局の中断・画面切替）と同意画�
     expect(screen.getByText('画面切替')).toBeInTheDocument();
     fireEvent.click(screen.getByText('再生を終える'));
     expect(screen.queryByText('画面切替')).toBeNull();
+  });
+
+  it('同意画面は、隠れている所まで送って読むまで同意を押せない', () => {
+    localStorage.removeItem('momo-mahjong.consent');
+    // 本文が窓より長い（1000px の中身を 300px で見ている）ことにする
+    const h = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(1000);
+    const c = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(300);
+    render(<App />);
+    const agree = document.querySelector<HTMLButtonElement>('.btn-agree')!;
+    expect(agree).toBeDisabled();
+    expect(screen.getByText('最後まで読むと、同意のボタンを押せます。')).toBeInTheDocument();
+    const body = document.querySelector<HTMLElement>('.notice-body')!;
+    body.scrollTop = 700;
+    fireEvent.scroll(body);
+    expect(document.querySelector('.btn-agree')).not.toBeDisabled();
+    h.mockRestore();
+    c.mockRestore();
   });
 
   it('同意画面の「賭けに使わないでください」の見出しは赤い字の印が付く', () => {

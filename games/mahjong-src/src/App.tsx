@@ -213,26 +213,27 @@ export function App() {
             </>
           )}
           <input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={(e) => void openFile(e)} />
-          {screen === 'top' && (
-            <SiteFooter t={t}>
-              {/* 賭けに使えないことの1行と、同意した文面・利用規約をあとから読み返すリンク（免責 v0.04 §3・§4） */}
-              <div className="title-foot">
-                <p>{notice.titleNote}</p>
-                <p className="notice-links">
-                  <button type="button" className="link-btn" onClick={() => setReading('about')}>
-                    {notice.aboutLink}
-                  </button>
-                  <button type="button" className="link-btn" onClick={() => setReading('fairness')}>
-                    {notice.fairnessLink}
-                  </button>
-                  <a href={TERMS_URL} target="_blank" rel="noopener">
-                    {notice.terms}
-                  </a>
-                </p>
-              </div>
-            </SiteFooter>
-          )}
         </main>
+      )}
+      {/* フッターはモード選択（トップ）だけ。ページの一番下に帯で置く（ほかのアプリと同じ） */}
+      {!started && !replaying && screen === 'top' && (
+        <SiteFooter t={t}>
+          {/* 賭けに使えないことの1行と、同意した文面・利用規約をあとから読み返すリンク（免責 v0.04 §3・§4） */}
+          <div className="title-foot">
+            <p>{notice.titleNote}</p>
+            <p className="notice-links">
+              <button type="button" className="link-btn" onClick={() => setReading('about')}>
+                {notice.aboutLink}
+              </button>
+              <button type="button" className="link-btn" onClick={() => setReading('fairness')}>
+                {notice.fairnessLink}
+              </button>
+              <a href={TERMS_URL} target="_blank" rel="noopener">
+                {notice.terms}
+              </a>
+            </p>
+          </div>
+        </SiteFooter>
       )}
       {!consented ? (
         <Notice

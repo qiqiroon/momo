@@ -2,7 +2,7 @@
 // 広い画面＝正方形の卓（自分が手前・下家が右・対面が奥・上家が左）。
 // 狭い画面＝横に 4 列（下家→対面→上家→自分の順＝打つ順に上から下へ流れる）＋手牌。
 
-import { Fragment, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
 import { HIDDEN, type Seat } from '../engine/events';
 import { furitenOf } from '../engine/furiten';
 import { finalResult } from '../engine/final';
@@ -52,6 +52,9 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   const nameOf = (seat: number) => (seat === HUMAN ? t('you') : t('cpu', { n: relOf(seat) }));
   const roundLabel = t('round', { wind: t(`roundWind${Math.floor(Math.max(0, view.roundIndex) / 4) % 3}` as MessageKey), n: (Math.max(0, view.roundIndex) % 4) + 1 });
   const left = Math.max(0, liveWallLeft(view));
+  /** 半荘戦か東風戦か（対局の長さ。利用者指示 10-09：どちらか分かる表示） */
+  const len = view.rules?.family === 'jp' ? view.rules.values.length : undefined;
+  const lengthLabel = len === 'half' ? t('lengthHalf') : len === 'east' ? t('lengthEast') : null;
   /** 持ち点（3 桁区切り） */
   const pointsOf = (seat: number) => <span className="points">{view.scores[seat].toLocaleString('en-US')}</span>;
   const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '±0');
@@ -138,9 +141,20 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   // 局が終わったあと：次に起きること（オーラスでトップの親がやめるか選ぶ・次の局・対局の終わり）
   const step = view.phase === 'ended' ? nextStep(view) : null;
   const yameMine = legal.filter((a) => a.type === 'yame');
+  // 対局が終わったら 2 度に分けて出す：1 度目＝最後の局の結果／2 度目＝対局全体の結果（利用者指示 10-09）
+  const [finalShown, setFinalShown] = useState(false);
+  /** 保存の行き先を選ぶところを開いているか（保存のボタンは 1 つ・押した先で選ぶ） */
+  const [saveOpen, setSaveOpen] = useState(false);
+  useEffect(() => {
+    if (view.phase !== 'gameover') {
+      setFinalShown(false);
+      setSaveOpen(false);
+    }
+  }, [view.phase]);
+  const showFinal = view.phase === 'gameover' && finalShown;
   const result = (view.phase === 'ended' || view.phase === 'gameover') && r && (
     <DraggableDialog className="result">
-      {view.phase === 'gameover' && view.gameOver && (
+      {showFinal && view.gameOver && (
         <>
           <p className="result-title game-over-title">{t('gameOverTitle')}</p>
           <p className="game-over-reason">{t(`gameEnd_${view.gameOver}` as MessageKey)}</p>
@@ -174,6 +188,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
           <p className="hint no-money">{t('noMoney')}</p>
         </>
       )}
+      {!showFinal && (
+        <>
       {r.type === 'exhaust' && <p className="result-title">{t('resultExhaust')}</p>}
       {r.type === 'tripleRon' && <p className="result-title">{t('resultTripleRon')}</p>}
       {r.type === 'abort' && <p className="result-title">{t(`resultAbort_${r.reason}`, { name: r.seat === undefined ? '' : nameOf(r.seat) })}</p>}
@@ -268,25 +284,40 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
           </tbody>
         </table>
       )}
-      {replay ? null : view.phase === 'gameover' ? (
+        </>
+      )}
+      {view.phase === 'gameover' && !showFinal ? (
+        <button type="button" className="btn-primary btn-final" onClick={() => setFinalShown(true)}>
+          {t('toFinalResult')}
+        </button>
+      ) : replay ? null : view.phase === 'gameover' ? (
         <div className="game-over-actions">
           <button type="button" className="btn-primary btn-new-game" onClick={onNewGame}>
             {t('newGame')}
           </button>
-          {onSaveFile && (
-            <button type="button" className="btn-primary btn-save-file" onClick={onSaveFile}>
-              {t('saveFile')}
-            </button>
-          )}
-          {onSaveDrive && (
-            <button type="button" className="btn-primary btn-save-drive" onClick={onSaveDrive}>
-              {t('saveDrive')}
+          {(onSaveFile || onSaveDrive) && (
+            <button type="button" className="btn-primary btn-save" onClick={() => setSaveOpen(!saveOpen)}>
+              {t('saveGame')}
             </button>
           )}
           {onTop && (
             <button type="button" className="btn-primary btn-top" onClick={onTop}>
               {t('toTop')}
             </button>
+          )}
+          {saveOpen && (
+            <div className="save-choices">
+              {onSaveFile && (
+                <button type="button" className="choice-btn btn-save-file" onClick={onSaveFile}>
+                  {t('srcFile')}
+                </button>
+              )}
+              {onSaveDrive && (
+                <button type="button" className="choice-btn btn-save-drive" onClick={onSaveDrive}>
+                  {t('srcDrive')}
+                </button>
+              )}
+            </div>
           )}
           {saveNote && <p className="hint save-note">{saveNote}</p>}
         </div>
@@ -315,6 +346,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
     return (
       <div className="lanes-wrap felt" style={{ '--hand-units': narrowUnits } as CSSProperties}>
         <div className="lanes-info">
+          {lengthLabel && <span className="length-label">{lengthLabel}</span>}
           <span className="round-label">{roundLabel}</span>
           <span className="wall-left">{t('wallLeft', { n: left })}</span>
           {sticks}
@@ -381,6 +413,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
     <div className="square-wrap">
       <div className="square felt">
         <div className="center-box">
+          {lengthLabel && <span className="length-label">{lengthLabel}</span>}
           <span className="round-label">{roundLabel}</span>
           <span className="wall-left">{t('wallLeft', { n: left })}</span>
           {sticks}

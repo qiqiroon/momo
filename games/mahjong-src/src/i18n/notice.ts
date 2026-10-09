@@ -35,6 +35,8 @@ export interface NoticeTexts {
   fairnessLink: string;
   /** 同意のボタン */
   agree: string;
+  /** 同意画面を最後まで送っていないときの一言 */
+  scrollToAgree: string;
   /** 読み返すときの閉じるボタン */
   close: string;
   /** リンク先から同意画面へ戻るボタン */
@@ -110,6 +112,7 @@ const ja: NoticeTexts = {
   aboutLink: 'ご利用にあたって',
   fairnessLink: '対局の公平性とルールの再現について',
   agree: '賭けに使わないこと、上の内容、リンク先の「対局の公平性とルールの再現について」に納得して遊ぶことに同意して始める',
+  scrollToAgree: '最後まで読むと、同意のボタンを押せます。',
   close: '閉じる',
   back: '戻る',
   terms: '利用規約',
@@ -183,6 +186,7 @@ const en: NoticeTexts = {
   aboutLink: 'Before You Play',
   fairnessLink: 'Fairness of Play and Reproduction of the Rules',
   agree: 'I agree not to use this app for gambling, and to play with an understanding of the above and of "Fairness of Play and Reproduction of the Rules" — Start',
+  scrollToAgree: 'Scroll to the end to enable the consent button.',
   close: 'Close',
   back: 'Back',
   terms: 'Terms of Use',
@@ -256,6 +260,7 @@ const zh: NoticeTexts = {
   aboutLink: '使用须知',
   fairnessLink: '对局的公平性与规则的再现',
   agree: '同意不将本应用用于赌博，并在理解上述内容及链接页面《对局的公平性与规则的再现》的前提下游玩——开始',
+  scrollToAgree: '阅读到最后后，即可按下同意按钮。',
   close: '关闭',
   back: '返回',
   terms: '使用条款',

@@ -9,6 +9,7 @@
   --bg-selected: rgba(194, 65, 12, 0.15);
   --orange: #c2410c;
   --orange-mid: #ea580c;
+  --orange-light: #fb923c; /* フッターのリンクだけ（ほかのアプリと同じ）。ほかでは使わない */
   --text: #e5e5e5;
   --text-sub: #a3a3a3;
   --text-muted: #737373;
@@ -228,8 +229,6 @@ body.in-game .site-header .subtitle {
 }
 
 .btn-start {
-  /* 見出しとのあき（説明文を消したぶん） */
-  margin-top: 24px;
   font-size: 16px;
   padding: 12px 28px;
 }
@@ -371,6 +370,14 @@ body.in-game .site-header .subtitle {
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
   max-width: calc(100% - 24px);
+  /* 画面からはみ出すときは枠の中を送って読む（利用者指示 10-09）。指でも縦に送れるように */
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.result.draggable {
+  touch-action: pan-y;
 }
 
 /* つかんで動かせる枠：どこでもつかめる（指で動かしても画面が流れないように touch-action を止める）。
@@ -456,6 +463,10 @@ body.in-game .site-header .subtitle {
 
 .center-box .round-label {
   font-size: 2.8cqw;
+}
+
+.center-box .length-label {
+  font-size: 1.7cqw;
 }
 
 .center-box .wall-left {
@@ -1109,6 +1120,22 @@ body.in-game .site-header .subtitle {
   border-top: 1px solid var(--border);
 }
 
+.agree-hint {
+  width: 100%;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+  text-align: right;
+}
+
+/* 灰色は押せないときだけ（最後まで読むまで） */
+.btn-agree:disabled {
+  background: var(--surface2);
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
 .btn-agree {
   font-size: 14px;
   line-height: 1.5;
@@ -1141,9 +1168,14 @@ body.in-game .site-header .subtitle {
   text-align: left;
 }
 
-.notice-links a,
-.title-foot a {
+.notice-links a {
   color: var(--text);
+}
+
+/* 賭けに使えないことの1行は白のまま、読み返すリンクはフッターの説明と同じ灰色 */
+.title-foot .link-btn,
+.title-foot a {
+  color: var(--text-muted);
 }
 
 /* フッターの頭：賭けに使えないことの1行と、読み返すためのリンク */
@@ -1309,23 +1341,21 @@ body.in-game .site-header .subtitle {
   line-height: 1.9;
 }
 
-.back-btn {
-  background: var(--surface2);
-  border: 1px solid var(--border-strong);
-  color: var(--text);
-  border-radius: 9px;
-  padding: 7px 11px;
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
+/* 見出しの下の操作の行（対局を始める・戻る） */
+.screen-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex: none;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.back-btn:hover {
-  border-color: var(--orange);
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* 対局を始めると同じ高さ */
+  font-size: 16px;
+  padding: 12px 20px;
 }
 
 /* ---- CPU と対局：ルールセット（見本 settings.html と同じ形） ---- */
@@ -1439,15 +1469,26 @@ body.in-game .site-header .subtitle {
   }
 }
 
-/* ---- フッター（ほかの MOMO のゲームと同じ形） ---- */
+/* ---- フッター（ほかの MOMO のゲームのトップ画面と同じ形・同じ色＝数独と同じ。利用者指示 10-09 Q2=A：
+   フッターだけは麻雀の色の決まり〔薄いオレンジを使わない・本文は白〕の例外） ---- */
 
 .site-footer {
-  width: 100%;
-  margin-top: 34px;
-  padding-top: 22px;
+  /* ページの一番下に、画面の横幅いっぱいの帯で置く（#app の左右のあきを打ち消す） */
+  margin-top: auto;
+  align-self: stretch;
+  margin-left: -16px;
+  margin-right: -16px;
   border-top: 1px solid var(--border);
-  color: var(--text);
+  background: #0d0d0d;
+  padding: 26px 24px 38px;
+  color: var(--text-muted);
   text-align: left;
+}
+
+/* 中身は本文と同じ幅にそろえる */
+.site-footer-inner {
+  max-width: 520px;
+  margin: 0 auto;
 }
 
 .site-footer h2 {
@@ -1459,25 +1500,44 @@ body.in-game .site-header .subtitle {
   letter-spacing: 0.02em;
 }
 
-.site-footer > p {
+.site-footer-inner > p {
   font-size: 12px;
   line-height: 1.9;
   margin: 0 0 14px;
-  color: var(--text);
 }
 
 .foot-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
+  gap: 8px 18px;
+  font-size: 12px;
 }
 
 .foot-links a {
-  font-size: 12px;
-  color: var(--orange-mid);
+  color: var(--orange-light);
   text-decoration: none;
 }
 
 .foot-links a:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .site-footer {
+    padding: 22px 14px 32px;
+  }
+}
+
+/* 半荘戦・東風戦（局の表示の前） */
+.length-label {
+  color: var(--text-sub);
+  font-size: 0.85em;
+}
+
+/* 対局終了：保存の行き先 */
+.save-choices {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
 }

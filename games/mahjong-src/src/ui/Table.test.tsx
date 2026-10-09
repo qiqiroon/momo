@@ -259,3 +259,30 @@ describe('チー・ポン（段階3）', () => {
     expect(shown.reduce((a, b) => a + b, 0)).toBe(view.discards.reduce((n, d) => n + d.length, 0) - 1);
   });
 });
+
+describe('対局の終わり（2 度に分けて出す・保存のボタンは 1 つ）', () => {
+  it('1 度目は最後の局の結果と「対局の結果へ」、2 度目は順位の表と「対局を保存」。保存を押すと行き先を選ぶ', () => {
+    const won = viewFor(wonLog(), 0);
+    const view = { ...won, phase: 'gameover' as const, gameOver: 'last' as const };
+    const file = vi.fn();
+    const drive = vi.fn();
+    render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} onSaveFile={file} onSaveDrive={drive} onTop={() => {}} />);
+    expect(screen.getByText('門前清自摸和')).toBeInTheDocument();
+    expect(document.querySelector('.final-list')).toBeNull();
+    fireEvent.click(screen.getByText('対局の結果へ'));
+    expect(document.querySelector('.final-list')).not.toBeNull();
+    expect(screen.queryByText('門前清自摸和')).toBeNull();
+    expect(screen.queryByText('この端末のファイル')).toBeNull();
+    fireEvent.click(screen.getByText('対局を保存'));
+    fireEvent.click(screen.getByText('この端末のファイル'));
+    fireEvent.click(screen.getByText('Google ドライブ'));
+    expect(file).toHaveBeenCalledTimes(1);
+    expect(drive).toHaveBeenCalledTimes(1);
+  });
+
+  it('半荘戦か東風戦かを局の表示の前に出す', () => {
+    const view = viewFor(wonLog(), 0);
+    render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
+    expect(document.querySelector('.length-label')).toHaveTextContent('半荘戦');
+  });
+});

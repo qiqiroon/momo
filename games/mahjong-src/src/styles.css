@@ -616,13 +616,19 @@ body.in-game .site-header .subtitle {
 
 /* 捨て牌の帯：1 行。並ぶ枚数（--n）が入りきらなければ牌を縮める */
 .lane-river {
-  container-type: inline-size;
+  /* 列の区画の中に収める：横幅だけでなく高さでも牌の大きさを決める（横長の画面で牌が大きくなりすぎ、
+     下の列の名札・点数にかぶっていた＝利用者指摘 10-10） */
+  container-type: size;
+  flex: 1 1 0;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .lane-river .river {
   flex-wrap: nowrap;
-  --tw: min(var(--hand-tw), calc((100cqw - 4px - (var(--n, 1) - 1) * 1px) / max(var(--n, 1), 1)));
+  /* 牌の高さ＝幅×約 1.5（絵の縦横 26:19＋厚み・影）。区画の高さを超えない */
+  --tw: min(var(--hand-tw), calc((100cqw - 4px - (var(--n, 1) - 1) * 1px) / max(var(--n, 1), 1)), calc(100cqh / 1.55));
 }
 
 .lane.is-turn {
@@ -2324,7 +2330,8 @@ body.in-game .site-header .subtitle {
   position: absolute;
   left: 3%;
   right: 3%;
-  bottom: 0;
+  /* 羅紗の外の木の縁の上（自分の鳴いた牌にかぶらない＝利用者指摘 10-10） */
+  bottom: -10px;
   height: 6px;
   border-radius: 3px;
   background: var(--orange-mid);

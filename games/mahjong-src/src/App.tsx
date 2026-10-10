@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Envelope } from './engine/events';
 import { HUMAN, useTable } from './game/useTable';
+import { labelOf } from './engine/ruleSets';
+import { loadRuleChoice } from './ui/RuleSettings';
 import { SeatContext, type SeatInfo } from './ui/seatContext';
 import { buildKifu, kifuFileName, parseKifu, type Kifu, type KifuSource } from './kifu/kifu';
 import { downloadText, listDriveKifu, loadLastGame, readDriveFile, saveToDrive } from './kifu/store';
@@ -136,9 +138,11 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
       setNote(t('kifuBad', { why: (err as Error).message }));
     }
   };
+  /** 新しい対局：前に選んだルール（端末に覚えたもの）で始める */
   const startGame = () => {
     setNote('');
-    start();
+    const c = loadRuleChoice();
+    start({ family: 'jp', values: c.values }, labelOf(c.values, c.base));
   };
 
   useEffect(() => {
@@ -242,7 +246,13 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
       ) : (
         <main className="title">
           {screen === 'cpu' ? (
-            <CpuSetup t={t} onBack={() => setScreen('top')} onStart={startGame} />
+            <CpuSetup
+              t={t}
+              lang={baseOf(lang)}
+              onBack={() => setScreen('top')}
+              // 選んだルールで始める（選んだルールは画面が端末に覚えている。牌譜にはセットの名前か「カスタム」を残す）
+              onStart={startGame}
+            />
           ) : screen === 'online' ? (
             ol.where === 'room' ? (
               <WaitingRoom t={t} session={online} />

@@ -2343,3 +2343,128 @@ body.in-game .site-header .subtitle {
 .seat-hand:not(.rel-0) .melds {
   transform: translateY(calc(var(--tw, 32px) * 0.7));
 }
+
+/* ---- ルールの設定（段階6の6a-2・見本 settings.html の見た目） ---- */
+.rule-settings .custom-chip {
+  display: inline-block;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 11px;
+  font-size: 0.78rem;
+  color: var(--text-muted); /* 押せない札＝灰色 */
+}
+
+.rule-settings .custom-chip.on {
+  background: var(--bg-selected);
+  color: var(--text);
+  font-weight: 700;
+  border-color: var(--orange);
+}
+
+.rule-settings .cur {
+  margin: 0;
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.rule-settings .indiv-head {
+  font-size: 0.85rem;
+  color: var(--orange-mid);
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+  margin-top: 2px;
+}
+
+.rule-settings .set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.86rem;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.rule-settings .set-row .lbl {
+  display: flex;
+  flex-direction: column;
+}
+
+.rule-settings .set-row .lbl small {
+  font-size: 0.66rem;
+  color: var(--text-sub);
+}
+
+.rule-settings .set-row .lbl small.why {
+  color: var(--text-muted); /* 選べない理由 */
+}
+
+.rule-settings .set-row .lbl small.supp {
+  color: #8fc7e8; /* 補った値（見本どおり・2026-10-06 利用者決定） */
+}
+
+.rule-settings .set-row .seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.rule-settings .set-row .seg button {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 0.78rem;
+  padding: 6px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.rule-settings .set-row .seg button.on {
+  background: var(--orange);
+  color: #fff;
+  font-weight: 700;
+}
+
+/* 灰色は「選べない」ときだけ */
+.rule-settings .set-row .seg button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.rule-settings .set-row .seg button.on:disabled {
+  opacity: 0.35;
+}
+
+.rule-settings .group.fold {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+
+.rule-settings .group.fold.detail {
+  font-size: 0.72rem;
+  color: var(--text-sub);
+  border-top: none;
+  padding: 4px 0 4px 14px;
+}
+
+.rule-settings .fixed {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.7;
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+}

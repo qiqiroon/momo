@@ -3,7 +3,8 @@
 // 将棋の駒の形の絵の代わりに、牌（ピンズ）の絵を使う（2026-10-09 利用者指示）。
 
 import { useState, type ReactNode } from 'react';
-import type { MessageKey } from '../i18n/strings';
+import type { BaseLang, MessageKey } from '../i18n/strings';
+import { RuleSettings, loadRuleChoice, saveRuleChoice, type RuleChoice } from './RuleSettings';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
@@ -83,57 +84,26 @@ export function SiteFooter({ t, children }: { t: T; children?: ReactNode }) {
   );
 }
 
-// ---- ルールセット（見本 settings.html の TIERS と同じ並び） ----
+// ---- CPU と対局：ルールを選んで始める（段階6の6a-2・選び方は RuleSettings） ----
 
-type SetTag = 'net' | 'intl';
-const TIERS: { label: MessageKey; sets: [string, SetTag?][] }[] = [
-  { label: 'tierJp', sets: [['general'], ['ml'], ['tenhou', 'net'], ['saikoui'], ['npm'], ['kenko'], ['rmu'], ['jpml'], ['mu'], ['wrc', 'intl'], ['ema', 'intl']] },
-  { label: 'tierCn', sets: [['sichuan'], ['mcr'], ['hk']] },
-];
-
-/** 今の段階で対局できるセット（ほかは段階6で動くようにする＝押しても変わらない） */
-const PLAYABLE = new Set(['general']);
-
-/** CPU と対局：ルールセットを選んでから始める */
-export function CpuSetup({ t, onBack, onStart }: { t: T; onBack: () => void; onStart: () => void }) {
-  const [preset, setPreset] = useState('general');
+/** CPU と対局：ルールセットと個別設定を選んでから始める。選んだルールは端末に覚える */
+export function CpuSetup({ t, lang, onBack, onStart }: { t: T; lang: BaseLang; onBack: () => void; onStart: (c: RuleChoice) => void }) {
+  const [choice, setChoice] = useState<RuleChoice>(loadRuleChoice);
+  const change = (c: RuleChoice) => {
+    setChoice(c);
+    saveRuleChoice(c);
+  };
   return (
     <>
       <ScreenHead title={t('menuCpu')} />
-      {/* 対局を始めるは見出しのすぐ下（ルールセットの説明を開いても隠れない）。戻るはその右 */}
+      {/* 対局を始めるは見出しのすぐ下（ルールの設定を開いても隠れない）。戻るはその右 */}
       <div className="screen-actions">
-        <button type="button" className="btn-primary btn-start" onClick={onStart}>
+        <button type="button" className="btn-primary btn-start" onClick={() => onStart(choice)}>
           {t('start')}
         </button>
         <BackButton t={t} onClick={onBack} />
       </div>
-      <section className="gset">
-        <h3>{t('ruleSet')}</h3>
-        <details className="about-sets">
-          <summary>{t('aboutSets')}</summary>
-          <p className="guide">{t('aboutSetsText')}</p>
-        </details>
-        <div className="sets">
-          {TIERS.map((tier) => (
-            <div className="tier" key={tier.label}>
-              <span>{t(tier.label)}</span>
-              <span className="seg">
-                {tier.sets.map(([id, tag]) => (
-                  <button
-                    type="button"
-                    key={id}
-                    className={`${preset === id ? 'on' : ''}${tag ? ` tagged` : ''}`}
-                    data-tag={tag ? t(tag === 'net' ? 'tagNet' : 'tagIntl') : undefined}
-                    onClick={() => PLAYABLE.has(id) && setPreset(id)}
-                  >
-                    {t(`set_${id}` as MessageKey)}
-                  </button>
-                ))}
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
+      <RuleSettings t={t} lang={lang} choice={choice} onChange={change} />
     </>
   );
 }

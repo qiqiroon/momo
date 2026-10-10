@@ -218,12 +218,28 @@ describe('モード選択と、そこから入る画面', () => {
     expect(footer.querySelector('.title-foot')).toHaveTextContent('賭けには使えません');
   });
 
-  it('CPU と対局：ルールセットは一般ルールが選ばれ、まだ動かないセットを押しても変わらない。モード選択へ戻れる', () => {
+  it('CPU と対局：最初は一般ルール。日本式のセットは選べ、中国式は押しても変わらない。個別に変えるとカスタム。モード選択へ戻れる', () => {
+    localStorage.removeItem('momo-mahjong.rules');
     render(<App startConsented />);
     fireEvent.click(screen.getByText('CPU と対局'));
-    expect(document.querySelector('.sets .seg button.on')).toHaveTextContent('一般ルール');
+    const on = () => document.querySelector('.sets .seg button.on');
+    expect(on()).toHaveTextContent('一般ルール');
     fireEvent.click(screen.getByRole('button', { name: /天鳳/ }));
-    expect(document.querySelector('.sets .seg button.on')).toHaveTextContent('一般ルール');
+    expect(on()).toHaveTextContent('天鳳');
+    fireEvent.click(screen.getByRole('button', { name: '四川麻将' }));
+    expect(on()).toHaveTextContent('天鳳');
+    // 個別設定：まとまりを開いて喰いタンを「なし」にするとカスタム（どのセットとも違う）
+    fireEvent.click(screen.getByRole('button', { name: /ドラ・役/ }));
+    // どのセットも同じ値の項目は「細かい決まり」にさらに畳まれている
+    const detail = [...document.querySelectorAll('.group.fold.detail')][0];
+    if (detail) fireEvent.click(detail);
+    const kuitan = [...document.querySelectorAll('.set-row')].find((r) => r.textContent?.startsWith('喰いタン'))!;
+    fireEvent.click(within(kuitan as HTMLElement).getByRole('button', { name: 'なし' }));
+    expect(on()).toBeNull();
+    expect(document.querySelector('.custom-chip.on')).toHaveTextContent('カスタムルール');
+    expect(document.querySelector('.rule-settings .cur')).toHaveTextContent('「天鳳」から変更');
+    // 選んだルールは端末に覚える
+    expect(JSON.parse(localStorage.getItem('momo-mahjong.rules')!).values.kuitan).toBe('off');
     expect(document.querySelector('.site-footer')).toBeNull();
     // 対局を始めるは見出しのすぐ下（ルールセットより前）、戻るはその右
     const start = document.querySelector('.btn-start')!;
@@ -231,6 +247,19 @@ describe('モード選択と、そこから入る画面', () => {
     expect(start.nextElementSibling).toHaveTextContent('戻る');
     fireEvent.click(screen.getByRole('button', { name: '戻る' }));
     expect(document.querySelectorAll('.mode-list .mode-row')).toHaveLength(3);
+    localStorage.removeItem('momo-mahjong.rules');
+  });
+
+  it('押せない理由：返し点を「なし」にすると、オカは選べず理由が出る', () => {
+    localStorage.removeItem('momo-mahjong.rules');
+    render(<App startConsented />);
+    fireEvent.click(screen.getByText('CPU と対局'));
+    fireEvent.click(screen.getByRole('button', { name: /対局の形/ }));
+    const rowOf = (name: string) => [...document.querySelectorAll('.set-row')].find((r) => r.textContent?.startsWith(name)) as HTMLElement;
+    fireEvent.click(within(rowOf('返し点')).getByRole('button', { name: 'なし（素点のまま）' }));
+    expect(rowOf('オカ')).toHaveTextContent('返し点が「なし（素点のまま）」のため選べません');
+    expect(within(rowOf('オカ')).getByRole('button', { name: 'あり' })).toBeDisabled();
+    localStorage.removeItem('momo-mahjong.rules');
   });
 
   it('対局の再生：前回の対局が無いときは、前回の対局の再生と保存は押せない。端末のファイルは選べる', () => {

@@ -121,7 +121,7 @@ export function buildKifu(src: KifuSource, appVersion: string, now: Date = new D
     mode: 'solo',
     host: { name: src.players[0]?.name ?? '', seat: 0 },
     players: src.players.map((p, i) => ({ seat: i as Seat, name: p.name, kind: p.kind, wind: i })),
-    rules: { family: rules.family, set: src.set, custom: false, values: { ...rules.values } },
+    rules: { family: rules.family, set: src.set, custom: src.set === 'custom', values: { ...rules.values } },
     seed: src.seed,
     result: over && endEv?.ev.type === 'gameEnd' && rules.family === 'jp' ? { endReason: endEv.ev.reason, rows: finalResult(last) } : null,
     hands,

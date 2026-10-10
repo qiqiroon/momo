@@ -2216,3 +2216,58 @@ body.in-game .site-header .subtitle {
 .ol-nocalls {
   margin-bottom: 4px;
 }
+
+/* 鳴ける牌の予告の帯（手牌のすぐ上・細く） */
+.call-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 11px;
+  padding: 2px 0 4px;
+}
+
+.call-strip-title {
+  font-weight: 700;
+}
+
+.ps-tile {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.ps-chip {
+  font: inherit;
+  font-size: 11px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 2px 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ps-chip small {
+  font-size: 10px;
+}
+
+/* 鳴く・ロンと決めた＝オレンジの枠／見送ると決めた＝取り消し線 */
+.ps-chip.ps-yes {
+  border-color: var(--orange-mid);
+  background: var(--bg-selected);
+}
+
+.ps-chip.ps-no {
+  text-decoration: line-through;
+}
+
+.ps-pick {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}

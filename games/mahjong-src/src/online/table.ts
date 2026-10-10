@@ -18,6 +18,7 @@ import { act, advance, dealChunkPositions, drawPosition, legalActions, positions
 import { GENERAL_RULES } from '../engine/rules';
 import { apply, initialState, type GameState } from '../engine/state';
 import type { TileId } from '../engine/tiles';
+import { callables, presetReply, prunePresets, type Presets } from './presets';
 import {
   LOCK_BITS,
   decoder,
@@ -151,6 +152,8 @@ export class OnlineTable {
   replyWait = 0;
   /** 「鳴かない」（自分の席だけ・利用者 Q16=B）：チー・ポン・カンは自動で見送り、ロンのときは止まる */
   noCalls = false;
+  /** 鳴ける牌の予告で先に選んだこと（自分の席だけ・段階5の4c） */
+  presets: Presets = new Map();
   /** 返事の番が始まった時刻（その返事の番ごと。自分の端末で捨て牌を当てはめた時刻） */
   private claimSince = new Map<string, number>();
 
@@ -507,6 +510,8 @@ export class OnlineTable {
     this.wire.push({ env: maskAll(env), ...(pos ? { pos } : {}) });
     const ck = this.claimKey(this.pub);
     if (ck !== null && !this.claimSince.has(ck)) this.claimSince.set(ck, Date.now());
+    // 自分の手が変わったら、もう鳴けない牌の予告を消す（まだ鳴ける牌の選択は残す）
+    if (this.presets.size && this.mySeat !== null && this.views.has(this.mySeat)) prunePresets(this.presets, this.callables());
     if (env.ev.type === 'deal' && h) h.dealt++;
     return true;
   }
@@ -795,7 +800,12 @@ export class OnlineTable {
     }
     // 人の席：見送るしかない返事・言えることが 1 つだけの宣言は自動（画面のボタンを待たない）
     const shown = this.choices(v, seat);
-    if ((v.phase === 'claim' || v.phase === 'declare') && shown.length === 1) this.perform(seat, shown[0]);
+    if ((v.phase === 'claim' || v.phase === 'declare') && shown.length === 1) return this.perform(seat, shown[0]);
+    // 返事の番：鳴ける牌の予告で先に選んであれば、そのとおりに返す（「その場で聞く」ならボタンを待つ）
+    if (v.phase === 'claim') {
+      const r = presetReply(v, shown, this.presets);
+      if (r !== 'ask') this.perform(seat, r);
+    }
   }
 
   /** 画面に出す選べること（「鳴かない」なら返事のチー・ポン・カンを除く） */
@@ -804,6 +814,20 @@ export class OnlineTable {
     const legal = legalActions(v, seat);
     if (!this.noCalls || v.phase !== 'claim') return legal;
     return legal.filter((a) => a.type !== 'chi' && a.type !== 'pon' && a.type !== 'kan');
+  }
+
+  /** 画面から：鳴ける牌の予告を選ぶ */
+  setPreset(kind: number, p: Presets extends Map<number, infer P> ? P : never) {
+    if (p.ron || p.pon || p.chi) this.presets.set(kind, p);
+    else this.presets.delete(kind);
+    this.changed();
+    this.drive();
+  }
+
+  /** いま鳴ける牌（自分の席・画面の予告の帯に並べる） */
+  callables() {
+    if (this.mySeat === null) return [];
+    return callables(this.view, this.mySeat, this.noCalls);
   }
 
   /** 画面から：「鳴かない」を切り替える（いま返事の番なら、見送るしかなくなったときにすぐ見送る） */

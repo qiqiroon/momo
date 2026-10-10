@@ -17,6 +17,7 @@ import { Notice, TERMS_URL, type NoticeKind } from './ui/Notice';
 import { LANG_MODES, baseOf, changeMode, currentMode, initLang, translate, type LangMode, type MessageKey } from './i18n/strings';
 import { Table } from './ui/Table';
 import { Lobby, OnlineStatus, WaitingRoom, useOnline } from './ui/Online';
+import { CallStrip } from './ui/CallStrip';
 import { OnlineSession } from './online/session';
 import { matchmakingTransport } from './online/transport';
 import { useLayout } from './ui/useLayout';
@@ -235,6 +236,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             dealt={fx.dealt}
             onQuit={onTitle}
             chat={<Chat t={t} you={t('you')} />}
+            handTop={<CallStrip t={t} table={tbl} />}
           />
         </main>
       ) : (

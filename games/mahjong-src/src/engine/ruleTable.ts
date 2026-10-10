@@ -66,7 +66,7 @@ export const JP_ITEMS: readonly RuleItem[] = [
   {"k":"kuitan","name":"喰いタン","opts":[["on","あり"],["off","なし"]],"v":["on","on","on","on","on","on","on","on","on","on","on"]},
   {"k":"kuikae","name":"喰い替え","opts":[["ok","許す"],["ng","禁止"]],"v":["ng","ng","ng","ng","ng","ng","ng","ng","ok","ng","ng"]},
   {"k":"shibari","name":"縛り","opts":[["1","1翻"],["2","2翻"],["5h2","5本場から2翻"]],"v":["1","1","1","1","1","1","1","1","1","1","1"]},
-  {"k":"atozuke","name":"後付け","opts":[["on","あり"],["off","なし"]],"v":["on","on","on","on","on","on","on","on","on","on","on"]},
+  {"k":"atozuke","name":"後付け","note":"「なし」は鳴いた手の片アガリ（待ちの一部でしか役が付かない形）を禁止","opts":[["on","あり"],["off","なし"]],"v":["on","on","on","on","on","on","on","on","on","on","on"]},
   {"k":"furiten","name":"フリテン","opts":[["on","あり"],["off","なし"]],"v":["on","on","on","on","on","on","on","on","on","on","on"]},
   {"k":"riichiAnkan","name":"リーチ後の暗槓（待ちが変わらなければ）","opts":[["ok","できる"],["ng","できない"]],"v":["ok","ok","ok","ok","ok",null,"ok","ok","ng","ok","ok"]},
   {"k":"ankanCond","name":"リーチ後の暗槓の条件","opts":[["wait","待ちが変わらなければ（牌の形・役の増減は問わない）"],["strict","刻子としか読めない形だけ"]],"v":["wait","wait","wait","wait","wait","wait","wait","wait","wait","wait","wait"],"dep":["riichiAnkan","ok"]},

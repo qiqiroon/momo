@@ -3,7 +3,7 @@
 import { benchCpu } from '../cpu/bench';
 import { playOne } from '../selfplay/run';
 import { GENERAL_RULES, type Rules } from './rules';
-import { apply, initialState } from './state';
+import { apply, initialState, scoreRon, scoreTsumo, type GameState, type OpenMeld } from './state';
 import { scoreWin, type WinInput } from './score';
 import { bestYaku, type Meld, type WinContext, type YakuId } from './yaku';
 
@@ -189,4 +189,39 @@ describe('続けてアガった回数（八連荘の数え方）', () => {
     }
     expect(checked).toBeGreaterThan(100);
   }, 60_000);
+});
+
+describe('後付け「なし」＝片アガリ禁止（Q34＝A）', () => {
+  const at = (atozuke: string, melds: OpenMeld[]): GameState => ({
+    ...initialState(),
+    rules: rules({ atozuke }),
+    roundIndex: 0,
+    dealer: 0,
+    wallLeft: 70,
+    anyCall: true,
+    melds: [[], melds, [], []],
+  });
+  // 3萬をポン・手の中は 456筒 789索 中中 55索＝中と 5索のシャンポン待ち（5索では役が無い）
+  const pon3m: OpenMeld = { type: 'pon', tiles: [8, 9, 10], called: 10, from: 0 };
+  const hand = [48, 52, 56, 96, 100, 104, 132, 133, 88, 89];
+
+  it('「あり」なら中でアガれる・「なし」なら片アガリなので中でもアガれない（ロンもツモも）', () => {
+    expect(scoreRon(at('on', [pon3m]), 1, hand, 134)).not.toBeNull();
+    expect(scoreRon(at('off', [pon3m]), 1, hand, 134)).toBeNull();
+    expect(scoreTsumo(at('on', [pon3m]), 1, [...hand, 134], 134)).not.toBeNull();
+    expect(scoreTsumo(at('off', [pon3m]), 1, [...hand, 134], 134)).toBeNull();
+  });
+
+  it('中を先にポンしていれば、どの待ちでも役が付くので「なし」でもアガれる', () => {
+    const ponChun: OpenMeld = { type: 'pon', tiles: [132, 133, 134], called: 134, from: 0 };
+    const h = [48, 52, 56, 96, 100, 104, 8, 9, 88, 89];
+    expect(scoreRon(at('off', [ponChun]), 1, h, 90)).not.toBeNull();
+    expect(scoreRon(at('off', [ponChun]), 1, h, 11)).not.toBeNull();
+  });
+
+  it('鳴いていない手（門前）は片アガリでもアガれる', () => {
+    // 123萬 456筒 789索 中中 55索：中ならアガれる（5索は役なし）
+    const h = [0, 4, 8, 48, 52, 56, 96, 100, 104, 132, 133, 88, 89];
+    expect(scoreRon(at('off', []), 1, h, 134)).not.toBeNull();
+  });
 });

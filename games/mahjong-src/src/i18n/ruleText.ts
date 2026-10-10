@@ -137,6 +137,7 @@ const NOTES: Record<string, Tr> = {
   uumen: { en: '2 han: uses characters, dots, bamboo, winds and dragons (also seven pairs)', zh: '2番：万・筒・索・风牌・三元牌齐全（七对子也成立）' },
   sanrenko: { en: '2 han: three triplets of consecutive numbers', zh: '2番：三副数字相连的刻子' },
   isshoku3: { en: '3 han (2 open): three identical runs in one suit (not combined with iipeikou)', zh: '3番（副露2番）：同花色同数字的顺子3副（不与一杯口复合）' },
+  atozuke: { en: '"Off" forbids an open hand that has a yaku on only some of its waits', zh: '「无」时禁止副露后只有部分听牌有役的和牌（片和）' },
   jinho: { en: 'As mangan, it does not add other yaku or dora (if other yaku score higher, that is used)', zh: '满贯时不与其他役・宝牌相加（按其他役计算更高时取其高）' },
   ipin: { en: '5 han (adds to other yaku and dora): last draw is 1-pin', zh: '5番（与其他役・宝牌相加）：海底摸到一筒' },
   chupin: { en: '5 han (adds to other yaku and dora): ron on the last discard 9-pin', zh: '5番（与其他役・宝牌相加）：河底荣和九筒' },

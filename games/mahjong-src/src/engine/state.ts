@@ -1020,6 +1020,18 @@ export const seatWindOf = (s: GameState, seat: Seat): number => 27 + ((seat - s.
 /** 場風。東場の 4 局のあとが南場（局の進め方は段階4で決める） */
 export const roundWindOf = (s: GameState): number => 27 + (Math.floor(Math.max(0, s.roundIndex) / 4) % 4);
 
+/**
+ * 後付けが「なし」＝片アガリ禁止（Q34＝A・2026-10-11）：鳴いている手（暗槓だけは門前のまま）は、
+ * 待ちのどの牌でアガっても役が付くときだけアガれる。ほかの待ちも同じ状況（ツモかロンか・海底など）で数える
+ */
+const katagariBanned = (s: GameState, seat: Seat) =>
+  s.rules?.family === 'jp' && s.rules.values.atozuke === 'off' && s.melds[seat].some((m) => m.type !== 'ankan');
+
+/** アガった牌以外の待ちにも、全部役が付くか（hand＝アガリ牌を除いた手の中の牌。待ちの牌は種類の 1 枚目の背番号で試す） */
+function everyWaitHasYaku(hand: readonly TileId[], winTile: TileId, hasYaku: (w: TileId) => boolean): boolean {
+  return waitKinds(hand).every((k) => k === kindOf(winTile) || hasYaku(k * 4));
+}
+
 /** このアガリで、同じ人が続けてアガった回数（このアガリを含む） */
 const streakOf = (s: GameState, seat: Seat) => (s.winStreak?.seat === seat ? s.winStreak.n : 0) + 1;
 
@@ -1028,6 +1040,14 @@ const streakOf = (s: GameState, seat: Seat) => (s.winStreak?.seat === seat ? s.w
  * 見える局面からでも全体の局面からでも同じ答えになるよう、手牌と ura は引数で受け取る。
  */
 export function scoreTsumo(s: GameState, seat: Seat, hand: readonly TileId[], winTile: TileId, ura: readonly TileId[] = []): ScoreResult | null {
+  const r = tsumoScore(s, seat, hand, winTile, ura);
+  if (!r || !katagariBanned(s, seat)) return r;
+  const i = hand.indexOf(winTile);
+  const rest = hand.filter((_, j) => j !== i);
+  return everyWaitHasYaku(rest, winTile, (w) => tsumoScore(s, seat, [...rest, w], w) !== null) ? r : null;
+}
+
+function tsumoScore(s: GameState, seat: Seat, hand: readonly TileId[], winTile: TileId, ura: readonly TileId[] = []): ScoreResult | null {
   if (!s.rules || s.rules.family !== 'jp') return null;
   const noDiscards = s.discards.every((d) => d.length === 0) && !s.anyCall;
   return scoreWin({
@@ -1060,6 +1080,12 @@ export function scoreTsumo(s: GameState, seat: Seat, hand: readonly TileId[], wi
  * 加槓の牌へのロンは槍槓（一発との複合はルールの ippatsuChankan）。暗槓の牌へのロンは国士無双だけ
  */
 export function scoreRon(s: GameState, seat: Seat, hand: readonly TileId[], winTile: TileId, ura: readonly TileId[] = []): ScoreResult | null {
+  const r = ronScore(s, seat, hand, winTile, ura);
+  if (!r || !katagariBanned(s, seat)) return r;
+  return everyWaitHasYaku(hand, winTile, (w) => ronScore(s, seat, hand, w) !== null) ? r : null;
+}
+
+function ronScore(s: GameState, seat: Seat, hand: readonly TileId[], winTile: TileId, ura: readonly TileId[] = []): ScoreResult | null {
   if (!s.rules || s.rules.family !== 'jp') return null;
   const kind = s.claim?.kind ?? 'discard';
   const v = s.rules.values;

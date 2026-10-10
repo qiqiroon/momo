@@ -87,6 +87,8 @@ export interface OnlineState {
   saved: SavedSeat | null;
   /** 返事の待ち（ホストが選び、名簿と一緒に配る） */
   replyWait: ReplyWait;
+  /** チャット（待合と卓で同じ記録を続けて使う） */
+  chat: ChatLine[];
 }
 
 export interface TransportHandlers {
@@ -116,6 +118,17 @@ export interface Transport {
 }
 
 export const MAX_SEATS = 4;
+
+/** チャットの 1 行（自由に打った文。訳さない） */
+export interface ChatLine {
+  id: string;
+  name: string;
+  text: string;
+}
+/** チャット：1 回に送れる文字数・残す行数・送る間隔（連打で流れないように） */
+export const CHAT_MAX_LEN = 200;
+export const CHAT_KEEP = 50;
+export const CHAT_GAP_MS = 1000;
 
 /** 切られた牌への返事の待ち（ホストが部屋で選ぶ）。秒数は仮（利用者に押してもらってから決める＝工程表 段階5） */
 export type ReplyWait = 'fast' | 'normal' | 'slow';
@@ -151,6 +164,7 @@ const INITIAL: OnlineState = {
   reconnecting: false,
   saved: null,
   replyWait: 'normal',
+  chat: [],
 };
 
 const SAVED_KEY = 'momo-mahjong.online.seat';
@@ -334,6 +348,23 @@ export class OnlineSession {
     this.toLobby(null);
   }
 
+  private lastChatAt = 0;
+
+  /** チャットを送る（部屋の全員へ）。送れたら true（空・長すぎ・1 秒に 2 回目は送らない） */
+  sendChat(text: string, now = Date.now()): boolean {
+    const s = text.trim();
+    if (this.s.where !== 'room' || !s || s.length > CHAT_MAX_LEN || now - this.lastChatAt < CHAT_GAP_MS) return false;
+    this.lastChatAt = now;
+    const line: ChatLine = { id: this.myId, name: this.myName, text: s };
+    this.tr.send({ type: 'mj-chat', ...line }, 'all');
+    this.addChat(line);
+    return true;
+  }
+
+  private addChat(line: ChatLine) {
+    this.set({ chat: [...this.s.chat, line].slice(-CHAT_KEEP) });
+  }
+
   /** ホスト：返事の待ちを選ぶ（始める前だけ） */
   setReplyWait(w: ReplyWait) {
     if (!this.s.room?.isHost || this.s.started) return;
@@ -375,7 +406,7 @@ export class OnlineSession {
     this.table = null;
     // 対局が終わった・部屋が閉じた＝戻る先は無い
     if (note === 'hostLeft' || note === 'hostLeftGame' || note === 'roomGone' || note === 'rejectedStarted') this.forgetSaved();
-    this.set({ where: 'lobby', busy: false, room: null, members: [], started: false, reconnecting: false, note, tableRev: this.s.tableRev + 1 });
+    this.set({ where: 'lobby', busy: false, room: null, members: [], started: false, reconnecting: false, note, tableRev: this.s.tableRev + 1, chat: [] });
     this.tr.refresh();
   }
 
@@ -412,6 +443,14 @@ export class OnlineSession {
     if (this.s.where !== 'room' || !this.s.room) return;
     if (typeof d.type === 'string' && d.type.startsWith('mt-')) return this.receiveTable(d);
     const id = typeof d.id === 'string' ? d.id : '';
+    // チャット：だれから来ても受け取る（文字数を超えたものは捨てる）
+    if (d.type === 'mj-chat' && id && typeof d.text === 'string' && d.text.length <= CHAT_MAX_LEN) {
+      return this.addChat({ id, name: String(d.name ?? '?'), text: d.text });
+    }
+    // 入ってきた人へ、それまでのチャットを渡す（ホストから）
+    if (d.type === 'mj-chatlog' && d.target === this.myId && Array.isArray(d.lines)) {
+      return this.set({ chat: (d.lines as ChatLine[]).slice(-CHAT_KEEP) });
+    }
     if (this.s.room.isHost) {
       if (d.type === 'mj-hello' && id) return this.hello(id, String(d.name ?? ''));
       if (d.type === 'mj-bye' && id) return this.dropMembers(new Set([id]));
@@ -457,6 +496,10 @@ export class OnlineSession {
   /** ホスト：入ってきた人を席に着ける。対局が始まったあとは、抜けた本人（同じ ID）だけ戻れる */
   private hello(id: string, name: string) {
     const known = this.s.members.find((m) => m.id === id);
+    // 入ってきた人（戻ってきた人も）へ、それまでのチャットを渡す
+    if (this.s.chat.length && (known || (!this.s.started && this.s.members.length < MAX_SEATS))) {
+      this.tr.send({ type: 'mj-chatlog', target: id, lines: this.s.chat }, 'all');
+    }
     if (known) {
       this.set({ members: this.s.members.map((m) => (m.id === id ? { ...m, online: true } : m)) });
       // 対局中に戻ってきた人へ、それまでの出来事の列と局の山を渡す（その人は自分の牌の鍵を頼み直して開け直す）

@@ -8,6 +8,7 @@ import type { MessageKey } from '../i18n/strings';
 import { MAX_SEATS, REPLY_WAIT_MS, type Member, type OnlineNote, type OnlineSession, type ReplyWait, type RoomInfo } from '../online/session';
 import type { OnlineTable } from '../online/table';
 import { BackButton, ScreenHead } from './Menu';
+import { Chat } from './Chat';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
@@ -307,6 +308,10 @@ export function WaitingRoom({ t, session }: { t: T; session: OnlineSession }) {
           <p className="guide">{t(isHost ? 'olHostHint' : 'olWaitHost')}</p>
         )}
       </section>
+      {/* 始める前も話せる（待合と卓で同じ記録） */}
+      <div className="ol-panel ol-chat">
+        <Chat t={t} you={t('you')} online={{ lines: s.chat, myId: session.myId, onSend: (x) => session.sendChat(x) }} />
+      </div>
     </>
   );
 }

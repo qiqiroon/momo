@@ -296,4 +296,24 @@ describe('始める', () => {
     host.setReplyWait('fast'); // 始めたあとは変えられない
     expect(host.state.replyWait).toBe('slow');
   });
+
+  it('チャット：部屋の全員に名前つきで届く。空・長すぎ・1 秒に 2 回目は送らない', () => {
+    const { host, gs } = hostWith('A', 'B');
+    expect(gs[0].sendChat('よろしく', 10_000)).toBe(true);
+    expect(host.state.chat).toEqual([{ id: gs[0].myId, name: 'A', text: 'よろしく' }]);
+    expect(gs[1].state.chat.map((l) => l.text)).toEqual(['よろしく']);
+    expect(gs[0].sendChat('連打', 10_500)).toBe(false);
+    expect(gs[0].sendChat('   ', 12_000)).toBe(false);
+    expect(gs[0].sendChat('x'.repeat(201), 12_000)).toBe(false);
+    expect(gs[0].sendChat('二言目', 11_200)).toBe(true);
+    expect(gs[1].state.chat.map((l) => l.text)).toEqual(['よろしく', '二言目']);
+  });
+
+  it('チャット：あとから入った人にも、それまでのチャットが届く', () => {
+    const { host } = hostWith('A');
+    expect(host.sendChat('始める前の話', 50_000)).toBe(true);
+    const b = person();
+    b.join(roomOf(b), 'B', '');
+    expect(b.state.chat.map((l) => l.text)).toEqual(['始める前の話']);
+  });
 });

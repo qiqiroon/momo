@@ -2284,3 +2284,14 @@ body.in-game .site-header .subtitle {
   gap: 3px;
   flex: 0 0 auto;
 }
+
+/* チャットの禁止事項の 1 行（いつも出す・仕様書 §14.4） */
+.chat-rule {
+  margin: 0 0 4px;
+  font-size: 11px;
+  color: var(--warn);
+}
+
+.ol-chat {
+  width: 100%;
+}

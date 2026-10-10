@@ -45,6 +45,7 @@ const ja = {
   chatPlaceholder: 'メッセージ',
   chatSend: '送信',
   chatLabel: 'チャット',
+  chatRule: '賭博への勧誘・掛け金の募集・外部の賭博サービスへの誘導は禁止です。',
   quitGameShort: '中断',
   settingsTitle: '設定',
   soundPromptTitle: '音楽を再生しますか？',
@@ -347,6 +348,7 @@ const en: Dict = {
   chatPlaceholder: 'Message',
   chatSend: 'Send',
   chatLabel: 'Chat',
+  chatRule: 'Soliciting gambling, collecting stakes and directing people to outside gambling services are prohibited.',
   quitGameShort: 'Quit',
   settingsTitle: 'Settings',
   soundPromptTitle: 'Play music?',
@@ -646,6 +648,7 @@ const zh: Dict = {
   chatPlaceholder: '消息',
   chatSend: '发送',
   chatLabel: '聊天',
+  chatRule: '禁止赌博劝诱、收取赌注以及引导至外部赌博服务。',
   quitGameShort: '中断',
   settingsTitle: '设置',
   soundPromptTitle: '要播放音乐吗？',
@@ -920,7 +923,7 @@ const DICTS: Record<BaseLang, Dict> = { ja, en, zh };
 /** 猫語にしないキー（猫語のときも、猫語を選ぶ直前の言語のまま出す）。利用者指示 2026-10-07：
  *  - サブタイトル（全アプリ共通で猫語にしない）
  *  - 利用規約・免責・賭博禁止・公平性の説明など、意味が伝わらないと困るもの（同意画面の文面は i18n/notice.ts） */
-const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['subtitle', 'noMoney', 'creditsModified', 'creditsShared', 'creditsBgm']);
+const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['subtitle', 'noMoney', 'creditsModified', 'creditsShared', 'creditsBgm', 'chatRule']);
 
 /** 攻撃的な鳴き声を返すキー（失敗・エラーの通知）。いまは無い（オンラインの段階で足す） */
 const ERROR_KEYS: ReadonlySet<MessageKey> = new Set(['olErrNoName', 'olErrNoRoomName', 'olErrWrongPw', 'olErrFull', 'olErrGone', 'olErrStarted', 'olLost', 'olBusy']);

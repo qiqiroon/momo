@@ -35,7 +35,8 @@ export interface Banner {
 
 const total = (xs: readonly (readonly unknown[])[]) => xs.reduce((n, x) => n + x.length, 0);
 
-export function useGameEffects(view: GameState, live: boolean) {
+/** me＝自分の席（一人用は席 0・オンラインは配られた席） */
+export function useGameEffects(view: GameState, live: boolean, me: Seat = HUMAN) {
   const prev = useRef<GameState | null>(null);
   /** 配っている途中で見せる手牌の枚数（null＝全部見せる） */
   const [dealt, setDealt] = useState<number | null>(null);
@@ -100,10 +101,10 @@ export function useGameEffects(view: GameState, live: boolean) {
     // 局の結果
     const r = view.result;
     if (r && !p.result) {
-      if ((r.type === 'tsumo' && r.seat === HUMAN) || (r.type === 'ron' && r.wins.some((w) => w.seat === HUMAN))) {
+      if ((r.type === 'tsumo' && r.seat === me) || (r.type === 'ron' && r.wins.some((w) => w.seat === me))) {
         show({ kind: r.type === 'tsumo' ? 'tsumo' : 'ron' });
         playSample('fanfareWin');
-      } else if (r.type === 'ron' && r.from === HUMAN) {
+      } else if (r.type === 'ron' && r.from === me) {
         show({ kind: 'dealIn' });
         playSample('gameLose');
       }
@@ -112,7 +113,7 @@ export function useGameEffects(view: GameState, live: boolean) {
     if (view.phase === 'gameover' && p.phase !== 'gameover') {
       const first = finalResult(view).find((row) => row.rank === 1);
       later(1600, () => {
-        if (first?.seat === HUMAN) {
+        if (first?.seat === me) {
           show({ kind: 'win' });
           playSample('fanfareWin');
           playSample('fanfareWin2', { at: 0.8 });

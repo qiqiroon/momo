@@ -7,7 +7,13 @@
 // ★送るものに to・from という項目を入れない（土台が宛先・送り主で上書きする）。誰あては target に入れる。
 //
 // 待合の名簿はホストが持ち、変わるたびに全員へ配る（ホストが正本）。
+// 対局が始まったら卓（table.ts の OnlineTable）を作り、mt- で始まる知らせは卓へ回す（段階5の3c）。
+// ホスト以外の人は、接続が切れても同じ ID で入り直せば同じ席に戻れる（利用者 Q4=A）：
+// アプリを開いたままなら自動で入り直す。開き直したときは、部屋の一覧に「対局中の部屋に戻る」を出す。
 // 誰が抜けたかは土台からは確かに分からない（番号が重なりうる）ので、ホストが点呼を取って決める。
+
+import { tsumogiriCpu } from '../cpu/tsumogiri';
+import { OnlineTable, type LockerStore, type SyncData, type TableOptions, type WireLocker } from './table';
 
 /** 部屋の一覧の 1 行（土台の room_list の多人数の部屋） */
 export interface RoomInfo {
@@ -42,6 +48,16 @@ export type OnlineNote =
   | 'serverBusy'
   | { raw: string };
 
+/** 開き直したときに戻るための控え（ホスト以外。端末に 1 つ） */
+export interface SavedSeat {
+  roomId: string;
+  roomName: string;
+  hasPassword: boolean;
+  myId: string;
+  name: string;
+  password: string;
+}
+
 export interface OnlineState {
   /** サーバーにつながっているか */
   wsOpen: boolean;
@@ -54,6 +70,12 @@ export interface OnlineState {
   members: Member[];
   started: boolean;
   note: OnlineNote | null;
+  /** 卓が変わった回数（画面を描き直す合図） */
+  tableRev: number;
+  /** 接続が切れて入り直しているところ */
+  reconnecting: boolean;
+  /** 開き直したときに戻れる対局（部屋の一覧に「戻る」を出す） */
+  saved: SavedSeat | null;
 }
 
 export interface TransportHandlers {
@@ -110,7 +132,46 @@ const INITIAL: OnlineState = {
   members: [],
   started: false,
   note: null,
+  tableRev: 0,
+  reconnecting: false,
+  saved: null,
 };
+
+const SAVED_KEY = 'momo-mahjong.online.seat';
+const LOCK_KEY = 'momo-mahjong.online.lock';
+
+function readJson<T>(key: string): T | null {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? (JSON.parse(v) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeJson(key: string, v: unknown) {
+  try {
+    if (v === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(v));
+  } catch {
+    /* 控えられない端末では、開き直したときに戻れない（開いたままの入り直しはできる） */
+  }
+}
+
+/** 自分の錠前の控え（その部屋・その ID の、いまの局だけ） */
+function lockerStore(roomId: string, myId: string): LockerStore {
+  return {
+    save(no, seat, w) {
+      const all = readJson<{ room: string; id: string; no: number; lockers: Record<string, WireLocker> }>(LOCK_KEY);
+      const same = all && all.room === roomId && all.id === myId && all.no === no ? all.lockers : {};
+      writeJson(LOCK_KEY, { room: roomId, id: myId, no, lockers: { ...same, [seat]: w } });
+    },
+    load(no, seat) {
+      const all = readJson<{ room: string; id: string; no: number; lockers: Record<string, WireLocker> }>(LOCK_KEY);
+      return all && all.room === roomId && all.id === myId && all.no === no ? (all.lockers[seat] ?? null) : null;
+    },
+  };
+}
 
 export class OnlineSession {
   private s: OnlineState = INITIAL;
@@ -124,7 +185,18 @@ export class OnlineSession {
   /** ホスト：点呼 */
   private rollcall: { nonce: string; heard: Set<string>; expect: number; timer: ReturnType<typeof setTimeout> } | null = null;
 
-  constructor(private readonly tr: Transport) {}
+  /** 対局の卓（始まっていなければ null） */
+  table: OnlineTable | null = null;
+  /** 入り直すときのパスワード */
+  private password = '';
+
+  constructor(
+    private readonly tr: Transport,
+    /** 卓の作り方（検査では CPU や速さを替える） */
+    private readonly makeTable: (o: TableOptions) => OnlineTable = (o) => new OnlineTable(o),
+  ) {
+    this.s = { ...INITIAL, saved: readJson<SavedSeat>(SAVED_KEY) };
+  }
 
   get state(): OnlineState {
     return this.s;
@@ -148,7 +220,10 @@ export class OnlineSession {
     }
     this.connected = true;
     this.tr.connect({
-      onOpen: () => this.set({ wsOpen: true }),
+      onOpen: () => {
+        this.set({ wsOpen: true });
+        this.retryJoin();
+      },
       onClose: () => this.set({ wsOpen: false }),
       onRooms: (rooms) => this.set({ rooms }),
       onCreated: (id, name) => this.created(id, name),
@@ -156,8 +231,12 @@ export class OnlineSession {
       onMessage: (d) => this.receive(d),
       onPeerLeft: (players) => this.peerLeft(players),
       onRoomClosed: () => this.toLobby(this.s.started ? 'hostLeftGame' : 'hostLeft'),
-      onLost: () => this.toLobby('connectionLost'),
-      onError: (m) => this.set({ busy: false, note: noteOfServer(m) }),
+      onLost: () => this.lost(),
+      onError: (m) => {
+        // 入り直そうとして断られた（部屋が無い＝ホストが抜けて対局が終わった）
+        if (this.s.reconnecting) return this.toLobby(noteOfServer(m) === 'roomGone' ? 'hostLeftGame' : noteOfServer(m));
+        this.set({ busy: false, note: noteOfServer(m) });
+      },
     });
   }
 
@@ -188,9 +267,46 @@ export class OnlineSession {
     if (!room.hasPassword && typedPw !== '') return this.set({ note: 'wrongPw' });
     this.myId = newId();
     this.myName = me;
+    this.password = room.hasPassword ? typedPw : '';
     this.pending = { id: room.id, name: room.name, hasPassword: room.hasPassword };
     this.set({ busy: true, note: null });
-    this.tr.joinRoom(room.id, room.hasPassword ? typedPw : '', me);
+    this.tr.joinRoom(room.id, this.password, me);
+  }
+
+  /** 開き直したあと：控えた ID で対局中の部屋に戻る */
+  rejoin() {
+    const sv = this.s.saved;
+    if (!sv) return;
+    this.myId = sv.myId;
+    this.myName = sv.name;
+    this.password = sv.password;
+    this.pending = { id: sv.roomId, name: sv.roomName, hasPassword: sv.hasPassword };
+    this.set({ busy: true, note: null });
+    this.tr.joinRoom(sv.roomId, sv.password, sv.name);
+  }
+
+  /** 戻るのをやめる（控えを消す） */
+  forgetSaved() {
+    writeJson(SAVED_KEY, null);
+    this.set({ saved: null });
+  }
+
+  /** 自分の接続が切れた：対局中のゲストは同じ部屋へ入り直す。それ以外は部屋の一覧へ */
+  private lost() {
+    const room = this.s.room;
+    if (this.s.started && room && !room.isHost) {
+      this.table = null;
+      this.pending = { id: room.id, name: room.name, hasPassword: room.hasPassword };
+      this.set({ reconnecting: true, tableRev: this.s.tableRev + 1 });
+      this.retryJoin();
+      return;
+    }
+    this.toLobby('connectionLost');
+  }
+
+  private retryJoin() {
+    if (!this.s.reconnecting || !this.s.wsOpen || !this.pending) return;
+    this.tr.joinRoom(this.pending.id, this.password, this.myName);
   }
 
   /** 部屋を出る（ホストなら部屋が閉じる） */
@@ -198,6 +314,7 @@ export class OnlineSession {
     if (this.s.where !== 'room') return;
     if (!this.s.room?.isHost) this.tr.send({ type: 'mj-bye', id: this.myId }, 'host');
     this.tr.leave();
+    this.forgetSaved();
     this.toLobby(null);
   }
 
@@ -207,12 +324,29 @@ export class OnlineSession {
     this.set({ started: true });
     this.tr.setGameState('playing');
     this.broadcastMembers();
+    this.table = this.newTable(true);
+    this.table.begin(this.s.members.filter((m) => m.online).map((m) => ({ id: m.id, name: m.name })));
+  }
+
+  private newTable(isHost: boolean): OnlineTable {
+    const roomId = this.s.room?.id ?? '';
+    return this.makeTable({
+      send: (m, to) => this.tr.send(m, to),
+      isHost,
+      myId: this.myId,
+      cpu: tsumogiriCpu,
+      store: lockerStore(roomId, this.myId),
+      onChange: () => this.set({ tableRev: this.s.tableRev + 1 }),
+    });
   }
 
   private toLobby(note: OnlineNote | null) {
     this.stopRollcall();
     this.pending = null;
-    this.set({ where: 'lobby', busy: false, room: null, members: [], started: false, note });
+    this.table = null;
+    // 対局が終わった・部屋が閉じた＝戻る先は無い
+    if (note === 'hostLeft' || note === 'hostLeftGame' || note === 'roomGone' || note === 'rejectedStarted') this.forgetSaved();
+    this.set({ where: 'lobby', busy: false, room: null, members: [], started: false, reconnecting: false, note, tableRev: this.s.tableRev + 1 });
     this.tr.refresh();
   }
 
@@ -228,7 +362,15 @@ export class OnlineSession {
   }
 
   private joined(id: string, name: string) {
-    this.set({ where: 'room', busy: false, room: { id, name, hasPassword: this.pending?.hasPassword ?? false, isHost: false }, members: [], started: false });
+    const back = this.s.reconnecting || this.s.saved?.roomId === id;
+    this.set({
+      where: 'room',
+      busy: false,
+      reconnecting: false,
+      room: { id, name, hasPassword: this.pending?.hasPassword ?? false, isHost: false },
+      members: back ? this.s.members : [],
+      started: back ? this.s.started : false,
+    });
     this.pending = null;
     this.tr.send({ type: 'mj-hello', id: this.myId, name: this.myName }, 'host');
   }
@@ -239,6 +381,7 @@ export class OnlineSession {
 
   private receive(d: Record<string, unknown>) {
     if (this.s.where !== 'room' || !this.s.room) return;
+    if (typeof d.type === 'string' && d.type.startsWith('mt-')) return this.receiveTable(d);
     const id = typeof d.id === 'string' ? d.id : '';
     if (this.s.room.isHost) {
       if (d.type === 'mj-hello' && id) return this.hello(id, String(d.name ?? ''));
@@ -250,7 +393,14 @@ export class OnlineSession {
       return;
     }
     if (d.type === 'mj-members' && Array.isArray(d.members)) {
-      this.set({ members: d.members as Member[], started: d.started === true });
+      const started = d.started === true;
+      this.set({ members: d.members as Member[], started });
+      // 対局中のゲストは、開き直したときに戻れるよう控える
+      if (started && this.s.room && !this.s.room.isHost) {
+        const sv: SavedSeat = { roomId: this.s.room.id, roomName: this.s.room.name, hasPassword: this.s.room.hasPassword, myId: this.myId, name: this.myName, password: this.password };
+        writeJson(SAVED_KEY, sv);
+        this.set({ saved: sv });
+      }
       return;
     }
     if (d.type === 'mj-reject' && d.target === this.myId) {
@@ -261,11 +411,30 @@ export class OnlineSession {
     if (d.type === 'mj-rollcall') this.tr.send({ type: 'mj-here', id: this.myId, nonce: d.nonce }, 'host');
   }
 
+  /** 卓あての知らせ。ゲストは対局の始まり（mt-begin）か、戻ったときの写し（mt-sync）で卓を作る */
+  private receiveTable(d: Record<string, unknown>) {
+    if (d.type === 'mt-sync') {
+      if (d.target !== this.myId || this.s.room?.isHost) return;
+      this.table = this.newTable(false);
+      this.table.loadSync(d.data as SyncData);
+      this.set({ tableRev: this.s.tableRev + 1 });
+      return;
+    }
+    if (!this.table && d.type === 'mt-begin' && !this.s.room?.isHost) this.table = this.newTable(false);
+    this.table?.receive(d);
+  }
+
   /** ホスト：入ってきた人を席に着ける。対局が始まったあとは、抜けた本人（同じ ID）だけ戻れる */
   private hello(id: string, name: string) {
     const known = this.s.members.find((m) => m.id === id);
     if (known) {
       this.set({ members: this.s.members.map((m) => (m.id === id ? { ...m, online: true } : m)) });
+      // 対局中に戻ってきた人へ、それまでの出来事の列と局の山を渡す（その人は自分の牌の鍵を頼み直して開け直す）
+      if (this.s.started && this.table?.started) {
+        this.broadcastMembers();
+        this.tr.send({ type: 'mt-sync', target: id, data: this.table.syncData() }, 'all');
+        return;
+      }
     } else if (this.s.started) {
       return this.tr.send({ type: 'mj-reject', target: id, reason: 'started' }, 'all');
     } else if (this.s.members.length >= MAX_SEATS) {

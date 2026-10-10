@@ -12,7 +12,7 @@ import type { Action } from '../engine/round';
 import type { ScoreResult } from '../engine/score';
 import { liveWallLeft, type GameState, type OpenMeld } from '../engine/state';
 import { isRed, kindOf, type TileId } from '../engine/tiles';
-import { HUMAN } from '../game/useTable';
+import { relFrom, useSeat } from './seatContext';
 import { translate, type Lang, type MessageKey } from '../i18n/strings';
 import { DraggableDialog } from './DraggableDialog';
 import { Tile } from './Tile';
@@ -28,8 +28,10 @@ interface Props {
   onChoose: (a: Action) => void;
   /** 次の局へ（局が終わったとき） */
   onNext: () => void;
-  /** 新しい対局（対局が終わったとき） */
-  onNewGame: () => void;
+  /** 新しい対局（対局が終わったとき）。オンラインでは出さない */
+  onNewGame?: () => void;
+  /** 次の局へ進めるのが自分でないとき（オンラインのゲスト）：ボタンの代わりに出す一言 */
+  nextWait?: string;
   /** 牌譜の再生（全員の手牌を表向きにし、進めるボタンは出さない） */
   replay?: boolean;
   /** 対局が終わったとき：トップへ・ファイルに保存・Google ドライブに保存 */
@@ -47,18 +49,20 @@ interface Props {
 }
 
 /** 自分から見た位置（0＝自分・1＝下家・2＝対面・3＝上家） */
-const relOf = (seat: number): number => (seat - HUMAN + 4) % 4;
-const seatAt = (rel: number): Seat => ((rel + HUMAN) % 4) as Seat;
 
 /** 手牌の並べ替え：種類順、同じ種類なら背番号順 */
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kindOf(a) - kindOf(b) || a - b);
 
-export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, replay = false, onTop, onSaveFile, onSaveDrive, saveNote, dealt = null, onQuit, chat }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, saveNote, dealt = null, onQuit, chat }: Props) {
   /** 配っている途中は手牌を先頭から決まった枚数だけ見せる */
   const dealing = <X,>(xs: readonly X[]): readonly X[] => (dealt === null ? xs : xs.slice(0, dealt));
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
   const windOf = (seat: number) => t(`wind${(seat - view.dealer + 4) % 4}` as MessageKey);
-  const nameOf = (seat: number) => (seat === HUMAN ? t('you') : t('cpu', { n: relOf(seat) }));
+  // 自分の席（一人用は 0・オンラインは配られた席）と席の名前
+  const { me, names } = useSeat();
+  const relOf = (seat: number): number => relFrom(me, seat);
+  const seatAt = (rel: number): Seat => ((rel + me) % 4) as Seat;
+  const nameOf = (seat: number) => (seat === me ? t('you') : (names?.[seat] ?? t('cpu', { n: relOf(seat) })));
   const roundLabel = t('round', { wind: t(`roundWind${Math.floor(Math.max(0, view.roundIndex) / 4) % 3}` as MessageKey), n: (Math.max(0, view.roundIndex) % 4) + 1 });
   const left = Math.max(0, liveWallLeft(view));
   /** 半荘戦か東風戦か（対局の長さ。利用者指示 10-09：どちらか分かる表示） */
@@ -75,7 +79,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   const lastDiscarder = view.phase === 'draw' ? (view.turn + 3) % 4 : view.phase === 'claim' && view.claim ? view.claim.from : -1;
 
   // 自分のフリテン（手牌が見えるのは自分だけなので、出すのも自分の分だけ）。局の途中だけ出す
-  const furiten = view.phase === 'draw' || view.phase === 'discard' || view.phase === 'claim' ? furitenOf(view, HUMAN) : null;
+  const furiten = view.phase === 'draw' || view.phase === 'discard' || view.phase === 'claim' ? furitenOf(view, me) : null;
   const furitenCauses = new Set(furiten?.causes ?? []);
 
   /** 横に曲げて置く河の位置：リーチの宣言牌。鳴かれて河から消えたら、次に切った牌を曲げる */
@@ -94,7 +98,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
     [
       seat === lastDiscarder && i === view.discards[seat].length - 1 ? 'last' : '',
       riichiShown(seat) === i ? 'riichi-tile' : '',
-      seat === HUMAN && furitenCauses.has(i) ? 'furiten-cause' : '',
+      seat === me && furitenCauses.has(i) ? 'furiten-cause' : '',
     ]
       .filter(Boolean)
       .join(' ');
@@ -103,7 +107,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   const riichiMark = (seat: number) => (
     <>
       {view.riichi[seat] !== 'none' && <span className="riichi-mark">{t('riichi')}</span>}
-      {seat === HUMAN && furiten && furiten.reasons.length > 0 && <span className="furiten-mark">{t('furiten')}</span>}
+      {seat === me && furiten && furiten.reasons.length > 0 && <span className="furiten-mark">{t('furiten')}</span>}
     </>
   );
 
@@ -128,8 +132,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
     );
 
   // 狭い画面の自分の手牌の列の長さ（横幅いっぱいに収める）
-  const narrowUnits = handRowUnits(view.hands[HUMAN].length, view.drawn[HUMAN] !== null, view.melds[HUMAN]);
-  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} melds={meldsOf(HUMAN)} dealt={dealt} hints={!replay && playing && dealt === null} />;
+  const narrowUnits = handRowUnits(view.hands[me].length, view.drawn[me] !== null, view.melds[me]);
+  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} melds={meldsOf(me)} dealt={dealt} hints={!replay && playing && dealt === null} />;
 
   // ドラ表示牌（めくられた順）
   const indicators = view.doraIndicators.length > 0 && (
@@ -303,9 +307,11 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         </button>
       ) : replay ? null : view.phase === 'gameover' ? (
         <div className="game-over-actions">
-          <button type="button" className="btn-primary btn-new-game" onClick={onNewGame}>
-            {t('newGame')}
-          </button>
+          {onNewGame && (
+            <button type="button" className="btn-primary btn-new-game" onClick={onNewGame}>
+              {t('newGame')}
+            </button>
+          )}
           {(onSaveFile || onSaveDrive) && (
             <button type="button" className="btn-primary btn-save" onClick={() => setSaveOpen(!saveOpen)}>
               {t('saveGame')}
@@ -345,6 +351,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         </div>
       ) : step?.type === 'yame' ? (
         <p className="hint">{t('yameWait', { name: nameOf(step.seat) })}</p>
+      ) : nextWait ? (
+        <p className="hint">{nextWait}</p>
       ) : (
         <button type="button" className="btn-primary btn-next" onClick={onNext}>
           {t(step?.type === 'end' ? 'gameOverTitle' : 'nextHand')}
@@ -379,15 +387,15 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
                   {chichaMark(seat)}
                   {pointsOf(seat)}
                   {riichiMark(seat)}
-                  {seat !== HUMAN && (
+                  {seat !== me && (
                     <span className="lane-count">
                       <Tile id={HIDDEN} rules={view.rules} className="mini" />×{dealing(view.hands[seat]).length}
                     </span>
                   )}
-                  {seat !== HUMAN && meldsOf(seat, 'lane-melds')}
+                  {seat !== me && meldsOf(seat, 'lane-melds')}
                 </div>
                 {/* 牌譜の再生：ほかの人の手牌も表向きで並べる */}
-                {replay && seat !== HUMAN && (
+                {replay && seat !== me && (
                   <div className="lane-hand">
                     {sortTiles(view.hands[seat]).map((id) => (
                       <Tile key={id} id={id} rules={view.rules} className="mini" />
@@ -413,7 +421,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   // 正方形の卓の大きさ（squareLayout.ts の決め方）
   const handWidths = [0, 1, 2, 3].map((rel) => {
     const seat = seatAt(rel);
-    const units = handRowUnits(view.hands[seat].length, seat === HUMAN && view.drawn[seat] !== null, view.melds[seat]);
+    const units = handRowUnits(view.hands[seat].length, seat === me && view.drawn[seat] !== null, view.melds[seat]);
     return handTileWidth(units, rel === 0 ? HAND_ROW.me : HAND_ROW.other);
   });
   const riverTw = riverTileWidth(handWidths);
@@ -559,8 +567,9 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: Ga
   // リーチを押したあと＝切る牌を選んでいるところ（もう一度押すとやめる）
   const [riichiPick, setRiichiPick] = useState(false);
   const myTurn = legal.length > 0;
-  const drawn = view.drawn[HUMAN];
-  const mine = view.hands[HUMAN];
+  const { me } = useSeat();
+  const drawn = view.drawn[me];
+  const mine = view.hands[me];
   // 配っている途中は、配られた順の先頭から見せる（並べ替えは配り終えてから＝理牌）
   const rest = dealt !== null ? mine.slice(0, dealt) : sortTiles(drawn === null ? mine : mine.filter((x) => x !== drawn));
   const canTsumo = legal.some((a) => a.type === 'tsumo');
@@ -692,7 +701,8 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: Ga
 function YakuHints({ view, legal, lang }: { view: GameState; legal: Action[]; lang: Lang }) {
   const t = (k: MessageKey) => translate(lang, k, { wind: '' });
   const how = legal.some((a) => a.type === 'ron') ? 'ron' : legal.some((a) => a.type === 'tsumo') ? 'tsumo' : null;
-  const done = how ? establishedYaku(view, HUMAN, how) : null;
+  const { me } = useSeat();
+  const done = how ? establishedYaku(view, me, how) : null;
   if (done && done.length > 0) {
     return (
       <div className="yaku-hints">
@@ -701,7 +711,7 @@ function YakuHints({ view, legal, lang }: { view: GameState; legal: Action[]; la
       </div>
     );
   }
-  const list = view.phase === 'draw' || view.phase === 'discard' || view.phase === 'claim' ? yakuHints(view, HUMAN) : [];
+  const list = view.phase === 'draw' || view.phase === 'discard' || view.phase === 'claim' ? yakuHints(view, me) : [];
   if (list.length === 0) return <div className="yaku-hints" />;
   return (
     <div className="yaku-hints">

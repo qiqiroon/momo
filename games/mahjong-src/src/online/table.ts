@@ -50,12 +50,26 @@ export interface TableOptions {
   onChange?: () => void;
   /** 検算で食い違いが見つかったとき */
   onProblem?: (p: VerifyProblem[]) => void;
+  /** 自分の錠前の控え（接続が切れて戻ったとき・開き直したときに、自分の牌を開け直すのに要る） */
+  store?: LockerStore;
+}
+
+export interface LockerStore {
+  save(no: number, seat: Seat, w: WireLocker): void;
+  load(no: number, seat: Seat): WireLocker | null;
+}
+
+/** 戻ってきた人へホストが渡すもの（それまでの出来事の列＝全員に見える形・局の山の途中） */
+export interface SyncData {
+  seats: SeatKind[];
+  wire: { env: Envelope; pos?: number[] }[];
+  hand: { no: number; shuffled: (string[] | null)[]; relocked: (string[] | null)[] } | null;
 }
 
 const hex = (b: bigint) => b.toString(16);
 const big = (s: string) => BigInt('0x' + s);
 
-interface WireLocker {
+export interface WireLocker {
   g: [string, string];
   c: [string, string][];
   perm: number[];
@@ -116,12 +130,16 @@ export class OnlineTable {
   lastVerify: VerifyProblem[] | null = null;
   /** 通信の量（送った文字数・通数） */
   sent = { bytes: 0, count: 0 };
+  /** 当てはめた出来事（全員に見える形＋配牌・ツモの位置）。ホストは戻ってきた人へこれを渡す */
+  wire: { env: Envelope; pos?: number[] }[] = [];
 
   private readonly g: Group;
   private readonly decode: (m: bigint) => number;
   private hand: Hand | null = null;
   private queue = new Map<number, { env: Envelope; pos?: number[] }>();
   private waiters: Waiter[] = [];
+  /** まだ開いていない、表に開ける頼み */
+  private opens: number[][] = [];
   private busy = false;
   /** 席ごとに、どの局面（通し番号）で打ったか（同じ局面で 2 度打たない） */
   private acted = new Map<Seat, number>();
@@ -202,6 +220,8 @@ export class OnlineTable {
         return this.onAct(String(d.id), d.seat as Seat, d.envs as Envelope[]);
       case 'mt-reveal':
         return this.onReveal(Number(d.no), d.seat as Seat, d.locker as WireLocker);
+      case 'mt-rekey':
+        return this.onRekey(Number(d.no), d.seat as Seat, d.positions as number[]);
       default:
         return undefined;
     }
@@ -265,7 +285,7 @@ export class OnlineTable {
   /** 局の錠前の段取りを始める（全員がこの局の自分の錠前を作る） */
   private onHand(no: number) {
     const size = 136;
-    const mine = new Map(this.controlled().map((s) => [s, newLocker(this.g, size)] as const));
+    const mine = new Map(this.controlled().map((s) => [s, this.lockerFor(no, s)] as const));
     this.hand = {
       no,
       mine,
@@ -285,12 +305,22 @@ export class OnlineTable {
     };
     this.pendingRound = null;
     this.waiters = [];
+    this.opens = [];
     this.changed();
     // 席 0 から順に混ぜる（席 0 の持ち主が最初）
     this.lockStep('s', 0, this.hand.start);
   }
 
   private pendingRound: Round | null = null;
+
+  /** この局の自分の錠前（控えがあればそれ。無ければ作って控える） */
+  private lockerFor(no: number, seat: Seat): Locker {
+    const kept = this.o.store?.load(no, seat);
+    if (kept) return lockerFromWire(kept);
+    const lk = newLocker(this.g, 136);
+    this.o.store?.save(no, seat, lockerToWire(lk));
+    return lk;
+  }
 
   /** k 番目の段（混ぜる s／掛け直す r）を自分の席なら計算して配る */
   private lockStep(stage: 's' | 'r', k: number, input: bigint[]) {
@@ -384,7 +414,11 @@ export class OnlineTable {
     const h = this.hand;
     if (!h) return;
     this.broadcast({ type: 'mt-open', no: h.no, positions });
-    this.whenOpen(positions, run);
+    this.opens.push(positions);
+    this.whenOpen(positions, () => {
+      this.opens = this.opens.filter((x) => x !== positions);
+      run();
+    });
   }
 
   // ---- 出来事を当てはめる ----
@@ -445,6 +479,7 @@ export class OnlineTable {
       if (seat === this.mySeat) this.myLog.push(mask(e, seat));
     }
     this.pub = apply(this.pub, maskAll(env));
+    this.wire.push({ env: maskAll(env), ...(pos ? { pos } : {}) });
     if (env.ev.type === 'deal' && h) h.dealt++;
     return true;
   }
@@ -537,6 +572,94 @@ export class OnlineTable {
     if (problems.length) this.o.onProblem?.(problems);
     this.changed();
     this.drive();
+  }
+
+  // ---- 戻ってきた人 ----
+
+  /** 席の持ち主を ID で（いなければ null） */
+  seatOfId(id: string): Seat | null {
+    return this.ids.get(id) ?? null;
+  }
+
+  /** ホスト：戻ってきた人へ渡すもの */
+  syncData(): SyncData {
+    const h = this.hand;
+    const w = (d: (bigint[] | null)[]) => d.map((x) => (x ? x.map(hex) : null));
+    // 配ったがまだ当てはめていない出来事（戻ってきた人の鍵を待っているもの）も渡す
+    const waiting = [...this.queue.values()].sort((a, b) => a.env.seq - b.env.seq).map((x) => ({ env: maskAll(x.env), ...(x.pos ? { pos: x.pos } : {}) }));
+    return { seats: this.seats, wire: [...this.wire, ...waiting], hand: h ? { no: h.no, shuffled: w(h.shuffled), relocked: w(h.relocked) } : null };
+  }
+
+  /** 戻ってきた人：ホストから受け取った列で局面を作り直す。自分の牌は鍵を頼み直して開け直す */
+  loadSync(d: SyncData) {
+    this.onBegin(d.seats);
+    if (d.hand) {
+      const no = d.hand.no;
+      const deck = (x: (string[] | null)[]) => x.map((a) => (a ? a.map(big) : null));
+      const shuffled = deck(d.hand.shuffled);
+      const relocked = deck(d.hand.relocked);
+      this.hand = {
+        no,
+        mine: new Map(this.controlled().map((s) => [s, this.lockerFor(no, s)] as const)),
+        start: Array.from({ length: 136 }, (_, i) => encode(this.g, i)),
+        shuffled,
+        relocked,
+        final: relocked[3],
+        keys: new Map(),
+        tiles: new Map(),
+        privatePos: new Map(),
+        dealt: 0,
+        revealed: new Map(),
+        verified: null,
+        round: null,
+        roundSent: true,
+        revealedMine: false,
+      };
+      // この局の出来事だけで、自分あての配牌・ツモの位置を集めて鍵を頼み直す
+      const startAt = d.wire.map((x) => x.env.ev.type).lastIndexOf('roundStart');
+      const mine = d.wire.slice(Math.max(0, startAt)).filter((x) => x.pos && this.mySeat !== null && (x.env.ev as { seat?: Seat }).seat === this.mySeat);
+      const positions = mine.flatMap((x) => x.pos ?? []);
+      if (this.mySeat !== null) this.broadcast({ type: 'mt-rekey', no, seat: this.mySeat, positions });
+      // 錠前の段取りの途中なら、自分の番から続ける
+      if (!this.hand.final) this.resumeLock();
+    }
+    // 局の始まりより前（前の局）の出来事は、自分の牌を開けずに伏せたまま当てはめる
+    const startAt = d.wire.map((x) => x.env.ev.type).lastIndexOf('roundStart');
+    d.wire.forEach((x, i) => {
+      if (i < startAt && x.pos) this.applyOld(x.env);
+      else this.queue.set(x.env.seq, x);
+    });
+    this.pump();
+  }
+
+  /** 前の局の出来事：鍵はもう明かされていて要らない（自分の牌も伏せたまま当てはめる） */
+  private applyOld(env: Envelope) {
+    for (const [seat, v] of this.views) {
+      this.views.set(seat, apply(v, mask(env, seat)));
+      if (seat === this.mySeat) this.myLog.push(mask(env, seat));
+    }
+    this.pub = apply(this.pub, maskAll(env));
+    this.wire.push({ env: maskAll(env) });
+  }
+
+  private resumeLock() {
+    const h = this.hand;
+    if (!h) return;
+    const s = h.shuffled.findIndex((x) => x === null);
+    if (s >= 0) return this.lockStep('s', s, s === 0 ? h.start : h.shuffled[s - 1]!);
+    const r = h.relocked.findIndex((x) => x === null);
+    if (r >= 0) this.lockStep('r', r, r === 0 ? h.shuffled[3]! : h.relocked[r - 1]!);
+  }
+
+  /** 誰かが戻ってきて、自分の牌の鍵を頼み直した：その人に配った位置だけ鍵を出し直す。待っている表の頼みも出し直す */
+  private onRekey(no: number, seat: Seat, positions: number[]) {
+    const h = this.hand;
+    if (!h || h.no !== no || !h.final) return;
+    this.sendKeys(
+      positions.filter((p) => h.privatePos.get(p) === seat),
+      seat,
+    );
+    for (const o of this.opens) this.send({ type: 'mt-open', no: h.no, positions: o }, 'all');
   }
 
   // ---- 自動で進むところ ----

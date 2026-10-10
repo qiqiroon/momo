@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Banner } from '../audio/useGameEffects';
-import { HUMAN } from '../game/useTable';
+import { relFrom, useSeat } from './seatContext';
 import type { MessageKey } from '../i18n/strings';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
@@ -20,12 +20,8 @@ const TEXT: Record<Banner['kind'], MessageKey> = {
   lose: 'flashLose',
 };
 
-/** 自分から見た位置（0＝自分・1＝下家・2＝対面・3＝上家） */
-const relOf = (seat: number) => (seat - HUMAN + 4) % 4;
-
 /** リーチした人の手牌の縦の真ん中（見つからなければ画面の真ん中） */
-function handMiddle(seat: number): number {
-  const rel = relOf(seat);
+function handMiddle(rel: number): number {
   const el =
     rel === 0
       ? document.querySelector('.my-hand')
@@ -46,7 +42,7 @@ export function Effects({ t, banner, kusudama }: { t: T; banner: Banner | null; 
   useEffect(() => {
     if (!banner) return setStage(null);
     if (banner.kind === 'riichi' && banner.seat !== undefined) {
-      setTop(handMiddle(banner.seat));
+      setTop(handMiddle(relOf(banner.seat)));
       setStage('slide');
       const a = window.setTimeout(() => setStage('flash'), 1000);
       const b = window.setTimeout(() => setStage(null), 2600);
@@ -63,7 +59,9 @@ export function Effects({ t, banner, kusudama }: { t: T; banner: Banner | null; 
     const id = window.setTimeout(() => setStage(null), 1800);
     return () => clearTimeout(id);
   }, [banner]);
-  const nameOf = (seat: number) => (seat === HUMAN ? t('you') : t('cpu', { n: relOf(seat) }));
+  const { me, names } = useSeat();
+  const relOf = (seat: number) => relFrom(me, seat);
+  const nameOf = (seat: number) => (seat === me ? t('you') : (names?.[seat] ?? t('cpu', { n: relOf(seat) })));
 
   return (
     <>

@@ -3,7 +3,7 @@ import { benchCpu } from '../cpu/bench';
 import { tsumogiriCpu } from '../cpu/tsumogiri';
 import { HIDDEN } from '../engine/events';
 import { replay } from '../engine/state';
-import { OnlineTable } from './table';
+import { OnlineTable, type LockerStore, type WireLocker } from './table';
 
 // 偽の通信：送った順に、少し遅らせて 1 通ずつ届ける（本物の中継と同じく、送った本人には返さない）
 class FakeNet {
@@ -19,8 +19,9 @@ class FakeNet {
   /** 検算した回数 */
   verified = 0;
 
-  add(id: string, host: boolean, o: { human: boolean; cpu?: typeof benchCpu }) {
+  add(id: string, host: boolean, o: { human: boolean; cpu?: typeof benchCpu; store?: LockerStore }) {
     const t: OnlineTable = new OnlineTable({
+      store: o.store,
       send: (msg, to) => this.push(id, to, msg),
       isHost: host,
       myId: id,
@@ -37,12 +38,19 @@ class FakeNet {
       },
     });
     const counted = new WeakSet<object>();
+    this.tables = this.tables.filter((x) => x.id !== id);
     this.tables.push({ id, t, host });
-    this.seen.set(id, []);
+    if (!this.seen.has(id)) this.seen.set(id, []);
     return t;
   }
 
+  /** 接続が切れた（その人あての知らせは届かない・その人の古い卓からの知らせも届かない） */
+  cut(id: string) {
+    this.tables = this.tables.filter((y) => y.id !== id);
+  }
+
   private push(from: string, to: 'all' | 'host', msg: Record<string, unknown>) {
+    if (!this.tables.some((x) => x.id === from)) return;
     const s = JSON.stringify(msg);
     this.bytes += s.length;
     this.messages++;
@@ -141,4 +149,32 @@ describe('オンラインの卓（偽の通信）', () => {
     expect(keysFor100).toEqual([]);
     expect(net.messages).toBeGreaterThanOrEqual(before);
   }, 40_000);
+
+  it('★ゲストが局の途中で接続を切って戻っても、同じ席で続きを打てる（控えた錠前で自分の牌を開け直す）。検算も通る', async () => {
+    const net = new FakeNet();
+    const kept = new Map<string, WireLocker>();
+    const store: LockerStore = { save: (no, seat, w) => void kept.set(`${no}:${seat}`, w), load: (no, seat) => kept.get(`${no}:${seat}`) ?? null };
+    const host = net.add('H', true, { human: true });
+    (host as unknown as { o: { autoNext: boolean } }).o.autoNext = false;
+    let guest = net.add('G', false, { human: true, store });
+    host.begin([
+      { id: 'H', name: 'H' },
+      { id: 'G', name: 'G' },
+    ]);
+    // ゲストが何回か引いたところで切る
+    await net.until(() => guest.myLog.filter((e) => e.ev.type === 'draw' && e.ev.seat === 1).length >= 3, 30_000);
+    const handBefore = guest.view.hands[1].slice().sort();
+    net.cut('G');
+    await new Promise((r) => setTimeout(r, 300));
+    // 戻ったゲストは新しい卓で、ホストから写しを受け取って作り直す
+    guest = net.add('G', false, { human: true, store });
+    guest.loadSync(host.syncData());
+    await net.until(() => guest.view.hands[1].length > 0 && !guest.view.hands[1].includes(HIDDEN), 20_000);
+    expect(guest.mySeat).toBe(1);
+    // 切れる前の手牌が、少なくとも一部はそのまま開け直されている（切れたあとに進んだ分は変わってよい）
+    expect(handBefore.some((x) => guest.view.hands[1].includes(x))).toBe(true);
+    await net.until(() => host.pub.phase === 'ended' && guest.pub.phase === 'ended' && host.handVerified !== null && guest.handVerified !== null, 60_000);
+    expect(net.problems).toEqual([]);
+    expect(JSON.stringify(guest.pub)).toBe(JSON.stringify(host.pub));
+  }, 120_000);
 });

@@ -335,6 +335,7 @@ export class OnlineSession {
       isHost,
       myId: this.myId,
       cpu: tsumogiriCpu,
+      cpuDelay: 420,
       store: lockerStore(roomId, this.myId),
       onChange: () => this.set({ tableRev: this.s.tableRev + 1 }),
     });

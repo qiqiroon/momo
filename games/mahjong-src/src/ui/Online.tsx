@@ -5,7 +5,8 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { MessageKey } from '../i18n/strings';
-import { MAX_SEATS, type OnlineNote, type OnlineSession, type RoomInfo } from '../online/session';
+import { MAX_SEATS, type Member, type OnlineNote, type OnlineSession, type RoomInfo } from '../online/session';
+import type { OnlineTable } from '../online/table';
 import { BackButton, ScreenHead } from './Menu';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
@@ -95,6 +96,8 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
     saveName(v.trim());
   };
   const rooms = s.rooms.filter((r) => showPrivate || r.isPublic);
+  // 開き直したとき：控えた部屋がまだ対局中なら「戻る」を出す
+  const saved = s.saved && s.rooms.some((r) => r.id === s.saved!.roomId && r.gameState === 'playing') ? s.saved : null;
   const join = (r: RoomInfo) => session.join(r, name, joinPw);
   return (
     <>
@@ -107,6 +110,20 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
         <p ref={noteRef} className="ol-note" role="alert">
           {noteText(t, s.note)}
         </p>
+      )}
+      {saved && (
+        <section className="gset ol-panel ol-rejoin">
+          <h3>{t('olRejoin')}</h3>
+          <p className="guide">{t('olRejoinDesc', { room: saved.roomName })}</p>
+          <div className="screen-actions">
+            <button type="button" className="btn-primary" disabled={!s.wsOpen || s.busy} onClick={() => session.rejoin()}>
+              {t('olRejoinBtn')}
+            </button>
+            <button type="button" className="choice-btn" onClick={() => session.forgetSaved()}>
+              {t('olRejoinForget')}
+            </button>
+          </div>
+        </section>
       )}
       <section className="gset ol-panel">
         <h3>{t('olYourName')}</h3>
@@ -184,10 +201,34 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
   );
 }
 
+/** オンラインの卓の上に出す一言：配っている・切れた人を待っている・検算の食い違い */
+export function OnlineStatus({ t, table, members }: { t: T; table: OnlineTable; members: Member[] }) {
+  const away = members.filter((m) => !m.online).map((m) => m.name);
+  const bad = table.lastVerify !== null && table.lastVerify.length > 0;
+  if (!table.dealing && away.length === 0 && !bad) return null;
+  return (
+    <div className="ol-status" role="status">
+      {table.dealing && <p>{t('olDealing')}</p>}
+      {away.length > 0 && <p className="away">{t('olWaitBack', { name: away.join('・') })}</p>}
+      {bad && <p className="away">{t('olVerifyBad')}</p>}
+    </div>
+  );
+}
+
 /** 待合：席は入った順。空いた席は CPU。ホストだけが始められる */
 export function WaitingRoom({ t, session }: { t: T; session: OnlineSession }) {
   const s = useOnline(session);
   if (!s.room) return null;
+  if (s.reconnecting) {
+    return (
+      <>
+        <ScreenHead title={t('olRoomTitle')} />
+        <p className="ol-note" role="status">
+          {t('olReconnecting')}
+        </p>
+      </>
+    );
+  }
   const isHost = s.room.isHost;
   const seats = Array.from({ length: MAX_SEATS }, (_, i) => s.members[i] ?? null);
   return (

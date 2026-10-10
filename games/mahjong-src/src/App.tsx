@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Envelope } from './engine/events';
-import { useTable } from './game/useTable';
+import { HUMAN, useTable } from './game/useTable';
+import { legalActions } from './engine/round';
+import { SeatContext, type SeatInfo } from './ui/seatContext';
 import { buildKifu, kifuFileName, parseKifu, type Kifu, type KifuSource } from './kifu/kifu';
 import { downloadText, listDriveKifu, loadLastGame, readDriveFile, saveToDrive } from './kifu/store';
 import { CpuSetup, ModeRow, ReplayHub, SiteFooter } from './ui/Menu';
@@ -15,7 +17,7 @@ import { NOTICE } from './i18n/notice';
 import { Notice, TERMS_URL, type NoticeKind } from './ui/Notice';
 import { LANG_MODES, baseOf, changeMode, currentMode, initLang, translate, type LangMode, type MessageKey } from './i18n/strings';
 import { Table } from './ui/Table';
-import { Lobby, WaitingRoom, useOnline } from './ui/Online';
+import { Lobby, OnlineStatus, WaitingRoom, useOnline } from './ui/Online';
 import { OnlineSession } from './online/session';
 import { matchmakingTransport } from './online/transport';
 import { useLayout } from './ui/useLayout';
@@ -44,6 +46,11 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   /** トップ側の画面：モード選択／CPU と対局（ルールを選ぶ）／オンライン対局／対局の再生 */
   const [screen, setScreen] = useState<'top' | 'cpu' | 'online' | 'replay'>('top');
   const ol = useOnline(online);
+  /** オンラインの卓（対局が始まっていれば。ol.tableRev が変わるたびに描き直す） */
+  const tbl = online.table;
+  const onlineOn = screen === 'online' && ol.where === 'room' && ol.started && !!tbl?.started && !ol.reconnecting;
+  const tableView = onlineOn && tbl ? tbl.view : view;
+  const seatInfo: SeatInfo = onlineOn && tbl ? { me: tbl.mySeat ?? 0, names: tbl.seats.map((x) => (x.kind === 'human' ? x.name : null)) } : { me: HUMAN, names: null };
   /** ご利用にあたって：起動するたびに開いた瞬間に出し、同意するまで閉じない（利用者 Q2=A）。
    *  端末には覚えない＝毎回、賭けに使わないことを思い出してもらう（利用者 10-09）。startConsented は検査用 */
   const [consented, setConsented] = useState(startConsented);
@@ -104,9 +111,9 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
     }
   };
   /** 卓を出している画面か（対局中・牌譜の再生中）。画面切替を出すのはここだけ */
-  const onBoard = started || replaying !== null;
+  const onBoard = started || replaying !== null || onlineOn;
   /** 対局の音と演出（再生中は鳴らさない） */
-  const fx = useGameEffects(view, started && !replaying);
+  const fx = useGameEffects(tableView, (started && !replaying) || onlineOn, seatInfo.me);
   /** 「音楽を再生しますか？」を出しているか・歯車の設定を開いているか */
   const [soundAsk, setSoundAsk] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -136,12 +143,12 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
 
   useEffect(() => {
     // 再生中も対局中と同じ見出しの形（小さく）にする
-    document.body.classList.toggle('in-game', started || replaying !== null);
+    document.body.classList.toggle('in-game', started || replaying !== null || onlineOn);
     // ご利用にあたっての窓を出しているあいだも、見出し（言語の選択）は窓の上に出す
     document.body.classList.toggle('notice-open', !consented || reading !== null);
     const base = baseOf(lang);
     document.documentElement.lang = base === 'zh' ? 'zh-CN' : base;
-  }, [started, replaying, lang, consented, reading]);
+  }, [started, replaying, onlineOn, lang, consented, reading]);
 
   const onLang = (m: LangMode) => {
     setMode(m);
@@ -149,7 +156,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   };
 
   return (
-    <>
+    <SeatContext.Provider value={seatInfo}>
       <header className="site-header">
         <img className="cat-icon" src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" />
         <div className={`title-block${started || replaying || screen !== 'top' ? ' to-top' : ''}`} onClick={onTitle} role={started || replaying || screen !== 'top' ? 'button' : undefined} title={started || replaying || screen !== 'top' ? t('toTop') : undefined}>
@@ -163,7 +170,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
         <div className="header-right">
           {/* 画面切替：正方形の卓を出せない狭い画面（携帯）ではボタンごと出さない（見出しをはみ出させないため・利用者指示） */}
           {/* 対局の中断：確かめてからモード選択へ（途中までの対局は「前回の対局」として残る） */}
-          {started && !replaying && view.phase !== 'gameover' && layout !== 'lanes' && (
+          {(started || onlineOn) && !replaying && tableView.phase !== 'gameover' && layout !== 'lanes' && (
             <button type="button" className="icon-btn layout-btn quit-btn" onClick={onTitle} aria-label={t('quitGame')}>
               {/* 狭い画面は短く（見出しから言語選択をはみ出させない） */}
               <span className="quit-long">{t('quitGame')}</span>
@@ -209,6 +216,23 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             onSaveFile={() => saveFile(source)}
             onSaveDrive={() => void saveDrive(source)}
             saveNote={note}
+            dealt={fx.dealt}
+            onQuit={onTitle}
+            chat={<Chat t={t} you={t('you')} />}
+          />
+        </main>
+      ) : onlineOn && tbl ? (
+        <main className="game">
+          <OnlineStatus t={t} table={tbl} members={ol.members} />
+          <Table
+            narrow={layout === 'lanes'}
+            view={tbl.view}
+            legal={tbl.dealing || tbl.mySeat === null ? [] : legalActions(tbl.view, tbl.mySeat)}
+            lang={lang}
+            onChoose={(a) => tbl.choose(a)}
+            onNext={() => tbl.next()}
+            nextWait={ol.room?.isHost ? undefined : t('olWaitNext')}
+            onTop={onTitle}
             dealt={fx.dealt}
             onQuit={onTitle}
             chat={<Chat t={t} you={t('you')} />}
@@ -306,6 +330,6 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
       ) : reading ? (
         <Notice key={reading} lang={baseOf(lang)} first={reading} consent={false} onAgree={() => {}} onClose={() => setReading(null)} />
       ) : null}
-    </>
+    </SeatContext.Provider>
   );
 }

@@ -47,6 +47,8 @@ export interface TableOptions {
   autoplay?: (view: GameState, seat: Seat) => Action;
   /** 検査用：局が終わったらホストが自動で次へ進む */
   autoNext?: boolean;
+  /** CPU が打つまでの間（ミリ秒。人が目で追えるように。検査では 0） */
+  cpuDelay?: number;
   onChange?: () => void;
   /** 検算で食い違いが見つかったとき */
   onProblem?: (p: VerifyProblem[]) => void;
@@ -522,17 +524,21 @@ export class OnlineTable {
   // ---- 打つ ----
 
   /** 席の持ち主として、選んだことを出来事にしてホストへ（ドラ・裏ドラが要れば先に表に開ける） */
-  private perform(seat: Seat, a: Action) {
+  private perform(seat: Seat, a: Action, delay = 0) {
     const v = this.views.get(seat);
     if (!v) return;
     if (this.acted.get(seat) === v.nextSeq) return;
     this.acted.set(seat, v.nextSeq);
-    const need = positionsNeeded((src) => act(v, seat, a, src));
-    this.openPublic(need, () => {
-      const h = this.hand;
-      const envs = act(v, seat, a, (p) => h?.tiles.get(p) ?? HIDDEN);
-      this.toHost({ type: 'mt-act', id: this.o.myId, seat, envs });
-    });
+    const go = () => {
+      const need = positionsNeeded((src) => act(v, seat, a, src));
+      this.openPublic(need, () => {
+        const h = this.hand;
+        const envs = act(v, seat, a, (p) => h?.tiles.get(p) ?? HIDDEN);
+        this.toHost({ type: 'mt-act', id: this.o.myId, seat, envs });
+      });
+    };
+    if (delay > 0) setTimeout(go, delay);
+    else go();
   }
 
   /** ホスト：席の持ち主から届いた出来事に番号を付け直して配る（古い局面から作ったものは捨てる） */
@@ -735,7 +741,11 @@ export class OnlineTable {
     if (legal.length === 0) return;
     const kind = this.seats[seat]?.kind;
     const auto = kind === 'cpu' ? this.o.cpu : this.o.autoplay;
-    if (auto) return this.perform(seat, auto(v, seat));
+    // CPU は少し間を置く（見送るだけの返事は待たせない）
+    if (auto) {
+      const a = auto(v, seat);
+      return this.perform(seat, a, kind === 'cpu' && a.type !== 'pass' ? (this.o.cpuDelay ?? 0) : 0);
+    }
     // 人の席：見送るしかない返事・言えることが 1 つだけの宣言は自動（画面のボタンを待たない）
     if ((v.phase === 'claim' || v.phase === 'declare') && legal.length === 1) this.perform(seat, legal[0]);
   }

@@ -2154,3 +2154,17 @@ body.in-game .site-header .subtitle {
 .ol-started {
   color: var(--text);
 }
+
+/* オンラインの卓の上の一言（配っている・切れた人を待っている・検算の食い違い） */
+.ol-status {
+  width: 100%;
+  font-size: 13px;
+}
+
+.ol-status p {
+  margin: 0 0 4px;
+}
+
+.ol-status .away {
+  color: var(--warn);
+}

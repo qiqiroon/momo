@@ -169,7 +169,7 @@ describe('人和・八連荘（点数の側で決まるもの）', () => {
 });
 
 describe('続けてアガった回数（八連荘の数え方）', () => {
-  it('アガった人が続けていれば +1・別の人なら 1 から・流局と途中流局では変わらない（自動対局 20 半荘で突き合わせ）', () => {
+  it('アガった人が続けていれば +1・別の人なら 1 から・流局と途中流局で途切れる（自動対局 20 半荘で突き合わせ）', () => {
     let checked = 0;
     for (let i = 0; i < 20; i++) {
       const r = playOne(`streak-${i}`, GENERAL_RULES, benchCpu, true);
@@ -182,7 +182,8 @@ describe('続けてアガった回数（八連荘の数え方）', () => {
         if (g.phase !== 'ended' || prev === 'ended') continue;
         const res = g.result!;
         const winners = res.type === 'tsumo' ? [res.seat] : res.type === 'ron' ? res.wins.map((w) => w.seat) : [];
-        if (winners.length > 0) want = want && winners.includes(want.seat as never) ? { seat: want.seat, n: want.n + 1 } : { seat: winners[0], n: 1 };
+        if (winners.length === 0) want = null;
+        else want = want && winners.includes(want.seat as never) ? { seat: want.seat, n: want.n + 1 } : { seat: winners[0], n: 1 };
         expect(g.winStreak).toEqual(want);
         checked++;
       }

@@ -146,7 +146,7 @@ const NOTES: Record<string, Tr> = {
   daisuurin: { en: 'Yakuman: closed, two each of 2–8 man', zh: '役满：门前、2〜8万各2张' },
   ishinoue: { en: 'Yakuman: double riichi and win on the last tile', zh: '役满：两立直后海底或河底和牌' },
   surenko: { en: 'Yakuman: four triplets of consecutive numbers', zh: '役满：四副数字相连的刻子' },
-  parenchan: { en: 'Yakuman: anyone wins 8 times in a row (draws don’t count; only with another yaku that meets the minimum han)', zh: '役满：任何人连续和牌8次（流局连庄不算・须另有满足起和番数的役）' },
+  parenchan: { en: 'Yakuman: anyone wins 8 times in a row (a draw resets the count; only with another yaku that meets the minimum han)', zh: '役满：任何人连续和牌8次（流局则重新计数・须另有满足起和番数的役）' },
   daichisei: { en: 'Double yakuman: seven pairs of all seven honors (not added to all honors)', zh: '双倍役满：七种字牌的七对子（不与字一色相加）' },
 };
 

@@ -177,7 +177,7 @@ export interface GameState {
   yame: boolean | null;
   /** この対局で始めた局の数（山の種を局ごとに変えるため。連荘で局の番号が同じでも別の山になる） */
   handCount: number;
-  /** 続けてアガっている人と回数（八連荘。流局・途中流局では変わらない。局をまたぐ） */
+  /** 続けてアガっている人と回数（八連荘。流局・途中流局をはさむと途切れる＝Q35＝A。局をまたぐ） */
   winStreak: { seat: Seat; n: number } | null;
   /** 対局が終わった理由（終わるまで null） */
   gameOver: GameEndReason | null;
@@ -667,9 +667,9 @@ function settleClaim(s0: GameState): GameState {
 function finish(s: GameState, result: RoundResult, settlement: number[]): GameState {
   const scores = s.scores.map((p, i) => p + settlement[i]);
   const taken = result.type === 'tsumo' || result.type === 'ron' ? s.kyotaku : 0;
-  // 続けてアガった回数：アガった人の中に続けている人がいれば +1、いなければ最初にアガった人から数え直す
+  // 続けてアガった回数：アガった人の中に続けている人がいれば +1、いなければ最初にアガった人から数え直す。流局・途中流局で途切れる
   const winners = result.type === 'tsumo' ? [result.seat] : result.type === 'ron' ? result.wins.map((w) => w.seat) : [];
-  const winStreak = winners.length === 0 ? s.winStreak : s.winStreak && winners.includes(s.winStreak.seat) ? { seat: s.winStreak.seat, n: s.winStreak.n + 1 } : { seat: winners[0], n: 1 };
+  const winStreak = winners.length === 0 ? null : s.winStreak && winners.includes(s.winStreak.seat) ? { seat: s.winStreak.seat, n: s.winStreak.n + 1 } : { seat: winners[0], n: 1 };
   return { ...s, phase: 'ended', result, settlement, scores, kyotaku: s.kyotaku - taken, winStreak };
 }
 

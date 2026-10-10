@@ -117,7 +117,7 @@ export const JP_ITEMS: readonly RuleItem[] = [
   {"k":"daisuurin","name":"大数隣","note":"役満・門前で2〜8の萬子を2枚ずつ","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
   {"k":"ishinoue","name":"石の上にも三年","note":"役満・ダブルリーチして海底か河底でアガる","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
   {"k":"surenko","name":"四連刻","note":"役満・数が続く刻子が4つ","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
-  {"k":"parenchan","name":"八連荘","note":"役満・誰でも8回続けてアガる（流局の連荘は数えない・9回目以降も・役には数えない＝縛りを満たすほかの役があるときだけ役満）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
+  {"k":"parenchan","name":"八連荘","note":"役満・誰でも8回続けてアガる（流局をはさむと数え直し・9回目以降も・役には数えない＝縛りを満たすほかの役があるときだけ役満）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
   {"k":"daichisei","name":"大七星","note":"ダブル役満・字牌7種の七対子（字一色とは足さない）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"],"dep":["doubleYakuman","on"]},
 ];
 /** 条文なしを MOMO が補った値（2026-10-05 決定：書いていない仕組みは「なし」と読む） */

@@ -444,7 +444,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
 
   return (
     <div className="square-wrap">
-      <div className="square felt">
+      <div className={`square felt${!replay && playing && view.turn === me && (view.phase === 'draw' || view.phase === 'discard') ? ' my-turn-edge' : ''}`}>
         <div className="center-box">
           {lengthLabel && <span className="length-label">{lengthLabel}</span>}
           <span className="round-label">{roundLabel}</span>

@@ -50,6 +50,11 @@ export interface TableOptions {
   autoNext?: boolean;
   /** CPU が打つまでの間（ミリ秒。人が目で追えるように。検査では 0） */
   cpuDelay?: number;
+  /**
+   * 配り終えてから最初のツモまで待つ長さ（ミリ秒）。画面の「洗牌→配る」の演出と音の長さ。
+   * 待たないと、ツモの音が洗牌の音より先に鳴る（利用者指摘 10-10）。first は対局の最初の局（親決めのサイコロの分を足す）
+   */
+  dealHold?: (first: boolean) => number;
   onChange?: () => void;
   /** 検算で食い違いが見つかったとき */
   onProblem?: (p: VerifyProblem[]) => void;
@@ -752,10 +757,17 @@ export class OnlineTable {
       this.hostStep = p.nextSeq;
       const d = drawPosition(p);
       const need = positionsNeeded((src) => advance(p, src)).filter((x) => x !== d?.pos);
-      this.openPublic(need, () => {
-        const envs = advance(p, (x) => (x === d?.pos ? HIDDEN : h.tiles.get(x) ?? HIDDEN));
-        this.emitAll(envs.map((e) => ({ env: e, pos: e.ev.type === 'draw' && d ? [d.pos] : undefined })));
-      });
+      const go = () =>
+        this.openPublic(need, () => {
+          const envs = advance(p, (x) => (x === d?.pos ? HIDDEN : h.tiles.get(x) ?? HIDDEN));
+          this.emitAll(envs.map((e) => ({ env: e, pos: e.ev.type === 'draw' && d ? [d.pos] : undefined })));
+        });
+      // 局の最初のツモは、全員の画面で洗牌と配る演出が終わってから
+      // 対局の最初の局（親決めのサイコロを見せる局）か＝useTable の showsDice と同じ決め方
+      const first = p.dealerDice !== null && p.roundIndex === 0 && p.honba === 0 && p.discards.every((x) => x.length === 0);
+      const hold = p.phase === 'deal' ? (this.o.dealHold?.(first) ?? 0) : 0;
+      if (hold > 0) setTimeout(go, hold);
+      else go();
       return;
     }
     // 次の局へは、この局の検算が済んでから（新しい局の錠前で、この局の鍵が届かなくなるため）

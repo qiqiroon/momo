@@ -2317,3 +2317,22 @@ body.in-game .site-header .subtitle {
 .ol-chat {
   width: 100%;
 }
+
+/* 正方形の卓：自分の番は手前の縁をオレンジの線で示す（利用者指摘 10-10「自分の番が分かりにくい」） */
+.square.my-turn-edge::after {
+  content: '';
+  position: absolute;
+  left: 3%;
+  right: 3%;
+  bottom: 0;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--orange-mid);
+  pointer-events: none;
+}
+
+/* 正方形の卓：ほかの人の鳴いた面子は、手牌の列より外側（卓の縁の側）へずらして段違いにする（利用者指示 10-10）。
+   手牌の列は回してあるので、列の下向き＝卓の縁の向き */
+.seat-hand:not(.rel-0) .melds {
+  transform: translateY(calc(var(--tw, 32px) * 0.7));
+}

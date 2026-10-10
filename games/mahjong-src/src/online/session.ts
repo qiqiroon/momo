@@ -13,6 +13,7 @@
 // 誰が抜けたかは土台からは確かに分からない（番号が重なりうる）ので、ホストが点呼を取って決める。
 
 import { tsumogiriCpu } from '../cpu/tsumogiri';
+import { DEAL_SHOW_MS, DICE_SHOW_MS, dealShowOn } from '../game/useTable';
 import { OnlineTable, type LockerStore, type SyncData, type TableOptions, type WireLocker } from './table';
 
 /** 「鳴かない」の端末の控え（画面の Online.tsx と同じ名前） */
@@ -393,6 +394,8 @@ export class OnlineSession {
       myId: this.myId,
       cpu: tsumogiriCpu,
       cpuDelay: 420,
+      // 一人用と同じ長さ（useTable の DEAL_SHOW_MS・DICE_SHOW_MS）
+      dealHold: (first) => (dealShowOn() ? DEAL_SHOW_MS + (first ? DICE_SHOW_MS : 0) : 0),
       store: lockerStore(roomId, this.myId),
       onChange: () => this.set({ tableRev: this.s.tableRev + 1 }),
     });

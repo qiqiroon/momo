@@ -204,4 +204,23 @@ describe('オンラインの卓（偽の通信）', () => {
     expect(Math.min(...gaps.map((g) => g.gap))).toBeGreaterThanOrEqual(240);
     expect(net.problems).toEqual([]);
   }, 130_000);
+
+  it('★局の最初のツモは、配り終えてから演出の長さ（dealHold）を待ってから出す（洗牌→配る→ツモの順に鳴る）', async () => {
+    const net = new FakeNet();
+    const ids = ['A', 'B'];
+    const ts = ids.map((id, i) => net.add(id, i === 0, { human: true }));
+    const o = (ts[0] as unknown as { o: { autoNext: boolean; dealHold: (first: boolean) => number } }).o;
+    o.autoNext = false;
+    o.dealHold = (first) => (first ? 600 : 300);
+    ts[0].begin(ids.map((id) => ({ id, name: id })));
+    let dealtAt = 0;
+    let drawAt = 0;
+    await net.until(() => {
+      const p = ts[1].pub;
+      if (!dealtAt && p.phase === 'deal' && p.doraIndicators.length > 0) dealtAt = Date.now();
+      if (dealtAt && !drawAt && p.drawn.some((d) => d !== null)) drawAt = Date.now();
+      return drawAt > 0;
+    }, 30_000);
+    expect(drawAt - dealtAt).toBeGreaterThanOrEqual(550);
+  }, 40_000);
 });

@@ -387,7 +387,7 @@ export function apply(state: GameState, env: Envelope): GameState {
       if (i < 0) i = hand.indexOf(HIDDEN);
       if (i < 0) throw new Error(`持っていない牌を切った（席 ${ev.seat}・背番号 ${ev.tile}）`);
       if (s.kuikaeBan.includes(kindOf(ev.tile))) throw new Error('喰い替えになる牌を切った（このルールでは禁止）');
-      if (s.rules?.family === 'jp' && s.rules.values.kyushuHow === 'force' && kyushuOk(s, ev.seat)) throw new Error('九種九牌は必ず流すルールなのに切った');
+      if (s.rules?.family === 'jp' && s.rules.values.kyushuHow === 'must' && kyushuOk(s, ev.seat)) throw new Error('九種九牌は必ず流すルールなのに切った');
       hand.splice(i, 1);
       const riichi = s.riichi.slice();
       const riichiAt = s.riichiAt.slice();

@@ -232,7 +232,7 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
   // 九種九牌：ルールが「必ず流す」なら、流すしかない（国士無双でツモアガリできるときだけアガりも選べる）
   if (kyushuOk(view, seat)) {
     out.push({ type: 'kyushu' });
-    if (view.rules?.family === 'jp' && view.rules.values.kyushuHow === 'force') return out;
+    if (view.rules?.family === 'jp' && view.rules.values.kyushuHow === 'must') return out;
   }
   // リーチのあとはツモった牌を切るだけ（待ちが変わらない暗槓はできる）
   if (view.riichi[seat] !== 'none') {
@@ -340,7 +340,7 @@ export function act(full: GameState, seat: Seat, action: Action, src?: TileSourc
     case 'discard':
       if (!hand.includes(action.tile)) throw new Error(`持っていない牌は切れない（背番号 ${action.tile}）`);
       if (full.kuikaeBan.includes(kindOf(action.tile))) throw new Error('喰い替えになる牌は切れない');
-      if (full.rules?.family === 'jp' && full.rules.values.kyushuHow === 'force' && kyushuOk(full, seat)) throw new Error('九種九牌は必ず流すルール');
+      if (full.rules?.family === 'jp' && full.rules.values.kyushuHow === 'must' && kyushuOk(full, seat)) throw new Error('九種九牌は必ず流すルール');
       if (full.riichi[seat] !== 'none' && action.tile !== full.drawn[seat]) throw new Error('リーチのあとはツモった牌しか切れない');
       // 打牌のときに、まだめくっていない明槓のカンドラをめくる（この打牌へのロンにも乗る）
       return [at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat] }), ...revealDora(full, full.pendingDora, at, tileAt)];

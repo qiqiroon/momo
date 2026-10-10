@@ -146,7 +146,7 @@ describe('九種九牌', () => {
     eight.draw('8s');
     expect(legalActions(eight.s, 0).map((a) => a.type)).not.toContain('kyushu');
 
-    const force = setup([NINE, B, C.replace('2z3z', '4z4z'), D], rulesWith({ kyushuHow: 'force' }));
+    const force = setup([NINE, B, C.replace('2z3z', '4z4z'), D], rulesWith({ kyushuHow: 'must' }));
     force.draw('8s');
     expect(legalActions(force.s, 0)).toEqual([{ type: 'kyushu' }]);
     expect(() => act(force.s, 0, { type: 'discard', tile: force.s.drawn[0]! })).toThrow();

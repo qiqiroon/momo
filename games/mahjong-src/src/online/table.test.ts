@@ -77,7 +77,8 @@ class FakeNet {
 }
 
 describe('オンラインの卓（偽の通信）', () => {
-  it('ホスト＋人 1 人＋CPU 2 席で半荘を最後まで打てる。全員の点数がそろい、毎局の検算で食い違いなし', async () => {
+  // 半荘は 1 分ほど計算し続けるので、いつもの検査と並べると他の検査が時間切れになる＝別に回す（npm run onlineplay）
+  it.runIf(import.meta.env.MODE === 'full')('ホスト＋人 1 人＋CPU 2 席で半荘を最後まで打てる。全員の点数がそろい、毎局の検算で食い違いなし', async () => {
     const net = new FakeNet();
     const host = net.add('H', true, { human: true });
     const guest = net.add('G', false, { human: true, cpu: tsumogiriCpu });

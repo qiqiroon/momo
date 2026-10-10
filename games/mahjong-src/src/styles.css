@@ -2168,3 +2168,51 @@ body.in-game .site-header .subtitle {
 .ol-status .away {
   color: var(--warn);
 }
+
+/* 待合：返事の待ち（ルールセットの切り替えと同じ形。ゲストは押せない＝選ばれていないものは灰色） */
+.ol-replywait {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.ol-replywait .seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.ol-replywait .seg button {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 0.78rem;
+  padding: 6px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.ol-replywait .seg button.on {
+  background: var(--orange);
+  color: #fff;
+  font-weight: 700;
+}
+
+.ol-replywait .seg button:disabled {
+  cursor: default;
+}
+
+.ol-replywait .seg button:disabled:not(.on) {
+  color: var(--text-muted);
+}
+
+.ol-nocalls {
+  margin-bottom: 4px;
+}

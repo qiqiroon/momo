@@ -283,4 +283,17 @@ describe('始める', () => {
     expect(names(host)).toEqual(['ホスト', 'A(切)', 'B']);
     expect(names(gs[1])).toEqual(['ホスト', 'A(切)', 'B']);
   });
+
+  it('返事の待ち：ホストが選んだ値（始める前だけ）がゲストにも届き、始めると卓の待ちになる', () => {
+    const { host, gs } = hostWith('A');
+    expect(gs[0].state.replyWait).toBe('normal');
+    gs[0].setReplyWait('fast'); // ゲストは選べない
+    expect(host.state.replyWait).toBe('normal');
+    host.setReplyWait('slow');
+    expect(gs[0].state.replyWait).toBe('slow');
+    host.start();
+    expect(gs[0].table?.replyWait).toBe(3000);
+    host.setReplyWait('fast'); // 始めたあとは変えられない
+    expect(host.state.replyWait).toBe('slow');
+  });
 });

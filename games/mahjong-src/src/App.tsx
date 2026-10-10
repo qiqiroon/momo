@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Envelope } from './engine/events';
 import { HUMAN, useTable } from './game/useTable';
-import { legalActions } from './engine/round';
 import { SeatContext, type SeatInfo } from './ui/seatContext';
 import { buildKifu, kifuFileName, parseKifu, type Kifu, type KifuSource } from './kifu/kifu';
 import { downloadText, listDriveKifu, loadLastGame, readDriveFile, saveToDrive } from './kifu/store';
@@ -227,7 +226,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
           <Table
             narrow={layout === 'lanes'}
             view={tbl.view}
-            legal={tbl.dealing || tbl.mySeat === null ? [] : legalActions(tbl.view, tbl.mySeat)}
+            legal={tbl.choices()}
             lang={lang}
             onChoose={(a) => tbl.choose(a)}
             onNext={() => tbl.next()}

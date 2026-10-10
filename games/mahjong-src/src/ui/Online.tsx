@@ -5,13 +5,23 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { MessageKey } from '../i18n/strings';
-import { MAX_SEATS, type Member, type OnlineNote, type OnlineSession, type RoomInfo } from '../online/session';
+import { MAX_SEATS, REPLY_WAIT_MS, type Member, type OnlineNote, type OnlineSession, type ReplyWait, type RoomInfo } from '../online/session';
 import type { OnlineTable } from '../online/table';
 import { BackButton, ScreenHead } from './Menu';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
 const NAME_KEY = 'momo-mahjong.playerName';
+const NO_CALLS_KEY = 'momo-mahjong.online.noCalls';
+
+/** 「鳴かない」を端末に覚える（読むのは session.ts の readNoCalls。覚えられない端末では毎回切ったまま始まる） */
+function saveNoCalls(on: boolean) {
+  try {
+    localStorage.setItem(NO_CALLS_KEY, on ? '1' : '0');
+  } catch {
+    /* 覚えられない端末 */
+  }
+}
 
 function loadName(): string {
   try {
@@ -205,12 +215,38 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
 export function OnlineStatus({ t, table, members }: { t: T; table: OnlineTable; members: Member[] }) {
   const away = members.filter((m) => !m.online).map((m) => m.name);
   const bad = table.lastVerify !== null && table.lastVerify.length > 0;
-  if (!table.dealing && away.length === 0 && !bad) return null;
+  const toggle = (on: boolean) => {
+    saveNoCalls(on);
+    table.setNoCalls(on);
+  };
   return (
     <div className="ol-status" role="status">
+      {/* 「鳴かない」：自分の席だけに効く。チー・ポン・カンは自動で見送り、ロンのときは止まる（利用者 Q16=B） */}
+      <label className="ol-check ol-nocalls">
+        <input type="checkbox" checked={table.noCalls} onChange={(e) => toggle(e.target.checked)} />
+        <span>{t('olNoCalls')}</span>
+      </label>
       {table.dealing && <p>{t('olDealing')}</p>}
       {away.length > 0 && <p className="away">{t('olWaitBack', { name: away.join('・') })}</p>}
       {bad && <p className="away">{t('olVerifyBad')}</p>}
+    </div>
+  );
+}
+
+/** 待合：返事の待ち（ホストだけが選べる。ゲストには選ばれた値を見せる） */
+function ReplyWaitPicker({ t, session, value, isHost, started }: { t: T; session: OnlineSession; value: ReplyWait; isHost: boolean; started: boolean }) {
+  const keys: ReplyWait[] = ['fast', 'normal', 'slow'];
+  const label: Record<ReplyWait, MessageKey> = { fast: 'olWaitFast', normal: 'olWaitNormal', slow: 'olWaitSlow' };
+  return (
+    <div className="ol-replywait">
+      <span>{t('olReplyWait')}</span>
+      <span className="seg">
+        {keys.map((k) => (
+          <button type="button" key={k} className={value === k ? 'on' : ''} disabled={!isHost || started} onClick={() => session.setReplyWait(k)}>
+            {t(label[k], { s: REPLY_WAIT_MS[k] / 1000 })}
+          </button>
+        ))}
+      </span>
     </div>
   );
 }
@@ -263,6 +299,8 @@ export function WaitingRoom({ t, session }: { t: T; session: OnlineSession }) {
           ))}
         </ol>
         <p className="guide">{t('olRuleFixed')}</p>
+        <ReplyWaitPicker t={t} session={session} value={s.replyWait} isHost={isHost} started={s.started} />
+        <p className="guide">{t('olReplyWaitDesc')}</p>
         {s.started ? (
           <p className="guide ol-started">{t('olStartedNote')}</p>
         ) : (

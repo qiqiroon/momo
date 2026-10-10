@@ -144,6 +144,16 @@ export class OnlineTable {
   lastVerify: VerifyProblem[] | null = null;
   /** 通信の量（送った文字数・通数） */
   sent = { bytes: 0, count: 0 };
+  /**
+   * 切られた牌への返事の待ち（ミリ秒・ホストが部屋で選ぶ）。全員がこの長さだけ待ってから返事を出す＝
+   * その時間内に決めれば、誰が迷ったか（鳴けたか）が外に出ない（工程表 段階5）。過ぎて考えている人は、決めたときに出す
+   */
+  replyWait = 0;
+  /** 「鳴かない」（自分の席だけ・利用者 Q16=B）：チー・ポン・カンは自動で見送り、ロンのときは止まる */
+  noCalls = false;
+  /** 返事の番が始まった時刻（その返事の番ごと。自分の端末で捨て牌を当てはめた時刻） */
+  private claimSince = new Map<string, number>();
+
   /** 当てはめた出来事（全員に見える形＋配牌・ツモの位置）。ホストは戻ってきた人へこれを渡す */
   wire: { env: Envelope; pos?: number[] }[] = [];
 
@@ -171,10 +181,10 @@ export class OnlineTable {
   // ---- 外から呼ぶ ----
 
   /** ホスト：席を決めて対局を始める（人の席は入った順・空きは CPU） */
-  begin(humans: { id: string; name: string }[]) {
+  begin(humans: { id: string; name: string }[], replyWait = 0) {
     if (!this.o.isHost) return;
     const seats: SeatKind[] = SEATS.map((i) => (humans[i] ? { kind: 'human', id: humans[i].id, name: humans[i].name } : { kind: 'cpu' }));
-    this.broadcast({ type: 'mt-begin', seats });
+    this.broadcast({ type: 'mt-begin', seats, replyWait });
     const seedBytes = new Uint32Array(2);
     crypto.getRandomValues(seedBytes);
     const seed = Array.from(seedBytes, (n) => n.toString(36)).join('');
@@ -219,6 +229,7 @@ export class OnlineTable {
   receive(d: Record<string, unknown>) {
     switch (d.type) {
       case 'mt-begin':
+        this.replyWait = Math.max(0, Number(d.replyWait) || 0);
         return this.onBegin(d.seats as SeatKind[]);
       case 'mt-hand':
         return this.onHand(Number(d.no));
@@ -494,6 +505,8 @@ export class OnlineTable {
     }
     this.pub = apply(this.pub, maskAll(env));
     this.wire.push({ env: maskAll(env), ...(pos ? { pos } : {}) });
+    const ck = this.claimKey(this.pub);
+    if (ck !== null && !this.claimSince.has(ck)) this.claimSince.set(ck, Date.now());
     if (env.ev.type === 'deal' && h) h.dealt++;
     return true;
   }
@@ -533,6 +546,25 @@ export class OnlineTable {
     return false;
   }
 
+  /** 返事の番の見分け（誰の・何枚目の捨て牌か・何への返事か） */
+  private claimKey(v: GameState): string | null {
+    const c = v.claim;
+    if (v.phase !== 'claim' || !c) return null;
+    return `${v.roundIndex}:${v.honba}:${c.from}:${v.discards[c.from].length}:${c.kind}:${v.kans}`;
+  }
+
+  /** 返事を出すまでに、あと何ミリ秒待つか（返事の番が始まってから replyWait まで） */
+  private replyDelay(v: GameState): number {
+    const key = this.claimKey(v);
+    if (key === null || this.replyWait <= 0) return 0;
+    let since = this.claimSince.get(key);
+    if (since === undefined) {
+      since = Date.now();
+      this.claimSince.set(key, since);
+    }
+    return Math.max(0, since + this.replyWait - Date.now());
+  }
+
   // ---- 打つ ----
 
   /** 席の持ち主として、選んだことを出来事にしてホストへ（ドラ・裏ドラが要れば先に表に開ける） */
@@ -541,6 +573,9 @@ export class OnlineTable {
     if (!v) return;
     if (this.acted.get(seat) === v.nextSeq) return;
     this.acted.set(seat, v.nextSeq);
+    // 返事（見送る・鳴く・ロン）は、決めた時刻によらず返事の番の始まりから replyWait たってから出す。
+    // ロンの裏ドラを開ける頼みも、そのあと（先に出すと誰かがロンすると分かる）
+    if (v.phase === 'claim') delay = Math.max(delay, this.replyDelay(v));
     const go = () => {
       const need = positionsNeeded((src) => act(v, seat, a, src));
       this.openPublic(need, () => {
@@ -756,10 +791,26 @@ export class OnlineTable {
     // CPU は少し間を置く（見送るだけの返事は待たせない）
     if (auto) {
       const a = auto(v, seat);
-      return this.perform(seat, a, kind === 'cpu' && a.type !== 'pass' ? (this.o.cpuDelay ?? 0) : 0);
+      return this.perform(seat, a, kind === 'cpu' && v.phase !== 'claim' ? (this.o.cpuDelay ?? 0) : 0);
     }
     // 人の席：見送るしかない返事・言えることが 1 つだけの宣言は自動（画面のボタンを待たない）
-    if ((v.phase === 'claim' || v.phase === 'declare') && legal.length === 1) this.perform(seat, legal[0]);
+    const shown = this.choices(v, seat);
+    if ((v.phase === 'claim' || v.phase === 'declare') && shown.length === 1) this.perform(seat, shown[0]);
+  }
+
+  /** 画面に出す選べること（「鳴かない」なら返事のチー・ポン・カンを除く） */
+  choices(v: GameState = this.view, seat: Seat | null = this.mySeat): Action[] {
+    if (seat === null || this.dealing) return [];
+    const legal = legalActions(v, seat);
+    if (!this.noCalls || v.phase !== 'claim') return legal;
+    return legal.filter((a) => a.type !== 'chi' && a.type !== 'pon' && a.type !== 'kan');
+  }
+
+  /** 画面から：「鳴かない」を切り替える（いま返事の番なら、見送るしかなくなったときにすぐ見送る） */
+  setNoCalls(on: boolean) {
+    this.noCalls = on;
+    this.changed();
+    this.drive();
   }
 
   private changed() {

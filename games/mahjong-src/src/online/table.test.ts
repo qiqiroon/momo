@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { benchCpu } from '../cpu/bench';
 import { tsumogiriCpu } from '../cpu/tsumogiri';
-import { HIDDEN } from '../engine/events';
+import { HIDDEN, type Envelope } from '../engine/events';
 import { replay } from '../engine/state';
 import { OnlineTable, type LockerStore, type WireLocker } from './table';
 
@@ -18,6 +18,9 @@ class FakeNet {
   problems: unknown[] = [];
   /** 検算した回数 */
   verified = 0;
+  /** 返事の待ちの検査：最後に捨て牌が届いた時刻（人ごと）と、返事を出すまでの長さ */
+  lastDiscardAt = new Map<string, number>();
+  replyGaps: { id: string; gap: number; type: string }[] = [];
 
   add(id: string, host: boolean, o: { human: boolean; cpu?: typeof benchCpu; store?: LockerStore }) {
     const t: OnlineTable = new OnlineTable({
@@ -51,6 +54,11 @@ class FakeNet {
 
   private push(from: string, to: 'all' | 'host', msg: Record<string, unknown>) {
     if (!this.tables.some((x) => x.id === from)) return;
+    if (msg.type === 'mt-act') {
+      const ev = (msg.envs as Envelope[])[0]?.ev;
+      const at = this.lastDiscardAt.get(from);
+      if (ev && (ev.type === 'pass' || ev.type === 'call' || ev.type === 'ron') && at !== undefined) this.replyGaps.push({ id: from, gap: Date.now() - at, type: ev.type });
+    }
     const s = JSON.stringify(msg);
     this.bytes += s.length;
     this.messages++;
@@ -68,6 +76,7 @@ class FakeNet {
         if (x.id === m.from) continue;
         if (m.to === 'host' && !x.host) continue;
         this.seen.get(x.id)!.push(m.msg);
+        if (m.msg.type === 'mt-ev' && (m.msg.env as Envelope).ev.type === 'discard') this.lastDiscardAt.set(x.id, Date.now());
         x.t.receive(structuredClone(m.msg));
       }
     }
@@ -177,4 +186,22 @@ describe('オンラインの卓（偽の通信）', () => {
     expect(net.problems).toEqual([]);
     expect(JSON.stringify(guest.pub)).toBe(JSON.stringify(host.pub));
   }, 120_000);
+
+  it('★返事の待ち：ゲストの返事は、捨て牌が届いてから決めた長さがたつまで返事を出さない（誰が迷ったか漏れない）', async () => {
+    const net = new FakeNet();
+    const ids = ['A', 'B', 'C'];
+    const ts = ids.map((id, i) => net.add(id, i === 0, { human: true }));
+    (ts[0] as unknown as { o: { autoNext: boolean } }).o.autoNext = false;
+    ts[0].begin(
+      ids.map((id) => ({ id, name: id })),
+      250,
+    );
+    await net.until(() => ts.every((t) => t.pub.phase === 'ended') && ts.every((t) => t.handVerified !== null), 120_000);
+    expect(ts[1].replyWait).toBe(250);
+    // ホスト以外（捨て牌が通信で届く人）の返事をすべて見る
+    const gaps = net.replyGaps.filter((g) => g.id !== 'A');
+    expect(gaps.length).toBeGreaterThan(10);
+    expect(Math.min(...gaps.map((g) => g.gap))).toBeGreaterThanOrEqual(240);
+    expect(net.problems).toEqual([]);
+  }, 130_000);
 });

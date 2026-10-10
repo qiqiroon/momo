@@ -15,6 +15,15 @@
 import { tsumogiriCpu } from '../cpu/tsumogiri';
 import { OnlineTable, type LockerStore, type SyncData, type TableOptions, type WireLocker } from './table';
 
+/** 「鳴かない」の端末の控え（画面の Online.tsx と同じ名前） */
+const readNoCalls = (): boolean => {
+  try {
+    return localStorage.getItem('momo-mahjong.online.noCalls') === '1';
+  } catch {
+    return false;
+  }
+};
+
 /** 部屋の一覧の 1 行（土台の room_list の多人数の部屋） */
 export interface RoomInfo {
   id: string;
@@ -76,6 +85,8 @@ export interface OnlineState {
   reconnecting: boolean;
   /** 開き直したときに戻れる対局（部屋の一覧に「戻る」を出す） */
   saved: SavedSeat | null;
+  /** 返事の待ち（ホストが選び、名簿と一緒に配る） */
+  replyWait: ReplyWait;
 }
 
 export interface TransportHandlers {
@@ -105,6 +116,10 @@ export interface Transport {
 }
 
 export const MAX_SEATS = 4;
+
+/** 切られた牌への返事の待ち（ホストが部屋で選ぶ）。秒数は仮（利用者に押してもらってから決める＝工程表 段階5） */
+export type ReplyWait = 'fast' | 'normal' | 'slow';
+export const REPLY_WAIT_MS: Record<ReplyWait, number> = { fast: 1000, normal: 2000, slow: 3000 };
 /** 点呼の返事を待つ長さ */
 export const ROLLCALL_MS = 3000;
 
@@ -135,6 +150,7 @@ const INITIAL: OnlineState = {
   tableRev: 0,
   reconnecting: false,
   saved: null,
+  replyWait: 'normal',
 };
 
 const SAVED_KEY = 'momo-mahjong.online.seat';
@@ -318,6 +334,13 @@ export class OnlineSession {
     this.toLobby(null);
   }
 
+  /** ホスト：返事の待ちを選ぶ（始める前だけ） */
+  setReplyWait(w: ReplyWait) {
+    if (!this.s.room?.isHost || this.s.started) return;
+    this.set({ replyWait: w });
+    this.broadcastMembers();
+  }
+
   /** ホスト：対局を始める（空いた席は CPU） */
   start() {
     if (!this.s.room?.isHost || this.s.started) return;
@@ -325,12 +348,15 @@ export class OnlineSession {
     this.tr.setGameState('playing');
     this.broadcastMembers();
     this.table = this.newTable(true);
-    this.table.begin(this.s.members.filter((m) => m.online).map((m) => ({ id: m.id, name: m.name })));
+    this.table.begin(
+      this.s.members.filter((m) => m.online).map((m) => ({ id: m.id, name: m.name })),
+      REPLY_WAIT_MS[this.s.replyWait],
+    );
   }
 
   private newTable(isHost: boolean): OnlineTable {
     const roomId = this.s.room?.id ?? '';
-    return this.makeTable({
+    const t = this.makeTable({
       send: (m, to) => this.tr.send(m, to),
       isHost,
       myId: this.myId,
@@ -339,6 +365,8 @@ export class OnlineSession {
       store: lockerStore(roomId, this.myId),
       onChange: () => this.set({ tableRev: this.s.tableRev + 1 }),
     });
+    t.noCalls = readNoCalls();
+    return t;
   }
 
   private toLobby(note: OnlineNote | null) {
@@ -377,7 +405,7 @@ export class OnlineSession {
   }
 
   private broadcastMembers() {
-    this.tr.send({ type: 'mj-members', members: this.s.members, started: this.s.started }, 'all');
+    this.tr.send({ type: 'mj-members', members: this.s.members, started: this.s.started, replyWait: this.s.replyWait }, 'all');
   }
 
   private receive(d: Record<string, unknown>) {
@@ -395,7 +423,8 @@ export class OnlineSession {
     }
     if (d.type === 'mj-members' && Array.isArray(d.members)) {
       const started = d.started === true;
-      this.set({ members: d.members as Member[], started });
+      const rw = d.replyWait === 'fast' || d.replyWait === 'slow' ? d.replyWait : 'normal';
+      this.set({ members: d.members as Member[], started, replyWait: rw });
       // 対局中のゲストは、開き直したときに戻れるよう控える
       if (started && this.s.room && !this.s.room.isHost) {
         const sv: SavedSeat = { roomId: this.s.room.id, roomName: this.s.room.name, hasPassword: this.s.room.hasPassword, myId: this.myId, name: this.myName, password: this.password };

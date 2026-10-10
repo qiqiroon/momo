@@ -72,7 +72,8 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   if (full.kans > MAX_KANS) bad.push(`カンが 1 局 ${MAX_KANS} 回を超えた（${full.kans} 回）`);
   if (kanMelds !== full.kans) bad.push(`カンの数と槓子の数が合わない（カン ${full.kans}・槓子 ${kanMelds}）`);
   const lag = full.kans - full.rinshanTaken;
-  const mayLag = full.rinshanDue || (full.claim !== null && full.claim.kind !== 'discard') || full.phase === 'ended';
+  // 槍槓で局が終わると嶺上牌は引かれないまま（そのあと対局が終わっても同じ）
+  const mayLag = full.rinshanDue || (full.claim !== null && full.claim.kind !== 'discard') || full.phase === 'ended' || full.phase === 'gameover';
   if (lag < 0 || lag > 1 || (lag === 1 && !mayLag)) {
     bad.push(`嶺上牌の数がカンの数と合わない（嶺上 ${full.rinshanTaken}・カン ${full.kans}）`);
   }

@@ -4,13 +4,41 @@
 import { HIDDEN, SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
 import { furitenOf } from './furiten';
 import { callProblem, dealerByDice, kanProblem, kyushuOk, liveWallLeft, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
-import { doraIndicatorAt, uraIndicatorAt } from './dora';
+import { doraIndicatorPos, uraIndicatorPos } from './dora';
 import { waitKinds } from './agari';
 import { nextStep } from './game';
 import { createRng, shuffle } from './rng';
 import { isRed, kindOf, tileSetFor, type TileId } from './tiles';
 
 const HAND_SIZE = 13;
+
+/**
+ * 山の何番目の牌かを聞いて背番号を返すもの。一人用は山の並びを知っているので並びから引く（wallSource）。
+ * オンラインは山の並びを誰も知らない＝先に位置だけを集めて（positionsNeeded）、鍵を集めて開けてから渡す（段階5の3）
+ */
+export type TileSource = (pos: number) => TileId;
+
+export function wallSource(s: GameState): TileSource {
+  if (!s.wall) throw new Error('山の並びを知らない端末は進行役になれない');
+  const wall = s.wall;
+  return (pos) => wall[pos];
+}
+
+/** 出来事を作るのに、山のどの位置の牌が要るか（作ってみて、聞かれた位置を集める。牌は仮に 0 を返す） */
+export function positionsNeeded(make: (src: TileSource) => unknown): number[] {
+  const asked: number[] = [];
+  make((pos) => {
+    asked.push(pos);
+    return 0;
+  });
+  return asked;
+}
+
+/** 山の枚数（日本式は 136 枚） */
+export const wallSizeOf = (s: GameState): number => {
+  if (!s.rules) throw new Error('対局が始まっていない');
+  return tileSetFor(s.rules).length;
+};
 /** 王牌の枚数（日本式）。嶺上牌は王牌の頭 4 枚（dora.ts の山 0・1） */
 const DEAD_WALL = 14;
 
@@ -20,17 +48,21 @@ export function roundSeed(gameSeed: string, hand: number): string {
 }
 
 /** 配る順に山から取る。親から 4 枚ずつ 3 周、そのあと 1 枚ずつ 1 周（親の 14 枚目は最初のツモ）。
- *  1 回ずつを出来事にする＝どの時点でも「配った牌は山の先頭から順」が成り立つ */
-function dealChunks(wall: readonly TileId[], dealer: Seat): { seat: Seat; tiles: TileId[] }[] {
-  const chunks: { seat: Seat; tiles: TileId[] }[] = [];
+ *  1 回ずつを出来事にする＝どの時点でも「配った牌は山の先頭から順」が成り立つ。返すのは山の位置 */
+export function dealChunkPositions(dealer: Seat): { seat: Seat; positions: number[] }[] {
+  const chunks: { seat: Seat; positions: number[] }[] = [];
   let p = 0;
   for (const size of [4, 4, 4, 1]) {
     for (let i = 0; i < 4; i++) {
-      chunks.push({ seat: ((dealer + i) % 4) as Seat, tiles: wall.slice(p, p + size) });
+      chunks.push({ seat: ((dealer + i) % 4) as Seat, positions: Array.from({ length: size }, (_, k) => p + k) });
       p += size;
     }
   }
   return chunks;
+}
+
+function dealChunks(wall: readonly TileId[], dealer: Seat): { seat: Seat; tiles: TileId[] }[] {
+  return dealChunkPositions(dealer).map((c) => ({ seat: c.seat, tiles: c.positions.map((p) => wall[p]) }));
 }
 
 /** 局の始まりから配牌までの出来事。honba＝本場（2 局目からは局の進め方 nextStep が決めた値を渡す） */
@@ -60,7 +92,7 @@ export function startRound(state: GameState, gameSeed: string, roundIndex: numbe
   push([], { type: 'wallSeed', seed });
   for (const c of chunks) push([c.seat], { type: 'deal', seat: c.seat, tiles: c.tiles });
   // 配り終えたらドラ表示牌をめくる（日本式だけ）
-  if (state.rules.family === 'jp') push('all', { type: 'doraReveal', tile: doraIndicatorAt(wall, 0) });
+  if (state.rules.family === 'jp') push('all', { type: 'doraReveal', tile: wall[doraIndicatorPos(wall.length, 0)] });
   return out;
 }
 
@@ -233,11 +265,19 @@ const envelopesFrom = (state: GameState) => {
 };
 
 /** めくっていないカンドラを n 枚めくる出来事（王牌の決まった場所から順に） */
-function revealDora(full: GameState, n: number, at: (to: Visibility, ev: GameEvent) => Envelope): Envelope[] {
+function revealDora(full: GameState, n: number, at: (to: Visibility, ev: GameEvent) => Envelope, src: TileSource): Envelope[] {
   if (n <= 0) return [];
-  if (!full.wall) throw new Error('山の並びを知らない端末は進行役になれない');
-  const wall = full.wall;
-  return Array.from({ length: n }, (_, i) => at('all', { type: 'doraReveal', tile: doraIndicatorAt(wall, full.doraIndicators.length + i) }));
+  const size = wallSizeOf(full);
+  return Array.from({ length: n }, (_, i) => at('all', { type: 'doraReveal', tile: src(doraIndicatorPos(size, full.doraIndicators.length + i)) }));
+}
+
+/** ツモる位置（山が尽きていれば null）。全員に見える数だけで決まる */
+export function drawPosition(view: GameState): { pos: number; rinshan: boolean } | null {
+  const size = wallSizeOf(view);
+  if (view.rinshanDue) return { pos: size - DEAD_WALL + view.rinshanTaken, rinshan: true };
+  if (liveWallLeft(view) <= 0) return null;
+  // 山の頭から順に取る。引いた嶺上牌の数だけ、王牌が山の尻から補われている（その分は数えない）
+  return { pos: size - view.wallLeft - view.rinshanTaken, rinshan: false };
 }
 
 /**
@@ -245,24 +285,23 @@ function revealDora(full: GameState, n: number, at: (to: Visibility, ev: GameEve
  * カンのあとは嶺上牌を引く。その前に、めくる時機の来たカンドラをめくる
  * （すぐめくるカンの分と、前の明槓の分。最後の明槓の分はルールが split なら打牌のとき）
  */
-export function advance(full: GameState): Envelope[] {
+export function advance(full: GameState, src?: TileSource): Envelope[] {
   if (full.phase !== 'draw' && full.phase !== 'deal') throw new Error('ツモる時ではない');
-  if (!full.wall) throw new Error('山の並びを知らない端末は進行役になれない');
+  const tileAt: TileSource = src ?? wallSource(full);
   const at = envelopesFrom(full);
-  const wall = full.wall;
-  if (full.rinshanDue) {
-    const reveals = revealDora(full, full.pendingDora - (full.deferDora ? 1 : 0), at);
-    const tile = wall[wall.length - DEAD_WALL + full.rinshanTaken];
-    return [...reveals, at([full.turn], { type: 'draw', seat: full.turn, tile, rinshan: true })];
+  const d = drawPosition(full);
+  if (d === null) return [at('all', { type: 'exhaust' })];
+  if (d.rinshan) {
+    const reveals = revealDora(full, full.pendingDora - (full.deferDora ? 1 : 0), at, tileAt);
+    return [...reveals, at([full.turn], { type: 'draw', seat: full.turn, tile: tileAt(d.pos), rinshan: true })];
   }
-  if (liveWallLeft(full) <= 0) return [at('all', { type: 'exhaust' })];
-  // 山の頭から順に取る。引いた嶺上牌の数だけ、王牌が山の尻から補われている（その分は数えない）
-  const tile = wall[wall.length - full.wallLeft - full.rinshanTaken];
-  return [at([full.turn], { type: 'draw', seat: full.turn, tile })];
+  return [at([full.turn], { type: 'draw', seat: full.turn, tile: tileAt(d.pos) })];
 }
 
 /** 番の人が選んだことを出来事にする。選べないことなら例外 */
-export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
+export function act(full: GameState, seat: Seat, action: Action, src?: TileSource): Envelope[] {
+  // 山の牌が要るのは、ドラ・裏ドラをめくるときだけ（一人用は山の並びから引く）
+  const tileAt: TileSource = src ?? ((pos) => wallSource(full)(pos));
   if (full.phase === 'ended') {
     if (action.type !== 'yame' || !legalActions(full, seat).length) throw new Error('いまはできない');
     return [{ seq: full.nextSeq, to: 'all', ev: { type: 'yame', seat, stop: action.stop } }];
@@ -284,13 +323,12 @@ export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
     }
     if (action.type !== 'ron') throw new Error(`いまは返事しかできない（${action.type}）`);
     if (!canRon(full, seat)) throw new Error('ロンできない（アガリの形でない・役が無い・フリテン）');
-    if (!full.wall) throw new Error('山の並びを知らない端末は進行役になれない');
-    const wall = full.wall;
+    const size = wallSizeOf(full);
     // 槍槓で崩れたカンのカンドラ：ルールが「めくる」なら、ロンの前にめくる
     const v = full.rules?.family === 'jp' ? full.rules.values : null;
-    const reveals = full.claim.kind === 'kakan' && v?.chankanDora === 'yes' ? revealDora(full, full.pendingDora, at) : [];
+    const reveals = full.claim.kind === 'kakan' && v?.chankanDora === 'yes' ? revealDora(full, full.pendingDora, at, tileAt) : [];
     const shown = full.doraIndicators.length + reveals.length;
-    const ura = full.riichi[seat] === 'none' ? [] : Array.from({ length: shown }, (_, i) => uraIndicatorAt(wall, i));
+    const ura = full.riichi[seat] === 'none' ? [] : Array.from({ length: shown }, (_, i) => tileAt(uraIndicatorPos(size, i)));
     return [...reveals, at('all', { type: 'ron', seat, hand: full.hands[seat].slice(), ura })];
   }
   if (full.phase !== 'discard' || full.turn !== seat) throw new Error(`席 ${seat} の番ではない`);
@@ -305,12 +343,12 @@ export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
       if (full.rules?.family === 'jp' && full.rules.values.kyushuHow === 'force' && kyushuOk(full, seat)) throw new Error('九種九牌は必ず流すルール');
       if (full.riichi[seat] !== 'none' && action.tile !== full.drawn[seat]) throw new Error('リーチのあとはツモった牌しか切れない');
       // 打牌のときに、まだめくっていない明槓のカンドラをめくる（この打牌へのロンにも乗る）
-      return [at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat] }), ...revealDora(full, full.pendingDora, at)];
+      return [at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat] }), ...revealDora(full, full.pendingDora, at, tileAt)];
     case 'riichi':
       if (!riichiTiles(full, seat).includes(action.tile)) throw new Error(`その牌ではリーチできない（背番号 ${action.tile}）`);
       return [
         at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat], riichi: true }),
-        ...revealDora(full, full.pendingDora, at),
+        ...revealDora(full, full.pendingDora, at, tileAt),
       ];
     case 'kan': {
       if (action.kan === 'minkan') throw new Error('大明槓は切られた牌への返事');
@@ -322,9 +360,8 @@ export function act(full: GameState, seat: Seat, action: Action): Envelope[] {
       const winTile = full.drawn[seat];
       if (winTile === null || !scoreTsumo(full, seat, hand, winTile)) throw new Error('アガリの形になっていない（または役が無い）');
       // 裏ドラはリーチでアガったときだけ、ドラ表示牌の真下をめくる
-      if (!full.wall) throw new Error('山の並びを知らない端末は進行役になれない');
-      const wall = full.wall;
-      const ura = full.riichi[seat] === 'none' ? [] : full.doraIndicators.map((_, i) => uraIndicatorAt(wall, i));
+      const size = wallSizeOf(full);
+      const ura = full.riichi[seat] === 'none' ? [] : full.doraIndicators.map((_, i) => tileAt(uraIndicatorPos(size, i)));
       return [at('all', { type: 'tsumo', seat, hand: hand.slice(), winTile, ura })];
     }
     default:

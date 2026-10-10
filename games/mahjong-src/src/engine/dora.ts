@@ -13,16 +13,27 @@ const DEAD_WALL = 14;
 /** ドラ表示牌は最大 5 枚（最初の 1 枚＋カン 4 回） */
 export const MAX_INDICATORS = 5;
 
+/** n 枚目（0 から）のドラ表示牌が、山の並びの何番目か（wallSize＝山の枚数）。
+ *  オンラインでは山の並びを誰も知らないので、位置で指して鍵を集めてから開ける（段階5の3） */
+export function doraIndicatorPos(wallSize: number, n: number): number {
+  if (n < 0 || n >= MAX_INDICATORS) throw new Error(`ドラ表示牌は 5 枚まで（${n}）`);
+  return wallSize - DEAD_WALL + 4 + 2 * n;
+}
+
+/** n 枚目（0 から）の裏ドラ表示牌が、山の並びの何番目か（ドラ表示牌の真下） */
+export function uraIndicatorPos(wallSize: number, n: number): number {
+  if (n < 0 || n >= MAX_INDICATORS) throw new Error(`裏ドラ表示牌は 5 枚まで（${n}）`);
+  return wallSize - DEAD_WALL + 5 + 2 * n;
+}
+
 /** n 枚目（0 から）のドラ表示牌の背番号 */
 export function doraIndicatorAt(wall: readonly TileId[], n: number): TileId {
-  if (n < 0 || n >= MAX_INDICATORS) throw new Error(`ドラ表示牌は 5 枚まで（${n}）`);
-  return wall[wall.length - DEAD_WALL + 4 + 2 * n];
+  return wall[doraIndicatorPos(wall.length, n)];
 }
 
 /** n 枚目（0 から）の裏ドラ表示牌の背番号（ドラ表示牌の真下） */
 export function uraIndicatorAt(wall: readonly TileId[], n: number): TileId {
-  if (n < 0 || n >= MAX_INDICATORS) throw new Error(`裏ドラ表示牌は 5 枚まで（${n}）`);
-  return wall[wall.length - DEAD_WALL + 5 + 2 * n];
+  return wall[uraIndicatorPos(wall.length, n)];
 }
 
 /** 表示牌の次の牌＝ドラ。数牌は 9 の次が 1、風牌は東南西北東、三元牌は白發中白 */

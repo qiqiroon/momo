@@ -236,7 +236,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             dealt={fx.dealt}
             onQuit={onTitle}
             chat={<Chat t={t} you={t('you')} online={{ lines: ol.chat, myId: online.myId, onSend: (s) => online.sendChat(s) }} />}
-            handTop={<CallStrip t={t} table={tbl} />}
+            callPanel={<CallStrip t={t} table={tbl} />}
           />
         </main>
       ) : (

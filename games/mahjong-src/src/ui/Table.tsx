@@ -46,8 +46,8 @@ interface Props {
   onQuit?: () => void;
   /** チャット欄（横4列は手牌の下・正方形の卓は卓の横） */
   chat?: ReactNode;
-  /** 手牌のすぐ上に出すもの（オンラインの鳴ける牌の予告の帯） */
-  handTop?: ReactNode;
+  /** 鳴ける牌の予告の欄（オンライン）。横4列は手牌の下・正方形の卓は右の列のチャットの上（利用者指示 10-10＝手牌をずらさない） */
+  callPanel?: ReactNode;
 }
 
 /** 自分から見た位置（0＝自分・1＝下家・2＝対面・3＝上家） */
@@ -55,7 +55,7 @@ interface Props {
 /** 手牌の並べ替え：種類順、同じ種類なら背番号順 */
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kindOf(a) - kindOf(b) || a - b);
 
-export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, saveNote, dealt = null, onQuit, chat, handTop }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, saveNote, dealt = null, onQuit, chat, callPanel }: Props) {
   /** 配っている途中は手牌を先頭から決まった枚数だけ見せる */
   const dealing = <X,>(xs: readonly X[]): readonly X[] => (dealt === null ? xs : xs.slice(0, dealt));
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
@@ -135,7 +135,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
 
   // 狭い画面の自分の手牌の列の長さ（横幅いっぱいに収める）
   const narrowUnits = handRowUnits(view.hands[me].length, view.drawn[me] !== null, view.melds[me]);
-  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} melds={meldsOf(me)} dealt={dealt} hints={!replay && playing && dealt === null} top={handTop} />;
+  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} melds={meldsOf(me)} dealt={dealt} hints={!replay && playing && dealt === null} />;
 
   // ドラ表示牌（めくられた順）
   const indicators = view.doraIndicators.length > 0 && (
@@ -414,6 +414,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
           })}
         </div>
         {hand}
+        {callPanel}
         {chat}
         {result}
       </div>
@@ -478,7 +479,12 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         </div>
         {result}
       </div>
-      {chat}
+      {callPanel || chat ? (
+        <div className="side-col">
+          {callPanel}
+          {chat}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -564,7 +570,7 @@ function MeldView({ meld, seat, rules }: { meld: OpenMeld; seat: number; rules: 
 }
 
 /** 自分の手牌。マウスは 1 回押すと切る／指は 1 回目で浮かせ、2 回目で切る（押し間違いを防ぐ） */
-function MyHand({ view, legal, lang, onChoose, melds, dealt, hints, top }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; melds: ReactNode; dealt: number | null; hints: boolean; top?: ReactNode }) {
+function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; melds: ReactNode; dealt: number | null; hints: boolean }) {
   const [raised, setRaised] = useState<TileId | null>(null);
   // リーチを押したあと＝切る牌を選んでいるところ（もう一度押すとやめる）
   const [riichiPick, setRiichiPick] = useState(false);
@@ -609,7 +615,6 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints, top }: { vie
 
   return (
     <div className={`my-hand${myTurn ? ' my-turn' : ''}`}>
-      {top}
       <div className="hand-actions">
         {canTsumo && (
           <button type="button" className="btn-primary btn-tsumo" onClick={() => onChoose({ type: 'tsumo' })}>

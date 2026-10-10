@@ -192,9 +192,9 @@ describe('ご利用にあたって（同意画面）', () => {
   it('猫語のときも鳴き声にせず、猫語を選ぶ直前の言語で出す', () => {
     render(<App />);
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'en' } });
-    expect(screen.getByRole('dialog')).toHaveTextContent('Do not use it for gambling.');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Do not use this app for gambling');
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'cat' } });
-    expect(screen.getByRole('dialog')).toHaveTextContent('Do not use it for gambling.');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Do not use this app for gambling');
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'ja' } });
   });
 });

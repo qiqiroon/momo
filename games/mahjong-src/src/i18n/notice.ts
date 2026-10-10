@@ -1,5 +1,5 @@
 // 「ご利用にあたって」（同意画面＝2-A）と、そのリンク先「対局の公平性とルールの再現について」（2-B）の文面。
-// 正本は L:\momo\games\mahjong\docs\MOMO_Mahjong_免責と利用上の注意_案_v0.05.md（§2・§7）。文面を直すときは文書と一緒に直す。
+// 正本は L:\momo\games\mahjong\docs\MOMO_Mahjong_免責と利用上の注意_案_v0.06.md（§2・§7）。文面を直すときは文書と一緒に直す。
 // 意味が伝わらないと困る文なので猫語にしない（猫語のときは猫語を選ぶ直前の言語で出す）。
 
 import type { BaseLang } from './strings';
@@ -46,32 +46,25 @@ export interface NoticeTexts {
 
 const ja: NoticeTexts = {
   about: {
-    title: 'MOMO Mahjong をご利用になる前に',
+    title: 'ご利用の前に',
     sections: [
       {
-        heading: '1. 娯楽のためのゲームです・賭けに使わないでください',
+        heading: '1. 賭けに使わないでください',
         warn: true,
-        text: 'MOMO Mahjong は娯楽を目的とした麻雀ゲームです。金銭その他の財物を賭けて遊ぶためのものではありません。',
         items: [
-          '本アプリの点数・順位・成績に、金銭的な価値はありません。',
-          '本アプリを使って、金銭や換金できる物を賭けること、その勧誘・仲介・精算に使うことを禁止します。',
-          '本アプリには、賭け金の入力・精算・送金などの機能は一切ありません。運営者が賭け金の徴収・保管・配分・決済に関わることもありません。',
+          '娯楽のための麻雀ゲームです。点数や順位に、お金の価値はありません。',
+          'お金や換金できる物を賭けること、その誘い・仲介・精算に使うことは禁止です。このアプリに、賭け金をやり取りする機能はありません。',
         ],
       },
       {
-        heading: '2. 保証と責任について',
-        items: [
-          '本アプリは現状のまま提供され、ルールの正確さ・完全さ、動作、通信の安定を保証しません。',
-          'ルールとの不一致、計算の誤り、通信の切断、データの消失などを含め、本アプリの利用によって生じたいかなる損害についても、運営者は責任を負いません。',
-          'オンライン対戦の相手の言動について、運営者は責任を負いません。',
-          '詳しくは MOMO Works の利用規約（terms.html）をご覧ください。',
-        ],
+        heading: '2. 保証はありません',
+        items: ['ルールの正確さ・動作・通信は保証しません。このアプリの利用で生じた損害（対戦相手の言動を含む）について、運営者は責任を負いません。'],
       },
       {
-        heading: '3. 法令について',
-        text: 'お住まいの国・地域の法令は、ご自身の責任で守ってください。',
+        heading: '3. お住まいの国・地域の法令を守ってください。',
       },
     ],
+    foot: '詳しくは「対局の公平性とルールの再現について」と利用規約をご覧ください。',
   },
   fairness: {
     title: '対局の公平性とルールの再現について',
@@ -108,7 +101,7 @@ const ja: NoticeTexts = {
   },
   aboutLink: 'ご利用にあたって',
   fairnessLink: '対局の公平性とルールの再現について',
-  agree: '賭けに使わないこと、上の内容、リンク先の「対局の公平性とルールの再現について」に納得して遊ぶことに同意して始める',
+  agree: '同意して始める',
   scrollToAgree: '最後まで読むと、同意のボタンを押せます。',
   close: '閉じる',
   back: '戻る',
@@ -118,33 +111,25 @@ const ja: NoticeTexts = {
 
 const en: NoticeTexts = {
   about: {
-    title: 'Before You Play MOMO Mahjong',
+    title: 'Before You Play',
     sections: [
       {
-        heading: '1. This is a game for entertainment. Do not use it for gambling.',
+        heading: '1. Do not use this app for gambling',
         warn: true,
-        text: 'MOMO Mahjong is a mahjong game for entertainment only. It is not intended for playing for money or anything of value.',
         items: [
-          'Scores, rankings and records in this app have no monetary value.',
-          'Using this app to bet money or anything exchangeable for money, or to solicit, broker or settle such bets, is prohibited.',
-          'This app has no features for entering, settling or transferring stakes. The operator is never involved in collecting, holding, distributing or settling any stakes.',
+          'This is a mahjong game for entertainment. Points and rankings have no monetary value.',
+          'Betting money or anything exchangeable for money, or using this app to solicit, broker or settle such bets, is prohibited. This app has no function for exchanging stakes.',
         ],
       },
       {
-        heading: '2. Warranty and liability',
-        items: [
-          'This app is provided as is. We make no warranty as to the accuracy or completeness of the rules, operation, or stability of the connection.',
-          'The operator accepts no liability for any damage arising from the use of this app, including discrepancies with the rules, calculation errors, disconnections and loss of data.',
-          'The operator is not responsible for the conduct of opponents in online play.',
-          'For details, see the MOMO Works Terms of Use (terms.html).',
-        ],
+        heading: '2. No warranty',
+        items: ['We do not guarantee the accuracy of the rules, operation or connection. The operator accepts no liability for any damage arising from the use of this app (including the conduct of other players).'],
       },
       {
-        heading: '3. Laws',
-        text: 'Please comply with the laws of your country or region at your own responsibility.',
+        heading: '3. Follow the laws of your country or region.',
       },
     ],
-    foot: 'This is a translation for reference. If there is any discrepancy, the Japanese version shall prevail.',
+    foot: 'For details, see "Fairness of Play and Reproduction of the Rules" and the Terms of Use.',
   },
   fairness: {
     title: 'Fairness of Play and Reproduction of the Rules',
@@ -182,7 +167,7 @@ const en: NoticeTexts = {
   },
   aboutLink: 'Before You Play',
   fairnessLink: 'Fairness of Play and Reproduction of the Rules',
-  agree: 'I agree not to use this app for gambling, and to play with an understanding of the above and of "Fairness of Play and Reproduction of the Rules" — Start',
+  agree: 'Agree and start',
   scrollToAgree: 'Scroll to the end to enable the consent button.',
   close: 'Close',
   back: 'Back',
@@ -192,33 +177,25 @@ const en: NoticeTexts = {
 
 const zh: NoticeTexts = {
   about: {
-    title: '使用 MOMO Mahjong 之前',
+    title: '使用之前',
     sections: [
       {
-        heading: '1. 本游戏仅供娱乐，请勿用于赌博',
+        heading: '1. 请勿用于赌博',
         warn: true,
-        text: 'MOMO Mahjong 是以娱乐为目的的麻将游戏，并非用于以金钱或其他财物作赌注进行游戏。',
         items: [
-          '本应用中的分数、名次和成绩不具有任何金钱价值。',
-          '禁止利用本应用以金钱或可兑换为金钱的物品作赌注，以及进行赌博的招揽、中介或结算。',
-          '本应用没有任何输入赌注、结算或转账的功能。运营者也不参与任何赌注的收取、保管、分配或结算。',
+          '这是一款以娱乐为目的的麻将游戏。分数和名次没有任何金钱价值。',
+          '禁止以金钱或可兑换成金钱的物品下注，也禁止将本应用用于赌博的劝诱、中介或结算。本应用没有任何收付赌注的功能。',
         ],
       },
       {
-        heading: '2. 关于保证与责任',
-        items: [
-          '本应用按现状提供，不保证规则的准确性和完整性，也不保证运行及通信的稳定。',
-          '对于因使用本应用而产生的任何损失（包括与规则不一致、计算错误、通信中断、数据丢失等），运营者概不负责。',
-          '对于在线对局中对手的言行，运营者概不负责。',
-          '详情请参阅 MOMO Works 使用条款（terms.html）。',
-        ],
+        heading: '2. 不提供保证',
+        items: ['不保证规则的准确性、运行和通信。因使用本应用而产生的任何损害（包括对局对手的言行），运营者概不负责。'],
       },
       {
-        heading: '3. 关于法律法规',
-        text: '请自行负责遵守您所在国家或地区的法律法规。',
+        heading: '3. 请遵守您所在国家或地区的法律。',
       },
     ],
-    foot: '本译文仅供参考。如有差异，以日语版本为准。',
+    foot: '详情请参阅《对局的公平性与规则的再现》和使用条款。',
   },
   fairness: {
     title: '对局的公平性与规则的再现',
@@ -256,7 +233,7 @@ const zh: NoticeTexts = {
   },
   aboutLink: '使用须知',
   fairnessLink: '对局的公平性与规则的再现',
-  agree: '同意不将本应用用于赌博，并在理解上述内容及链接页面《对局的公平性与规则的再现》的前提下游玩——开始',
+  agree: '同意并开始',
   scrollToAgree: '阅读到最后后，即可按下同意按钮。',
   close: '关闭',
   back: '返回',

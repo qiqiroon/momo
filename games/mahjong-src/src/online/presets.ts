@@ -35,8 +35,7 @@ export interface Callable {
 }
 
 /** いまの手牌で、出たら鳴ける・ロンできる牌（リーチのあとはロンだけ。「鳴かない」ならロンだけ） */
-export function callables(view: GameState, seat: Seat, noCalls: boolean): Callable[] {
-  const hand = view.hands[seat];
+export function callables(view: GameState, seat: Seat, noCalls: boolean, hand: readonly number[] = view.hands[seat]): Callable[] {
   if (hand.length === 0 || hand.some((t) => t < 0)) return [];
   const count = new Map<KindId, number>();
   for (const t of hand) count.set(kindOf(t), (count.get(kindOf(t)) ?? 0) + 1);

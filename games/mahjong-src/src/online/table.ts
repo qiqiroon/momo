@@ -827,7 +827,12 @@ export class OnlineTable {
   /** いま鳴ける牌（自分の席・画面の予告の帯に並べる） */
   callables() {
     if (this.mySeat === null) return [];
-    return callables(this.view, this.mySeat, this.noCalls);
+    const v = this.view;
+    const me = this.mySeat;
+    // 自分の番（ツモったあと）は、ツモった牌を除いた手牌で並べる（切ったあと手が変われば作り直す）
+    const drawn = v.drawn[me];
+    const hand = drawn !== null && v.turn === me ? v.hands[me].filter((t) => t !== drawn) : v.hands[me];
+    return callables(v, me, this.noCalls, hand);
   }
 
   /** 画面から：「鳴かない」を切り替える（いま返事の番なら、見送るしかなくなったときにすぐ見送る） */

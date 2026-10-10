@@ -162,7 +162,7 @@ describe('自動対局の台', () => {
     expect(r.endings.unfinished).toBe(0);
     expect(r.endings.tsumo).toBeGreaterThan(0); // アガリの道が走ったことを見る
     expect(r.endings.exhaust).toBeGreaterThan(0);
-  });
+  }, 30_000); // 重い検査（オンラインの卓）と並んで走ると 5 秒を超えることがある（結果は種で決まる）
 
   it('同じ種なら同じ結果（失敗した局を種で再現できる）', () => {
     expect(playOne('again')).toEqual(playOne('again'));

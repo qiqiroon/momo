@@ -31,7 +31,8 @@ function deal(n = 4): { log: DealLog; lockers: Locker[] } {
 
 const finalDeck = (log: DealLog) => log.relocked[log.relocked.length - 1];
 
-describe('錠前で配る山', () => {
+// 計算が重いので、ほかの重い検査と並んで走っても間に合う長さにする
+describe('錠前で配る山', { timeout: 60_000 }, () => {
   it('全員の鍵がそろうと、どの位置も背番号に戻り、136 枚がちょうど 1 枚ずつある', () => {
     const { log, lockers } = deal();
     const wall = finalDeck(log).map((c, i) => dec(unlock(g, c, lockers.map((lk) => lk.perCard[i].d))));

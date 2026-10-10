@@ -136,7 +136,8 @@ const NOTES: Record<string, Tr> = {
   shiiaru: { en: '1 han: four calls and ron on a single wait (not on tsumo or with a concealed kan)', zh: '1番：四副露单骑荣和（自摸不成立・含暗杠不成立）' },
   uumen: { en: '2 han: uses characters, dots, bamboo, winds and dragons (also seven pairs)', zh: '2番：万・筒・索・风牌・三元牌齐全（七对子也成立）' },
   sanrenko: { en: '2 han: three triplets of consecutive numbers', zh: '2番：三副数字相连的刻子' },
-  isshoku3: { en: '3 han (2 open): three identical runs in one suit', zh: '3番（副露2番）：同花色同数字的顺子3副' },
+  isshoku3: { en: '3 han (2 open): three identical runs in one suit (not combined with iipeikou)', zh: '3番（副露2番）：同花色同数字的顺子3副（不与一杯口复合）' },
+  jinho: { en: 'As mangan, it does not add other yaku or dora (if other yaku score higher, that is used)', zh: '满贯时不与其他役・宝牌相加（按其他役计算更高时取其高）' },
   ipin: { en: '5 han (adds to other yaku and dora): last draw is 1-pin', zh: '5番（与其他役・宝牌相加）：海底摸到一筒' },
   chupin: { en: '5 han (adds to other yaku and dora): ron on the last discard 9-pin', zh: '5番（与其他役・宝牌相加）：河底荣和九筒' },
   daisharin: { en: 'Yakuman: closed, two each of 2–8 pin', zh: '役满：门前、2〜8筒各2张' },
@@ -144,8 +145,8 @@ const NOTES: Record<string, Tr> = {
   daisuurin: { en: 'Yakuman: closed, two each of 2–8 man', zh: '役满：门前、2〜8万各2张' },
   ishinoue: { en: 'Yakuman: double riichi and win on the last tile', zh: '役满：两立直后海底或河底和牌' },
   surenko: { en: 'Yakuman: four triplets of consecutive numbers', zh: '役满：四副数字相连的刻子' },
-  parenchan: { en: 'Yakuman: anyone wins 8 times in a row (draws don’t count; needs another yaku)', zh: '役满：任何人连续和牌8次（流局连庄不算・须另有役）' },
-  daichisei: { en: 'Double yakuman: seven pairs of all seven honors', zh: '双倍役满：七种字牌的七对子' },
+  parenchan: { en: 'Yakuman: anyone wins 8 times in a row (draws don’t count; only with another yaku that meets the minimum han)', zh: '役满：任何人连续和牌8次（流局连庄不算・须另有满足起和番数的役）' },
+  daichisei: { en: 'Double yakuman: seven pairs of all seven honors (not added to all honors)', zh: '双倍役满：七种字牌的七对子（不与字一色相加）' },
 };
 
 /** まとまりの名前 */

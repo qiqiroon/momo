@@ -99,7 +99,7 @@ export const JP_ITEMS: readonly RuleItem[] = [
   {"k":"kiriage","name":"切り上げ満貫（30符4翻・60符3翻）","opts":[["on","あり"],["off","なし"]],"v":["on","on","off","on","on","on","on","off","off","on","on"]},
   {"k":"kazoe","name":"数え役満（13翻以上）","opts":[["on","あり"],["off","なし"]],"v":["on","off","on","off","off","off","on","on","off","on","off"]},
   {"k":"renpu","name":"連風牌（場風かつ自風）の雀頭の符","opts":[["2","2符"],["4","4符"]],"v":["2","2","4",null,"2","2","2","2","2","2","2"]},
-  {"k":"jinho","name":"人和","opts":[["none","なし"],["mangan","満貫"],["yakuman","役満"]],"v":["none","none","none","none","none","none","none","none","none","mangan","mangan"]},
+  {"k":"jinho","name":"人和","note":"満貫のときは、ほかの役・ドラと足さない（ほかの役で数えたほうが高ければそちら）","opts":[["none","なし"],["mangan","満貫"],["yakuman","役満"]],"v":["none","none","none","none","none","none","none","none","none","mangan","mangan"]},
   {"k":"doubleYakuman","name":"ダブル役満（四暗刻単騎・国士十三面・純正九蓮・大四喜）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
   {"k":"tie","name":"同点のときの順位","opts":[["seat","起家に近い人が上"],["split","順位点を分け合う"]],"v":["seat","split","seat",null,"split","seat","split","split","split","split","split"]},
   {"k":"yakumanMix","name":"役満どうしの複合（2倍・3倍）","opts":[["on","あり"],["off","なし"]],"v":["on","on","on","on","on","off","on","on","off","on","off"]},
@@ -109,7 +109,7 @@ export const JP_ITEMS: readonly RuleItem[] = [
   {"k":"shiiaru","name":"十二落抬","note":"1翻・4つとも鳴いて裸単騎でロン（ツモは不成立・暗槓を含むと不成立）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
   {"k":"uumen","name":"五門斉","note":"2翻・萬・筒・索・風牌・三元牌を全部使う（七対子でも成立）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
   {"k":"sanrenko","name":"三連刻","note":"2翻・数が続く刻子が3つ","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
-  {"k":"isshoku3","name":"一色三順","note":"3翻（鳴くと2翻）・同じ色・同じ数の順子が3つ","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
+  {"k":"isshoku3","name":"一色三順","note":"3翻（鳴くと2翻）・同じ色・同じ数の順子が3つ（一盃口は重ねない）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
   {"k":"ipin","name":"一筒摸月","note":"5翻（ほかの役・ドラと足す）・海底のツモが一筒","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
   {"k":"chupin","name":"九筒撈魚","note":"5翻（ほかの役・ドラと足す）・河底の九筒でロン","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
   {"k":"daisharin","name":"大車輪","note":"役満・門前で2〜8の筒子を2枚ずつ","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
@@ -117,8 +117,8 @@ export const JP_ITEMS: readonly RuleItem[] = [
   {"k":"daisuurin","name":"大数隣","note":"役満・門前で2〜8の萬子を2枚ずつ","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
   {"k":"ishinoue","name":"石の上にも三年","note":"役満・ダブルリーチして海底か河底でアガる","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
   {"k":"surenko","name":"四連刻","note":"役満・数が続く刻子が4つ","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
-  {"k":"parenchan","name":"八連荘","note":"役満・誰でも8回続けてアガる（流局の連荘は数えない・9回目以降も・役には数えない＝ほかの役が要る）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
-  {"k":"daichisei","name":"大七星","note":"ダブル役満・字牌7種の七対子","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"],"dep":["doubleYakuman","on"]},
+  {"k":"parenchan","name":"八連荘","note":"役満・誰でも8回続けてアガる（流局の連荘は数えない・9回目以降も・役には数えない＝縛りを満たすほかの役があるときだけ役満）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"]},
+  {"k":"daichisei","name":"大七星","note":"ダブル役満・字牌7種の七対子（字一色とは足さない）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off","off","off","off","off","off","off","off","off"],"dep":["doubleYakuman","on"]},
 ];
 /** 条文なしを MOMO が補った値（2026-10-05 決定：書いていない仕組みは「なし」と読む） */
 export const SUPP: Record<string, Record<string, string>> = {

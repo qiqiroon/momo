@@ -68,8 +68,20 @@ export interface SyncData {
   hand: { no: number; shuffled: (string[] | null)[]; relocked: (string[] | null)[] } | null;
 }
 
-const hex = (b: bigint) => b.toString(16);
-const big = (s: string) => BigInt('0x' + s);
+// 鍵と山の数は base64 で送る（16進より約3割短い＝利用者 Q14=B・本番の実測で通信の約4割が山だった）
+const hex = (b: bigint): string => {
+  let h = b.toString(16);
+  if (h.length % 2) h = '0' + h;
+  let bin = '';
+  for (let i = 0; i < h.length; i += 2) bin += String.fromCharCode(parseInt(h.slice(i, i + 2), 16));
+  return btoa(bin);
+};
+const big = (s: string): bigint => {
+  const bin = atob(s);
+  let h = '';
+  for (let i = 0; i < bin.length; i++) h += bin.charCodeAt(i).toString(16).padStart(2, '0');
+  return BigInt('0x' + (h || '0'));
+};
 
 export interface WireLocker {
   g: [string, string];

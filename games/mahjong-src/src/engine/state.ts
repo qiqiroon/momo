@@ -45,6 +45,8 @@ export interface Claim {
   rons: RonWin[];
   /** チー・ポンの申し出 */
   calls: CallOffer[];
+  /** 切った人が嶺上牌を引いたあとの捨て牌か（槓振り） */
+  afterKan?: boolean;
 }
 
 /** 鳴いた面子と暗槓。tiles＝3 枚（カンは 4 枚。切られた牌を含む）／called＝鳴いた牌（暗槓は null）／from＝切った人（暗槓は本人）。
@@ -175,6 +177,8 @@ export interface GameState {
   yame: boolean | null;
   /** この対局で始めた局の数（山の種を局ごとに変えるため。連荘で局の番号が同じでも別の山になる） */
   handCount: number;
+  /** 続けてアガっている人と回数（八連荘。流局・途中流局では変わらない。局をまたぐ） */
+  winStreak: { seat: Seat; n: number } | null;
   /** 対局が終わった理由（終わるまで null） */
   gameOver: GameEndReason | null;
   result: RoundResult | null;
@@ -237,6 +241,7 @@ export const initialState = (): GameState => ({
   riichiStick: [false, false, false, false],
   pao: [null, null, null, null],
   settlement: null,
+  winStreak: null,
   yame: null,
   handCount: 0,
   gameOver: null,
@@ -418,7 +423,7 @@ export function apply(state: GameState, env: Envelope): GameState {
       // ほかの 3 人の返事を待つ（番は切った人のまま。全員見送ったら次の人へ）
       const replies: Claim['replies'] = [null, null, null, null];
       replies[ev.seat] = 'self';
-      const claim: Claim = { kind: 'discard', from: ev.seat, tile: ev.tile, replies, rons: [], calls: [] };
+      const claim: Claim = { kind: 'discard', from: ev.seat, tile: ev.tile, replies, rons: [], calls: [], afterKan: s.rinshanDraw };
       const after: GameState = { ...s, phase: 'claim', hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn, claim, rinshanDraw: false, kuikaeBan: [] };
       // 四家立直：ルールが「4 人目が宣言したとき」なら、宣言牌への返事を待たずに流局
       const v = s.rules?.family === 'jp' ? s.rules.values : null;
@@ -662,7 +667,10 @@ function settleClaim(s0: GameState): GameState {
 function finish(s: GameState, result: RoundResult, settlement: number[]): GameState {
   const scores = s.scores.map((p, i) => p + settlement[i]);
   const taken = result.type === 'tsumo' || result.type === 'ron' ? s.kyotaku : 0;
-  return { ...s, phase: 'ended', result, settlement, scores, kyotaku: s.kyotaku - taken };
+  // 続けてアガった回数：アガった人の中に続けている人がいれば +1、いなければ最初にアガった人から数え直す
+  const winners = result.type === 'tsumo' ? [result.seat] : result.type === 'ron' ? result.wins.map((w) => w.seat) : [];
+  const winStreak = winners.length === 0 ? s.winStreak : s.winStreak && winners.includes(s.winStreak.seat) ? { seat: s.winStreak.seat, n: s.winStreak.n + 1 } : { seat: winners[0], n: 1 };
+  return { ...s, phase: 'ended', result, settlement, scores, kyotaku: s.kyotaku - taken, winStreak };
 }
 
 /** リーチ棒を出す（持ち点から 1000 点を卓へ） */
@@ -1012,6 +1020,9 @@ export const seatWindOf = (s: GameState, seat: Seat): number => 27 + ((seat - s.
 /** 場風。東場の 4 局のあとが南場（局の進め方は段階4で決める） */
 export const roundWindOf = (s: GameState): number => 27 + (Math.floor(Math.max(0, s.roundIndex) / 4) % 4);
 
+/** このアガリで、同じ人が続けてアガった回数（このアガリを含む） */
+const streakOf = (s: GameState, seat: Seat) => (s.winStreak?.seat === seat ? s.winStreak.n : 0) + 1;
+
 /**
  * ツモアガリしたときの点数（ツモって切る前の局面で呼ぶ）。役が無ければ null。
  * 見える局面からでも全体の局面からでも同じ答えになるよう、手牌と ura は引数で受け取る。
@@ -1034,6 +1045,7 @@ export function scoreTsumo(s: GameState, seat: Seat, hand: readonly TileId[], wi
       ippatsu: s.ippatsu[seat],
       tenhou: seat === s.dealer && noDiscards,
       chiihou: seat !== s.dealer && s.discards[seat].length === 0 && !s.anyCall,
+      streak: streakOf(s, seat),
       rules: s.rules,
     },
     tiles: [...hand, ...meldTiles(s, seat)],
@@ -1066,7 +1078,12 @@ export function scoreRon(s: GameState, seat: Seat, hand: readonly TileId[], winT
       honba: s.honba,
       riichi: s.riichi[seat],
       ippatsu: s.ippatsu[seat] && (kind !== 'kakan' || v.ippatsuChankan === 'yes'),
-      // 人和（ルールの jinho）は段階3の途中で足す
+      // 人和：子が最初のツモの前（自分の河が空・鳴きが無い）にロン
+      jinho: seat !== s.dealer && s.discards[seat].length === 0 && !s.anyCall,
+      // 燕返し：切った人のリーチ宣言牌
+      tsubame: kind === 'discard' && s.claim !== null && s.riichi[s.claim.from] !== 'none' && s.riichiAt[s.claim.from] === s.discards[s.claim.from].length - 1,
+      kanburi: kind === 'discard' && !!s.claim?.afterKan,
+      streak: streakOf(s, seat),
       rules: s.rules,
     },
     tiles: [...tiles, ...meldTiles(s, seat)],

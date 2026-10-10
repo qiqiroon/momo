@@ -3,6 +3,7 @@
 // 手の読み方が何通りもあるときは、全部の読み方で点数を出して一番高いものを採る（同点なら翻・符の大きいほう）。
 // 符の数え方は変えられない決まり（ルール設定 v0.03 §4）。値で変わるのは：
 //   縛り（shibari）／切り上げ満貫（kiriage）／数え役満（kazoe）／連風牌の雀頭の符（renpu）／ドラの各項目（dora.ts）
+//   人和が満貫（jinho）＝ほかの役・ドラと足さない満貫を候補に足す／八連荘（parenchan）＝縛りを満たす手を役満にする（役には数えない）
 // 積み棒・供託は段階4で足す。
 
 import { countDora, type DoraCount } from './dora';
@@ -128,8 +129,22 @@ export function paymentOf(base: number, dealer: boolean, tsumo: boolean): { paym
 
 const windsOf = (ctx: WinContext) => ({ roundWind: ctx.roundWind, seatWind: ctx.seatWind });
 
-function scoreReading(input: WinInput, y: YakuResult, dora: DoraCount): ScoreResult | null {
+/** 八連荘：同じ人の 8 回目以降のアガリ（ルールで「あり」のとき） */
+const parenchanOn = (ctx: WinContext) => ctx.rules.family === 'jp' && ctx.rules.values.parenchan === 'on' && (ctx.streak ?? 0) >= 8;
+
+function scoreReading(input: WinInput, y0: YakuResult, dora: DoraCount): ScoreResult | null {
   const { ctx } = input;
+  let y = y0;
+  if (parenchanOn(ctx)) {
+    // 八連荘は役には数えない：役満があれば役満に足し、無ければ縛りを満たす手だけを役満にする
+    const hit = { id: 'parenchan' as const, han: 0, yakuman: 1 };
+    if (y.yakuman > 0) {
+      const mix = ctx.rules.family === 'jp' && ctx.rules.values.yakumanMix === 'on';
+      y = mix ? { ...y, yaku: [...y.yaku, hit], yakuman: y.yakuman + 1 } : y;
+    } else if (y.han >= minHan(ctx.rules, ctx.honba ?? 0)) {
+      y = { ...y, yaku: [hit], han: 0, yakuman: 1 };
+    }
+  }
   if (y.yakuman > 0) {
     const base = 8000 * y.yakuman;
     return { reading: y.reading, yaku: y.yaku, dora: { dora: 0, aka: 0, ura: 0 }, han: 0, fu: 0, yakuman: y.yakuman, limit: 'yakuman', base, ...paymentOf(base, input.dealer, ctx.tsumo), winds: windsOf(ctx) };
@@ -145,9 +160,15 @@ function scoreReading(input: WinInput, y: YakuResult, dora: DoraCount): ScoreRes
 /** アガリの点数。役が無い（縛りに届かない）・アガリの形でないなら null */
 export function scoreWin(input: WinInput): ScoreResult | null {
   const dora = countDora(input.tiles, input.indicators, input.ura, input.ctx.rules);
+  const all = judgeAll(input.ctx);
+  const candidates: (ScoreResult | null)[] = all.map((y) => scoreReading(input, y, dora));
+  // 人和が満貫：ほかの役・ドラと足さない満貫（ほかの読み方のほうが高ければそちら）
+  const { ctx } = input;
+  if (ctx.jinho && ctx.rules.family === 'jp' && ctx.rules.values.jinho === 'mangan' && all.length > 0) {
+    candidates.push({ reading: all[0].reading, yaku: [{ id: 'jinho', han: 5, yakuman: 0 }], dora: { dora: 0, aka: 0, ura: 0 }, han: 5, fu: 0, yakuman: 0, limit: 'mangan', base: 2000, ...paymentOf(2000, input.dealer, ctx.tsumo), winds: windsOf(ctx) });
+  }
   let best: ScoreResult | null = null;
-  for (const y of judgeAll(input.ctx)) {
-    const r = scoreReading(input, y, dora);
+  for (const r of candidates) {
     if (!r) continue;
     if (!best || r.total > best.total || (r.total === best.total && (r.han > best.han || (r.han === best.han && r.fu > best.fu)))) best = r;
   }

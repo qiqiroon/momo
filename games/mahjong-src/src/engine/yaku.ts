@@ -5,7 +5,8 @@
 // ここの `bestYaku` は「役満の数 → 翻」の順で選ぶ仮の選び方。
 //
 // 役の顔ぶれは変えられない決まり（ルール設定 v0.03 §4「日本式の変えられない決まり」）。
-// 値で変わるのは：喰いタン／ダブル役満／役満どうしの複合。人和（ロンだけ）とローカル役は段階3以降。
+// 値で変わるのは：喰いタン／ダブル役満／役満どうしの複合／人和（役満のとき。満貫のときは点数の側）／ローカル役 15 個（段階6の6a-3）。
+// 八連荘は「役には数えない」ので点数の側で足す（縛りを満たす役があるときだけ役満にする）。
 
 import { isSevenPairs, isThirteenOrphans, TERMINAL_HONOR_KINDS } from './agari';
 import type { Rules } from './rules';
@@ -41,6 +42,14 @@ export interface WinContext {
   honba?: number;
   /** 子の最初のツモでアガった（それまでに鳴きが無い） */
   chiihou?: boolean;
+  /** 子が最初のツモの前にロンした（それまでに鳴きが無い）。人和 */
+  jinho?: boolean;
+  /** ほかの人のリーチ宣言牌でロンした。燕返し */
+  tsubame?: boolean;
+  /** カンした人が嶺上牌を引いたあとの捨て牌でロンした。槓振り */
+  kanburi?: boolean;
+  /** 同じ人が続けてアガった回数（このアガリを含む）。八連荘は 8 以上 */
+  streak?: number;
   rules: Rules;
 }
 
@@ -53,7 +62,11 @@ export type YakuId =
   | 'ryanpeikou' | 'honitsu' | 'junchan'
   | 'chinitsu'
   | 'tenhou' | 'chiihou' | 'kokushi' | 'suuankou' | 'daisangen' | 'tsuuiisou' | 'ryuuiisou' | 'chinroutou'
-  | 'shousuushii' | 'daisuushii' | 'suukantsu' | 'chuuren';
+  | 'shousuushii' | 'daisuushii' | 'suukantsu' | 'chuuren'
+  | 'jinho'
+  // ローカル役（ルールで「あり」にしたものだけ）
+  | 'tsubame' | 'kanburi' | 'shiiaru' | 'uumen' | 'sanrenko' | 'isshoku3' | 'ipin' | 'chupin'
+  | 'daisharin' | 'daichikurin' | 'daisuurin' | 'ishinoue' | 'surenko' | 'parenchan' | 'daichisei';
 
 /** 成り立った役。han＝翻（役満のときは 0）。yakuman＝役満の倍数（ふつうの役は 0） */
 export interface YakuHit {
@@ -89,6 +102,10 @@ const GREEN: ReadonlySet<KindId> = new Set([19, 20, 21, 23, 25, 32]);
 const isTerminal = (k: KindId) => isSuit(k) && (k % 9 === 0 || k % 9 === 8);
 const isTermOrHonor = (k: KindId) => isTerminal(k) || isHonor(k);
 const suitOf = (k: KindId) => Math.floor(k / 9);
+
+/** 刻子・槓子の種類に、同じ色で数が続くものが n 個あるか（三連刻・四連刻） */
+const hasRun = (triKinds: ReadonlySet<KindId>, n: number) =>
+  [...triKinds].some((k) => isSuit(k) && k % 9 <= 9 - n && Array.from({ length: n }, (_, i) => k + i).every((x) => triKinds.has(x)));
 
 /** 1 色（または字牌）の範囲を、面子だけに分ける読み方を全部返す */
 function splitMelds(c: number[], from: KindId, to: KindId): { type: 'seq' | 'tri'; first: KindId }[][] {
@@ -192,17 +209,31 @@ function judgeReading(ctx: WinContext, r: HandReading): YakuResult {
     if (han > 0) hits.push({ id, han, yakuman: 0 });
   };
   const yakuman = (id: YakuId, times = 1) => hits.push({ id, han: 0, yakuman: times });
+  /** ローカル役がルールで「あり」か */
+  const local = (k: 'tsubame' | 'kanburi' | 'shiiaru' | 'uumen' | 'sanrenko' | 'isshoku3' | 'ipin' | 'chupin' | 'daisharin' | 'daichikurin' | 'daisuurin' | 'ishinoue' | 'surenko' | 'daichisei') =>
+    v?.[k] === 'on';
+  const lastTsumo = !!ctx.haitei && ctx.tsumo && !ctx.rinshan;
+  const lastRon = !!ctx.houtei && !ctx.tsumo;
 
   // ── 役満 ──
   if (ctx.tenhou) yakuman('tenhou');
   if (ctx.chiihou) yakuman('chiihou');
+  if (ctx.jinho && v?.jinho === 'yakuman') yakuman('jinho');
+  if (local('ishinoue') && ctx.riichi === 'double' && (lastTsumo || lastRon)) yakuman('ishinoue');
+  // 大車輪・大竹林・大数隣：門前で 2〜8 を 2 枚ずつ（七対子とも二盃口とも読める）
+  const wheels: [YakuId & ('daisharin' | 'daichikurin' | 'daisuurin'), number][] = [['daisuurin', 0], ['daisharin', 9], ['daichikurin', 18]];
+  for (const [id, base] of wheels) {
+    if (local(id) && menzen && used.every((k) => k > base && k < base + 8) && [1, 2, 3, 4, 5, 6, 7].every((i) => all[base + i] === 2)) yakuman(id);
+  }
   if (r.form === 'kokushi') {
     const before = ctx.concealed.slice(0, 34);
     before[ctx.winTile]--;
     const thirteenWait = TERMINAL_HONOR_KINDS.every((k) => before[k] === 1);
     yakuman('kokushi', thirteenWait && doubleOn ? 2 : 1);
   }
-  if (used.every(isHonor)) yakuman('tsuuiisou');
+  // 大七星：字牌 7 種の七対子（ダブル役満。字一色の代わりに数える）
+  if (r.form === 'chiitoitsu' && local('daichisei') && doubleOn && used.length === 7 && used.every(isHonor)) yakuman('daichisei', 2);
+  else if (used.every(isHonor)) yakuman('tsuuiisou');
   if (used.every((k) => GREEN.has(k))) yakuman('ryuuiisou');
   if (used.every(isTerminal)) yakuman('chinroutou');
   if (r.form === 'standard') {
@@ -216,6 +247,7 @@ function judgeReading(ctx: WinContext, r: HandReading): YakuResult {
     if (windTris === 4) yakuman('daisuushii', doubleOn ? 2 : 1);
     else if (windTris === 3 && WINDS.includes(r.pair)) yakuman('shousuushii');
     if (kans === 4) yakuman('suukantsu');
+    if (local('surenko') && hasRun(triKinds, 4)) yakuman('surenko');
     // 九蓮宝燈：門前の清一色で 1112345678999＋1 枚
     const s = suitOf(used[0]);
     if (menzen && used.every((k) => isSuit(k) && suitOf(k) === s)) {
@@ -248,6 +280,11 @@ function judgeReading(ctx: WinContext, r: HandReading): YakuResult {
   if (ctx.chankan) yaku('chankan', 1);
   if (ctx.haitei && ctx.tsumo && !ctx.rinshan) yaku('haitei', 1);
   if (ctx.houtei && !ctx.tsumo) yaku('houtei', 1);
+  if (local('tsubame') && ctx.tsubame && !ctx.tsumo) yaku('tsubame', 1);
+  if (local('kanburi') && ctx.kanburi && !ctx.tsumo) yaku('kanburi', 1);
+  // 一筒摸月・九筒撈魚：5 翻の役として、ほかの役・ドラと足す
+  if (local('ipin') && lastTsumo && ctx.winTile === 9) yaku('ipin', 5);
+  if (local('chupin') && lastRon && ctx.winTile === 17) yaku('chupin', 5);
 
   // ── 牌の種類だけで決まる役 ──
   if (used.every((k) => !isTermOrHonor(k))) yaku('tanyao', 1, v?.kuitan === 'on' ? 1 : 0);
@@ -256,6 +293,8 @@ function judgeReading(ctx: WinContext, r: HandReading): YakuResult {
   if (suits.size === 1 && !hasHonor) yaku('chinitsu', 6, 5);
   else if (suits.size === 1 && hasHonor) yaku('honitsu', 3, 2);
   if (used.every(isTermOrHonor) && hasHonor && used.some(isTerminal)) yaku('honroutou', 2);
+  // 五門斉：萬・筒・索・風牌・三元牌を全部使う（鳴いてもよい・七対子でも）
+  if (local('uumen') && suits.size === 3 && used.some((k) => WINDS.includes(k)) && used.some((k) => DRAGONS.includes(k))) yaku('uumen', 2);
 
   if (r.form === 'chiitoitsu') {
     yaku('chiitoitsu', 2, 0);
@@ -267,13 +306,15 @@ function judgeReading(ctx: WinContext, r: HandReading): YakuResult {
 
     if (menzen && seqs.length === 4 && !valuePair && r.wait === 'ryanmen') yaku('pinfu', 1, 0);
 
-    // 一盃口・二盃口（門前だけ）
+    // 一色三順（同じ順子が 3 つ。一盃口とは重ねない）・一盃口・二盃口（門前だけ）
+    const seqCount = new Map<KindId, number>();
+    for (const g of seqs) seqCount.set(g.first, (seqCount.get(g.first) ?? 0) + 1);
+    const triple = local('isshoku3') && [...seqCount.values()].includes(3);
+    if (triple) yaku('isshoku3', 3, 2);
     if (menzen) {
-      const seqCount = new Map<KindId, number>();
-      for (const g of seqs) seqCount.set(g.first, (seqCount.get(g.first) ?? 0) + 1);
       const peiko = [...seqCount.values()].reduce((a, n) => a + Math.floor(n / 2), 0);
       if (peiko === 2) yaku('ryanpeikou', 3, 0);
-      else if (peiko === 1) yaku('iipeikou', 1, 0);
+      else if (peiko === 1 && !triple) yaku('iipeikou', 1, 0);
     }
 
     // 役牌（刻子・槓子）
@@ -300,6 +341,9 @@ function judgeReading(ctx: WinContext, r: HandReading): YakuResult {
     if (tris.filter((g) => !g.open).length === 3) yaku('sanankou', 2);
     if (ctx.melds.filter((m) => m.type === 'kan').length === 3) yaku('sankantsu', 2);
     if (DRAGONS.filter((k) => triKinds.has(k)).length === 2 && DRAGONS.includes(r.pair)) yaku('shousangen', 2);
+    if (local('sanrenko') && hasRun(triKinds, 3)) yaku('sanrenko', 2);
+    // 十二落抬：4 つとも鳴いて（暗槓を含まない）裸単騎でロン
+    if (local('shiiaru') && !ctx.tsumo && ctx.melds.length === 4 && ctx.melds.every((m) => m.open)) yaku('shiiaru', 1);
   }
 
   return { reading: r, yaku: hits, han: hits.reduce((a, b) => a + b.han, 0), yakuman: 0 };

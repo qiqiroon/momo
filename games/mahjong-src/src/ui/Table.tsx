@@ -510,6 +510,8 @@ function ScoreView({ score, lang }: { score: ScoreResult; lang: Lang }) {
       ? yakumanName(score.yakuman)
       : score.limit === 'none'
         ? t('hanFu', { han: score.han, fu: score.fu })
+        : score.fu === 0
+          ? t(`limit_${score.limit}` as MessageKey)
         : `${t('hanFu', { han: score.han, fu: score.fu })}　${t(`limit_${score.limit}` as MessageKey)}`;
   const p = score.payment;
   const pay =

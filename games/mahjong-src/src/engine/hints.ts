@@ -20,7 +20,7 @@ export interface YakuHint {
 }
 
 /** 牌でなく場面で付く役（どの牌で待っても同じなので手がかりにならない） */
-const SITUATIONAL: ReadonlySet<YakuId> = new Set(['riichi', 'doubleRiichi', 'ippatsu', 'menzenTsumo', 'haitei', 'houtei', 'rinshan', 'chankan', 'tenhou', 'chiihou']);
+const SITUATIONAL: ReadonlySet<YakuId> = new Set(['riichi', 'doubleRiichi', 'ippatsu', 'menzenTsumo', 'haitei', 'houtei', 'rinshan', 'chankan', 'tenhou', 'chiihou', 'jinho', 'tsubame', 'kanburi', 'ipin', 'chupin', 'ishinoue', 'parenchan']);
 
 const DRAGON_YAKU: Record<number, YakuId> = { 31: 'haku', 32: 'hatsu', 33: 'chun' };
 

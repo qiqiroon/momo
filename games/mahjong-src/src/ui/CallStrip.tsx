@@ -23,11 +23,14 @@ export function CallStrip({ t, table }: { t: T; table: OnlineTable }) {
   if (!['draw', 'discard', 'claim'].includes(v.phase) || (v.phase === 'discard' && v.turn === me)) return null;
   const list = table.callables();
   if (list.length === 0) return null;
-  const word = (p: RonPick | PonPick | ChiPick | undefined, yes: MessageKey): string =>
-    p === undefined || p === 'ask' ? t('psAsk') : p === 'no' ? t('psNo') : p === 'kan' ? t('kan') : p === 'pon' ? t('pon') : t(yes);
+  /** 選んだことの印：？＝その場で聞く／○＝鳴く（ポン・カンはその字）／×＝見送る */
+  const mark = (p: RonPick | PonPick | ChiPick | undefined): string =>
+    p === undefined || p === 'ask' ? '？' : p === 'no' ? '×' : p === 'kan' ? t('psKanShort') : p === 'pon' ? t('psPonShort') : '○';
+  const state = (p: RonPick | PonPick | ChiPick | undefined) => (p === undefined || p === 'ask' ? 'ask' : p === 'no' ? 'no' : 'yes');
   return (
     <div className="call-strip" aria-label={t('psTitle')}>
       <span className="call-strip-title">{t('psTitle')}</span>
+      <span className="call-strip-legend">{t('psLegend')}</span>
       {list.map((c) => {
         const p = table.presets.get(c.kind) ?? {};
         const set = (next: typeof p) => table.setPreset(c.kind, { ...p, ...next });
@@ -35,19 +38,22 @@ export function CallStrip({ t, table }: { t: T; table: OnlineTable }) {
           <span key={c.kind} className="ps-tile">
             <Tile id={idOf(c.kind)} rules={v.rules} className="mini" />
             {c.ron && (
-              <button type="button" className={`ps-chip ps-${p.ron ?? 'ask'}`} onClick={() => set({ ron: nextRon(p.ron) })}>
-                {t('ron')}：{word(p.ron, 'ron')}
+              <button type="button" className={`ps-chip ps-${state(p.ron)}`} title={t('ron')} onClick={() => set({ ron: nextRon(p.ron) })}>
+                {t('psRonShort')}
+                {mark(p.ron)}
               </button>
             )}
             {c.pon && (
-              <button type="button" className={`ps-chip ps-${p.pon === 'pon' || p.pon === 'kan' ? 'yes' : (p.pon ?? 'ask')}`} onClick={() => set({ pon: nextPon(p.pon, c.kan) })}>
-                {t(c.kan ? 'psPonKan' : 'pon')}：{word(p.pon, 'pon')}
+              <button type="button" className={`ps-chip ps-${state(p.pon)}`} title={t(c.kan ? 'psPonKan' : 'pon')} onClick={() => set({ pon: nextPon(p.pon, c.kan) })}>
+                {t(c.kan ? 'psPonKanShort' : 'psPonShort')}
+                {p.pon === 'pon' || p.pon === 'kan' ? '' : mark(p.pon)}
               </button>
             )}
             {c.chi.length > 0 && (
               <button
                 type="button"
-                className={`ps-chip ps-${typeof p.chi === 'object' ? 'yes' : (p.chi ?? 'ask')}`}
+                className={`ps-chip ps-${state(p.chi)}`}
+                title={t('chi')}
                 onClick={() => {
                   if (c.chi.length > 1) return setPicking(picking === c.kind ? null : c.kind);
                   // 組み合わせが 1 通り：聞く → 鳴く → 見送る
@@ -55,8 +61,14 @@ export function CallStrip({ t, table }: { t: T; table: OnlineTable }) {
                   set({ chi: cur === undefined || cur === 'ask' ? { with: c.chi[0] } : typeof cur === 'object' ? 'no' : 'ask' });
                 }}
               >
-                {t('chi')}
-                <small>{t('psChiOnly')}</small>：{typeof p.chi === 'object' ? t('psCall') : word(p.chi, 'chi')}
+                {t('psChiShort')}
+                {mark(p.chi)}
+                {c.chi.length > 1 && typeof p.chi === 'object' && (
+                  <span className="ps-with">
+                    <Tile id={idOf(p.chi.with[0])} rules={v.rules} className="mini" />
+                    <Tile id={idOf(p.chi.with[1])} rules={v.rules} className="mini" />
+                  </span>
+                )}
               </button>
             )}
             {picking === c.kind && (

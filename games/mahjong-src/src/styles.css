@@ -2217,25 +2217,40 @@ body.in-game .site-header .subtitle {
   margin-bottom: 4px;
 }
 
-/* 鳴ける牌の予告の帯（手牌のすぐ上・細く） */
+/* 鳴ける牌の予告の帯（手牌のすぐ上・細く 1 行。入りきらなければ横に送る） */
 .call-strip {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 4px 10px;
+  gap: 8px;
   font-size: 11px;
+  line-height: 1.2;
   padding: 2px 0 4px;
+  overflow-x: auto;
+  white-space: nowrap;
+  max-width: 100%;
+  scrollbar-width: thin;
 }
 
 .call-strip-title {
   font-weight: 700;
 }
 
+.call-strip-legend {
+  font-size: 10px;
+}
+
+.call-strip .tile.mini {
+  width: 16px;
+  height: auto;
+  flex: 0 0 auto;
+}
+
 .ps-tile {
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 3px;
+  gap: 2px;
+  flex: 0 0 auto;
 }
 
 .ps-chip {
@@ -2244,30 +2259,28 @@ body.in-game .site-header .subtitle {
   color: var(--text);
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  padding: 2px 6px;
+  border-radius: 5px;
+  padding: 1px 4px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
 }
 
-.ps-chip small {
-  font-size: 10px;
-}
-
-/* 鳴く・ロンと決めた＝オレンジの枠／見送ると決めた＝取り消し線 */
+/* 鳴く・ロンと決めた＝オレンジの枠 */
 .ps-chip.ps-yes {
   border-color: var(--orange-mid);
   background: var(--bg-selected);
 }
 
-.ps-chip.ps-no {
-  text-decoration: line-through;
+.ps-with {
+  display: inline-flex;
+  gap: 1px;
+  margin-left: 2px;
 }
 
 .ps-pick {
   display: inline-flex;
-  flex-wrap: wrap;
   gap: 3px;
+  flex: 0 0 auto;
 }

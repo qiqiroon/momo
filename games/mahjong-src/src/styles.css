@@ -2229,6 +2229,10 @@ body.in-game .site-header .subtitle {
 
 .lanes-wrap .call-panel {
   margin: 6px 4px 0;
+  /* 高さを決めておく＝鳴ける牌の数で欄の高さが変わっても、手牌の位置は動かない（あふれたら欄の中で送る） */
+  height: 100px;
+  overflow-y: auto;
+  flex: 0 0 auto;
 }
 
 .call-panel h4 {

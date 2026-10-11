@@ -7,6 +7,7 @@
 // 中国式のセットは段階9まで押しても変わらない（並べ方は見本どおり）。
 
 import { useState } from 'react';
+import { encodeRuleLink } from '../engine/ruleSets';
 import { JP_FIXED, JP_ITEMS, TIERS, type RuleItem } from '../engine/ruleTable';
 import { JP_RULE_ITEMS, JP_SETS, blockedBy, familyOf, generalChoice, isSupplied, labelOf, presetValue, rulesOfSet, type RuleChoice, type SetId } from '../engine/ruleSets';
 import type { JpRuleKey } from '../engine/rules';
@@ -62,7 +63,41 @@ function groups(): { name: string; fold: boolean; members: typeof JP_RULE_ITEMS 
 const isDetail = (k: JpRuleKey) => new Set(JP_SETS.map((s) => presetValue(s, k))).size === 1;
 
 /** readOnly＝見るだけ（オンラインのゲスト・始まったあと）：選んだ値だけを文字で出す。まとまりは開いて見られる */
-export function RuleSettings({ t, lang, choice, onChange, readOnly = false }: { t: T; lang: BaseLang; choice: RuleChoice; onChange?: (c: RuleChoice) => void; readOnly?: boolean }) {
+/** マイルールのリンク（いま開いているページの住所＋#rules=…） */
+export function ruleLinkUrl(c: RuleChoice): string {
+  return `${location.origin}${location.pathname}#rules=${encodeRuleLink(c)}`;
+}
+
+/** 「このルールのリンクをコピー」。コピーできない端末では、住所を選べる欄に出す */
+function ShareLink({ t, choice }: { t: T; choice: RuleChoice }) {
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const url = ruleLinkUrl(choice);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setState('copied');
+    } catch {
+      setState('failed');
+    }
+  };
+  return (
+    <div className="rule-share">
+      <button type="button" className="btn-secondary" onClick={() => void copy()}>
+        {t('rsCopyLink')}
+      </button>
+      {state === 'copied' && <span className="rule-share-note">{t('rsCopied')}</span>}
+      {state === 'failed' && (
+        <>
+          <span className="rule-share-note">{t('rsCopyFail')}</span>
+          <input className="rule-share-url" readOnly value={url} onFocus={(e) => e.currentTarget.select()} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** share＝「このルールのリンクをコピー」を出す（CPU と対局の設定・ホストの待合） */
+export function RuleSettings({ t, lang, choice, onChange, readOnly = false, share = false }: { t: T; lang: BaseLang; choice: RuleChoice; onChange?: (c: RuleChoice) => void; readOnly?: boolean; share?: boolean }) {
   /** 開いているまとまり（最初は全部畳む） */
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const label = labelOf(choice.values, choice.base);
@@ -145,6 +180,7 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false }: { 
       </div>
       )}
       {!readOnly && label === 'custom' && <p className="cur">{t('rsChangedFrom', { set: t(`set_${choice.base}` as MessageKey) })}</p>}
+      {share && <ShareLink t={t} choice={choice} />}
       <div className="indiv-head">{t(readOnly ? 'rsReadOnlyHead' : 'rsIndivHead')}</div>
       <div className="rule-rows">
         {groups().map((g) => {

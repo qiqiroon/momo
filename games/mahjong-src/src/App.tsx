@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Envelope } from './engine/events';
 import { HUMAN, useTable } from './game/useTable';
-import { labelOf } from './engine/ruleSets';
-import { loadRuleChoice } from './ui/RuleSettings';
+import { decodeRuleLink, labelOf, type RuleChoice } from './engine/ruleSets';
+import { loadRuleChoice, saveRuleChoice } from './ui/RuleSettings';
 import { SeatContext, type SeatInfo } from './ui/seatContext';
 import { buildKifu, kifuFileName, parseKifu, type Kifu, type KifuSource } from './kifu/kifu';
 import { downloadText, listDriveKifu, loadLastGame, readDriveFile, saveToDrive } from './kifu/store';
-import { CpuSetup, ModeRow, ReplayHub, SiteFooter } from './ui/Menu';
+import { CpuSetup, ModeRow, ReplayHub, RuleLinkScreen, SiteFooter } from './ui/Menu';
 import { useGameEffects } from './audio/useGameEffects';
 import { armAudioAsk, finishAudioAsk, rearmAudioAsk } from './audio/firstGesture';
 import { bindVisibility } from './audio/visibility';
@@ -32,6 +32,12 @@ const GEAR =
 /** オンライン対局（部屋の一覧と待合）。サーバーにつなぐのはオンライン対局の画面に入ったときだけ */
 const online = new OnlineSession(matchmakingTransport);
 
+/** ページの住所の #rules=… を読む（無ければ null） */
+function readRuleLink(): { choice: RuleChoice | null } | null {
+  const m = /^#rules=(.+)$/.exec(location.hash);
+  return m ? { choice: decodeRuleLink(decodeURIComponent(m[1])) } : null;
+}
+
 export function App({ startConsented = false }: { startConsented?: boolean } = {}) {
   const [lang, setLang] = useState(initLang);
   const [mode, setMode] = useState<LangMode>(currentMode);
@@ -46,7 +52,27 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   const [note, setNote] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   /** トップ側の画面：モード選択／CPU と対局（ルールを選ぶ）／オンライン対局／対局の再生 */
-  const [screen, setScreen] = useState<'top' | 'cpu' | 'online' | 'replay'>('top');
+  /** リンクで届いたルール（#rules=…。読めなければ choice が null）。同意のあとに見せる */
+  const [linkRule, setLinkRule] = useState<{ choice: RuleChoice | null } | null>(readRuleLink);
+  const [screen, setScreen] = useState<'top' | 'cpu' | 'online' | 'replay' | 'rulelink'>(() => (readRuleLink() ? 'rulelink' : 'top'));
+  // 開いたままのページにリンクを貼り直したとき（# だけ変わる）も同じ画面へ
+  useEffect(() => {
+    const onHash = () => {
+      const r = readRuleLink();
+      if (!r) return;
+      setLinkRule(r);
+      setScreen('rulelink');
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  /** リンクの画面を閉じる（# を消して、開き直しても出ないようにする）。use＝控えに入れるルール */
+  const closeRuleLink = (next: 'top' | 'cpu' | 'online', use?: RuleChoice) => {
+    if (use) saveRuleChoice(use);
+    history.replaceState(null, '', location.pathname + location.search);
+    setLinkRule(null);
+    setScreen(next);
+  };
   const ol = useOnline(online);
   /** オンラインの卓（対局が始まっていれば。ol.tableRev が変わるたびに描き直す） */
   const tbl = online.table;
@@ -245,7 +271,16 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
         </main>
       ) : (
         <main className="title">
-          {screen === 'cpu' ? (
+          {screen === 'rulelink' && linkRule ? (
+            <RuleLinkScreen
+              t={t}
+              lang={baseOf(lang)}
+              choice={linkRule.choice}
+              onCpu={() => closeRuleLink('cpu', linkRule.choice ?? undefined)}
+              onOnline={() => closeRuleLink('online', linkRule.choice ?? undefined)}
+              onCancel={() => closeRuleLink('top')}
+            />
+          ) : screen === 'cpu' ? (
             <CpuSetup
               t={t}
               lang={baseOf(lang)}

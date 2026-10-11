@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import doc from './ruleTable.doc.json';
-import { JP_RULE_ITEMS, JP_SETS, blockedBy, labelOf, rulesOfSet } from './ruleSets';
+import { JP_RULE_ITEMS, JP_SETS, blockedBy, decodeRuleLink, encodeRuleLink, labelOf, rulesOfSet } from './ruleSets';
 import { GENERAL_RULES, JP_RULE_KEYS, type JpRuleKey } from './rules';
 import { runGames } from '../selfplay/run';
 
@@ -38,6 +38,30 @@ describe('ルールセット（段階6の6a）', () => {
     expect(blockedBy(v, 'oka')).toBeNull();
     expect(blockedBy({ ...v, kaeshi: 'none' }, 'oka')).toEqual({ k: 'kaeshi', value: 'none' });
     expect(blockedBy(v, 'kuitan')).toBeNull();
+  });
+
+  it('マイルールのリンク：変えた項目だけを書き、読み直すと同じルールになる（11 セット×全項目を 1 つずつ変えて往復）', () => {
+    expect(encodeRuleLink({ base: 'tenhou', values: valuesOf('tenhou') })).toBe('tenhou');
+    expect(encodeRuleLink({ base: 'tenhou', values: { ...valuesOf('tenhou'), ippatsu: 'off' } })).toBe('tenhou.ippatsu_off');
+    let n = 0;
+    for (const set of JP_SETS) {
+      for (const it of JP_RULE_ITEMS) {
+        for (const [v] of it.opts) {
+          const c = { base: set, values: { ...valuesOf(set), [it.k]: v } };
+          expect(decodeRuleLink(encodeRuleLink(c)), `${set} ${it.k}=${v}`).toEqual(c);
+          n++;
+        }
+      }
+    }
+    expect(n).toBeGreaterThan(11 * 72);
+  });
+
+  it('マイルールのリンク：知らないセット・知らない値・形の崩れは読まない。あとで消えた項目は飛ばす', () => {
+    expect(decodeRuleLink('nope')).toBeNull();
+    expect(decodeRuleLink('tenhou.ippatsu_maybe')).toBeNull();
+    expect(decodeRuleLink('tenhou.ippatsu')).toBeNull();
+    expect(decodeRuleLink('tenhou.gone_on')).toEqual({ base: 'tenhou', values: valuesOf('tenhou') });
+    expect(decodeRuleLink('general.uma_5-15')?.values.uma).toBe('5-15');
   });
 
   it('★どのセットの値でも、半荘を最後まで打てる（各セット 6 対局・失敗 0）', () => {

@@ -2386,6 +2386,25 @@ body.in-game .site-header .subtitle {
   color: var(--orange);
 }
 
+/* マイルールのリンク（6c）：コピーのボタンと、結果の一言・コピーできないときの住所の欄 */
+.rule-settings .rule-share {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.rule-settings .rule-share-note {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.rule-settings .rule-share-url {
+  flex: 1 1 100%;
+  min-width: 0;
+  font-size: 0.8rem;
+}
+
 .rule-settings .indiv-head {
   font-size: 0.85rem;
   color: var(--orange-mid);

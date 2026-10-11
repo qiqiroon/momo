@@ -82,6 +82,34 @@ export function ruleChoiceOf(raw: unknown): RuleChoice | null {
   return { base: r.base as SetId, values };
 }
 
+/**
+ * マイルールのリンク（段階6の6c）：「基にしたセット.項目_値.項目_値…」（変えた項目だけ。例 tenhou.ippatsu_off）。
+ * 項目の名前で書くので、あとで項目が増えたり並びが変わったりしても古いリンクを読める
+ */
+export function encodeRuleLink(c: RuleChoice): string {
+  const diffs = JP_RULE_ITEMS.filter((it) => c.values[it.k] !== presetValue(c.base, it.k)).map((it) => `${it.k}_${c.values[it.k]}`);
+  return [c.base, ...diffs].join('.');
+}
+
+/** リンクを読む。知らないセット・知っている項目の知らない値なら null。知らない項目（あとで消した項目）は飛ばす */
+export function decodeRuleLink(code: string): RuleChoice | null {
+  const [base, ...parts] = code.split('.');
+  if (!(JP_SETS as readonly string[]).includes(base)) return null;
+  const r = rulesOfSet(base as SetId);
+  const values = { ...(r.values as Record<JpRuleKey, string>) };
+  for (const part of parts) {
+    const i = part.indexOf('_');
+    if (i <= 0) return null;
+    const k = part.slice(0, i);
+    const v = part.slice(i + 1);
+    const it = JP_RULE_ITEMS.find((x) => x.k === k);
+    if (!it) continue;
+    if (!it.opts.some((o) => o[0] === v)) return null;
+    values[it.k] = v;
+  }
+  return { base: base as SetId, values };
+}
+
 /** セットの表示名（日本語・見本のまま） */
 export function setNameJa(set: string): string {
   for (const t of TIERS) for (const s of t.sets) if (s[0] === set) return s[1];

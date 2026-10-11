@@ -315,6 +315,7 @@ export function WaitingRoom({ t, lang, session }: { t: T; lang: BaseLang; sessio
         lang={lang}
         choice={s.rules}
         readOnly={!isHost || s.started}
+        share={isHost && !s.started}
         onChange={(c) => {
           saveRuleChoice(c);
           session.setRules(c);

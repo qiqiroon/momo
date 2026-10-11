@@ -84,6 +84,41 @@ export function SiteFooter({ t, children }: { t: T; children?: ReactNode }) {
   );
 }
 
+// ---- リンクで届いたルール（段階6の6c・Q40＝A） ----
+
+/** リンクで届いたルールを見せ、CPU と対局かオンラインの部屋を作るかを選んでもらう。選ぶと端末の控えに入る。choice が null なら読めなかった */
+export function RuleLinkScreen({ t, lang, choice, onCpu, onOnline, onCancel }: { t: T; lang: BaseLang; choice: RuleChoice | null; onCpu: () => void; onOnline: () => void; onCancel: () => void }) {
+  return (
+    <>
+      <ScreenHead title={t('rlTitle')} />
+      {choice ? (
+        <>
+          <p className="guide">{t('rlGuide')}</p>
+          <div className="screen-actions rl-actions">
+            <button type="button" className="btn-primary" onClick={onCpu}>
+              {t('rlCpu')}
+            </button>
+            <button type="button" className="btn-primary" onClick={onOnline}>
+              {t('rlOnline')}
+            </button>
+            <button type="button" className="btn-secondary" onClick={onCancel}>
+              {t('rlCancel')}
+            </button>
+          </div>
+          <RuleSettings t={t} lang={lang} choice={choice} readOnly />
+        </>
+      ) : (
+        <>
+          <p className="guide">{t('rlBroken')}</p>
+          <div className="screen-actions">
+            <BackButton t={t} onClick={onCancel} />
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 // ---- CPU と対局：ルールを選んで始める（段階6の6a-2・選び方は RuleSettings） ----
 
 /** CPU と対局：ルールセットと個別設定を選んでから始める。選んだルールは端末に覚える */
@@ -103,7 +138,7 @@ export function CpuSetup({ t, lang, onBack, onStart }: { t: T; lang: BaseLang; o
         </button>
         <BackButton t={t} onClick={onBack} />
       </div>
-      <RuleSettings t={t} lang={lang} choice={choice} onChange={change} />
+      <RuleSettings t={t} lang={lang} choice={choice} onChange={change} share />
     </>
   );
 }

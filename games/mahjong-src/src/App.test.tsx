@@ -329,3 +329,38 @@ describe('見出しのボタン（対局の中断・画面切替）と同意画�
     expect(document.querySelector('.notice-warn')).toHaveTextContent('賭けに使わないでください');
   });
 });
+
+describe('マイルールのリンク（6c）', () => {
+  afterEach(() => {
+    history.replaceState(null, '', location.pathname);
+    localStorage.removeItem('momo-mahjong.rules');
+  });
+
+  it('リンクを開くとルールを見る画面が出て、「このルールで CPU と対局」を選ぶと控えに入り、設定画面がそのルールで開く', () => {
+    history.replaceState(null, '', '#rules=tenhou.ippatsu_off');
+    render(<App startConsented />);
+    expect(screen.getByText('リンクで届いたルール')).toBeInTheDocument();
+    expect(container().querySelector('.ro-set')).toHaveTextContent('カスタムルール');
+    fireEvent.click(screen.getByText('このルールで CPU と対局'));
+    const saved = JSON.parse(localStorage.getItem('momo-mahjong.rules')!);
+    expect(saved.base).toBe('tenhou');
+    expect(saved.values.ippatsu).toBe('off');
+    expect(location.hash).toBe('');
+    expect(container().querySelector('.btn-start')).not.toBeNull();
+    expect(container().querySelector('.custom-chip.on')).not.toBeNull();
+  });
+
+  it('「使わない」なら控えは変わらない。読めないリンクはその旨を出す', () => {
+    history.replaceState(null, '', '#rules=tenhou.ippatsu_off');
+    render(<App startConsented />);
+    fireEvent.click(screen.getByText('使わない'));
+    expect(localStorage.getItem('momo-mahjong.rules')).toBeNull();
+    expect(location.hash).toBe('');
+  });
+
+  it('読めないリンクは「読めませんでした」を出す', () => {
+    history.replaceState(null, '', '#rules=nope');
+    render(<App startConsented />);
+    expect(screen.getByText(/リンクのルールを読めませんでした/)).toBeInTheDocument();
+  });
+});

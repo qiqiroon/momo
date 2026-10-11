@@ -162,10 +162,46 @@ interface ReplayHubProps {
   onPlayDrive: (id: string) => void;
   onSaveFile: () => void;
   onSaveDrive: () => void;
+  /** 前回の対局のリンク（#kifu=…）を作る（作れなければ投げる） */
+  makeLink: () => Promise<string>;
+}
+
+/** 前回の対局のリンクをコピーする。コピーできない端末では、住所を選べる欄に出す */
+function KifuLinkButton({ t, disabled, makeLink }: { t: T; disabled: boolean; makeLink: () => Promise<string> }) {
+  const [st, setSt] = useState<{ state: 'idle' | 'copied' | 'failed' | 'error'; url: string; why: string }>({ state: 'idle', url: '', why: '' });
+  const copy = async () => {
+    let url = '';
+    try {
+      url = await makeLink();
+    } catch (e) {
+      return setSt({ state: 'error', url: '', why: (e as Error).message });
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setSt({ state: 'copied', url, why: '' });
+    } catch {
+      setSt({ state: 'failed', url, why: '' });
+    }
+  };
+  return (
+    <>
+      <button type="button" className="choice-btn" disabled={disabled} onClick={() => void copy()}>
+        {t('srcLink')}
+      </button>
+      {st.state === 'copied' && <p className="choice-note">{t('kifuLinkCopied')}</p>}
+      {st.state === 'error' && <p className="choice-note">{t('kifuLinkFailed', { why: st.why })}</p>}
+      {st.state === 'failed' && (
+        <>
+          <p className="choice-note">{t('rsCopyFail')}</p>
+          <input className="kifu-link-url" readOnly value={st.url} onFocus={(e) => e.currentTarget.select()} />
+        </>
+      )}
+    </>
+  );
 }
 
 /** 再生・保存の行を押すと、その下に「どこから／どこへ」を出す */
-export function ReplayHub({ t, hasLast, note, onBack, onPlayLast, onPlayFile, listDrive, onPlayDrive, onSaveFile, onSaveDrive }: ReplayHubProps) {
+export function ReplayHub({ t, hasLast, note, onBack, onPlayLast, onPlayFile, listDrive, onPlayDrive, onSaveFile, onSaveDrive, makeLink }: ReplayHubProps) {
   const [open, setOpen] = useState<'play' | 'save' | null>(null);
   const [drive, setDrive] = useState<{ state: 'idle' | 'loading' | 'done' | 'error'; files: DriveEntry[]; why: string }>({ state: 'idle', files: [], why: '' });
   const toggle = (k: 'play' | 'save') => setOpen(open === k ? null : k);
@@ -222,6 +258,7 @@ export function ReplayHub({ t, hasLast, note, onBack, onPlayLast, onPlayFile, li
             <button type="button" className="choice-btn" disabled={!hasLast} onClick={onSaveDrive}>
               {t('srcDrive')}
             </button>
+            <KifuLinkButton t={t} disabled={!hasLast} makeLink={makeLink} />
             {!hasLast && <p className="choice-note">{t('noLastGame')}</p>}
           </div>
         )}

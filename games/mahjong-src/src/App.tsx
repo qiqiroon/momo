@@ -5,6 +5,7 @@ import { decodeRuleLink, labelOf, type RuleChoice } from './engine/ruleSets';
 import { loadRuleChoice, saveRuleChoice } from './ui/RuleSettings';
 import { SeatContext, type SeatInfo } from './ui/seatContext';
 import { buildKifu, kifuFileName, parseKifu, type Kifu, type KifuSource } from './kifu/kifu';
+import { decodeKifuLink, encodeKifuLink } from './kifu/link';
 import { downloadText, listDriveKifu, loadLastGame, readDriveFile, saveToDrive } from './kifu/store';
 import { CpuSetup, ModeRow, ReplayHub, RuleLinkScreen, SiteFooter } from './ui/Menu';
 import { useGameEffects } from './audio/useGameEffects';
@@ -150,6 +151,26 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
     if (!consented) return;
     armAudioAsk(() => setSoundAsk(true));
     bindVisibility(() => rearmAudioAsk());
+  }, [consented]);
+  // 牌譜のリンク（#kifu=…）で開いたら、同意のあとに読み直して再生する（読めなければ対局の再生の画面に理由を出す）
+  useEffect(() => {
+    if (!consented) return;
+    const open = () => {
+      const m = /^#kifu=(.+)$/.exec(location.hash);
+      if (!m) return;
+      history.replaceState(null, '', location.pathname + location.search);
+      setScreen('replay');
+      decodeKifuLink(m[1])
+        .then((src) => {
+          setReplaying(src.events);
+          setNote('');
+        })
+        .catch((err: Error) => setNote(t('kifuBad', { why: err.message })));
+    };
+    open();
+    window.addEventListener('hashchange', open);
+    return () => window.removeEventListener('hashchange', open);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consented]);
   /** 再生を終えたら、入ってきた画面（対局の再生）へ戻る */
   const exitReplay = () => {
@@ -316,6 +337,10 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
               onPlayDrive={(id) => void playDrive(id)}
               onSaveFile={() => last && saveFile(last)}
               onSaveDrive={() => last && void saveDrive(last)}
+              makeLink={async () => {
+                if (!last) throw new Error(t('noLastGame'));
+                return `${location.origin}${location.pathname}#kifu=${await encodeKifuLink(last)}`;
+              }}
             />
           ) : (
             <>

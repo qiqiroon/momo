@@ -10,6 +10,7 @@
 //   - 受け入れを「場に見えている枚数」で数え直す（visibleWaits）
 //   - 危なさの見分けを細かく（壁・リーチ後に通った牌）（fineDanger）
 //   - 点数の状況で押し引きを変える（オーラスのラス目は押す・トップ目は降りやすい）（placement）
+//   - 迷う場面だけ先読み：同じ近さの候補を「2 歩先の受け入れ」で比べる（simulate.ts）
 
 import { kindCounts } from '../engine/agari';
 import { doraOf } from '../engine/dora';
@@ -20,15 +21,18 @@ import { isRed, kindOf, type KindId, type TileId } from '../engine/tiles';
 import { connection, hasOpenYakuhai, pick, shantenAfterCall, yakuhaiKinds } from './common';
 import { dangerOf, threats } from './defense';
 import { acceptance, shanten, visibleCounts } from './shanten';
+import { twoStepAcceptance } from './simulate';
 
 export interface ThinkOptions {
   visibleWaits: boolean;
   fineDanger: boolean;
   placement: boolean;
+  /** 迷う場面（同じ近さの候補が並ぶ）で 2 歩先の受け入れまで読んで決める */
+  simulate: boolean;
 }
 
-export const HARD: ThinkOptions = { visibleWaits: false, fineDanger: false, placement: false };
-export const APOCALYPSE: ThinkOptions = { visibleWaits: true, fineDanger: true, placement: true };
+export const HARD: ThinkOptions = { visibleWaits: false, fineDanger: false, placement: false, simulate: false };
+export const APOCALYPSE: ThinkOptions = { visibleWaits: true, fineDanger: true, placement: true, simulate: true };
 
 const isTerminalOrHonor = (k: KindId) => k >= 27 || k % 9 === 0 || k % 9 === 8;
 
@@ -183,6 +187,30 @@ function chooseDiscard(view: GameState, seat: Seat, legal: readonly Action[], op
     const same = attack.filter((p) => p.shanten === choice.shanten && p.waits === choice.waits && p.valueLoss === choice.valueLoss);
     choice = same.sort((a, b) => a.danger - b.danger || attackOrder(a, b))[0];
     if (!shouldPush(view, seat, choice, opts)) choice = plans.slice().sort(defenseOrder)[0];
+  }
+  // 先読み：攻めるときで、同じ近さ（テンパイの 2 歩手前まで）・受け入れが近い候補が 2 つ以上あれば、2 歩先の受け入れで比べる
+  if (opts.simulate && (!underThreat || choice === attack[0]) && choice.shanten >= 1 && choice.shanten <= 2) {
+    const kinds = new Set<KindId>();
+    const top = attack.filter((p) => {
+      if (p.shanten !== choice.shanten || kinds.has(kindOf(p.tile))) return false;
+      if (p.waits < choice.waits * 0.75 || p.valueLoss > choice.valueLoss) return false;
+      if (underThreat && p.danger > choice.danger) return false;
+      kinds.add(kindOf(p.tile));
+      return true;
+    }).slice(0, 4);
+    if (top.length >= 2) {
+      const counts = kindCounts(view.hands[seat]);
+      const visible = visibleCounts(view, seat);
+      const open = view.melds[seat].length;
+      const scores = top.map((p) => {
+        const c = counts.slice();
+        c[kindOf(p.tile)]--;
+        return twoStepAcceptance(c, open, visible);
+      });
+      let bi = 0;
+      for (let i = 1; i < top.length; i++) if (scores[i] > scores[bi]) bi = i;
+      choice = top[bi];
+    }
   }
   // 暗槓・加槓：リーチされていなければ、近さが変わらないならする（ドラが増える）
   if (!underThreat) {

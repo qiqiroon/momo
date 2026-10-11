@@ -37,11 +37,13 @@ export type Player = typeof tsumogiriCpu;
 export function playOne(
   seed: string,
   rules: Rules = GENERAL_RULES,
-  player: Player = tsumogiriCpu,
+  /** 打ち手。席ごとに替えるときは 4 人ぶんの並び（CPU どうしの強さ比べ） */
+  player: Player | readonly Player[] = tsumogiriCpu,
   /** true＝対局の終わりまで続けて打つ（局の進め方・半荘の完走を見る） */
   wholeGame = false,
 ): { events: number; missed: boolean; kuikaeBanned: number; final: GameState; clashes: { won: string; chi: boolean }[]; finalMelds: OpenMeld[][]; log: Envelope[]; ending: keyof SelfplayResult['endings']; result: RoundResult | null; failure: Failure | null } {
   const w = new Watcher();
+  const who = (seat: Seat): Player => (typeof player === 'function' ? player : player[seat]);
   const seedNumber = [...seed].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
   const log: Envelope[] = [];
   let sawMissed = false;
@@ -96,7 +98,7 @@ export function playOne(
       if (s.phase === 'ended') {
         // 局の終わり：親がやめるか選ぶ番なら親が選ぶ。そうでなければ次の局か対局の終わり
         const n = nextStep(s);
-        if (n.type === 'yame') failure = feed(act(s, n.seat, player(w.views[n.seat], n.seat)));
+        if (n.type === 'yame') failure = feed(act(s, n.seat, who(n.seat)(w.views[n.seat], n.seat)));
         else {
           if (n.type === 'round') hands++;
           failure = feed(nextHand(s, seed));
@@ -106,10 +108,10 @@ export function playOne(
         // 返事の順番は種と通し番号から決めて毎回変える（順番で結果が変わらないことも見張る）
         const waiting = ([1, 2, 3].map((d) => (s.claim!.from + d) % 4) as Seat[]).filter((x) => s.claim!.replies[x] === null);
         const seat = waiting[(seedNumber + s.nextSeq) % waiting.length];
-        failure = feed(act(s, seat, player(w.views[seat], seat)));
+        failure = feed(act(s, seat, who(seat)(w.views[seat], seat)));
       } else {
         failure =
-          s.phase === 'discard' || s.phase === 'declare' ? feed(act(s, s.turn, player(w.views[s.turn], s.turn))) : feed(advance(s));
+          s.phase === 'discard' || s.phase === 'declare' ? feed(act(s, s.turn, who(s.turn)(w.views[s.turn], s.turn))) : feed(advance(s));
       }
     } catch (e) {
       failure = { seed, seq: s.nextSeq, reasons: [`進行役が止まった：${(e as Error).message}`] };

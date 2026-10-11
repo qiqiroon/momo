@@ -66,6 +66,17 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
   /** 再生している牌譜の出来事の列（再生していなければ null） */
   const [replaying, setReplaying] = useState<readonly Envelope[] | null>(null);
+  /** 再生している牌譜の元（同じ山で勝負のリンクを作るため。種が分からない・オンライン対局なら null） */
+  const [replaySrc, setReplaySrc] = useState<KifuSource | null>(null);
+  /** 牌譜の元から再生を始める */
+  const play = (src: KifuSource) => {
+    setReplaying(src.events);
+    setReplaySrc(src.mode === 'online' || !src.seed ? null : src);
+  };
+  /** 牌譜ファイル（読み込んだもの）を牌譜の元にする */
+  const srcOfKifu = (k: Kifu): KifuSource => ({ seed: k.seed, startedAt: k.startedAt, players: [], set: k.rules.set, events: k.events, mode: k.mode });
+  /** 同じ山で勝負のリンク（CPU と対局の牌譜だけ） */
+  const sameLinkOf = (src: KifuSource | null) => (src && src.mode !== 'online' && src.seed ? () => `${location.origin}${location.pathname}#same=${encodeSameLink(sameWallOf(src))}` : null);
   /** トップ画面で覚えている最後の対局（トップへ戻るたびに読み直す） */
   const [last, setLast] = useState<KifuSource | null>(() => loadLastGame());
   /** 保存・読み込みの結果の一言 */
@@ -161,7 +172,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
     e.target.value = '';
     if (!f) return;
     try {
-      setReplaying(parseKifu(await f.text()).events);
+      play(srcOfKifu(parseKifu(await f.text())));
       setNote('');
     } catch (err) {
       setNote(t('kifuBad', { why: (err as Error).message }));
@@ -190,7 +201,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
       setScreen('replay');
       decodeKifuLink(m[1])
         .then((src) => {
-          setReplaying(src.events);
+          play(src);
           setNote('');
         })
         .catch((err: Error) => setNote(t('kifuBad', { why: err.message })));
@@ -207,7 +218,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   };
   const playDrive = async (id: string) => {
     try {
-      setReplaying(parseKifu(await readDriveFile(id)).events);
+      play(srcOfKifu(parseKifu(await readDriveFile(id))));
       setNote('');
     } catch (err) {
       setNote(t('kifuBad', { why: (err as Error).message }));
@@ -279,7 +290,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
       </header>
       {replaying ? (
         <main className="game">
-          <Replay events={replaying} narrow={layout === 'lanes'} lang={lang} onExit={exitReplay} />
+          <Replay events={replaying} narrow={layout === 'lanes'} lang={lang} onExit={exitReplay} makeSameLink={sameLinkOf(replaySrc)} />
         </main>
       ) : started ? (
         <main className="game">
@@ -294,6 +305,8 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             onTop={toTop}
             onSaveFile={() => saveFile(source)}
             onSaveDrive={() => void saveDrive(source)}
+            makeKifuLink={async () => `${location.origin}${location.pathname}#kifu=${await encodeKifuLink(source)}`}
+            makeSameLink={sameLinkOf(source)}
             saveNote={note}
             dealt={fx.dealt}
             onQuit={onTitle}
@@ -378,13 +391,13 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
                 setScreen('top');
                 setNote('');
               }}
-              onPlayLast={() => last && setReplaying(last.events)}
+              onPlayLast={() => last && play(last)}
               onPlayFile={() => fileInput.current?.click()}
               listDrive={listDriveKifu}
               onPlayDrive={(id) => void playDrive(id)}
               onSaveFile={() => last && saveFile(last)}
               onSaveDrive={() => last && void saveDrive(last)}
-              makeSameLink={last && last.mode !== 'online' ? () => `${location.origin}${location.pathname}#same=${encodeSameLink(sameWallOf(last))}` : null}
+              makeSameLink={sameLinkOf(last)}
               makeLink={async () => {
                 if (!last) throw new Error(t('noLastGame'));
                 return `${location.origin}${location.pathname}#kifu=${await encodeKifuLink(last)}`;

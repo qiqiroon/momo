@@ -2,6 +2,7 @@
 // 広い画面＝正方形の卓（自分が手前・下家が右・対面が奥・上家が左）。
 // 狭い画面＝横に 4 列（下家→対面→上家→自分の順＝打つ順に上から下へ流れる）＋手牌。
 
+import { LinkCopy } from './LinkCopy';
 import { Fragment, useEffect, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
 import { HIDDEN, type Seat } from '../engine/events';
 import { furitenOf } from '../engine/furiten';
@@ -38,6 +39,9 @@ interface Props {
   onTop?: () => void;
   onSaveFile?: () => void;
   onSaveDrive?: () => void;
+  /** 終局の画面の保存に出すリンク（対局再生・同じ山で勝負。同じ山は CPU と対局だけ） */
+  makeKifuLink?: () => Promise<string>;
+  makeSameLink?: (() => string) | null;
   /** 保存の結果の一言（保存しました・できませんでした） */
   saveNote?: string;
   /** 配っている途中で見せる手牌の枚数（null・未指定＝全部。演出は useGameEffects） */
@@ -55,7 +59,7 @@ interface Props {
 /** 手牌の並べ替え：種類順、同じ種類なら背番号順 */
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kindOf(a) - kindOf(b) || a - b);
 
-export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, saveNote, dealt = null, onQuit, chat, callPanel }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, chat, callPanel }: Props) {
   /** 配っている途中は手牌を先頭から決まった枚数だけ見せる */
   const dealing = <X,>(xs: readonly X[]): readonly X[] => (dealt === null ? xs : xs.slice(0, dealt));
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
@@ -336,6 +340,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
                   {t('srcDrive')}
                 </button>
               )}
+              {makeKifuLink && <LinkCopy t={t} label={t('srcLink')} make={makeKifuLink} done="kifuLinkCopied" />}
+              {makeSameLink && <LinkCopy t={t} label={t('srcSame')} make={makeSameLink} done="sameCopied" warn="sameWarn" />}
             </div>
           )}
           {saveNote && <p className="hint save-note">{saveNote}</p>}

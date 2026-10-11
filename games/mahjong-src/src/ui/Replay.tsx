@@ -7,6 +7,7 @@ import type { Envelope } from '../engine/events';
 import { apply, initialState, type GameState } from '../engine/state';
 import { translate, type Lang, type MessageKey } from '../i18n/strings';
 import { Table } from './Table';
+import { LinkCopy } from './LinkCopy';
 
 /** 自動再生の速さ（将棋の感想戦と同じ並び・押すたびに次へ） */
 const SPEEDS = [1, 2, 0.5] as const;
@@ -42,12 +43,14 @@ export function replaySteps(events: readonly Envelope[]): { steps: number[]; han
 
 interface Props {
   events: readonly Envelope[];
+  /** 同じ山で勝負のリンクを作る（CPU と対局の牌譜だけ。オンライン対局・種が分からないなら無し） */
+  makeSameLink?: (() => string) | null;
   narrow: boolean;
   lang: Lang;
   onExit: () => void;
 }
 
-export function Replay({ events, narrow, lang, onExit }: Props) {
+export function Replay({ events, narrow, lang, onExit, makeSameLink }: Props) {
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
   const { steps, handStarts } = useMemo(() => replaySteps(events), [events]);
   // 局面は手の位置ごとに作っておく（出来事は数千なので、前から順に当てはめて控える）
@@ -167,6 +170,11 @@ export function Replay({ events, narrow, lang, onExit }: Props) {
             {t('replayExit')}
           </button>
         </div>
+        {makeSameLink && (
+          <div className="replay-share">
+            <LinkCopy t={t} label={t('srcSame')} make={makeSameLink} done="sameCopied" warn="sameWarn" className="pb share" />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -278,7 +278,9 @@ describe('モード選択と、そこから入る画面', () => {
     fireEvent.click(screen.getByText('前回の対局を保存する'));
     // 開くのは押した行の下だけ（再生の選択肢は閉じる）＝出ている選択肢は保存先の 4 つ（ファイル・ドライブ・リンク・同じ山で勝負）
     const choices = [...document.querySelectorAll('.mode-choices button')];
-    expect(choices.map((b) => b.textContent)).toEqual(['この端末のファイル', 'Google ドライブ', 'リンクをコピー', '同じ山で勝負のリンクをコピー']);
+    expect(choices.map((b) => b.querySelector('.choice-label')?.textContent)).toEqual(['この端末のファイル', 'Google ドライブ', '対局再生のリンクをコピー', '同じ山で勝負のリンクをコピー']);
+    // 4 行とも、何のための保存かの説明が付く
+    expect(choices.every((b) => (b.querySelector('.choice-desc')?.textContent ?? '').length > 0)).toBe(true);
     for (const b of choices) expect(b).toBeDisabled();
   });
 });

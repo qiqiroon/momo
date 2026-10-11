@@ -1123,6 +1123,18 @@ body.in-game .site-header .subtitle {
   gap: 8px;
 }
 
+.playbar .replay-share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 10px;
+}
+
+.pb.share {
+  font-size: 12px;
+}
+
 .playbar .hand-pick {
   flex: none;
   max-width: 9.5em;
@@ -1476,6 +1488,22 @@ body.in-game .site-header .subtitle {
   border-radius: 9px;
   padding: 8px 14px;
   cursor: pointer;
+}
+
+/* 説明つきの選択肢（対局の再生の保存先の 4 行）：1 行目に名前・2 行目に何のためか */
+.choice-btn.with-desc {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+
+.choice-btn .choice-desc {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text-sub);
 }
 
 .choice-btn:hover:not(:disabled) {

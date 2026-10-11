@@ -6,6 +6,7 @@ import { useState, type ReactNode } from 'react';
 import type { BaseLang, MessageKey } from '../i18n/strings';
 import { RuleSettings, loadRuleChoice, saveRuleChoice, type RuleChoice } from './RuleSettings';
 import type { SameWall } from '../kifu/same';
+import { LinkCopy } from './LinkCopy';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
@@ -169,36 +170,6 @@ interface ReplayHubProps {
   makeSameLink: (() => string) | null;
 }
 
-/** 「同じ山で勝負」のリンクをコピーする。押したときに、山の情報が入ることを知らせる（同意は求めない） */
-function SameLinkButton({ t, makeLink }: { t: T; makeLink: (() => string) | null }) {
-  const [st, setSt] = useState<{ state: 'idle' | 'copied' | 'failed'; url: string }>({ state: 'idle', url: '' });
-  const copy = async () => {
-    if (!makeLink) return;
-    const url = makeLink();
-    try {
-      await navigator.clipboard.writeText(url);
-      setSt({ state: 'copied', url });
-    } catch {
-      setSt({ state: 'failed', url });
-    }
-  };
-  return (
-    <>
-      <button type="button" className="choice-btn" disabled={!makeLink} onClick={() => void copy()}>
-        {t('srcSame')}
-      </button>
-      {st.state !== 'idle' && <p className="choice-note same-warn">{t('sameWarn')}</p>}
-      {st.state === 'copied' && <p className="choice-note">{t('sameCopied')}</p>}
-      {st.state === 'failed' && (
-        <>
-          <p className="choice-note">{t('rsCopyFail')}</p>
-          <input className="kifu-link-url" readOnly value={st.url} onFocus={(e) => e.currentTarget.select()} />
-        </>
-      )}
-    </>
-  );
-}
-
 /** 同じ山で勝負のリンクを開いた人：ルールと送った人の成績を見せ、同じ山で CPU と打つ。sw が null なら読めなかった */
 export function SameWallScreen({ t, lang, sw, onStart, onCancel }: { t: T; lang: BaseLang; sw: SameWall | null; onStart: () => void; onCancel: () => void }) {
   return (
@@ -230,39 +201,6 @@ export function SameWallScreen({ t, lang, sw, onStart, onCancel }: { t: T; lang:
   );
 }
 
-/** 前回の対局のリンクをコピーする。コピーできない端末では、住所を選べる欄に出す */
-function KifuLinkButton({ t, disabled, makeLink }: { t: T; disabled: boolean; makeLink: () => Promise<string> }) {
-  const [st, setSt] = useState<{ state: 'idle' | 'copied' | 'failed' | 'error'; url: string; why: string }>({ state: 'idle', url: '', why: '' });
-  const copy = async () => {
-    let url = '';
-    try {
-      url = await makeLink();
-    } catch (e) {
-      return setSt({ state: 'error', url: '', why: (e as Error).message });
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      setSt({ state: 'copied', url, why: '' });
-    } catch {
-      setSt({ state: 'failed', url, why: '' });
-    }
-  };
-  return (
-    <>
-      <button type="button" className="choice-btn" disabled={disabled} onClick={() => void copy()}>
-        {t('srcLink')}
-      </button>
-      {st.state === 'copied' && <p className="choice-note">{t('kifuLinkCopied')}</p>}
-      {st.state === 'error' && <p className="choice-note">{t('kifuLinkFailed', { why: st.why })}</p>}
-      {st.state === 'failed' && (
-        <>
-          <p className="choice-note">{t('rsCopyFail')}</p>
-          <input className="kifu-link-url" readOnly value={st.url} onFocus={(e) => e.currentTarget.select()} />
-        </>
-      )}
-    </>
-  );
-}
 
 /** 再生・保存の行を押すと、その下に「どこから／どこへ」を出す */
 export function ReplayHub({ t, hasLast, note, onBack, onPlayLast, onPlayFile, listDrive, onPlayDrive, onSaveFile, onSaveDrive, makeLink, makeSameLink }: ReplayHubProps) {
@@ -316,14 +254,17 @@ export function ReplayHub({ t, hasLast, note, onBack, onPlayLast, onPlayFile, li
         <ModeRow tile="5p" name={t('replaySave')} desc={t('replaySaveDesc')} open={open === 'save'} onClick={() => toggle('save')} />
         {open === 'save' && (
           <div className="mode-choices">
-            <button type="button" className="choice-btn" disabled={!hasLast} onClick={onSaveFile}>
-              {t('srcFile')}
+            {/* 保存先の 4 行：何のための保存かを 2 行目に書き添える */}
+            <button type="button" className="choice-btn with-desc" disabled={!hasLast} onClick={onSaveFile}>
+              <span className="choice-label">{t('srcFile')}</span>
+              <span className="choice-desc">{t('saveFileDesc')}</span>
             </button>
-            <button type="button" className="choice-btn" disabled={!hasLast} onClick={onSaveDrive}>
-              {t('srcDrive')}
+            <button type="button" className="choice-btn with-desc" disabled={!hasLast} onClick={onSaveDrive}>
+              <span className="choice-label">{t('srcDrive')}</span>
+              <span className="choice-desc">{t('saveDriveDesc')}</span>
             </button>
-            <KifuLinkButton t={t} disabled={!hasLast} makeLink={makeLink} />
-            <SameLinkButton t={t} makeLink={hasLast ? makeSameLink : null} />
+            <LinkCopy t={t} label={t('srcLink')} desc={t('kifuLinkDesc')} disabled={!hasLast} make={makeLink} done="kifuLinkCopied" />
+            <LinkCopy t={t} label={t('srcSame')} desc={t('sameLinkDesc')} disabled={!hasLast || !makeSameLink} make={() => makeSameLink!()} done="sameCopied" warn="sameWarn" />
             {!hasLast && <p className="choice-note">{t('noLastGame')}</p>}
           </div>
         )}

@@ -3,6 +3,7 @@
 // 同じ種で席を入れ替えて 2 回ずつ打つ＝対局数は「組の数×2」。打ち手の名前は PLAYERS を見る。
 
 import { benchCpu } from '../cpu/bench';
+import { easyCpu } from '../cpu/easy';
 import { tsumogiriCpu } from '../cpu/tsumogiri';
 import { arena, arenaReport } from './arena';
 import type { Player } from './run';
@@ -10,6 +11,7 @@ import type { Player } from './run';
 const PLAYERS: Record<string, Player> = {
   tsumogiri: tsumogiriCpu,
   bench: benchCpu,
+  easy: easyCpu,
 };
 
 const [nameA = 'bench', nameB = 'tsumogiri', pairsArg = '20', prefix = 'arena'] = process.argv.slice(2);

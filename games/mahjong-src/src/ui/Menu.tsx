@@ -145,7 +145,7 @@ export function CpuSetup({ t, lang, onBack, onStart }: { t: T; lang: BaseLang; o
   );
 }
 
-// ---- 対局の再生（再生する・前回の対局を保存する） ----
+// ---- 対局の再生（再生する・最後に打った・開いた対局を保存する） ----
 
 export interface DriveEntry {
   id: string;
@@ -164,9 +164,9 @@ interface ReplayHubProps {
   onPlayDrive: (id: string) => void;
   onSaveFile: () => void;
   onSaveDrive: () => void;
-  /** 前回の対局のリンク（#kifu=…）を作る（作れなければ投げる） */
+  /** 最後に打った・開いた対局のリンク（#kifu=…）を作る（作れなければ投げる） */
   makeLink: () => Promise<string>;
-  /** 前回の対局の「同じ山で勝負」のリンク（#same=…）。CPU と対局でなければ null */
+  /** 最後に打った・開いた対局の「同じ山で勝負」のリンク（#same=…）。CPU と対局でなければ null */
   makeSameLink: (() => string) | null;
 }
 

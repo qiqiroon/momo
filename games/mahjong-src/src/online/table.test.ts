@@ -131,6 +131,7 @@ describe('オンラインの卓（偽の通信）', () => {
     expect(guest.fullLog()).toEqual(full);
     const src = { seed: 'online', startedAt: '2026-10-11T12:00:00+09:00', players: [], set: 'general', events: full!, mode: 'online' as const, walls: host.walls };
     expect(unpackKifu(packKifu(src)).events).toEqual(full);
+    expect(unpackKifu(packKifu({ ...src, walls: undefined })).events).toEqual(full);
     console.log(`半荘 ${hands} 局・通信 ${net.messages} 通・${(net.bytes / 1e6).toFixed(2)} MB`);
   }, 180_000);
 
@@ -157,6 +158,9 @@ describe('オンラインの卓（偽の通信）', () => {
     // 牌譜のリンクに詰めて読み直しても同じ
     const src = { seed: 'online', startedAt: '2026-10-11T12:00:00+09:00', players: [], set: 'general', events: full[0]!, mode: 'online' as const, walls: ts[0].walls };
     expect(unpackKifu(packKifu(src)).events).toEqual(full[0]);
+    // 山の並びの控えが無い（ファイルから読んだ）牌譜も、出来事から山を読み取って詰められる
+    const fromFile = { ...src, walls: undefined };
+    expect(unpackKifu(packKifu(fromFile)).events).toEqual(full[0]);
   }, 70_000);
 
   it('ホストが選んだルール（WRC）で 1 局：全員の局面のルールがそれになり、局が終わって検算も通る', async () => {

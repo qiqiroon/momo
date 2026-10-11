@@ -268,14 +268,14 @@ describe('モード選択と、そこから入る画面', () => {
     localStorage.removeItem('momo-mahjong.rules');
   });
 
-  it('対局の再生：前回の対局が無いときは、前回の対局の再生と保存は押せない。端末のファイルは選べる', () => {
+  it('対局の再生：まだ対局が無いときは、最後に打った・開いた対局の再生と保存は押せない。端末のファイルは選べる', () => {
     localStorage.removeItem('momo-mahjong.lastGame');
     render(<App startConsented />);
     fireEvent.click(screen.getByText('対局の再生'));
     fireEvent.click(screen.getByText('再生する'));
-    expect(screen.getByRole('button', { name: '前回の対局' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '最後に打った・開いた対局' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'この端末のファイル' })).not.toBeDisabled();
-    fireEvent.click(screen.getByText('前回の対局を保存する'));
+    fireEvent.click(screen.getByText('最後に打った・開いた対局を保存する'));
     // 開くのは押した行の下だけ（再生の選択肢は閉じる）＝出ている選択肢は保存先の 4 つ（ファイル・ドライブ・リンク・同じ山で勝負）
     const choices = [...document.querySelectorAll('.mode-choices button')];
     expect(choices.map((b) => b.querySelector('.choice-label')?.textContent)).toEqual(['この端末のファイル', 'Google ドライブ', '対局再生のリンクをコピー', '同じ山で勝負のリンクをコピー']);
@@ -305,12 +305,12 @@ describe('見出しのボタン（対局の中断・画面切替）と同意画�
     render(<App startConsented />);
     fireEvent.click(startButton());
     const ask = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    fireEvent.click(screen.getByText('対局を中断')); // 途中までの対局が「前回の対局」になる
+    fireEvent.click(screen.getByText('対局を中断')); // 途中までの対局が「最後に打った・開いた対局」になる
     ask.mockRestore();
     fireEvent.click(screen.getByText('対局の再生'));
     expect(screen.queryByText('画面切替')).toBeNull();
     fireEvent.click(screen.getByText('再生する'));
-    fireEvent.click(screen.getByRole('button', { name: '前回の対局' }));
+    fireEvent.click(screen.getByRole('button', { name: '最後に打った・開いた対局' }));
     expect(screen.getByText('画面切替')).toBeInTheDocument();
     fireEvent.click(screen.getByText('再生を終える'));
     expect(screen.queryByText('画面切替')).toBeNull();
@@ -383,6 +383,8 @@ describe('牌譜のリンク（6d）', () => {
     render(<App startConsented />);
     await screen.findByText((_, el) => el?.classList.contains('replay') ?? false);
     expect(location.hash).toBe('');
+    // 開いた牌譜は「最後に打った・開いた対局」に入る（Q49＝A）
+    expect(JSON.parse(localStorage.getItem('momo-mahjong.lastGame')!).seed).toBe('applink');
   });
 
   it('壊れた牌譜のリンクは、対局の再生の画面に理由を出す', async () => {

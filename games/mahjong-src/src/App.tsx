@@ -9,7 +9,7 @@ import { loadRuleChoice, saveRuleChoice } from './ui/RuleSettings';
 import { SeatContext, type SeatInfo } from './ui/seatContext';
 import { buildKifu, kifuFileName, parseKifu, type Kifu, type KifuSource } from './kifu/kifu';
 import { decodeKifuLink, encodeKifuLink } from './kifu/link';
-import { downloadText, listDriveKifu, loadLastGame, readDriveFile, saveToDrive } from './kifu/store';
+import { downloadText, listDriveKifu, loadLastGame, readDriveFile, saveLastGame, saveToDrive } from './kifu/store';
 import { CpuSetup, ModeRow, ReplayHub, RuleLinkScreen, SameWallScreen, SiteFooter } from './ui/Menu';
 import { useGameEffects } from './audio/useGameEffects';
 import { armAudioAsk, finishAudioAsk, rearmAudioAsk } from './audio/firstGesture';
@@ -42,7 +42,7 @@ function readSameLink(): { sw: SameWall | null } | null {
   return m ? { sw: decodeSameLink(m[1]) } : null;
 }
 
-/** 前回の対局（CPU と対局）から、同じ山で勝負のリンクの中身を作る。終わった対局なら自分（席 0）の順位と最終得点も入れる */
+/** 牌譜（CPU と対局）から、同じ山で勝負のリンクの中身を作る。終わった対局なら自分（席 0）の順位と最終得点も入れる */
 function sameWallOf(src: KifuSource): SameWall {
   let s = initialState();
   for (const e of src.events) s = apply(s, e);
@@ -68,13 +68,20 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   const [replaying, setReplaying] = useState<readonly Envelope[] | null>(null);
   /** 再生している牌譜の元（同じ山で勝負のリンクを作るため。種が分からない・オンライン対局なら null） */
   const [replaySrc, setReplaySrc] = useState<KifuSource | null>(null);
-  /** 牌譜の元から再生を始める */
-  const play = (src: KifuSource) => {
+  /**
+   * 牌譜の元から再生を始める。opened＝ファイル・Google ドライブ・リンクから開いたもの：
+   * 「最後に打った・開いた対局」に上書きする（Q49＝A）＝そのまま保存し直したり、リンクにしたりできる
+   */
+  const play = (src: KifuSource, opened = false) => {
+    if (opened) {
+      saveLastGame(src);
+      setLast(src);
+    }
     setReplaying(src.events);
     setReplaySrc(src.mode === 'online' || !src.seed ? null : src);
   };
   /** 牌譜ファイル（読み込んだもの）を牌譜の元にする */
-  const srcOfKifu = (k: Kifu): KifuSource => ({ seed: k.seed, startedAt: k.startedAt, players: [], set: k.rules.set, events: k.events, mode: k.mode });
+  const srcOfKifu = (k: Kifu): KifuSource => ({ seed: k.seed, startedAt: k.startedAt, players: k.players.map((p) => ({ name: p.name, kind: p.kind })), set: k.rules.set, events: k.events, mode: k.mode });
   /** 同じ山で勝負のリンク（CPU と対局の牌譜だけ） */
   const sameLinkOf = (src: KifuSource | null) => (src && src.mode !== 'online' && src.seed ? () => `${location.origin}${location.pathname}#same=${encodeSameLink(sameWallOf(src))}` : null);
   /** トップ画面で覚えている最後の対局（トップへ戻るたびに読み直す） */
@@ -172,7 +179,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
     e.target.value = '';
     if (!f) return;
     try {
-      play(srcOfKifu(parseKifu(await f.text())));
+      play(srcOfKifu(parseKifu(await f.text())), true);
       setNote('');
     } catch (err) {
       setNote(t('kifuBad', { why: (err as Error).message }));
@@ -201,7 +208,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
       setScreen('replay');
       decodeKifuLink(m[1])
         .then((src) => {
-          play(src);
+          play(src, true);
           setNote('');
         })
         .catch((err: Error) => setNote(t('kifuBad', { why: err.message })));
@@ -218,7 +225,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   };
   const playDrive = async (id: string) => {
     try {
-      play(srcOfKifu(parseKifu(await readDriveFile(id))));
+      play(srcOfKifu(parseKifu(await readDriveFile(id))), true);
       setNote('');
     } catch (err) {
       setNote(t('kifuBad', { why: (err as Error).message }));
@@ -259,7 +266,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
         </div>
         <div className="header-right">
           {/* 画面切替：正方形の卓を出せない狭い画面（携帯）ではボタンごと出さない（見出しをはみ出させないため・利用者指示） */}
-          {/* 対局の中断：確かめてからモード選択へ（途中までの対局は「前回の対局」として残る） */}
+          {/* 対局の中断：確かめてからモード選択へ（途中までの対局は「最後に打った・開いた対局」として残る） */}
           {(started || onlineOn) && !replaying && tableView.phase !== 'gameover' && layout !== 'lanes' && (
             <button type="button" className="icon-btn layout-btn quit-btn" onClick={onTitle} aria-label={t('quitGame')}>
               {/* 狭い画面は短く（見出しから言語選択をはみ出させない） */}

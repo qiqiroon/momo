@@ -9,22 +9,27 @@
 // 作り直した列が元と食い違えば読まない（例外）。
 // オンライン対局（Q42＝A）は山を種から作れないので、局ごとの山の並び（136 バイト）を頭のあとに置き、
 // ホストの進め方（局の始まり・配牌の塊・ドラ表示牌・advance・対局の終わり）で作り直す。親決めのサイコロは頭に入れる。
+// 山の並びが手元に無い牌譜（ファイルから読んだもの）は、作り直しながら牌譜の出来事から山の位置の牌を読み取る（使わない位置は残りの牌で埋める）。
+// 版 2（10-11）：ルールは全項目の値をそのまま書く（a）。版 1 はセットとの差だけ（r）だったので、あとでセットの値が変わると読み違える。
 
 import { act, advance, dealChunkPositions, legalActions, nextHand, rollForDealer, startRound } from '../engine/round';
 import { doraIndicatorPos } from '../engine/dora';
 import { dealerByDice } from '../engine/state';
-import { decodeRuleLink, encodeRuleLink, JP_SETS, type SetId } from '../engine/ruleSets';
+import { decodeRuleLink, decodeRuleValues, encodeRuleValues } from '../engine/ruleSets';
 import type { JpRuleKey, Rules } from '../engine/rules';
 import { nextStep } from '../engine/game';
 import { apply, initialState, type GameState } from '../engine/state';
 import type { Envelope, Seat } from '../engine/events';
 import type { KifuSource } from './kifu';
 
-export const KIFU_LINK_VERSION = 1;
+export const KIFU_LINK_VERSION = 2;
 
 interface Head {
   v: number;
-  r: string;
+  /** 版 1：ルール（セットとの差） */
+  r?: string;
+  /** 版 2：ルール（全項目の値） */
+  a?: string;
   s: string;
   b: Seat;
   t: string;
@@ -37,8 +42,56 @@ interface Head {
   o?: { d: [Seat, number, number]; w: number };
 }
 
-/** 山の位置から牌を出す（オンライン対局の作り直しで使う） */
-type Walls = readonly (readonly number[])[];
+/** 局ごとの山（位置→牌の背番号。まだ分からない位置は -1） */
+type Walls = number[][];
+
+/** まだ分からない山の位置の目印（局と位置を入れた負の数。牌の背番号・伏せた牌とは重ならない） */
+const MARK = -1000;
+const markOf = (hand: number, pos: number) => MARK - hand * 200 - pos;
+/** 山の位置の牌（分からなければ目印） */
+const tileAt = (walls: Walls, hand: number, pos: number) => {
+  const w = walls[hand];
+  return w && w[pos] >= 0 ? w[pos] : markOf(hand, pos);
+};
+
+/** 目印を含む作り直しと牌譜の出来事を突き合わせる。目印のところは牌譜の牌を読み取る（形が違えば false） */
+function unify(g: unknown, t: unknown, learned: Map<number, number>): boolean {
+  if (typeof g === 'number' && g <= MARK) {
+    if (typeof t !== 'number' || t < 0) return false;
+    const prev = learned.get(g);
+    if (prev !== undefined && prev !== t) return false;
+    learned.set(g, t);
+    return true;
+  }
+  if (Array.isArray(g)) return Array.isArray(t) && g.length === t.length && g.every((x, k) => unify(x, t[k], learned));
+  if (g && typeof g === 'object') {
+    if (!t || typeof t !== 'object' || Array.isArray(t)) return false;
+    const ka = Object.keys(g);
+    const kb = Object.keys(t);
+    return ka.length === kb.length && ka.every((k, idx) => kb[idx] === k && unify((g as Record<string, unknown>)[k], (t as Record<string, unknown>)[k], learned));
+  }
+  return g === t;
+}
+
+/** 読み取った牌を山に書き込む */
+function learn(walls: Walls, learned: Map<number, number>) {
+  for (const [m, tile] of learned) {
+    const n = MARK - m;
+    const hand = Math.floor(n / 200);
+    const pos = n % 200;
+    while (walls.length <= hand) walls.push(new Array<number>(136).fill(-1));
+    walls[hand][pos] = tile;
+  }
+}
+
+/** 使わなかった位置を残りの牌で埋める（読み直しでは使わない位置なので、どの牌でもよい） */
+function fillWalls(walls: Walls): number[][] {
+  return walls.map((w) => {
+    const used = new Set(w.filter((x) => x >= 0));
+    const rest = Array.from({ length: 136 }, (_, i) => i).filter((x) => !used.has(x));
+    return w.map((x) => (x >= 0 ? x : rest.shift()!));
+  });
+}
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -55,39 +108,33 @@ function automatic(s: GameState, head: Head, walls: Walls): Envelope[] {
     const n = nextStep(s);
     if (n.type === 'end') return [{ seq: s.nextSeq, to: 'all', ev: { type: 'gameEnd', reason: n.reason } }];
     if (n.type !== 'round') throw new Error('次の局を決められない');
-    return roundStartOnline(s.nextSeq, n, walls[s.handCount]);
+    return roundStartOnline(s.nextSeq, n, walls, s.handCount);
   }
-  const w = walls[s.handCount - 1];
-  if (!w) throw new Error('山の並びが足りない');
-  return advance(s, (pos) => w[pos]);
+  return advance(s, (pos) => tileAt(walls, s.handCount - 1, pos));
 }
 
 /** 局の山（オンライン対局だけ。一人用は局面が種から持っている） */
-const srcOf = (s: GameState, head: Head, walls: Walls) => {
-  if (!head.o) return undefined;
-  const w = walls[s.handCount - 1];
-  return (pos: number) => w[pos];
-};
+const srcOf = (s: GameState, head: Head, walls: Walls) => (head.o ? (pos: number) => tileAt(walls, s.handCount - 1, pos) : undefined);
 
 /** オンライン対局の局の始まり（table.ts の startRound と同じ並び） */
-function roundStartOnline(seq: number, r: { roundIndex: number; dealer: Seat; honba: number }, w: readonly number[] | undefined): Envelope[] {
-  if (!w) throw new Error('山の並びが足りない');
+function roundStartOnline(seq: number, r: { roundIndex: number; dealer: Seat; honba: number }, walls: Walls, hand: number): Envelope[] {
+  const at = (pos: number) => tileAt(walls, hand, pos);
   const out: Envelope[] = [{ seq: seq++, to: 'all', ev: { type: 'roundStart', roundIndex: r.roundIndex, dealer: r.dealer, honba: r.honba } }];
-  for (const c of dealChunkPositions(r.dealer)) out.push({ seq: seq++, to: [c.seat], ev: { type: 'deal', seat: c.seat, tiles: c.positions.map((pos) => w[pos]) } });
-  out.push({ seq: seq++, to: 'all', ev: { type: 'doraReveal', tile: w[doraIndicatorPos(136, 0)] } });
+  for (const c of dealChunkPositions(r.dealer)) out.push({ seq: seq++, to: [c.seat], ev: { type: 'deal', seat: c.seat, tiles: c.positions.map(at) } });
+  out.push({ seq: seq++, to: 'all', ev: { type: 'doraReveal', tile: at(doraIndicatorPos(136, 0)) } });
   return out;
 }
 
-/** 牌譜（CPU と対局）を、詰めた中身（縮める前のバイト列）にする */
+/** 牌譜を、詰めた中身（縮める前のバイト列）にする */
 export function packKifu(src: KifuSource): Uint8Array {
   const ev = src.events;
   if (ev[0]?.ev.type !== 'gameStart' || ev[1]?.ev.type !== 'dealerDice') throw new Error('対局の始まりが無い');
   const rules = ev[0].ev.rules;
   if (rules.family !== 'jp') throw new Error('日本式だけ');
-  const base: SetId = (JP_SETS as readonly string[]).includes(src.set) ? (src.set as SetId) : 'general';
-  const head: Head = { v: KIFU_LINK_VERSION, r: encodeRuleLink({ base, values: rules.values as Record<JpRuleKey, string> }), s: src.seed, b: ev[1].ev.by, t: src.startedAt, e: src.set, n: ev.length };
+  const head: Head = { v: KIFU_LINK_VERSION, a: encodeRuleValues(rules.values as Record<JpRuleKey, string>), s: src.seed, b: ev[1].ev.by, t: src.startedAt, e: src.set, n: ev.length };
   if (src.players.length) head.p = src.players;
-  const walls: Walls = src.walls ?? [];
+  // 山の並び：控えがあればそれ、無ければ作り直しながら牌譜から読み取る
+  const walls: Walls = (src.walls ?? []).map((w) => w.slice());
   if (src.mode === 'online') {
     const d = ev[1].ev;
     head.o = { d: [d.by, d.dice[0], d.dice[1]], w: walls.length };
@@ -103,7 +150,16 @@ export function packKifu(src: KifuSource): Uint8Array {
       i++;
     }
   };
-  take(start(head, rules, walls));
+  /** 作り直す。分からない山の位置があれば、牌譜の出来事から読み取ってから作り直す */
+  const make = (gen: () => Envelope[]): Envelope[] => {
+    const envs = gen();
+    const learned = new Map<number, number>();
+    if (!unify(envs, ev.slice(i, i + envs.length), learned)) return envs;
+    if (learned.size === 0) return envs;
+    learn(walls, learned);
+    return gen();
+  };
+  take(make(() => start(head, rules, walls)));
   while (i < ev.length) {
     if (choosing(s)) {
       const want = ev[i];
@@ -113,7 +169,7 @@ export function packKifu(src: KifuSource): Uint8Array {
       const n = legal.findIndex((a) => {
         try {
           const envs = act(s, seat, a, srcOf(s, head, walls));
-          return envs.every((e, k) => same(e, ev[i + k]));
+          return unify(envs, ev.slice(i, i + envs.length), new Map());
         } catch {
           return false;
         }
@@ -121,13 +177,15 @@ export function packKifu(src: KifuSource): Uint8Array {
       if (n < 0) throw new Error(`${i} 番目の選んだことが、選べたことの中に無い`);
       if (n < 63) out.push((seat << 6) | n);
       else out.push((seat << 6) | 63, n - 63);
-      take(act(s, seat, legal[n], srcOf(s, head, walls)));
+      take(make(() => act(s, seat, legal[n], srcOf(s, head, walls))));
     } else {
-      take(automatic(s, head, walls));
+      take(make(() => automatic(s, head, walls)));
     }
   }
+  const full = head.o ? fillWalls(walls) : [];
+  if (head.o) head.o.w = full.length;
   const h = new TextEncoder().encode(JSON.stringify(head));
-  return Uint8Array.from([h.length & 0xff, h.length >> 8, ...h, ...(head.o ? walls.flat() : []), ...out]);
+  return Uint8Array.from([h.length & 0xff, h.length >> 8, ...h, ...full.flat(), ...out]);
 }
 
 /** 対局の始まり（ルール・親決め・最初の局） */
@@ -137,7 +195,7 @@ function start(head: Head, rules: Rules, walls: Walls): Envelope[] {
     ? { seq: 1, to: 'all', ev: { type: 'dealerDice', by: head.o.d[0], dice: [head.o.d[1], head.o.d[2]], dealer: dealerByDice(head.o.d[0], [head.o.d[1], head.o.d[2]]) } }
     : { seq: 1, to: 'all', ev: rollForDealer(head.s, head.b) };
   const after = apply(apply(initialState(), first), dice);
-  if (head.o) return [first, dice, ...roundStartOnline(2, { roundIndex: 0, dealer: after.chicha, honba: 0 }, walls[0])];
+  if (head.o) return [first, dice, ...roundStartOnline(2, { roundIndex: 0, dealer: after.chicha, honba: 0 }, walls, 0)];
   return [first, dice, ...startRound(after, head.s, 0, after.chicha)];
 }
 
@@ -145,10 +203,11 @@ function start(head: Head, rules: Rules, walls: Walls): Envelope[] {
 export function unpackKifu(bytes: Uint8Array): KifuSource {
   const len = bytes[0] | (bytes[1] << 8);
   const head = JSON.parse(new TextDecoder().decode(bytes.subarray(2, 2 + len))) as Head;
-  if (head.v !== KIFU_LINK_VERSION) throw new Error('知らない版の牌譜のリンク');
-  const choice = decodeRuleLink(head.r);
-  if (!choice) throw new Error('ルールを読めない');
-  const rules: Rules = { family: 'jp', values: choice.values };
+  if (head.v !== 1 && head.v !== KIFU_LINK_VERSION) throw new Error('知らない版の牌譜のリンク');
+  // 版 1 はセットとの差、版 2 は全項目の値
+  const values = head.a !== undefined ? decodeRuleValues(head.a) : head.r !== undefined ? (decodeRuleLink(head.r)?.values ?? null) : null;
+  if (!values) throw new Error('ルールを読めない');
+  const rules: Rules = { family: 'jp', values };
   let p = 2 + len;
   const walls: number[][] = [];
   for (let k = 0; k < (head.o?.w ?? 0); k++) {

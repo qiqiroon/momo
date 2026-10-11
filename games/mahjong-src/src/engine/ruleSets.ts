@@ -110,6 +110,29 @@ export function decodeRuleLink(code: string): RuleChoice | null {
   return { base: base as SetId, values };
 }
 
+/**
+ * ルールの全項目の値（「項目_値.項目_値…」）。牌譜と同じ山で勝負のリンクに使う。
+ * セットとの差だけを書くマイルールのリンクと違い、あとでセットの値が変わっても、遊んだときのルールのまま読める
+ */
+export function encodeRuleValues(values: Readonly<Record<JpRuleKey, string>>): string {
+  return JP_RULE_ITEMS.map((it) => `${it.k}_${values[it.k]}`).join('.');
+}
+
+/** 全項目の値を読む。書いていない項目（あとで足した項目）は一般ルールの値。知っている項目の知らない値なら null */
+export function decodeRuleValues(code: string): Record<JpRuleKey, string> | null {
+  const values = { ...(rulesOfSet('general').values as Record<JpRuleKey, string>) };
+  for (const part of code.split('.')) {
+    const i = part.indexOf('_');
+    if (i <= 0) return null;
+    const it = JP_RULE_ITEMS.find((x) => x.k === part.slice(0, i));
+    if (!it) continue;
+    const v = part.slice(i + 1);
+    if (!it.opts.some((o) => o[0] === v)) return null;
+    values[it.k] = v;
+  }
+  return values;
+}
+
 /** セットの表示名（日本語・見本のまま） */
 export function setNameJa(set: string): string {
   for (const t of TIERS) for (const s of t.sets) if (s[0] === set) return s[1];

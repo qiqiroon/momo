@@ -2380,6 +2380,12 @@ body.in-game .site-header .subtitle {
   color: var(--text);
 }
 
+/* 基にしたセットから変えた項目（Q38＝A）：名前と、見るだけの値をオレンジの文字に */
+.rule-settings .set-row.changed .lbl,
+.rule-settings .set-row.changed .ro-val {
+  color: var(--orange);
+}
+
 .rule-settings .indiv-head {
   font-size: 0.85rem;
   color: var(--orange-mid);

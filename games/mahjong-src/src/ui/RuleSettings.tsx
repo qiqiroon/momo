@@ -78,8 +78,10 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false }: { 
   const row = (it: (typeof JP_RULE_ITEMS)[number]) => {
     const why = blockedBy(choice.values, it.k);
     const note = ruleNote(it.k, lang);
+    // 基にしたセットから変えた項目（Q38＝A：ホストもゲストも、名前と値をオレンジの文字に）
+    const changedHere = choice.values[it.k] !== presetValue(choice.base, it.k);
     return (
-      <div className="set-row" key={it.k}>
+      <div className={`set-row${changedHere ? ' changed' : ''}`} key={it.k}>
         <span className="lbl">
           {ruleName(it.k, lang)}
           {isSupplied(choice.base, it.k) ? <small className="supp">{t('rsSupplied')}</small> : note ? <small>{note}</small> : null}

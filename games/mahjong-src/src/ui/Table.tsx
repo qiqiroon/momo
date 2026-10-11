@@ -52,6 +52,8 @@ interface Props {
   chat?: ReactNode;
   /** 鳴ける牌の予告の欄（オンライン）。横4列は手牌の下・正方形の卓は右の列のチャットの上（利用者指示 10-10＝手牌をずらさない） */
   callPanel?: ReactNode;
+  /** 正方形の卓の右の列の一番上に出すもの（再生の操作の帯＝右上に置く） */
+  sidePanel?: ReactNode;
 }
 
 /** 自分から見た位置（0＝自分・1＝下家・2＝対面・3＝上家） */
@@ -59,7 +61,7 @@ interface Props {
 /** 手牌の並べ替え：種類順、同じ種類なら背番号順 */
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kindOf(a) - kindOf(b) || a - b);
 
-export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, chat, callPanel }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, chat, callPanel, sidePanel }: Props) {
   /** 配っている途中は手牌を先頭から決まった枚数だけ見せる */
   const dealing = <X,>(xs: readonly X[]): readonly X[] => (dealt === null ? xs : xs.slice(0, dealt));
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
@@ -485,8 +487,9 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         </div>
         {result}
       </div>
-      {callPanel || chat ? (
-        <div className="side-col">
+      {callPanel || chat || sidePanel ? (
+        <div className={`side-col${sidePanel ? ' side-top' : ''}`}>
+          {sidePanel}
           {callPanel}
           {chat}
         </div>

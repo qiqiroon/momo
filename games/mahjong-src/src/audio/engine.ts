@@ -212,7 +212,7 @@ export async function loadSample(name: string): Promise<AudioBuffer | null> {
  * opts.at: AudioContext currentTime に対する相対秒 (デフォルト 0 = 即時)
  * opts.trimSec: 指定秒でフェードアウト+停止 (SE-select の 75ms 切りなど)
  */
-export function playSample(name: string, opts?: { at?: number; trimSec?: number }): void {
+export function playSample(name: string, opts?: { at?: number; trimSec?: number; volume?: number }): void {
   if (!ctx || !sfxGain) return;
   const buf = sampleBufs.get(name);
   const at = opts?.at ?? 0;
@@ -232,6 +232,12 @@ export function playSample(name: string, opts?: { at?: number; trimSec?: number 
       src.connect(g).connect(sfxGain);
       src.start(startAt, 0, trimSec);
       src.stop(startAt + trimSec + 0.03);
+    } else if (opts?.volume !== undefined && opts.volume !== 1) {
+      // 音ごとの大きさ（効果音の音量にさらに掛ける）
+      const g = ctx.createGain();
+      g.gain.value = opts.volume;
+      src.connect(g).connect(sfxGain);
+      src.start(startAt);
     } else {
       src.connect(sfxGain);
       src.start(startAt);

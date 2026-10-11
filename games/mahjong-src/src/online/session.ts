@@ -138,7 +138,8 @@ export const CHAT_GAP_MS = 1000;
 
 /** 切られた牌への返事の待ち（ホストが部屋で選ぶ）。秒数は仮（利用者に押してもらってから決める＝工程表 段階5） */
 export type ReplyWait = 'fast' | 'normal' | 'slow';
-export const REPLY_WAIT_MS: Record<ReplyWait, number> = { fast: 1000, normal: 2000, slow: 3000 };
+/** 返事の待ち（利用者 10-11：はやい 1 秒・ふつう 3 秒・ゆっくり 10 秒） */
+export const REPLY_WAIT_MS: Record<ReplyWait, number> = { fast: 1000, normal: 3000, slow: 10000 };
 /** 点呼の返事を待つ長さ */
 export const ROLLCALL_MS = 3000;
 

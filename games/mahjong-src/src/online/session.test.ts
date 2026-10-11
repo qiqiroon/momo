@@ -294,7 +294,7 @@ describe('始める', () => {
     host.setReplyWait('slow');
     expect(gs[0].state.replyWait).toBe('slow');
     host.start();
-    expect(gs[0].table?.replyWait).toBe(3000);
+    expect(gs[0].table?.replyWait).toBe(10000);
     host.setReplyWait('fast'); // 始めたあとは変えられない
     expect(host.state.replyWait).toBe('slow');
   });

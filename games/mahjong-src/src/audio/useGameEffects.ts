@@ -22,6 +22,9 @@ const DEAL_STEPS = [4, 8, 12, 13];
 /** 演出の全体の長さ（useTable の DEAL_SHOW_MS と同じにする） */
 export const DEAL_TOTAL_MS = SHUFFLE_MS + DEAL_STEP_MS * DEAL_STEPS.length;
 
+/** ツモの音の大きさ（効果音の音量に掛ける） */
+export const DRAW_VOLUME = 0.5;
+
 export type BannerKind = 'dice' | 'riichi' | 'ron' | 'tsumo' | 'dealIn' | 'win' | 'lose';
 export interface Banner {
   kind: BannerKind;
@@ -90,7 +93,8 @@ export function useGameEffects(view: GameState, live: boolean, me: Seat = HUMAN)
     // 打牌
     else if (total(view.discards) > total(p.discards)) playSample('discard');
     // ツモ（嶺上牌も）
-    if (view.drawn.some((d, i) => d !== null && d !== p.drawn[i])) playSample('draw');
+    // ツモの音は半分の大きさ（利用者 10-11：打牌の音より目立たせない）
+    if (view.drawn.some((d, i) => d !== null && d !== p.drawn[i])) playSample('draw', { volume: DRAW_VOLUME });
     // リーチ
     const riichiSeat = view.riichi.findIndex((r, i) => r !== 'none' && p.riichi[i] === 'none');
     if (riichiSeat >= 0) {

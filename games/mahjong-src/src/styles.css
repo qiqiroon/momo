@@ -2470,6 +2470,51 @@ body.in-game .site-header .subtitle {
   align-self: flex-end;
 }
 
+/* 再生の操作の帯を右上に置くとき（正方形の卓の再生） */
+.square-wrap .side-col.side-top {
+  width: 280px;
+  align-self: flex-start;
+}
+
+.side-col .playbar {
+  margin: 0;
+  padding: 8px 6px;
+}
+
+.side-col .playbar .btns {
+  gap: 3px;
+  flex-wrap: nowrap;
+}
+
+.side-col .pb {
+  min-width: 0;
+  flex: 1 1 0;
+  padding: 0 3px;
+  font-size: 12px;
+}
+
+.side-col .pb.auto,
+.side-col .pb.spd {
+  flex: 1.5 1 0;
+  font-size: 11px;
+}
+
+.side-col .playbar .track {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.side-col .playbar .hand-pick {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+}
+
+.side-col .playbar input[type='range'] {
+  order: 3;
+  flex: 1 1 100%;
+}
+
 /* チャットの禁止事項の 1 行（いつも出す・仕様書 §14.4） */
 .chat-rule {
   margin: 0 0 4px;

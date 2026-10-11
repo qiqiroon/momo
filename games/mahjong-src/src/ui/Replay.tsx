@@ -106,11 +106,9 @@ export function Replay({ events, narrow, lang, onExit, makeSameLink }: Props) {
   };
   const view = states[at];
 
-  return (
-    <div className="replay">
-      <Table narrow={narrow} view={view} legal={[]} lang={lang} onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} replay />
-      {/* 再生の操作（将棋の感想戦にならう）：|◀ 前の局 ◀ 自動 速さ ▶ 次の局 ▶| ＋手の位置のつまみ */}
-      <div className="playbar">
+  // 再生の操作の帯：横 4 列は卓の下・正方形の卓は右上（利用者 10-11）
+  const playbar = (
+    <div className="playbar">
         <div className="btns">
           <button type="button" className="pb" title={t('replayHandStart')} aria-label={t('replayHandStart')} disabled={at === handFrom} onClick={() => go(handFrom)}>
             |◀
@@ -176,6 +174,11 @@ export function Replay({ events, narrow, lang, onExit, makeSameLink }: Props) {
           </div>
         )}
       </div>
+  );
+  return (
+    <div className="replay">
+      <Table narrow={narrow} view={view} legal={[]} lang={lang} onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} replay sidePanel={narrow ? undefined : playbar} />
+      {narrow && playbar}
     </div>
   );
 }

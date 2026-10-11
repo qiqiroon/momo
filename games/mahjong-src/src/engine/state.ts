@@ -842,6 +842,8 @@ export function kanProblem(s: GameState, seat: Seat, kan: 'ankan' | 'kakan', til
   if (liveWallLeft(s) <= 0) return '山が尽きたあとはカンできない';
   if (tiles.length === 0) return 'カンに出す牌が無い';
   if (new Set(tiles).size !== tiles.length) return '同じ牌を 2 回出した';
+  // チー・ポンの直後（ツモっていない＝drawn が null）は、1 枚切るまでカンできない（利用者 2026-10-11 Q3=A）
+  if (s.phase === 'discard' && s.turn === seat && s.drawn[seat] === null) return '鳴いた直後は、切る前にカンできない';
   const hand = s.hands[seat];
   const visible = !hand.includes(HIDDEN);
   if (visible && !tiles.every((t) => hand.includes(t))) return '持っていない牌でカンしようとした';

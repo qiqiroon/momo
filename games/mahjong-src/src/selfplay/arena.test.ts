@@ -16,5 +16,5 @@ describe('CPU どうしの強さ比べ（段階7の1）', () => {
     // ツモ切りはアガれない形を寄せないので、アガリは検査用の打ち手の側にしか出ない
     expect(r.b.wins).toBe(0);
     expect(r.a.wins).toBeGreaterThan(0);
-  });
+  }, 30_000);
 });

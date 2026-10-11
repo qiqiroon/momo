@@ -4,6 +4,7 @@
 
 import { benchCpu } from '../cpu/bench';
 import { easyCpu } from '../cpu/easy';
+import { APOCALYPSE, HARD, makeThinker } from '../cpu/thinker';
 import { tsumogiriCpu } from '../cpu/tsumogiri';
 import { arena, arenaReport } from './arena';
 import type { Player } from './run';
@@ -12,6 +13,8 @@ const PLAYERS: Record<string, Player> = {
   tsumogiri: tsumogiriCpu,
   bench: benchCpu,
   easy: easyCpu,
+  hard: makeThinker(HARD),
+  apoc: makeThinker(APOCALYPSE),
 };
 
 const [nameA = 'bench', nameB = 'tsumogiri', pairsArg = '20', prefix = 'arena'] = process.argv.slice(2);

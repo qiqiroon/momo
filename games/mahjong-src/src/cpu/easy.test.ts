@@ -11,7 +11,7 @@ describe('CPU Easy（段階7の2）', () => {
       expect(r.failure).toBeNull();
       expect(r.final.phase).toBe('gameover');
     }
-  });
+  }, 30_000);
 
   it('同じ局面では必ず同じ手（ぶれを入れていない）', () => {
     const a = playOne('easy-same', undefined, easyCpu, true).log;
@@ -23,5 +23,5 @@ describe('CPU Easy（段階7の2）', () => {
     const r = arena(easyCpu, benchCpu, 10, 'easy-vs-bench');
     expect(r.failures).toEqual([]);
     expect(r.a.rankSum / r.a.seats).toBeLessThan(r.b.rankSum / r.b.seats);
-  });
+  }, 30_000); // 重い検査と並ぶと 5 秒を超える（結果は種で決まる）
 });

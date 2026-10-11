@@ -313,6 +313,32 @@ describe('加槓と槍槓', () => {
     return t;
   }
 
+  it('ポンの直後（切る前）は加槓も暗槓もできない。1 枚切って次にツモったあとならできる（Q3=A）', () => {
+    // 席 1 は 2p を 3 枚と 5z を 4 枚持つ。席 0 が切った 2p をポンすると、手に 2p が 1 枚残る
+    const t = setup([S0, '2p2p2p7p8p2s3s4s5z5z5z5z6m', null, S3], DEAD, GENERAL_RULES, '2p');
+    const tile = t.draw('2p');
+    t.do(0, { type: 'discard', tile });
+    t.do(1, callOptions(t.s, 1).find((a) => a.type === 'pon')!);
+    t.passAll();
+    expect(t.s.phase).toBe('discard');
+    expect(t.s.turn).toBe(1);
+    expect(kanOptions(t.s, 1)).toEqual([]);
+    expect(legalActions(t.s, 1).some((a) => a.type === 'kan')).toBe(false);
+    // 画面や通信から直接頼まれても局面が断る
+    const two = t.s.hands[1].find((x) => kindOf(x) === k('2p'))!;
+    expect(() => t.push({ type: 'kan', seat: 1, kan: 'kakan', tiles: [two] })).toThrow();
+    const fives = t.s.hands[1].filter((x) => kindOf(x) === k('5z'));
+    expect(() => t.push({ type: 'kan', seat: 1, kan: 'ankan', tiles: fives })).toThrow();
+    // 1 枚切って一回りしたあと、ツモれば両方できる
+    t.do(1, { type: 'discard', tile: t.s.hands[1].find((x) => kindOf(x) === k('6m'))! });
+    t.passAll();
+    t.cycle('1z');
+    t.cycle('1z');
+    t.cycle('1z');
+    t.draw('9p');
+    expect(kanOptions(t.s, 1).map((a) => a.type === 'kan' && a.kan).sort()).toEqual(['ankan', 'kakan']);
+  });
+
   it('加槓の牌で槍槓できる（槍槓が役になる）。崩れたカンのカンドラはめくらない', () => {
     const t = ponThenKakan();
     expect(t.s.phase).toBe('claim');

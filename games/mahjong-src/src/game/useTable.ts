@@ -78,9 +78,9 @@ export function useTable() {
   const [s, dispatch] = useReducer(reducer, undefined, empty);
   const { full, view } = s;
 
-  /** 対局を始める。rules＝選んだルール（無ければ一般ルール）・set＝セットの名前か 'custom'（牌譜に残す） */
-  const start = useCallback((rules: Rules = GENERAL_RULES, set = 'general') => {
-    const seed = newSeed();
+  /** 対局を始める。rules＝選んだルール（無ければ一般ルール）・set＝セットの名前か 'custom'（牌譜に残す）・given＝山の種（同じ山で勝負のとき） */
+  const start = useCallback((rules: Rules = GENERAL_RULES, set = 'general', given?: string) => {
+    const seed = given ?? newSeed();
     const first: Envelope = { seq: 0, to: 'all', ev: { type: 'gameStart', rules } };
     // 親決め（自分が仮親としてサイコロを振る）→ 起家から最初の局
     const dice: Envelope = { seq: 1, to: 'all', ev: rollForDealer(seed, HUMAN) };

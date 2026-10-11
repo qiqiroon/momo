@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Envelope } from './engine/events';
 import { HUMAN, useTable } from './game/useTable';
-import { decodeRuleLink, labelOf, type RuleChoice } from './engine/ruleSets';
+import { decodeRuleLink, JP_SETS, labelOf, type RuleChoice, type SetId } from './engine/ruleSets';
+import { decodeSameLink, encodeSameLink, type SameWall } from './kifu/same';
+import { finalResult } from './engine/final';
+import { apply, initialState } from './engine/state';
 import { loadRuleChoice, saveRuleChoice } from './ui/RuleSettings';
 import { SeatContext, type SeatInfo } from './ui/seatContext';
 import { buildKifu, kifuFileName, parseKifu, type Kifu, type KifuSource } from './kifu/kifu';
 import { decodeKifuLink, encodeKifuLink } from './kifu/link';
 import { downloadText, listDriveKifu, loadLastGame, readDriveFile, saveToDrive } from './kifu/store';
-import { CpuSetup, ModeRow, ReplayHub, RuleLinkScreen, SiteFooter } from './ui/Menu';
+import { CpuSetup, ModeRow, ReplayHub, RuleLinkScreen, SameWallScreen, SiteFooter } from './ui/Menu';
 import { useGameEffects } from './audio/useGameEffects';
 import { armAudioAsk, finishAudioAsk, rearmAudioAsk } from './audio/firstGesture';
 import { bindVisibility } from './audio/visibility';
@@ -33,6 +36,22 @@ const GEAR =
 /** オンライン対局（部屋の一覧と待合）。サーバーにつなぐのはオンライン対局の画面に入ったときだけ */
 const online = new OnlineSession(matchmakingTransport);
 
+/** ページの住所の #same=… を読む（無ければ null） */
+function readSameLink(): { sw: SameWall | null } | null {
+  const m = /^#same=(.+)$/.exec(location.hash);
+  return m ? { sw: decodeSameLink(m[1]) } : null;
+}
+
+/** 前回の対局（CPU と対局）から、同じ山で勝負のリンクの中身を作る。終わった対局なら自分（席 0）の順位と最終得点も入れる */
+function sameWallOf(src: KifuSource): SameWall {
+  let s = initialState();
+  for (const e of src.events) s = apply(s, e);
+  const values = (s.rules?.family === 'jp' ? s.rules.values : {}) as RuleChoice['values'];
+  const base = (JP_SETS as readonly string[]).includes(src.set) ? (src.set as SetId) : 'general';
+  const me = s.phase === 'gameover' ? finalResult(s).find((r) => r.seat === 0) : undefined;
+  return { choice: { base, values }, seed: src.seed, ...(me ? { result: { rank: me.rank, total: me.total } } : {}) };
+}
+
 /** ページの住所の #rules=… を読む（無ければ null） */
 function readRuleLink(): { choice: RuleChoice | null } | null {
   const m = /^#rules=(.+)$/.exec(location.hash);
@@ -55,14 +74,23 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   /** トップ側の画面：モード選択／CPU と対局（ルールを選ぶ）／オンライン対局／対局の再生 */
   /** リンクで届いたルール（#rules=…。読めなければ choice が null）。同意のあとに見せる */
   const [linkRule, setLinkRule] = useState<{ choice: RuleChoice | null } | null>(readRuleLink);
-  const [screen, setScreen] = useState<'top' | 'cpu' | 'online' | 'replay' | 'rulelink'>(() => (readRuleLink() ? 'rulelink' : 'top'));
+  /** 同じ山で勝負のリンク（#same=…。読めなければ sw が null） */
+  const [sameWall, setSameWall] = useState<{ sw: SameWall | null } | null>(readSameLink);
+  const [screen, setScreen] = useState<'top' | 'cpu' | 'online' | 'replay' | 'rulelink' | 'same'>(() => (readRuleLink() ? 'rulelink' : readSameLink() ? 'same' : 'top'));
   // 開いたままのページにリンクを貼り直したとき（# だけ変わる）も同じ画面へ
   useEffect(() => {
     const onHash = () => {
       const r = readRuleLink();
-      if (!r) return;
-      setLinkRule(r);
-      setScreen('rulelink');
+      if (r) {
+        setLinkRule(r);
+        setScreen('rulelink');
+        return;
+      }
+      const w = readSameLink();
+      if (w) {
+        setSameWall(w);
+        setScreen('same');
+      }
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
@@ -292,7 +320,26 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
         </main>
       ) : (
         <main className="title">
-          {screen === 'rulelink' && linkRule ? (
+          {screen === 'same' && sameWall ? (
+            <SameWallScreen
+              t={t}
+              lang={baseOf(lang)}
+              sw={sameWall.sw}
+              onStart={() => {
+                const sw = sameWall.sw;
+                history.replaceState(null, '', location.pathname + location.search);
+                setSameWall(null);
+                setScreen('top');
+                // 同じ山（種）とルールで CPU と対局（端末のルールの控えは変えない）
+                if (sw) start({ family: 'jp', values: sw.choice.values }, labelOf(sw.choice.values, sw.choice.base), sw.seed);
+              }}
+              onCancel={() => {
+                history.replaceState(null, '', location.pathname + location.search);
+                setSameWall(null);
+                setScreen('top');
+              }}
+            />
+          ) : screen === 'rulelink' && linkRule ? (
             <RuleLinkScreen
               t={t}
               lang={baseOf(lang)}
@@ -337,6 +384,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
               onPlayDrive={(id) => void playDrive(id)}
               onSaveFile={() => last && saveFile(last)}
               onSaveDrive={() => last && void saveDrive(last)}
+              makeSameLink={last && last.mode !== 'online' ? () => `${location.origin}${location.pathname}#same=${encodeSameLink(sameWallOf(last))}` : null}
               makeLink={async () => {
                 if (!last) throw new Error(t('noLastGame'));
                 return `${location.origin}${location.pathname}#kifu=${await encodeKifuLink(last)}`;

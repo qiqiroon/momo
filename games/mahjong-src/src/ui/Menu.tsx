@@ -5,6 +5,7 @@
 import { useState, type ReactNode } from 'react';
 import type { BaseLang, MessageKey } from '../i18n/strings';
 import { RuleSettings, loadRuleChoice, saveRuleChoice, type RuleChoice } from './RuleSettings';
+import type { SameWall } from '../kifu/same';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
@@ -164,6 +165,69 @@ interface ReplayHubProps {
   onSaveDrive: () => void;
   /** 前回の対局のリンク（#kifu=…）を作る（作れなければ投げる） */
   makeLink: () => Promise<string>;
+  /** 前回の対局の「同じ山で勝負」のリンク（#same=…）。CPU と対局でなければ null */
+  makeSameLink: (() => string) | null;
+}
+
+/** 「同じ山で勝負」のリンクをコピーする。押したときに、山の情報が入ることを知らせる（同意は求めない） */
+function SameLinkButton({ t, makeLink }: { t: T; makeLink: (() => string) | null }) {
+  const [st, setSt] = useState<{ state: 'idle' | 'copied' | 'failed'; url: string }>({ state: 'idle', url: '' });
+  const copy = async () => {
+    if (!makeLink) return;
+    const url = makeLink();
+    try {
+      await navigator.clipboard.writeText(url);
+      setSt({ state: 'copied', url });
+    } catch {
+      setSt({ state: 'failed', url });
+    }
+  };
+  return (
+    <>
+      <button type="button" className="choice-btn" disabled={!makeLink} onClick={() => void copy()}>
+        {t('srcSame')}
+      </button>
+      {st.state !== 'idle' && <p className="choice-note same-warn">{t('sameWarn')}</p>}
+      {st.state === 'copied' && <p className="choice-note">{t('sameCopied')}</p>}
+      {st.state === 'failed' && (
+        <>
+          <p className="choice-note">{t('rsCopyFail')}</p>
+          <input className="kifu-link-url" readOnly value={st.url} onFocus={(e) => e.currentTarget.select()} />
+        </>
+      )}
+    </>
+  );
+}
+
+/** 同じ山で勝負のリンクを開いた人：ルールと送った人の成績を見せ、同じ山で CPU と打つ。sw が null なら読めなかった */
+export function SameWallScreen({ t, lang, sw, onStart, onCancel }: { t: T; lang: BaseLang; sw: SameWall | null; onStart: () => void; onCancel: () => void }) {
+  return (
+    <>
+      <ScreenHead title={t('sameTitle')} />
+      {sw ? (
+        <>
+          <p className="guide">{t('sameGuide')}</p>
+          {sw.result && <p className="guide same-result">{t('sameTheirResult', { rank: sw.result.rank, total: (sw.result.total > 0 ? '+' : '') + sw.result.total.toFixed(1) })}</p>}
+          <div className="screen-actions">
+            <button type="button" className="btn-primary btn-start" onClick={onStart}>
+              {t('sameStart')}
+            </button>
+            <button type="button" className="btn-secondary" onClick={onCancel}>
+              {t('rlCancel')}
+            </button>
+          </div>
+          <RuleSettings t={t} lang={lang} choice={sw.choice} readOnly />
+        </>
+      ) : (
+        <>
+          <p className="guide">{t('sameBroken')}</p>
+          <div className="screen-actions">
+            <BackButton t={t} onClick={onCancel} />
+          </div>
+        </>
+      )}
+    </>
+  );
 }
 
 /** 前回の対局のリンクをコピーする。コピーできない端末では、住所を選べる欄に出す */
@@ -201,7 +265,7 @@ function KifuLinkButton({ t, disabled, makeLink }: { t: T; disabled: boolean; ma
 }
 
 /** 再生・保存の行を押すと、その下に「どこから／どこへ」を出す */
-export function ReplayHub({ t, hasLast, note, onBack, onPlayLast, onPlayFile, listDrive, onPlayDrive, onSaveFile, onSaveDrive, makeLink }: ReplayHubProps) {
+export function ReplayHub({ t, hasLast, note, onBack, onPlayLast, onPlayFile, listDrive, onPlayDrive, onSaveFile, onSaveDrive, makeLink, makeSameLink }: ReplayHubProps) {
   const [open, setOpen] = useState<'play' | 'save' | null>(null);
   const [drive, setDrive] = useState<{ state: 'idle' | 'loading' | 'done' | 'error'; files: DriveEntry[]; why: string }>({ state: 'idle', files: [], why: '' });
   const toggle = (k: 'play' | 'save') => setOpen(open === k ? null : k);
@@ -259,6 +323,7 @@ export function ReplayHub({ t, hasLast, note, onBack, onPlayLast, onPlayFile, li
               {t('srcDrive')}
             </button>
             <KifuLinkButton t={t} disabled={!hasLast} makeLink={makeLink} />
+            <SameLinkButton t={t} makeLink={hasLast ? makeSameLink : null} />
             {!hasLast && <p className="choice-note">{t('noLastGame')}</p>}
           </div>
         )}

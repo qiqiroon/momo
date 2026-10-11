@@ -3,6 +3,8 @@ import { App } from './App';
 import { benchCpu } from './cpu/bench';
 import { GENERAL_RULES } from './engine/rules';
 import { encodeKifuLink } from './kifu/link';
+import { encodeSameLink } from './kifu/same';
+import { decodeRuleLink } from './engine/ruleSets';
 import { playOne } from './selfplay/run';
 import { APP_VERSION } from './version';
 import { baseOf, translate } from './i18n/strings';
@@ -274,9 +276,9 @@ describe('モード選択と、そこから入る画面', () => {
     expect(screen.getByRole('button', { name: '前回の対局' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'この端末のファイル' })).not.toBeDisabled();
     fireEvent.click(screen.getByText('前回の対局を保存する'));
-    // 開くのは押した行の下だけ（再生の選択肢は閉じる）＝出ている選択肢は保存先の 3 つ（ファイル・ドライブ・リンク）
+    // 開くのは押した行の下だけ（再生の選択肢は閉じる）＝出ている選択肢は保存先の 4 つ（ファイル・ドライブ・リンク・同じ山で勝負）
     const choices = [...document.querySelectorAll('.mode-choices button')];
-    expect(choices.map((b) => b.textContent)).toEqual(['この端末のファイル', 'Google ドライブ', 'リンクをコピー']);
+    expect(choices.map((b) => b.textContent)).toEqual(['この端末のファイル', 'Google ドライブ', 'リンクをコピー', '同じ山で勝負のリンクをコピー']);
     for (const b of choices) expect(b).toBeDisabled();
   });
 });
@@ -385,5 +387,30 @@ describe('牌譜のリンク（6d）', () => {
     history.replaceState(null, '', '#kifu=abc');
     render(<App startConsented />);
     expect(await screen.findByText(/この牌譜は読めません|読め/)).toBeInTheDocument();
+  });
+});
+
+describe('同じ山で勝負（6e）', () => {
+  afterEach(() => {
+    history.replaceState(null, '', location.pathname);
+    localStorage.removeItem('momo-mahjong.rules');
+  });
+
+  it('リンクを開くと、送った人の成績とルールが出て、「この山で対局を始める」で対局が始まる（端末のルールの控えは変えない）', () => {
+    const code = encodeSameLink({ choice: decodeRuleLink('tenhou')!, seed: 'same-seed', result: { rank: 1, total: 42.3 } });
+    history.replaceState(null, '', `#same=${code}`);
+    render(<App startConsented />);
+    expect(screen.getByText('同じ山で勝負')).toBeInTheDocument();
+    expect(screen.getByText('送ってくれた人の成績：1位・+42.3')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('この山で対局を始める'));
+    expect(location.hash).toBe('');
+    expect(container().querySelector('.table-wrap, .square, .lanes-wrap')).not.toBeNull();
+    expect(localStorage.getItem('momo-mahjong.rules')).toBeNull();
+  });
+
+  it('壊れたリンクは「読めませんでした」を出す', () => {
+    history.replaceState(null, '', '#same=abc');
+    render(<App startConsented />);
+    expect(screen.getByText(/同じ山で勝負のリンクを読めませんでした/)).toBeInTheDocument();
   });
 });

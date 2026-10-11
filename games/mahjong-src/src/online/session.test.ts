@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ruleChoiceOf, rulesOfSet } from '../engine/ruleSets';
+import type { JpRuleKey } from '../engine/rules';
 import { OnlineSession, ROLLCALL_MS, type RoomInfo, type Transport, type TransportHandlers } from './session';
 
 // 本物のサーバーの多人数の部屋をまねた偽物。
@@ -295,6 +297,33 @@ describe('始める', () => {
     expect(gs[0].table?.replyWait).toBe(3000);
     host.setReplyWait('fast'); // 始めたあとは変えられない
     expect(host.state.replyWait).toBe('slow');
+  });
+
+  it('ルール：ホストが選んだもの（始める前だけ）がゲストにも届き、始めると対局の始まりで全員のルールになる', () => {
+    const { host, gs } = hostWith('A');
+    expect(gs[0].state.rules.base).toBe('general');
+    const tenhou = { base: 'tenhou' as const, values: { ...(rulesOfSet('tenhou').values as Record<JpRuleKey, string>) } };
+    gs[0].setRules(tenhou); // ゲストは選べない
+    expect(host.state.rules.base).toBe('general');
+    const custom = { ...tenhou, values: { ...tenhou.values, kuitan: 'on' } };
+    host.setRules(custom);
+    expect(gs[0].state.rules).toEqual(custom);
+    host.start();
+    expect(host.table?.view.rules).toEqual({ family: 'jp', values: custom.values });
+    expect(gs[0].table?.view.rules).toEqual({ family: 'jp', values: custom.values });
+    host.setRules(tenhou); // 始めたあとは変えられない
+    expect(host.state.rules).toEqual(custom);
+  });
+
+  it('ルール：読めないもの（知らない値・項目の欠け）が届いたら使わない', () => {
+    const g = ruleChoiceOf(rulesOfSet('general'));
+    expect(g).toBeNull(); // base が無い
+    const ok = { base: 'general', values: { ...(rulesOfSet('general').values as Record<string, string>) } };
+    expect(ruleChoiceOf(ok)).toEqual(ok);
+    expect(ruleChoiceOf({ ...ok, values: { ...ok.values, kuitan: 'maybe' } })).toBeNull();
+    const { kuitan: _, ...missing } = ok.values;
+    expect(ruleChoiceOf({ ...ok, values: missing })).toBeNull();
+    expect(ruleChoiceOf({ ...ok, base: 'nope' })).toBeNull();
   });
 
   it('チャット：部屋の全員に名前つきで届く。空・長すぎ・1 秒に 2 回目は送らない', () => {

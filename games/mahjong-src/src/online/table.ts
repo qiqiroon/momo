@@ -15,7 +15,7 @@ import { HIDDEN, SEATS, mask, type Envelope, type GameEvent, type Seat } from '.
 import { doraIndicatorPos, uraIndicatorPos, MAX_INDICATORS } from '../engine/dora';
 import { nextStep } from '../engine/game';
 import { act, advance, dealChunkPositions, drawPosition, legalActions, positionsNeeded, rollForDealer, type Action } from '../engine/round';
-import { GENERAL_RULES } from '../engine/rules';
+import { GENERAL_RULES, type Rules } from '../engine/rules';
 import { apply, initialState, type GameState } from '../engine/state';
 import type { TileId } from '../engine/tiles';
 import { callables, presetReply, prunePresets, type Presets } from './presets';
@@ -188,15 +188,15 @@ export class OnlineTable {
 
   // ---- 外から呼ぶ ----
 
-  /** ホスト：席を決めて対局を始める（人の席は入った順・空きは CPU） */
-  begin(humans: { id: string; name: string }[], replyWait = 0) {
+  /** ホスト：席を決めて対局を始める（人の席は入った順・空きは CPU）。rules＝ホストが選んだルール（対局の始まりの出来事で全員へ） */
+  begin(humans: { id: string; name: string }[], replyWait = 0, rules: Rules = GENERAL_RULES) {
     if (!this.o.isHost) return;
     const seats: SeatKind[] = SEATS.map((i) => (humans[i] ? { kind: 'human', id: humans[i].id, name: humans[i].name } : { kind: 'cpu' }));
     this.broadcast({ type: 'mt-begin', seats, replyWait });
     const seedBytes = new Uint32Array(2);
     crypto.getRandomValues(seedBytes);
     const seed = Array.from(seedBytes, (n) => n.toString(36)).join('');
-    this.emitAll([{ env: { seq: 0, to: 'all', ev: { type: 'gameStart', rules: GENERAL_RULES } } }, { env: { seq: 1, to: 'all', ev: rollForDealer(seed, 0) } }]);
+    this.emitAll([{ env: { seq: 0, to: 'all', ev: { type: 'gameStart', rules } } }, { env: { seq: 1, to: 'all', ev: rollForDealer(seed, 0) } }]);
     this.beginHand({ roundIndex: 0, dealer: this.pub.chicha, honba: 0 });
   }
 

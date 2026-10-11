@@ -4,11 +4,12 @@
 // 一覧の下のパスワード欄に入れてから参加。パスワード欄はブラウザに保存の候補を出させない（ふつうの文字の欄を伏せ字に見せる）。
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import type { MessageKey } from '../i18n/strings';
+import type { BaseLang, MessageKey } from '../i18n/strings';
 import { MAX_SEATS, REPLY_WAIT_MS, type Member, type OnlineNote, type OnlineSession, type ReplyWait, type RoomInfo } from '../online/session';
 import type { OnlineTable } from '../online/table';
 import { BackButton, ScreenHead } from './Menu';
 import { Chat } from './Chat';
+import { RuleSettings, saveRuleChoice } from './RuleSettings';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
@@ -253,7 +254,7 @@ function ReplyWaitPicker({ t, session, value, isHost, started }: { t: T; session
 }
 
 /** 待合：席は入った順。空いた席は CPU。ホストだけが始められる */
-export function WaitingRoom({ t, session }: { t: T; session: OnlineSession }) {
+export function WaitingRoom({ t, lang, session }: { t: T; lang: BaseLang; session: OnlineSession }) {
   const s = useOnline(session);
   if (!s.room) return null;
   if (s.reconnecting) {
@@ -299,7 +300,6 @@ export function WaitingRoom({ t, session }: { t: T; session: OnlineSession }) {
             </li>
           ))}
         </ol>
-        <p className="guide">{t('olRuleFixed')}</p>
         <ReplyWaitPicker t={t} session={session} value={s.replyWait} isHost={isHost} started={s.started} />
         <p className="guide">{t('olReplyWaitDesc')}</p>
         {s.started ? (
@@ -308,6 +308,18 @@ export function WaitingRoom({ t, session }: { t: T; session: OnlineSession }) {
           <p className="guide">{t(isHost ? 'olHostHint' : 'olWaitHost')}</p>
         )}
       </section>
+      {/* ルール：ホストは始める前だけ選べる（端末に覚える＝CPU と対局と同じ控え）。ゲストと始まったあとは見るだけ */}
+      <p className="guide ol-rule-host">{t('olRuleHost')}</p>
+      <RuleSettings
+        t={t}
+        lang={lang}
+        choice={s.rules}
+        readOnly={!isHost || s.started}
+        onChange={(c) => {
+          saveRuleChoice(c);
+          session.setRules(c);
+        }}
+      />
       {/* 始める前も話せる（待合と卓で同じ記録） */}
       <div className="ol-panel ol-chat">
         <Chat t={t} you={t('you')} online={{ lines: s.chat, myId: session.myId, onSend: (x) => session.sendChat(x) }} />

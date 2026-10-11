@@ -2367,6 +2367,19 @@ body.in-game .site-header .subtitle {
   text-align: right;
 }
 
+/* 見るだけ（オンラインのゲスト・始まったあと）：セットの名前と、各項目の選んだ値を文字で出す */
+.rule-settings .cur.ro-set {
+  text-align: left;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--orange);
+}
+
+.rule-settings .set-row .ro-val {
+  font-weight: 700;
+  color: var(--text);
+}
+
 .rule-settings .indiv-head {
   font-size: 0.85rem;
   color: var(--orange-mid);

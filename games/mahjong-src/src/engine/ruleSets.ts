@@ -54,6 +54,34 @@ export function blockedBy(values: Readonly<Record<JpRuleKey, string>>, k: JpRule
   return ok ? null : { k: other, value: values[other] };
 }
 
+/** 選んだルール：基にしたセットと全項目の値（CPU 対局の設定・オンラインでホストが配るもの） */
+export interface RuleChoice {
+  base: SetId;
+  values: Record<JpRuleKey, string>;
+}
+
+/** 一般ルールを選んだ状態 */
+export function generalChoice(): RuleChoice {
+  const g = rulesOfSet('general');
+  return { base: 'general', values: { ...(g.values as Record<JpRuleKey, string>) } };
+}
+
+/** 届いたもの（オンラインでホストから）を確かめて、選んだルールにする。全項目がそろい、どれも選択肢のどれかでなければ null */
+export function ruleChoiceOf(raw: unknown): RuleChoice | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as { base?: unknown; values?: unknown };
+  if (typeof r.base !== 'string' || !(JP_SETS as readonly string[]).includes(r.base)) return null;
+  if (!r.values || typeof r.values !== 'object') return null;
+  const src = r.values as Record<string, unknown>;
+  const values = {} as Record<JpRuleKey, string>;
+  for (const it of JP_RULE_ITEMS) {
+    const v = src[it.k];
+    if (typeof v !== 'string' || !it.opts.some((o) => o[0] === v)) return null;
+    values[it.k] = v;
+  }
+  return { base: r.base as SetId, values };
+}
+
 /** セットの表示名（日本語・見本のまま） */
 export function setNameJa(set: string): string {
   for (const t of TIERS) for (const s of t.sets) if (s[0] === set) return s[1];

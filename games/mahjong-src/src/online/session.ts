@@ -13,6 +13,7 @@
 // 誰が抜けたかは土台からは確かに分からない（番号が重なりうる）ので、ホストが点呼を取って決める。
 
 import { tsumogiriCpu } from '../cpu/tsumogiri';
+import { generalChoice, ruleChoiceOf, type RuleChoice } from '../engine/ruleSets';
 import { DEAL_SHOW_MS, DICE_SHOW_MS, dealShowOn } from '../game/useTable';
 import { OnlineTable, type LockerStore, type SyncData, type TableOptions, type WireLocker } from './table';
 
@@ -88,6 +89,8 @@ export interface OnlineState {
   saved: SavedSeat | null;
   /** 返事の待ち（ホストが選び、名簿と一緒に配る） */
   replyWait: ReplyWait;
+  /** ルール（ホストが選び、名簿と一緒に配る。始めるときに対局の始まりの出来事で全員へ） */
+  rules: RuleChoice;
   /** チャット（待合と卓で同じ記録を続けて使う） */
   chat: ChatLine[];
 }
@@ -152,6 +155,9 @@ function newId(): string {
   return Array.from(a, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** 選んだルールの控え（ui/RuleSettings.tsx の saveRuleChoice と同じ場所） */
+const RULES_KEY = 'momo-mahjong.rules';
+
 const INITIAL: OnlineState = {
   wsOpen: false,
   rooms: [],
@@ -165,6 +171,7 @@ const INITIAL: OnlineState = {
   reconnecting: false,
   saved: null,
   replyWait: 'normal',
+  rules: generalChoice(),
   chat: [],
 };
 
@@ -373,6 +380,13 @@ export class OnlineSession {
     this.broadcastMembers();
   }
 
+  /** ホスト：ルールを選ぶ（始める前だけ） */
+  setRules(c: RuleChoice) {
+    if (!this.s.room?.isHost || this.s.started) return;
+    this.set({ rules: c });
+    this.broadcastMembers();
+  }
+
   /** ホスト：対局を始める（空いた席は CPU） */
   start() {
     if (!this.s.room?.isHost || this.s.started) return;
@@ -383,6 +397,7 @@ export class OnlineSession {
     this.table.begin(
       this.s.members.filter((m) => m.online).map((m) => ({ id: m.id, name: m.name })),
       REPLY_WAIT_MS[this.s.replyWait],
+      { family: 'jp', values: { ...this.s.rules.values } },
     );
   }
 
@@ -420,6 +435,8 @@ export class OnlineSession {
       room: { id, name, hasPassword: this.pending?.hasPassword ?? false, isHost: true },
       members: [{ id: this.myId, name: this.myName, online: true }],
       started: false,
+      // ホストのルールは、この端末で前に選んだもの（CPU と対局と同じ控え）
+      rules: ruleChoiceOf(readJson<unknown>(RULES_KEY)) ?? generalChoice(),
     });
     this.pending = null;
   }
@@ -433,13 +450,14 @@ export class OnlineSession {
       room: { id, name, hasPassword: this.pending?.hasPassword ?? false, isHost: false },
       members: back ? this.s.members : [],
       started: back ? this.s.started : false,
+      rules: back ? this.s.rules : generalChoice(),
     });
     this.pending = null;
     this.tr.send({ type: 'mj-hello', id: this.myId, name: this.myName }, 'host');
   }
 
   private broadcastMembers() {
-    this.tr.send({ type: 'mj-members', members: this.s.members, started: this.s.started, replyWait: this.s.replyWait }, 'all');
+    this.tr.send({ type: 'mj-members', members: this.s.members, started: this.s.started, replyWait: this.s.replyWait, rules: this.s.rules }, 'all');
   }
 
   private receive(d: Record<string, unknown>) {
@@ -466,7 +484,8 @@ export class OnlineSession {
     if (d.type === 'mj-members' && Array.isArray(d.members)) {
       const started = d.started === true;
       const rw = d.replyWait === 'fast' || d.replyWait === 'slow' ? d.replyWait : 'normal';
-      this.set({ members: d.members as Member[], started, replyWait: rw });
+      // ルールは確かめてから使う（読めなければ一般ルールのまま）
+      this.set({ members: d.members as Member[], started, replyWait: rw, rules: ruleChoiceOf(d.rules) ?? this.s.rules });
       // 対局中のゲストは、開き直したときに戻れるよう控える
       if (started && this.s.room && !this.s.room.isHost) {
         const sv: SavedSeat = { roomId: this.s.room.id, roomName: this.s.room.name, hasPassword: this.s.room.hasPassword, myId: this.myId, name: this.myName, password: this.password };

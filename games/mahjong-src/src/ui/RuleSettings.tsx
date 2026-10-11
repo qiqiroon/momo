@@ -8,18 +8,14 @@
 
 import { useState } from 'react';
 import { JP_FIXED, JP_ITEMS, TIERS, type RuleItem } from '../engine/ruleTable';
-import { JP_RULE_ITEMS, JP_SETS, blockedBy, familyOf, isSupplied, labelOf, presetValue, rulesOfSet, type SetId } from '../engine/ruleSets';
+import { JP_RULE_ITEMS, JP_SETS, blockedBy, familyOf, generalChoice, isSupplied, labelOf, presetValue, rulesOfSet, type RuleChoice, type SetId } from '../engine/ruleSets';
 import type { JpRuleKey } from '../engine/rules';
 import { groupName, optLabel, ruleName, ruleNote } from '../i18n/ruleText';
 import type { BaseLang, MessageKey } from '../i18n/strings';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
-export interface RuleChoice {
-  /** 基にしたセット */
-  base: SetId;
-  values: Record<JpRuleKey, string>;
-}
+export type { RuleChoice };
 
 const STORE_KEY = 'momo-mahjong.rules';
 
@@ -35,8 +31,7 @@ export function loadRuleChoice(): RuleChoice {
   } catch {
     /* 読めなければ一般ルール */
   }
-  const g = rulesOfSet('general');
-  return { base: 'general', values: { ...(g.values as Record<JpRuleKey, string>) } };
+  return generalChoice();
 }
 
 export function saveRuleChoice(c: RuleChoice) {
@@ -66,7 +61,8 @@ function groups(): { name: string; fold: boolean; members: typeof JP_RULE_ITEMS 
 /** どのセットも同じ値の項目（細かい決まり） */
 const isDetail = (k: JpRuleKey) => new Set(JP_SETS.map((s) => presetValue(s, k))).size === 1;
 
-export function RuleSettings({ t, lang, choice, onChange }: { t: T; lang: BaseLang; choice: RuleChoice; onChange: (c: RuleChoice) => void }) {
+/** readOnly＝見るだけ（オンラインのゲスト・始まったあと）：選んだ値だけを文字で出す。まとまりは開いて見られる */
+export function RuleSettings({ t, lang, choice, onChange, readOnly = false }: { t: T; lang: BaseLang; choice: RuleChoice; onChange?: (c: RuleChoice) => void; readOnly?: boolean }) {
   /** 開いているまとまり（最初は全部畳む） */
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const label = labelOf(choice.values, choice.base);
@@ -74,9 +70,9 @@ export function RuleSettings({ t, lang, choice, onChange }: { t: T; lang: BaseLa
   const pickSet = (set: string) => {
     if (familyOf(set) !== 'jp') return; // 中国式は段階9
     const r = rulesOfSet(set as SetId);
-    if (r.family === 'jp') onChange({ base: set as SetId, values: { ...(r.values as Record<JpRuleKey, string>) } });
+    if (r.family === 'jp') onChange?.({ base: set as SetId, values: { ...(r.values as Record<JpRuleKey, string>) } });
   };
-  const setValue = (k: JpRuleKey, v: string) => onChange({ base: choice.base, values: { ...choice.values, [k]: v } });
+  const setValue = (k: JpRuleKey, v: string) => onChange?.({ base: choice.base, values: { ...choice.values, [k]: v } });
   const changed = (ms: typeof JP_RULE_ITEMS) => ms.filter((m) => choice.values[m.k] !== presetValue(choice.base, m.k)).length;
 
   const row = (it: (typeof JP_RULE_ITEMS)[number]) => {
@@ -87,8 +83,11 @@ export function RuleSettings({ t, lang, choice, onChange }: { t: T; lang: BaseLa
         <span className="lbl">
           {ruleName(it.k, lang)}
           {isSupplied(choice.base, it.k) ? <small className="supp">{t('rsSupplied')}</small> : note ? <small>{note}</small> : null}
-          {why && <small className="why">{t('rsBlocked', { item: ruleName(why.k, lang).replace(/（.*$|\(.*$/, ''), value: optLabel(why.k, why.value, lang) })}</small>}
+          {why && !readOnly && <small className="why">{t('rsBlocked', { item: ruleName(why.k, lang).replace(/（.*$|\(.*$/, ''), value: optLabel(why.k, why.value, lang) })}</small>}
         </span>
+        {readOnly ? (
+          <span className="ro-val">{optLabel(it.k, choice.values[it.k], lang)}</span>
+        ) : (
         <span className="seg">
           {it.opts.map(([v]) => (
             <button type="button" key={v} className={choice.values[it.k] === v ? 'on' : ''} disabled={!!why} onClick={() => setValue(it.k, v)}>
@@ -96,6 +95,7 @@ export function RuleSettings({ t, lang, choice, onChange }: { t: T; lang: BaseLa
             </button>
           ))}
         </span>
+        )}
       </div>
     );
   };
@@ -107,6 +107,11 @@ export function RuleSettings({ t, lang, choice, onChange }: { t: T; lang: BaseLa
         <summary>{t('aboutSets')}</summary>
         <p className="guide">{t('aboutSetsText')}</p>
       </details>
+      {readOnly ? (
+        <p className="cur ro-set">
+          {label === 'custom' ? `${t('rsCustom')}（${t('rsChangedFrom', { set: t(`set_${choice.base}` as MessageKey) })}）` : t(`set_${label}` as MessageKey)}
+        </p>
+      ) : (
       <div className="sets">
         {TIERS.map((tier, i) => (
           <div className="tier" key={i}>
@@ -136,8 +141,9 @@ export function RuleSettings({ t, lang, choice, onChange }: { t: T; lang: BaseLa
           </span>
         </div>
       </div>
-      {label === 'custom' && <p className="cur">{t('rsChangedFrom', { set: t(`set_${choice.base}` as MessageKey) })}</p>}
-      <div className="indiv-head">{t('rsIndivHead')}</div>
+      )}
+      {!readOnly && label === 'custom' && <p className="cur">{t('rsChangedFrom', { set: t(`set_${choice.base}` as MessageKey) })}</p>}
+      <div className="indiv-head">{t(readOnly ? 'rsReadOnlyHead' : 'rsIndivHead')}</div>
       <div className="rule-rows">
         {groups().map((g) => {
           const key = g.name;

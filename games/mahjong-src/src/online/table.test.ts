@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { rulesOfSet } from '../engine/ruleSets';
+import { GENERAL_RULES } from '../engine/rules';
 import { benchCpu } from '../cpu/bench';
 import { tsumogiriCpu } from '../cpu/tsumogiri';
 import { HIDDEN, type Envelope } from '../engine/events';
@@ -140,6 +142,30 @@ describe('オンラインの卓（偽の通信）', () => {
       // 自分の席から見た局面を出来事の列から作り直しても同じ（列だけで局面が決まる）
       expect(JSON.stringify(replay(t.myLog))).toBe(JSON.stringify(t.view));
     }
+  }, 70_000);
+
+  it('ホストが選んだルール（WRC）で 1 局：全員の局面のルールがそれになり、局が終わって検算も通る', async () => {
+    const net = new FakeNet();
+    const host = net.add('H', true, { human: true });
+    const guest = net.add('G', false, { human: true, cpu: tsumogiriCpu });
+    (host as unknown as { o: { autoNext: boolean } }).o.autoNext = false;
+    const wrc = rulesOfSet('wrc');
+    host.begin(
+      [
+        { id: 'H', name: 'ホスト' },
+        { id: 'G', name: 'ゲスト' },
+      ],
+      0,
+      wrc,
+    );
+    await net.until(() => [host, guest].every((t) => t.pub.phase === 'ended' && t.lastVerify !== null), 60_000);
+    expect(net.problems).toEqual([]);
+    for (const t of [host, guest]) {
+      expect(t.view.rules).toEqual(wrc);
+      expect(t.lastVerify).toEqual([]);
+    }
+    // 一般ルールとは違う値（赤ドラなし）で配られている
+    expect(wrc).not.toEqual(GENERAL_RULES);
   }, 70_000);
 
   it('★表に開けてよいのはドラ・裏ドラの位置だけ：山のツモ牌の位置を開けるよう頼まれても、誰も鍵を出さない', async () => {

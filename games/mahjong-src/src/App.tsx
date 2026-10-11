@@ -255,7 +255,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             />
           ) : screen === 'online' ? (
             ol.where === 'room' ? (
-              <WaitingRoom t={t} session={online} />
+              <WaitingRoom t={t} lang={baseOf(lang)} session={online} />
             ) : (
               <Lobby
                 t={t}

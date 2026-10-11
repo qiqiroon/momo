@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from './App';
 import { benchCpu } from './cpu/bench';
 import { GENERAL_RULES } from './engine/rules';
@@ -256,6 +256,28 @@ describe('モード選択と、そこから入る画面', () => {
     localStorage.removeItem('momo-mahjong.rules');
   });
 
+  it('CPU と対局：CPU の強さは最初 Hard。選ぶと端末に覚え、始めた対局の記録にも残る（段階7・Q4=A）', async () => {
+    localStorage.removeItem('momo-mahjong.cpuStrength');
+    localStorage.removeItem('momo-mahjong.lastGame');
+    render(<App startConsented />);
+    fireEvent.click(screen.getByText('CPU と対局'));
+    const row = document.querySelector('.strength-row') as HTMLElement;
+    expect(row).toHaveTextContent('CPU の強さ');
+    expect(within(row).getByRole('button', { name: 'Hard' })).toHaveClass('on');
+    fireEvent.click(within(row).getByRole('button', { name: 'Apocalypse' }));
+    expect(within(row).getByRole('button', { name: 'Apocalypse' })).toHaveClass('on');
+    expect(localStorage.getItem('momo-mahjong.cpuStrength')).toBe('apocalypse');
+    // 強さの行は、対局を始めるとルールセットのあいだ
+    const start = document.querySelector('.btn-start')!;
+    expect(start.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(row.compareDocumentPosition(document.querySelector('.gset')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(start);
+    // 最後の対局は少し待ってまとめて書く
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('momo-mahjong.lastGame') ?? '{}').cpu).toBe('apocalypse'), { timeout: 3000 });
+    localStorage.removeItem('momo-mahjong.cpuStrength');
+    localStorage.removeItem('momo-mahjong.lastGame');
+  });
+
   it('押せない理由：返し点を「なし」にすると、オカは選べず理由が出る', () => {
     localStorage.removeItem('momo-mahjong.rules');
     render(<App startConsented />);
@@ -401,11 +423,12 @@ describe('同じ山で勝負（6e）', () => {
   });
 
   it('リンクを開くと、送った人の成績とルールが出て、「この山で対局を始める」で対局が始まる（端末のルールの控えは変えない）', () => {
-    const code = encodeSameLink({ choice: decodeRuleLink('tenhou')!, seed: 'same-seed', result: { rank: 1, total: 42.3 } });
+    const code = encodeSameLink({ choice: decodeRuleLink('tenhou')!, seed: 'same-seed', strength: 'easy', result: { rank: 1, total: 42.3 } });
     history.replaceState(null, '', `#same=${code}`);
     render(<App startConsented />);
     expect(screen.getByText('同じ山で勝負')).toBeInTheDocument();
     expect(screen.getByText('送ってくれた人の成績：1位・+42.3')).toBeInTheDocument();
+    expect(screen.getByText('CPU の強さ：Easy（送ってくれた人と同じ）')).toBeInTheDocument();
     fireEvent.click(screen.getByText('この山で対局を始める'));
     expect(location.hash).toBe('');
     expect(container().querySelector('.table-wrap, .square, .lanes-wrap')).not.toBeNull();

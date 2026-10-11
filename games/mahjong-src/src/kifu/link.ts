@@ -12,6 +12,7 @@
 // 山の並びが手元に無い牌譜（ファイルから読んだもの）は、作り直しながら牌譜の出来事から山の位置の牌を読み取る（使わない位置は残りの牌で埋める）。
 // 版 2（10-11）：ルールは全項目の値をそのまま書く（a）。版 1 はセットとの差だけ（r）だったので、あとでセットの値が変わると読み違える。
 
+import { strengthOf } from '../cpu/strength';
 import { act, advance, dealChunkPositions, legalActions, nextHand, rollForDealer, startRound } from '../engine/round';
 import { doraIndicatorPos } from '../engine/dora';
 import { dealerByDice } from '../engine/state';
@@ -40,6 +41,8 @@ interface Head {
   p?: KifuSource['players'];
   /** オンライン対局：親決めのサイコロ [振った人, 目, 目] と、山の並びの数（局の数） */
   o?: { d: [Seat, number, number]; w: number };
+  /** CPU の強さ（段階7で追加。無ければ書かれる前のリンク） */
+  c?: KifuSource['cpu'];
 }
 
 /** 局ごとの山（位置→牌の背番号。まだ分からない位置は -1） */
@@ -133,6 +136,7 @@ export function packKifu(src: KifuSource): Uint8Array {
   if (rules.family !== 'jp') throw new Error('日本式だけ');
   const head: Head = { v: KIFU_LINK_VERSION, a: encodeRuleValues(rules.values as Record<JpRuleKey, string>), s: src.seed, b: ev[1].ev.by, t: src.startedAt, e: src.set, n: ev.length };
   if (src.players.length) head.p = src.players;
+  if (src.cpu) head.c = src.cpu;
   // 山の並び：控えがあればそれ、無ければ作り直しながら牌譜から読み取る
   const walls: Walls = (src.walls ?? []).map((w) => w.slice());
   if (src.mode === 'online') {
@@ -238,7 +242,7 @@ export function unpackKifu(bytes: Uint8Array): KifuSource {
     take(act(s, seat, legal[n], srcOf(s, head, walls)));
   }
   if (events.length !== head.n) throw new Error('出来事の数が合わない');
-  return { seed: head.s, startedAt: head.t, players: head.p ?? [], set: head.e, events, ...(head.o ? { mode: 'online' as const, walls } : {}) };
+  return { seed: head.s, startedAt: head.t, players: head.p ?? [], set: head.e, events, ...(head.c ? { cpu: strengthOf(head.c) } : {}), ...(head.o ? { mode: 'online' as const, walls } : {}) };
 }
 
 // ---- 縮める・URL の文字にする ----

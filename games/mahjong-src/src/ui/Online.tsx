@@ -9,6 +9,8 @@ import { MAX_SEATS, REPLY_WAIT_MS, type Member, type OnlineNote, type OnlineSess
 import type { OnlineTable } from '../online/table';
 import { BackButton, ScreenHead } from './Menu';
 import { Chat } from './Chat';
+import { saveStrength } from '../cpu/strength';
+import { StrengthPicker } from './StrengthPicker';
 import { RuleSettings, saveRuleChoice } from './RuleSettings';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
@@ -302,6 +304,16 @@ export function WaitingRoom({ t, lang, session }: { t: T; lang: BaseLang; sessio
         </ol>
         <ReplyWaitPicker t={t} session={session} value={s.replyWait} isHost={isHost} started={s.started} />
         <p className="guide">{t('olReplyWaitDesc')}</p>
+        {/* 空き席の CPU の強さ：ホストだけ選べる（端末に覚える＝CPU と対局と同じ控え）。4 人そろっていても見せる */}
+        <StrengthPicker
+          t={t}
+          value={s.strength}
+          readOnly={!isHost || s.started}
+          onChange={(v) => {
+            saveStrength(v);
+            session.setStrength(v);
+          }}
+        />
         {s.started ? (
           <p className="guide ol-started">{t('olStartedNote')}</p>
         ) : (

@@ -44,6 +44,8 @@ export interface Kifu {
   host: { name: string; seat: Seat };
   players: KifuPlayer[];
   rules: { family: Rules['family']; set: string; custom: boolean; values: Record<string, string> };
+  /** CPU の強さ（段階7で追加。古い牌譜には無い） */
+  cpu?: 'easy' | 'hard' | 'apocalypse';
   seed: string;
   result: { endReason: string; rows: FinalRow[] } | null;
   hands: KifuHand[];
@@ -63,6 +65,8 @@ export interface KifuSource {
   mode?: 'solo' | 'online';
   /** オンライン対局：局ごとの山の並び（検算で分かったもの。牌譜のリンクに入れる） */
   walls?: number[][];
+  /** CPU の強さ（段階7。無ければ記録の前＝10-11 より前の対局） */
+  cpu?: 'easy' | 'hard' | 'apocalypse';
 }
 
 /** 日時を「時差つき」の文字にする（例 2026-10-08T21:30:45+09:00） */
@@ -126,6 +130,7 @@ export function buildKifu(src: KifuSource, appVersion: string, now: Date = new D
     host: { name: src.players[0]?.name ?? '', seat: 0 },
     players: src.players.map((p, i) => ({ seat: i as Seat, name: p.name, kind: p.kind, wind: i })),
     rules: { family: rules.family, set: src.set, custom: src.set === 'custom', values: { ...rules.values } },
+    ...(src.cpu ? { cpu: src.cpu } : {}),
     seed: src.seed,
     result: over && endEv?.ev.type === 'gameEnd' && rules.family === 'jp' ? { endReason: endEv.ev.reason, rows: finalResult(last) } : null,
     hands,

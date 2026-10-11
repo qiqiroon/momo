@@ -1,3 +1,4 @@
+import { cpuOf } from '../cpu/strength';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ruleChoiceOf, rulesOfSet } from '../engine/ruleSets';
 import type { JpRuleKey } from '../engine/rules';
@@ -299,6 +300,18 @@ describe('始める', () => {
     expect(host.state.replyWait).toBe('slow');
   });
 
+  it('CPU の強さ：ホストが選んだもの（始める前だけ）がゲストにも届き、空き席の CPU がその強さで打つ（段階7・Q4=A）', () => {
+    const { host, gs } = hostWith('A');
+    expect(gs[0].state.strength).toBe('hard');
+    gs[0].setStrength('easy'); // ゲストは選べない
+    expect(host.state.strength).toBe('hard');
+    host.setStrength('apocalypse');
+    expect(gs[0].state.strength).toBe('apocalypse');
+    host.start();
+    expect((host.table as unknown as { o: { cpu: unknown } }).o.cpu).toBe(cpuOf('apocalypse'));
+    host.setStrength('easy'); // 始めたあとは変えられない
+    expect(host.state.strength).toBe('apocalypse');
+  });
   it('ルール：ホストが選んだもの（始める前だけ）がゲストにも届き、始めると対局の始まりで全員のルールになる', () => {
     const { host, gs } = hostWith('A');
     expect(gs[0].state.rules.base).toBe('general');

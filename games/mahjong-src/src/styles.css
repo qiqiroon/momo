@@ -2331,8 +2331,9 @@ body.in-game .site-header .subtitle {
   color: var(--warn);
 }
 
-/* 待合：返事の待ち（ルールセットの切り替えと同じ形。ゲストは押せない＝選ばれていないものは灰色） */
-.ol-replywait {
+/* 待合：返事の待ち（ルールセットの切り替えと同じ形。ゲストは押せない＝選ばれていないものは灰色）。CPU の強さの行（段階7）も同じ形 */
+.ol-replywait,
+.strength-row {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -2340,7 +2341,8 @@ body.in-game .site-header .subtitle {
   font-size: 13px;
 }
 
-.ol-replywait .seg {
+.ol-replywait .seg,
+.strength-row .seg {
   display: inline-flex;
   flex-wrap: wrap;
   background: var(--bg);
@@ -2350,7 +2352,8 @@ body.in-game .site-header .subtitle {
   gap: 2px;
 }
 
-.ol-replywait .seg button {
+.ol-replywait .seg button,
+.strength-row .seg button {
   background: transparent;
   border: none;
   color: var(--text);
@@ -2361,22 +2364,33 @@ body.in-game .site-header .subtitle {
   font-family: inherit;
 }
 
-.ol-replywait .seg button.on {
+.ol-replywait .seg button.on,
+.strength-row .seg button.on {
   background: var(--orange);
   color: #fff;
   font-weight: 700;
 }
 
-.ol-replywait .seg button:disabled {
+.ol-replywait .seg button:disabled,
+.strength-row .seg button:disabled {
   cursor: default;
 }
 
-.ol-replywait .seg button:disabled:not(.on) {
+.ol-replywait .seg button:disabled:not(.on),
+.strength-row .seg button:disabled:not(.on) {
   color: var(--text-muted);
 }
 
 .ol-nocalls {
   margin-bottom: 4px;
+}
+
+.strength-block {
+  margin: 4px 0 12px;
+}
+
+.strength-block .guide {
+  margin: 6px 0 0;
 }
 
 /* 鳴ける牌の予告の欄：横4列は手牌の下・正方形の卓は右の列（チャットの上）。牌ごとのかたまりを折り返して並べる */

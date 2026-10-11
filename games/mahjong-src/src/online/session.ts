@@ -12,7 +12,7 @@
 // アプリを開いたままなら自動で入り直す。開き直したときは、部屋の一覧に「対局中の部屋に戻る」を出す。
 // 誰が抜けたかは土台からは確かに分からない（番号が重なりうる）ので、ホストが点呼を取って決める。
 
-import { tsumogiriCpu } from '../cpu/tsumogiri';
+import { cpuOf, DEFAULT_STRENGTH, loadStrength, strengthOf, type Strength } from '../cpu/strength';
 import { generalChoice, labelOf, ruleChoiceOf, type RuleChoice } from '../engine/ruleSets';
 import { isoLocal } from '../kifu/kifu';
 import { saveLastGame } from '../kifu/store';
@@ -93,6 +93,8 @@ export interface OnlineState {
   replyWait: ReplyWait;
   /** ルール（ホストが選び、名簿と一緒に配る。始めるときに対局の始まりの出来事で全員へ） */
   rules: RuleChoice;
+  /** 空き席の CPU の強さ（ホストが選び、名簿と一緒に配る。CPU を打つのはホストの端末） */
+  strength: Strength;
   /** チャット（待合と卓で同じ記録を続けて使う） */
   chat: ChatLine[];
 }
@@ -175,6 +177,7 @@ const INITIAL: OnlineState = {
   saved: null,
   replyWait: 'normal',
   rules: generalChoice(),
+  strength: DEFAULT_STRENGTH,
   chat: [],
 };
 
@@ -390,6 +393,13 @@ export class OnlineSession {
     this.broadcastMembers();
   }
 
+  /** ホスト：空き席の CPU の強さを選ぶ（始める前だけ） */
+  setStrength(s: Strength) {
+    if (!this.s.room?.isHost || this.s.started) return;
+    this.set({ strength: s });
+    this.broadcastMembers();
+  }
+
   /** ホスト：対局を始める（空いた席は CPU） */
   start() {
     if (!this.s.room?.isHost || this.s.started) return;
@@ -410,7 +420,7 @@ export class OnlineSession {
       send: (m, to) => this.tr.send(m, to),
       isHost,
       myId: this.myId,
-      cpu: tsumogiriCpu,
+      cpu: cpuOf(this.s.strength),
       cpuDelay: 420,
       // 一人用と同じ長さ（useTable の DEAL_SHOW_MS・DICE_SHOW_MS）
       dealHold: (first) => (dealShowOn() ? DEAL_SHOW_MS + (first ? DICE_SHOW_MS : 0) : 0),
@@ -440,6 +450,7 @@ export class OnlineSession {
       startedAt: this.startedAt,
       players: t.seats.map((x) => (x.kind === 'human' ? { name: x.name, kind: 'human' as const } : { name: 'CPU', kind: 'cpu' as const })),
       set: labelOf(rules.values, rules.base),
+      cpu: this.s.strength,
       events,
       mode: 'online',
       walls: t.walls.map((w) => w.slice()),
@@ -465,6 +476,8 @@ export class OnlineSession {
       started: false,
       // ホストのルールは、この端末で前に選んだもの（CPU と対局と同じ控え）
       rules: ruleChoiceOf(readJson<unknown>(RULES_KEY)) ?? generalChoice(),
+      // 強さも、この端末で CPU と対局のときに選んだもの
+      strength: loadStrength(),
     });
     this.pending = null;
   }
@@ -479,13 +492,14 @@ export class OnlineSession {
       members: back ? this.s.members : [],
       started: back ? this.s.started : false,
       rules: back ? this.s.rules : generalChoice(),
+      strength: back ? this.s.strength : DEFAULT_STRENGTH,
     });
     this.pending = null;
     this.tr.send({ type: 'mj-hello', id: this.myId, name: this.myName }, 'host');
   }
 
   private broadcastMembers() {
-    this.tr.send({ type: 'mj-members', members: this.s.members, started: this.s.started, replyWait: this.s.replyWait, rules: this.s.rules }, 'all');
+    this.tr.send({ type: 'mj-members', members: this.s.members, started: this.s.started, replyWait: this.s.replyWait, rules: this.s.rules, strength: this.s.strength }, 'all');
   }
 
   private receive(d: Record<string, unknown>) {
@@ -513,7 +527,7 @@ export class OnlineSession {
       const started = d.started === true;
       const rw = d.replyWait === 'fast' || d.replyWait === 'slow' ? d.replyWait : 'normal';
       // ルールは確かめてから使う（読めなければ一般ルールのまま）
-      this.set({ members: d.members as Member[], started, replyWait: rw, rules: ruleChoiceOf(d.rules) ?? this.s.rules });
+      this.set({ members: d.members as Member[], started, replyWait: rw, rules: ruleChoiceOf(d.rules) ?? this.s.rules, strength: strengthOf(d.strength) });
       // 対局中のゲストは、開き直したときに戻れるよう控える
       if (started && this.s.room && !this.s.room.isHost) {
         const sv: SavedSeat = { roomId: this.s.room.id, roomName: this.s.room.name, hasPassword: this.s.room.hasPassword, myId: this.myId, name: this.myName, password: this.password };

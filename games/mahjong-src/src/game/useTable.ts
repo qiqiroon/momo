@@ -1,10 +1,10 @@
-// 一人用の卓の進行役（画面側）。人間は席 0、ほかの 3 席は仮の CPU。
+// 一人用の卓の進行役（画面側）。人間は席 0、ほかの 3 席は CPU（強さは対局を始めるときに選ぶ＝段階7）。
 // 出来事の列を持ち、全部を知る局面（full）と、席 0 から見える局面（view）を並べて育てる。
 // 画面には view だけを渡す＝他の人の手牌や山の並びは画面に届かない。
 // 一人用は自分の端末が山を作る（オンラインの配り方は段階5）。
 
 import { useCallback, useEffect, useReducer } from 'react';
-import { tsumogiriCpu } from '../cpu/tsumogiri';
+import { cpuOf, DEFAULT_STRENGTH, type Strength } from '../cpu/strength';
 import { mask, type Envelope, type Seat } from '../engine/events';
 import { nextStep } from '../engine/game';
 import { act, advance, legalActions, nextHand, rollForDealer, startRound, type Action } from '../engine/round';
@@ -35,6 +35,8 @@ interface TableState {
   seed: string;
   /** ルールセットの名前か 'custom'（牌譜に残す） */
   set: string;
+  /** CPU の強さ（3 人まとめて 1 つ） */
+  strength: Strength;
   /** 対局を始めた日時（牌譜のファイル名と記録に使う） */
   startedAt: string;
   log: Envelope[];
@@ -42,7 +44,7 @@ interface TableState {
   view: GameState;
 }
 
-const empty = (seed = '', startedAt = '', set = 'general'): TableState => ({ seed, startedAt, set, log: [], full: initialState(), view: initialState() });
+const empty = (seed = '', startedAt = '', set = 'general', strength: Strength = DEFAULT_STRENGTH): TableState => ({ seed, startedAt, set, strength, log: [], full: initialState(), view: initialState() });
 
 function pushAll(s: TableState, envs: readonly Envelope[]): TableState {
   // 古い局面から作った出来事（二重に届いたもの）は捨てる
@@ -55,15 +57,15 @@ function pushAll(s: TableState, envs: readonly Envelope[]): TableState {
   return { ...s, log: [...s.log, ...envs], full, view };
 }
 
-type Msg = { type: 'reset'; seed: string; startedAt: string; set: string } | { type: 'push'; envs: Envelope[] } | { type: 'clear' };
+type Msg = { type: 'reset'; seed: string; startedAt: string; set: string; strength: Strength } | { type: 'push'; envs: Envelope[] } | { type: 'clear' };
 
 function reducer(s: TableState, m: Msg): TableState {
   if (m.type === 'clear') return empty();
-  return m.type === 'reset' ? empty(m.seed, m.startedAt, m.set) : pushAll(s, m.envs);
+  return m.type === 'reset' ? empty(m.seed, m.startedAt, m.set, m.strength) : pushAll(s, m.envs);
 }
 
 /** 最後の対局として端末に覚える形（名前は保存するときの表示の言葉で入れる） */
-const sourceOf = (s: TableState): KifuSource => ({ seed: s.seed, startedAt: s.startedAt, players: [], set: s.set, events: s.log });
+const sourceOf = (s: TableState): KifuSource => ({ seed: s.seed, startedAt: s.startedAt, players: [], set: s.set, cpu: s.strength, events: s.log });
 
 /** 端末に書く間隔（出来事のたびに全部を書くと重いので、まとめて書く） */
 const SAVE_DELAY = 800;
@@ -77,15 +79,16 @@ function newSeed(): string {
 export function useTable() {
   const [s, dispatch] = useReducer(reducer, undefined, empty);
   const { full, view } = s;
+  const cpu = cpuOf(s.strength);
 
-  /** 対局を始める。rules＝選んだルール（無ければ一般ルール）・set＝セットの名前か 'custom'（牌譜に残す）・given＝山の種（同じ山で勝負のとき） */
-  const start = useCallback((rules: Rules = GENERAL_RULES, set = 'general', given?: string) => {
+  /** 対局を始める。rules＝選んだルール（無ければ一般ルール）・set＝セットの名前か 'custom'（牌譜に残す）・given＝山の種（同じ山で勝負のとき）・strength＝CPU の強さ */
+  const start = useCallback((rules: Rules = GENERAL_RULES, set = 'general', given?: string, strength: Strength = DEFAULT_STRENGTH) => {
     const seed = given ?? newSeed();
     const first: Envelope = { seq: 0, to: 'all', ev: { type: 'gameStart', rules } };
     // 親決め（自分が仮親としてサイコロを振る）→ 起家から最初の局
     const dice: Envelope = { seq: 1, to: 'all', ev: rollForDealer(seed, HUMAN) };
     const afterDice = apply(apply(initialState(), first), dice);
-    dispatch({ type: 'reset', seed, startedAt: isoLocal(new Date()), set });
+    dispatch({ type: 'reset', seed, startedAt: isoLocal(new Date()), set, strength });
     dispatch({ type: 'push', envs: [first, dice, ...startRound(afterDice, seed, 0, afterDice.chicha)] });
   }, []);
 
@@ -132,7 +135,7 @@ export function useTable() {
           a = options[0];
         } else {
           const cpuView = [...s.log, ...envs].reduce((st, e) => apply(st, mask(e, seat)), initialState());
-          a = tsumogiriCpu(cpuView, seat);
+          a = cpu(cpuView, seat);
           if (a.type === 'ron') cpuRon = true;
         }
         const out = act(next, seat, a);
@@ -161,18 +164,18 @@ export function useTable() {
       if (n.type !== 'yame' || n.seat === HUMAN) return undefined;
       const seat = n.seat;
       const cpuView = s.log.reduce((st, e) => apply(st, mask(e, seat)), initialState());
-      const id = setTimeout(() => dispatch({ type: 'push', envs: act(full, seat, tsumogiriCpu(cpuView, seat)) }), CPU_DELAY);
+      const id = setTimeout(() => dispatch({ type: 'push', envs: act(full, seat, cpu(cpuView, seat)) }), CPU_DELAY);
       return () => clearTimeout(id);
     }
     if ((full.phase === 'discard' || full.phase === 'declare') && full.turn !== HUMAN) {
       const seat = full.turn;
       // CPU には、その席から見える局面だけを渡す
       const cpuView = s.log.reduce((st, e) => apply(st, mask(e, seat)), initialState());
-      const id = setTimeout(() => dispatch({ type: 'push', envs: act(full, seat, tsumogiriCpu(cpuView, seat)) }), CPU_DELAY);
+      const id = setTimeout(() => dispatch({ type: 'push', envs: act(full, seat, cpu(cpuView, seat)) }), CPU_DELAY);
       return () => clearTimeout(id);
     }
     return undefined;
-  }, [full, s.log]);
+  }, [full, s.log, cpu]);
 
   const choose = useCallback(
     (a: Action) => {

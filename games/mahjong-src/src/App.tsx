@@ -1,3 +1,4 @@
+import { loadStrength, strengthOf } from './cpu/strength';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Envelope } from './engine/events';
 import { HUMAN, useTable } from './game/useTable';
@@ -49,7 +50,7 @@ function sameWallOf(src: KifuSource): SameWall {
   const values = (s.rules?.family === 'jp' ? s.rules.values : {}) as RuleChoice['values'];
   const base = (JP_SETS as readonly string[]).includes(src.set) ? (src.set as SetId) : 'general';
   const me = s.phase === 'gameover' ? finalResult(s).find((r) => r.seat === 0) : undefined;
-  return { choice: { base, values }, seed: src.seed, ...(me ? { result: { rank: me.rank, total: me.total } } : {}) };
+  return { choice: { base, values }, seed: src.seed, strength: strengthOf(src.cpu), ...(me ? { result: { rank: me.rank, total: me.total } } : {}) };
 }
 
 /** ページの住所の #rules=… を読む（無ければ null） */
@@ -81,7 +82,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
     setReplaySrc(src.mode === 'online' || !src.seed ? null : src);
   };
   /** 牌譜ファイル（読み込んだもの）を牌譜の元にする */
-  const srcOfKifu = (k: Kifu): KifuSource => ({ seed: k.seed, startedAt: k.startedAt, players: k.players.map((p) => ({ name: p.name, kind: p.kind })), set: k.rules.set, events: k.events, mode: k.mode });
+  const srcOfKifu = (k: Kifu): KifuSource => ({ seed: k.seed, startedAt: k.startedAt, players: k.players.map((p) => ({ name: p.name, kind: p.kind })), set: k.rules.set, events: k.events, mode: k.mode, ...(k.cpu ? { cpu: strengthOf(k.cpu) } : {}) });
   /** 同じ山で勝負のリンク（CPU と対局の牌譜だけ） */
   const sameLinkOf = (src: KifuSource | null) => (src && src.mode !== 'online' && src.seed ? () => `${location.origin}${location.pathname}#same=${encodeSameLink(sameWallOf(src))}` : null);
   /** トップ画面で覚えている最後の対局（トップへ戻るたびに読み直す） */
@@ -235,7 +236,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   const startGame = () => {
     setNote('');
     const c = loadRuleChoice();
-    start({ family: 'jp', values: c.values }, labelOf(c.values, c.base));
+    start({ family: 'jp', values: c.values }, labelOf(c.values, c.base), undefined, loadStrength());
   };
 
   useEffect(() => {
@@ -351,7 +352,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
                 setSameWall(null);
                 setScreen('top');
                 // 同じ山（種）とルールで CPU と対局（端末のルールの控えは変えない）
-                if (sw) start({ family: 'jp', values: sw.choice.values }, labelOf(sw.choice.values, sw.choice.base), sw.seed);
+                if (sw) start({ family: 'jp', values: sw.choice.values }, labelOf(sw.choice.values, sw.choice.base), sw.seed, sw.strength);
               }}
               onCancel={() => {
                 history.replaceState(null, '', location.pathname + location.search);

@@ -1123,6 +1123,17 @@ body.in-game .site-header .subtitle {
   gap: 8px;
 }
 
+.playbar .hand-pick {
+  flex: none;
+  max-width: 9.5em;
+  font-size: 12px;
+  padding: 4px 6px;
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+}
+
 .playbar input[type='range'] {
   flex: 1;
   min-width: 0;
@@ -1159,6 +1170,20 @@ body.in-game .site-header .subtitle {
   .playbar {
     margin: 0 4px 8px;
     padding: 8px 6px;
+  }
+  /* 局を選ぶ欄・手の数・終えるを 1 行目に、つまみは 2 行目に全幅で */
+  .playbar .track {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .playbar .hand-pick {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+  }
+  .playbar input[type='range'] {
+    order: 3;
+    flex: 1 1 100%;
   }
 }
 

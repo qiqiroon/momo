@@ -59,6 +59,10 @@ export interface KifuSource {
   /** ルールセットの英字名（いまは一般ルールだけ＝general） */
   set: string;
   events: Envelope[];
+  /** 一人用かオンライン対局か（無ければ一人用） */
+  mode?: 'solo' | 'online';
+  /** オンライン対局：局ごとの山の並び（検算で分かったもの。牌譜のリンクに入れる） */
+  walls?: number[][];
 }
 
 /** 日時を「時差つき」の文字にする（例 2026-10-08T21:30:45+09:00） */
@@ -118,7 +122,7 @@ export function buildKifu(src: KifuSource, appVersion: string, now: Date = new D
     endedAt: over ? isoLocal(now) : null,
     savedAt: isoLocal(now),
     status: over ? 'finished' : 'in-progress',
-    mode: 'solo',
+    mode: src.mode ?? 'solo',
     host: { name: src.players[0]?.name ?? '', seat: 0 },
     players: src.players.map((p, i) => ({ seat: i as Seat, name: p.name, kind: p.kind, wind: i })),
     rules: { family: rules.family, set: src.set, custom: src.set === 'custom', values: { ...rules.values } },

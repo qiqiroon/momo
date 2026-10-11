@@ -53,7 +53,7 @@ describe('牌譜のリンク', () => {
   it('途中で保存した対局（選ぶ番の途中で終わっている）も、そこまで同じに作り直す', () => {
     const events = solo('mid', GENERAL_RULES, 700);
     const back = unpackKifu(packKifu(src(events, 'mid')));
-    expect(back.events.slice(0, events.length)).toEqual(events);
+    expect(back.events).toEqual(events);
   });
 
   it('リンクの文字にして読み直しても同じ。半荘の長さを測る', async () => {

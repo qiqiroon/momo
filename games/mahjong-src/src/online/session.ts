@@ -13,7 +13,9 @@
 // 誰が抜けたかは土台からは確かに分からない（番号が重なりうる）ので、ホストが点呼を取って決める。
 
 import { tsumogiriCpu } from '../cpu/tsumogiri';
-import { generalChoice, ruleChoiceOf, type RuleChoice } from '../engine/ruleSets';
+import { generalChoice, labelOf, ruleChoiceOf, type RuleChoice } from '../engine/ruleSets';
+import { isoLocal } from '../kifu/kifu';
+import { saveLastGame } from '../kifu/store';
 import { DEAL_SHOW_MS, DICE_SHOW_MS, dealShowOn } from '../game/useTable';
 import { OnlineTable, type LockerStore, type SyncData, type TableOptions, type WireLocker } from './table';
 
@@ -413,9 +415,34 @@ export class OnlineSession {
       dealHold: (first) => (dealShowOn() ? DEAL_SHOW_MS + (first ? DICE_SHOW_MS : 0) : 0),
       store: lockerStore(roomId, this.myId),
       onChange: () => this.set({ tableRev: this.s.tableRev + 1 }),
+      onVerified: () => this.saveKifu(),
     });
     t.noCalls = readNoCalls();
+    this.startedAt = isoLocal(new Date());
     return t;
+  }
+
+  /** 対局を始めた時刻（牌譜に残す） */
+  private startedAt = '';
+
+  /**
+   * 局の検算が済むたびに、全員の牌が見える牌譜を「前回の対局」に控え直す（6d・Q42＝A）。
+   * 山が分からない局がある（途中で入り直した等）なら控えない
+   */
+  private saveKifu() {
+    const t = this.table;
+    const events = t?.fullLog();
+    if (!t || !events || events.length === 0) return;
+    const rules = this.s.rules;
+    saveLastGame({
+      seed: 'online',
+      startedAt: this.startedAt,
+      players: t.seats.map((x) => (x.kind === 'human' ? { name: x.name, kind: 'human' as const } : { name: 'CPU', kind: 'cpu' as const })),
+      set: labelOf(rules.values, rules.base),
+      events,
+      mode: 'online',
+      walls: t.walls.map((w) => w.slice()),
+    });
   }
 
   private toLobby(note: OnlineNote | null) {

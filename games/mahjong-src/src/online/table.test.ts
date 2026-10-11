@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { rulesOfSet } from '../engine/ruleSets';
+import { packKifu, unpackKifu } from '../kifu/link';
 import { GENERAL_RULES } from '../engine/rules';
 import { benchCpu } from '../cpu/bench';
 import { tsumogiriCpu } from '../cpu/tsumogiri';
@@ -124,6 +125,12 @@ describe('オンラインの卓（偽の通信）', () => {
     const mine = guest.myLog.filter((e) => e.ev.type === 'draw' && e.ev.seat === 1);
     expect(mine.length).toBeGreaterThan(0);
     for (const e of mine) expect(e.ev.type === 'draw' && e.ev.tile).not.toBe(HIDDEN);
+    // 牌譜（6d）：ホストとゲストで同じ・全員の牌が見える列。リンクに詰めて読み直しても同じ
+    const full = host.fullLog();
+    expect(full).not.toBeNull();
+    expect(guest.fullLog()).toEqual(full);
+    const src = { seed: 'online', startedAt: '2026-10-11T12:00:00+09:00', players: [], set: 'general', events: full!, mode: 'online' as const, walls: host.walls };
+    expect(unpackKifu(packKifu(src)).events).toEqual(full);
     console.log(`半荘 ${hands} 局・通信 ${net.messages} 通・${(net.bytes / 1e6).toFixed(2)} MB`);
   }, 180_000);
 
@@ -142,6 +149,14 @@ describe('オンラインの卓（偽の通信）', () => {
       // 自分の席から見た局面を出来事の列から作り直しても同じ（列だけで局面が決まる）
       expect(JSON.stringify(replay(t.myLog))).toBe(JSON.stringify(t.view));
     }
+    // 牌譜（6d・Q42＝A）：検算で分かった山で埋めると、誰の端末でも同じ・全員の牌が見える列になる
+    const full = ts.map((t) => t.fullLog());
+    expect(full[0]).not.toBeNull();
+    for (const f of full) expect(f).toEqual(full[0]);
+    expect(full[0]!.some((e) => (e.ev.type === 'deal' && e.ev.tiles.includes(HIDDEN)) || (e.ev.type === 'draw' && e.ev.tile === HIDDEN))).toBe(false);
+    // 牌譜のリンクに詰めて読み直しても同じ
+    const src = { seed: 'online', startedAt: '2026-10-11T12:00:00+09:00', players: [], set: 'general', events: full[0]!, mode: 'online' as const, walls: ts[0].walls };
+    expect(unpackKifu(packKifu(src)).events).toEqual(full[0]);
   }, 70_000);
 
   it('ホストが選んだルール（WRC）で 1 局：全員の局面のルールがそれになり、局が終わって検算も通る', async () => {

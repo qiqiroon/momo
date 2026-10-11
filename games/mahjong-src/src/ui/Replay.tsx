@@ -90,7 +90,17 @@ export function Replay({ events, narrow, lang, onExit }: Props) {
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, at, speed, last]);
-  const curHand = handStarts.filter((h) => h <= at).length - 1;
+  const curHand = Math.max(0, handStarts.filter((h) => h <= at).length - 1);
+  // つまみと手の数は局の中だけ（局の頭〜次の局の頭の 1 つ前。最後の局は対局の終わりまで）。自動再生は局をまたいで続ける
+  const handFrom = handStarts[curHand] ?? 0;
+  const handTo = curHand + 1 < handStarts.length ? handStarts[curHand + 1] - 1 : last;
+  /** 局の名前（東1局・2本場なら「東1局・2本場」） */
+  const handName = (k: number) => {
+    const v = states[handStarts[k]];
+    const ri = Math.max(0, v.roundIndex);
+    const name = t('round', { wind: t(`roundWind${Math.floor(ri / 4) % 3}` as MessageKey), n: (ri % 4) + 1 });
+    return v.honba > 0 ? t('replayHonba', { round: name, h: v.honba }) : name;
+  };
   const view = states[at];
 
   return (
@@ -99,7 +109,7 @@ export function Replay({ events, narrow, lang, onExit }: Props) {
       {/* 再生の操作（将棋の感想戦にならう）：|◀ 前の局 ◀ 自動 速さ ▶ 次の局 ▶| ＋手の位置のつまみ */}
       <div className="playbar">
         <div className="btns">
-          <button type="button" className="pb" title={t('replayStart')} aria-label={t('replayStart')} disabled={at === 0} onClick={() => go(0)}>
+          <button type="button" className="pb" title={t('replayHandStart')} aria-label={t('replayHandStart')} disabled={at === handFrom} onClick={() => go(handFrom)}>
             |◀
           </button>
           <button type="button" className="pb" title={t('replayPrevHand')} aria-label={t('replayPrevHand')} disabled={curHand <= 0} onClick={() => go(handStarts[curHand - 1] ?? 0)}>
@@ -130,13 +140,29 @@ export function Replay({ events, narrow, lang, onExit }: Props) {
           <button type="button" className="pb" title={t('replayNextHand')} aria-label={t('replayNextHand')} disabled={curHand + 1 >= handStarts.length} onClick={() => go(handStarts[curHand + 1] ?? last)}>
             ▶▶
           </button>
-          <button type="button" className="pb" title={t('replayEnd')} aria-label={t('replayEnd')} disabled={at === last} onClick={() => go(last)}>
+          <button type="button" className="pb" title={t('replayHandEnd')} aria-label={t('replayHandEnd')} disabled={at === handTo} onClick={() => go(handTo)}>
             ▶|
           </button>
         </div>
         <div className="track">
-          <input type="range" min={0} max={Math.max(last, 1)} value={at} disabled={last <= 0} aria-label={t('replayPos', { n: at + 1, total: steps.length })} onChange={(e) => go(Number(e.target.value))} />
-          <span className="plycnt">{t('replayPos', { n: at + 1, total: steps.length })}</span>
+          {/* 局を選ぶ（東1局・東2局…） */}
+          <select className="hand-pick" aria-label={t('replayPickHand')} value={curHand} onChange={(e) => go(handStarts[Number(e.target.value)] ?? 0)}>
+            {handStarts.map((_, k) => (
+              <option key={k} value={k}>
+                {handName(k)}
+              </option>
+            ))}
+          </select>
+          <input
+            type="range"
+            min={handFrom}
+            max={Math.max(handTo, handFrom + 1)}
+            value={at}
+            disabled={handTo <= handFrom}
+            aria-label={t('replayPos', { n: at - handFrom + 1, total: handTo - handFrom + 1 })}
+            onChange={(e) => go(Number(e.target.value))}
+          />
+          <span className="plycnt">{t('replayPos', { n: at - handFrom + 1, total: handTo - handFrom + 1 })}</span>
           <button type="button" className="pb exit" onClick={onExit}>
             {t('replayExit')}
           </button>

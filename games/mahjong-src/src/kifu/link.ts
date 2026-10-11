@@ -6,9 +6,13 @@
 //  - 返事（見送る・鳴く・ロン）は届いた順に並べる（順番で結果は変わらないが、列をそっくり同じにするため）
 //  - 頭に {v, r＝ルールのリンクの書き方, s＝種, b＝親決めを振った人, t＝始めた時刻, p＝席の名前} を JSON で置く
 //  - 全体を deflate で縮め、URL に使える base64 にする
-// 作り直した列が元と食い違えば読まない（例外）。オンライン対局の牌譜（山を種から作れない）は、このあと足す。
+// 作り直した列が元と食い違えば読まない（例外）。
+// オンライン対局（Q42＝A）は山を種から作れないので、局ごとの山の並び（136 バイト）を頭のあとに置き、
+// ホストの進め方（局の始まり・配牌の塊・ドラ表示牌・advance・対局の終わり）で作り直す。親決めのサイコロは頭に入れる。
 
-import { act, advance, legalActions, nextHand, rollForDealer, startRound } from '../engine/round';
+import { act, advance, dealChunkPositions, legalActions, nextHand, rollForDealer, startRound } from '../engine/round';
+import { doraIndicatorPos } from '../engine/dora';
+import { dealerByDice } from '../engine/state';
 import { decodeRuleLink, encodeRuleLink, JP_SETS, type SetId } from '../engine/ruleSets';
 import type { JpRuleKey, Rules } from '../engine/rules';
 import { nextStep } from '../engine/game';
@@ -24,10 +28,17 @@ interface Head {
   s: string;
   b: Seat;
   t: string;
+  /** 出来事の数（作り直すのはここまで＝途中で保存した対局もそっくり同じ長さにする） */
+  n: number;
   /** 牌譜に残すセットの名前（KifuSource.set） */
   e: string;
   p?: KifuSource['players'];
+  /** オンライン対局：親決めのサイコロ [振った人, 目, 目] と、山の並びの数（局の数） */
+  o?: { d: [Seat, number, number]; w: number };
 }
+
+/** 山の位置から牌を出す（オンライン対局の作り直しで使う） */
+type Walls = readonly (readonly number[])[];
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -37,10 +48,34 @@ function choosing(s: GameState): boolean {
   return s.phase === 'ended' && nextStep(s).type === 'yame';
 }
 
-/** 選ぶ番でないときに出る出来事（一人用の進め方と同じ） */
-function automatic(s: GameState, seed: string): Envelope[] {
-  if (s.phase === 'ended') return nextHand(s, seed);
-  return advance(s);
+/** 選ぶ番でないときに出る出来事（一人用の進め方と同じ。オンライン対局はホストの進め方と同じ） */
+function automatic(s: GameState, head: Head, walls: Walls): Envelope[] {
+  if (!head.o) return s.phase === 'ended' ? nextHand(s, head.s) : advance(s);
+  if (s.phase === 'ended') {
+    const n = nextStep(s);
+    if (n.type === 'end') return [{ seq: s.nextSeq, to: 'all', ev: { type: 'gameEnd', reason: n.reason } }];
+    if (n.type !== 'round') throw new Error('次の局を決められない');
+    return roundStartOnline(s.nextSeq, n, walls[s.handCount]);
+  }
+  const w = walls[s.handCount - 1];
+  if (!w) throw new Error('山の並びが足りない');
+  return advance(s, (pos) => w[pos]);
+}
+
+/** 局の山（オンライン対局だけ。一人用は局面が種から持っている） */
+const srcOf = (s: GameState, head: Head, walls: Walls) => {
+  if (!head.o) return undefined;
+  const w = walls[s.handCount - 1];
+  return (pos: number) => w[pos];
+};
+
+/** オンライン対局の局の始まり（table.ts の startRound と同じ並び） */
+function roundStartOnline(seq: number, r: { roundIndex: number; dealer: Seat; honba: number }, w: readonly number[] | undefined): Envelope[] {
+  if (!w) throw new Error('山の並びが足りない');
+  const out: Envelope[] = [{ seq: seq++, to: 'all', ev: { type: 'roundStart', roundIndex: r.roundIndex, dealer: r.dealer, honba: r.honba } }];
+  for (const c of dealChunkPositions(r.dealer)) out.push({ seq: seq++, to: [c.seat], ev: { type: 'deal', seat: c.seat, tiles: c.positions.map((pos) => w[pos]) } });
+  out.push({ seq: seq++, to: 'all', ev: { type: 'doraReveal', tile: w[doraIndicatorPos(136, 0)] } });
+  return out;
 }
 
 /** 牌譜（CPU と対局）を、詰めた中身（縮める前のバイト列）にする */
@@ -50,8 +85,13 @@ export function packKifu(src: KifuSource): Uint8Array {
   const rules = ev[0].ev.rules;
   if (rules.family !== 'jp') throw new Error('日本式だけ');
   const base: SetId = (JP_SETS as readonly string[]).includes(src.set) ? (src.set as SetId) : 'general';
-  const head: Head = { v: KIFU_LINK_VERSION, r: encodeRuleLink({ base, values: rules.values as Record<JpRuleKey, string> }), s: src.seed, b: ev[1].ev.by, t: src.startedAt, e: src.set };
+  const head: Head = { v: KIFU_LINK_VERSION, r: encodeRuleLink({ base, values: rules.values as Record<JpRuleKey, string> }), s: src.seed, b: ev[1].ev.by, t: src.startedAt, e: src.set, n: ev.length };
   if (src.players.length) head.p = src.players;
+  const walls: Walls = src.walls ?? [];
+  if (src.mode === 'online') {
+    const d = ev[1].ev;
+    head.o = { d: [d.by, d.dice[0], d.dice[1]], w: walls.length };
+  }
   const out: number[] = [];
   // 作り直しながら進め、選んだところだけを書く（作り直した列が元と同じことも同時に確かめる）
   let s = initialState();
@@ -63,7 +103,7 @@ export function packKifu(src: KifuSource): Uint8Array {
       i++;
     }
   };
-  take(start(head, rules));
+  take(start(head, rules, walls));
   while (i < ev.length) {
     if (choosing(s)) {
       const want = ev[i];
@@ -72,7 +112,7 @@ export function packKifu(src: KifuSource): Uint8Array {
       const legal = legalActions(s, seat);
       const n = legal.findIndex((a) => {
         try {
-          const envs = act(s, seat, a);
+          const envs = act(s, seat, a, srcOf(s, head, walls));
           return envs.every((e, k) => same(e, ev[i + k]));
         } catch {
           return false;
@@ -81,20 +121,23 @@ export function packKifu(src: KifuSource): Uint8Array {
       if (n < 0) throw new Error(`${i} 番目の選んだことが、選べたことの中に無い`);
       if (n < 63) out.push((seat << 6) | n);
       else out.push((seat << 6) | 63, n - 63);
-      take(act(s, seat, legal[n]));
+      take(act(s, seat, legal[n], srcOf(s, head, walls)));
     } else {
-      take(automatic(s, head.s));
+      take(automatic(s, head, walls));
     }
   }
   const h = new TextEncoder().encode(JSON.stringify(head));
-  return Uint8Array.from([h.length & 0xff, h.length >> 8, ...h, ...out]);
+  return Uint8Array.from([h.length & 0xff, h.length >> 8, ...h, ...(head.o ? walls.flat() : []), ...out]);
 }
 
 /** 対局の始まり（ルール・親決め・最初の局） */
-function start(head: Head, rules: Rules): Envelope[] {
+function start(head: Head, rules: Rules, walls: Walls): Envelope[] {
   const first: Envelope = { seq: 0, to: 'all', ev: { type: 'gameStart', rules } };
-  const dice: Envelope = { seq: 1, to: 'all', ev: rollForDealer(head.s, head.b) };
+  const dice: Envelope = head.o
+    ? { seq: 1, to: 'all', ev: { type: 'dealerDice', by: head.o.d[0], dice: [head.o.d[1], head.o.d[2]], dealer: dealerByDice(head.o.d[0], [head.o.d[1], head.o.d[2]]) } }
+    : { seq: 1, to: 'all', ev: rollForDealer(head.s, head.b) };
   const after = apply(apply(initialState(), first), dice);
+  if (head.o) return [first, dice, ...roundStartOnline(2, { roundIndex: 0, dealer: after.chicha, honba: 0 }, walls[0])];
   return [first, dice, ...startRound(after, head.s, 0, after.chicha)];
 }
 
@@ -106,6 +149,12 @@ export function unpackKifu(bytes: Uint8Array): KifuSource {
   const choice = decodeRuleLink(head.r);
   if (!choice) throw new Error('ルールを読めない');
   const rules: Rules = { family: 'jp', values: choice.values };
+  let p = 2 + len;
+  const walls: number[][] = [];
+  for (let k = 0; k < (head.o?.w ?? 0); k++) {
+    walls.push(Array.from(bytes.subarray(p, p + 136)));
+    p += 136;
+  }
   const events: Envelope[] = [];
   let s = initialState();
   const take = (envs: Envelope[]) => {
@@ -114,25 +163,23 @@ export function unpackKifu(bytes: Uint8Array): KifuSource {
       events.push(e);
     }
   };
-  take(start(head, rules));
-  let p = 2 + len;
-  while (p < bytes.length || (!choosing(s) && s.phase !== 'gameover')) {
-    if (events.length > 20000) throw new Error('牌譜が終わらない');
+  take(start(head, rules, walls));
+  while (events.length < head.n) {
     if (!choosing(s)) {
-      if (s.phase === 'gameover') break;
-      take(automatic(s, head.s));
+      take(automatic(s, head, walls));
       continue;
     }
-    if (p >= bytes.length) break; // 途中で保存した対局（選ぶ番で終わっている）
+    if (p >= bytes.length) throw new Error('選んだことが足りない');
     const b = bytes[p++];
     const seat = (b >> 6) as Seat;
     let n = b & 63;
     if (n === 63) n += bytes[p++];
     const legal = legalActions(s, seat);
     if (!legal[n]) throw new Error('選んだことが選べたことの中に無い');
-    take(act(s, seat, legal[n]));
+    take(act(s, seat, legal[n], srcOf(s, head, walls)));
   }
-  return { seed: head.s, startedAt: head.t, players: head.p ?? [], set: head.e, events };
+  if (events.length !== head.n) throw new Error('出来事の数が合わない');
+  return { seed: head.s, startedAt: head.t, players: head.p ?? [], set: head.e, events, ...(head.o ? { mode: 'online' as const, walls } : {}) };
 }
 
 // ---- 縮める・URL の文字にする ----

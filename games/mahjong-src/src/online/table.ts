@@ -58,6 +58,8 @@ export interface TableOptions {
   onChange?: () => void;
   /** 検算で食い違いが見つかったとき */
   onProblem?: (p: VerifyProblem[]) => void;
+  /** 局の検算が済んだ（山が分かった）。牌譜を控え直す合図 */
+  onVerified?: () => void;
   /** 自分の錠前の控え（接続が切れて戻ったとき・開き直したときに、自分の牌を開け直すのに要る） */
   store?: LockerStore;
 }
@@ -148,6 +150,8 @@ export class OnlineTable {
   started = false;
   /** 局の終わりに検算した結果（空＝問題なし・null＝まだ） */
   lastVerify: VerifyProblem[] | null = null;
+  /** 検算で分かった局ごとの山（位置→牌の背番号）。検算した順＝局の順。牌譜を全員の牌が見える形にするのに使う（6d・Q42＝A） */
+  walls: number[][] = [];
   /** 通信の量（送った文字数・通数） */
   sent = { bytes: 0, count: 0 };
   /**
@@ -629,12 +633,48 @@ export class OnlineTable {
     if (h.revealed.size < 4 || h.verified) return;
     const lockers = SEATS.map((s) => h.revealed.get(s)!);
     const log = { start: h.start, shuffled: h.shuffled as bigint[][], relocked: h.relocked as bigint[][] };
-    const { problems } = verifyDeal(this.g, Array.from({ length: 136 }, (_, i) => i), log, lockers, h.tiles);
+    const { problems, wall } = verifyDeal(this.g, Array.from({ length: 136 }, (_, i) => i), log, lockers, h.tiles);
     h.verified = problems;
+    if (!problems.some((x) => x.kind === 'tiles')) this.walls.push(wall);
+    this.o.onVerified?.();
     this.lastVerify = problems;
     if (problems.length) this.o.onProblem?.(problems);
     this.changed();
     this.drive();
+  }
+
+  /**
+   * 全員の牌が見える牌譜（自分の席から見えた列の、伏せた配牌・ツモを検算で分かった山で埋めたもの）。
+   * 山が分からない局がある（途中で入り直して前の局の鍵を受け取れなかった等）なら null
+   */
+  fullLog(): Envelope[] | null {
+    const out: Envelope[] = [];
+    let s = initialState();
+    let hand = -1;
+    let chunk = 0;
+    for (const e0 of this.myLog) {
+      let e = e0;
+      const ev = e.ev;
+      if (ev.type === 'roundStart') {
+        hand++;
+        chunk = 0;
+      }
+      const w = this.walls[hand];
+      if (ev.type === 'deal') {
+        const c = dealChunkPositions(s.dealer)[chunk++];
+        if (ev.tiles.includes(HIDDEN)) {
+          if (!w || !c) return null;
+          e = { ...e, ev: { ...ev, tiles: c.positions.map((pos) => w[pos]) } };
+        }
+      } else if (ev.type === 'draw' && ev.tile === HIDDEN) {
+        const d = drawPosition(s);
+        if (!w || !d) return null;
+        e = { ...e, ev: { ...ev, tile: w[d.pos] } };
+      }
+      s = apply(s, e);
+      out.push(e);
+    }
+    return out;
   }
 
   // ---- 戻ってきた人 ----

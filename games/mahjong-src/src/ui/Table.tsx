@@ -7,7 +7,7 @@ import { Fragment, useEffect, useState, type CSSProperties, type PointerEvent, t
 import { HIDDEN, type Seat } from '../engine/events';
 import { furitenOf } from '../engine/furiten';
 import { establishedYaku, yakuHints } from '../engine/hints';
-import { finalResult } from '../engine/final';
+import { finalResult, type FinalRow } from '../engine/final';
 import { nextStep } from '../engine/game';
 import type { Action } from '../engine/round';
 import type { ScoreResult } from '../engine/score';
@@ -54,6 +54,8 @@ interface Props {
   callPanel?: ReactNode;
   /** 正方形の卓の右の列の一番上に出すもの（再生の操作の帯＝右上に置く） */
   sidePanel?: ReactNode;
+  /** 同じ山で勝負のリンクから始めた対局：送ってくれた人の成績（終局の画面で自分の成績と並べる） */
+  compare?: { rank: number; total: number } | null;
 }
 
 /** 自分から見た位置（0＝自分・1＝下家・2＝対面・3＝上家） */
@@ -61,7 +63,7 @@ interface Props {
 /** 手牌の並べ替え：種類順、同じ種類なら背番号順 */
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kindOf(a) - kindOf(b) || a - b);
 
-export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, chat, callPanel, sidePanel }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, chat, callPanel, sidePanel, compare = null }: Props) {
   /** 配っている途中は手牌を先頭から決まった枚数だけ見せる */
   const dealing = <X,>(xs: readonly X[]): readonly X[] => (dealt === null ? xs : xs.slice(0, dealt));
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
@@ -208,6 +210,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
               ))}
             </tbody>
           </table>
+          {compare && <SameCompare t={t} me={finalResult(view).find((row) => row.seat === 0)} sender={compare} fmt={fmt} />}
           <p className="hint no-money">{t('noMoney')}</p>
         </>
       )}
@@ -742,6 +745,37 @@ function YakuHints({ view, legal, lang }: { view: GameState; legal: Action[]; la
           ))}
         </span>
       ))}
+    </div>
+  );
+}
+
+/** 同じ山で勝負：終局の画面で、自分と送ってくれた人の順位・最終得点を並べる（段階6の6e で後回しにしていたもの） */
+function SameCompare({ t, me, sender, fmt }: { t: (k: MessageKey, v?: Record<string, string | number>) => string; me: FinalRow | undefined; sender: { rank: number; total: number }; fmt: (n: number) => string }) {
+  if (!me) return null;
+  return (
+    <div className="same-compare">
+      <p className="same-compare-title">{t('sameCompareTitle')}</p>
+      <table className="final-list">
+        <thead>
+          <tr>
+            <th />
+            <th />
+            <th>{t('finalTotal')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>{t('you')}</th>
+            <td>{t('finalRank', { n: me.rank })}</td>
+            <td className="final-total">{fmt(me.total)}</td>
+          </tr>
+          <tr>
+            <th>{t('sameCompareSender')}</th>
+            <td>{t('finalRank', { n: sender.rank })}</td>
+            <td className="final-total">{fmt(sender.total)}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 }

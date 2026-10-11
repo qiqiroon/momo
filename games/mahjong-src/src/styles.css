@@ -2722,3 +2722,19 @@ body.in-game .site-header .subtitle {
   border-top: 1px dashed var(--border);
   padding-top: 10px;
 }
+
+/* 同じ山で勝負を始める画面の注意（公平性が無い）。本文と同じ白で、左に線を引いて目立たせる */
+.same-fair {
+  border-left: 3px solid var(--orange);
+  padding-left: 10px;
+}
+
+/* 終局の画面：同じ山の成績を並べる表 */
+.same-compare {
+  margin-top: 12px;
+}
+
+.same-compare-title {
+  margin: 0 0 4px;
+  font-weight: 700;
+}

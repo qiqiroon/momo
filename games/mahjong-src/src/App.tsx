@@ -95,6 +95,8 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   const [linkRule, setLinkRule] = useState<{ choice: RuleChoice | null } | null>(readRuleLink);
   /** 同じ山で勝負のリンク（#same=…。読めなければ sw が null） */
   const [sameWall, setSameWall] = useState<{ sw: SameWall | null } | null>(readSameLink);
+  /** 同じ山で勝負のリンクから始めた対局：送ってくれた人の成績（終局の画面で並べる。新しい対局で消す） */
+  const [sameFrom, setSameFrom] = useState<SameWall['result'] | null>(null);
   const [screen, setScreen] = useState<'top' | 'cpu' | 'online' | 'replay' | 'rulelink' | 'same'>(() => (readRuleLink() ? 'rulelink' : readSameLink() ? 'same' : 'top'));
   // 開いたままのページにリンクを貼り直したとき（# だけ変わる）も同じ画面へ
   useEffect(() => {
@@ -235,6 +237,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   /** 新しい対局：前に選んだルール（端末に覚えたもの）で始める */
   const startGame = () => {
     setNote('');
+    setSameFrom(null);
     const c = loadRuleChoice();
     start({ family: 'jp', values: c.values }, labelOf(c.values, c.base), undefined, loadStrength());
   };
@@ -315,6 +318,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             onSaveDrive={() => void saveDrive(source)}
             makeKifuLink={async () => `${location.origin}${location.pathname}#kifu=${await encodeKifuLink(source)}`}
             makeSameLink={sameLinkOf(source)}
+            compare={sameFrom}
             saveNote={note}
             dealt={fx.dealt}
             onQuit={onTitle}
@@ -352,6 +356,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
                 setSameWall(null);
                 setScreen('top');
                 // 同じ山（種）とルールで CPU と対局（端末のルールの控えは変えない）
+                setSameFrom(sw?.result ?? null);
                 if (sw) start({ family: 'jp', values: sw.choice.values }, labelOf(sw.choice.values, sw.choice.base), sw.seed, sw.strength);
               }}
               onCancel={() => {

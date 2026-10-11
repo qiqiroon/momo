@@ -429,6 +429,8 @@ describe('同じ山で勝負（6e）', () => {
     expect(screen.getByText('同じ山で勝負')).toBeInTheDocument();
     expect(screen.getByText('送ってくれた人の成績：1位・+42.3')).toBeInTheDocument();
     expect(screen.getByText('CPU の強さ：Easy（送ってくれた人と同じ）')).toBeInTheDocument();
+    // 山が分かるので公平性は無いことを、始める前に出す（利用者指示 10-11）
+    expect(document.querySelector('.same-fair')).toHaveTextContent('成績の比べ合いに公平性はありません');
     fireEvent.click(screen.getByText('この山で対局を始める'));
     expect(location.hash).toBe('');
     expect(container().querySelector('.table-wrap, .square, .lanes-wrap')).not.toBeNull();

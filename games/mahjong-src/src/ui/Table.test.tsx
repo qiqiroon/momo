@@ -5,6 +5,7 @@ import type { Envelope, GameEvent } from '../engine/events';
 import { act, legalActions, type Action } from '../engine/round';
 import { benchCpu } from '../cpu/bench';
 import { apply, initialState, viewFor } from '../engine/state';
+import { finalResult } from '../engine/final';
 import { playOne } from '../selfplay/run';
 import { GENERAL_RULES } from '../engine/rules';
 import { Table } from './Table';
@@ -278,6 +279,24 @@ describe('対局の終わり（2 度に分けて出す・保存のボタンは 1
     fireEvent.click(screen.getByText('Google ドライブ'));
     expect(file).toHaveBeenCalledTimes(1);
     expect(drive).toHaveBeenCalledTimes(1);
+  });
+
+  it('同じ山で勝負から始めた対局は、順位の表の下に自分と送ってくれた人の順位・最終得点を並べる。ふつうの対局には出ない', () => {
+    const won = viewFor(wonLog(), 0);
+    const view = { ...won, phase: 'gameover' as const, gameOver: 'last' as const };
+    const me = finalResult(view).find((r) => r.seat === 0)!;
+    const { unmount } = render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} onTop={() => {}} compare={{ rank: 3, total: -12.5 }} />);
+    fireEvent.click(screen.getByText('対局の結果へ'));
+    const box = document.querySelector('.same-compare') as HTMLElement;
+    expect(box).toHaveTextContent('同じ山の成績');
+    const rows = [...box.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((c) => c.textContent));
+    expect(rows[0].slice(0, 2)).toEqual(['あなた', `${me.rank}位`]);
+    expect(rows[0][2]).toContain(String(Math.abs(Math.round(me.total * 10) / 10)));
+    expect(rows[1]).toEqual(['送ってくれた人', '3位', expect.stringContaining('12.5')]);
+    unmount();
+    render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} onTop={() => {}} />);
+    fireEvent.click(screen.getByText('対局の結果へ'));
+    expect(document.querySelector('.same-compare')).toBeNull();
   });
 
   it('半荘戦か東風戦かを局の表示の前に出す', () => {

@@ -321,6 +321,9 @@ const ja = {
   sameTitle: '同じ山で勝負',
   sameGuide: '送ってくれた人と同じ配牌・ツモ（同じ山）で、CPU と対局します。鳴くとツモの順がずれるのは、ふつうの麻雀と同じです。終わったら成績を比べてみてください。',
   sameTheirResult: '送ってくれた人の成績：{rank}位・{total}',
+  sameCompareTitle: '同じ山の成績',
+  sameStartWarn: 'ご注意：このリンクには山の並びを作る情報が入っています。リンクを解析すれば配牌や先のツモを前もって知ることができるため、成績の比べ合いに公平性はありません。',
+  sameCompareSender: '送ってくれた人',
   sameStart: 'この山で対局を始める',
   sameBroken: '同じ山で勝負のリンクを読めませんでした。リンクが途中で切れていないか確かめてください。',
   kifuLinkCopied: '牌譜のリンクをコピーしました。開いた人はその対局を再生できます。',
@@ -685,6 +688,9 @@ const en: Dict = {
   sameTitle: 'Same-wall challenge',
   sameGuide: 'Play the CPU with the same starting hands and draws (the same wall) as the sender. As in normal mahjong, calls shift the draw order. Compare your results when you finish.',
   sameTheirResult: 'Sender\u2019s result: rank {rank}, {total}',
+  sameCompareTitle: 'Same wall results',
+  sameStartWarn: 'Note: this link contains the information that builds the wall. Anyone who analyzes it can learn the starting hands and upcoming draws in advance, so comparing results is not fair.',
+  sameCompareSender: 'Sender',
   sameStart: 'Play with this wall',
   sameBroken: 'Could not read this same-wall link. Check that the link was not cut off.',
   kifuLinkCopied: 'Game record link copied. Anyone who opens it can replay the game.',
@@ -1046,6 +1052,9 @@ const zh: Dict = {
   sameTitle: '同一牌山对决',
   sameGuide: '用与发送者相同的配牌和摸牌（同一牌山）与 CPU 对局。与普通麻将一样，鸣牌会使摸牌顺序错开。结束后比一比成绩吧。',
   sameTheirResult: '发送者的成绩：第{rank}名・{total}',
+  sameCompareTitle: '同一牌山的成绩',
+  sameStartWarn: '注意：此链接包含生成牌山的信息。解析链接即可事先得知配牌和之后摸到的牌，因此比较成绩并不公平。',
+  sameCompareSender: '发送者',
   sameStart: '用这个牌山开始对局',
   sameBroken: '无法读取同一牌山对决的链接。请确认链接没有被截断。',
   kifuLinkCopied: '已复制牌谱链接。打开的人可以回放这局对局。',
@@ -1106,7 +1115,7 @@ const DICTS: Record<BaseLang, Dict> = { ja, en, zh };
 /** 猫語にしないキー（猫語のときも、猫語を選ぶ直前の言語のまま出す）。利用者指示 2026-10-07：
  *  - サブタイトル（全アプリ共通で猫語にしない）
  *  - 利用規約・免責・賭博禁止・公平性の説明など、意味が伝わらないと困るもの（同意画面の文面は i18n/notice.ts） */
-const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['subtitle', 'noMoney', 'creditsModified', 'creditsShared', 'creditsBgm', 'chatRule']);
+const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['subtitle', 'noMoney', 'creditsModified', 'creditsShared', 'creditsBgm', 'chatRule', 'sameStartWarn']);
 
 /** 攻撃的な鳴き声を返すキー（失敗・エラーの通知）。いまは無い（オンラインの段階で足す） */
 const ERROR_KEYS: ReadonlySet<MessageKey> = new Set(['olErrNoName', 'olErrNoRoomName', 'olErrWrongPw', 'olErrFull', 'olErrGone', 'olErrStarted', 'olLost', 'olBusy']);

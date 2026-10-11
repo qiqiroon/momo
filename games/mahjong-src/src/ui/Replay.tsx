@@ -2,11 +2,16 @@
 // 1 手＝ツモ・打牌・鳴き・カン・アガリ・流局の宣言・途中流局・対局の終わり（返事の「見送る」やドラをめくるだけの出来事は、次の手に含める）。
 // 局の頭＝配り終えたところ（最初のツモの直前）。
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Envelope } from '../engine/events';
 import { apply, initialState, type GameState } from '../engine/state';
 import { translate, type Lang, type MessageKey } from '../i18n/strings';
 import { Table } from './Table';
+
+/** 自動再生の速さ（将棋の感想戦と同じ並び・押すたびに次へ） */
+const SPEEDS = [1, 2, 0.5] as const;
+/** 速さ 1× のときの 1 手の間 */
+const AUTO_MS = 1000;
 
 const STEP_TYPES = new Set(['draw', 'discard', 'call', 'kan', 'tsumo', 'ron', 'exhaust', 'declare', 'kyushu', 'yame', 'gameEnd']);
 
@@ -60,41 +65,80 @@ export function Replay({ events, narrow, lang, onExit }: Props) {
     return out;
   }, [events, steps]);
   const [at, setAt] = useState(handStarts[0] ?? 0);
-  const clamp = (n: number) => Math.max(0, Math.min(steps.length - 1, n));
-  const go = (n: number) => setAt(clamp(n));
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState<number>(1);
+  const last = steps.length - 1;
+  const clamp = (n: number) => Math.max(0, Math.min(last, n));
+  /** 手で動かしたら自動再生は止める（将棋の感想戦と同じ） */
+  const go = (n: number) => {
+    setPlaying(false);
+    setAt(clamp(n));
+  };
   /** 今の位置から動く（続けて押しても押した回数だけ動く） */
-  const move = (d: number) => setAt((a) => clamp(a + d));
+  const move = (d: number) => {
+    setPlaying(false);
+    setAt((a) => clamp(a + d));
+  };
+  // 自動再生：速さに合わせて 1 手ずつ進み、最後で自分から止まる
+  useEffect(() => {
+    if (!playing) return;
+    if (at >= last) {
+      setPlaying(false);
+      return;
+    }
+    const id = setTimeout(() => setAt((a) => clamp(a + 1)), AUTO_MS / speed);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, at, speed, last]);
   const curHand = handStarts.filter((h) => h <= at).length - 1;
   const view = states[at];
 
   return (
     <div className="replay">
       <Table narrow={narrow} view={view} legal={[]} lang={lang} onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} replay />
-      <div className="replay-bar">
-        <div className="replay-row">
-          <button type="button" className="btn-primary" onClick={() => go(handStarts[curHand - 1] ?? 0)} disabled={curHand <= 0}>
-            {t('replayPrevHand')}
+      {/* 再生の操作（将棋の感想戦にならう）：|◀ 前の局 ◀ 自動 速さ ▶ 次の局 ▶| ＋手の位置のつまみ */}
+      <div className="playbar">
+        <div className="btns">
+          <button type="button" className="pb" title={t('replayStart')} aria-label={t('replayStart')} disabled={at === 0} onClick={() => go(0)}>
+            |◀
           </button>
-          <button type="button" className="btn-primary" onClick={() => go(handStarts[curHand + 1] ?? steps.length - 1)} disabled={curHand + 1 >= handStarts.length}>
-            {t('replayNextHand')}
+          <button type="button" className="pb" title={t('replayPrevHand')} aria-label={t('replayPrevHand')} disabled={curHand <= 0} onClick={() => go(handStarts[curHand - 1] ?? 0)}>
+            ◀◀
           </button>
-          <span className="replay-pos">{t('replayPos', { n: at + 1, total: steps.length })}</span>
-          <button type="button" className="btn-primary btn-replay-exit" onClick={onExit}>
-            {t('replayExit')}
+          <button type="button" className="pb" title={t('replayBack')} aria-label={t('replayBack')} disabled={at === 0} onClick={() => move(-1)}>
+            ◀
+          </button>
+          <button
+            type="button"
+            className={`pb auto${playing ? ' playing' : ''}`}
+            disabled={last <= 0}
+            onClick={() => {
+              if (playing) return setPlaying(false);
+              // 最後から始めたら最初へ巻き戻す
+              if (at >= last) setAt(0);
+              setPlaying(true);
+            }}
+          >
+            {playing ? `⏸ ${t('replayStop')}` : `▶ ${t('replayAuto')}`}
+          </button>
+          <button type="button" className="pb spd" title={t('replaySpeed')} aria-label={t('replaySpeed')} onClick={() => setSpeed((cur) => SPEEDS[(SPEEDS.indexOf(cur as 1) + 1) % SPEEDS.length])}>
+            {speed === 0.5 ? '0.5×' : `${speed}×`}
+          </button>
+          <button type="button" className="pb" title={t('replayStep')} aria-label={t('replayStep')} disabled={at === last} onClick={() => move(1)}>
+            ▶
+          </button>
+          <button type="button" className="pb" title={t('replayNextHand')} aria-label={t('replayNextHand')} disabled={curHand + 1 >= handStarts.length} onClick={() => go(handStarts[curHand + 1] ?? last)}>
+            ▶▶
+          </button>
+          <button type="button" className="pb" title={t('replayEnd')} aria-label={t('replayEnd')} disabled={at === last} onClick={() => go(last)}>
+            ▶|
           </button>
         </div>
-        <div className="replay-row">
-          <button type="button" className="btn-primary" onClick={() => go(0)} disabled={at === 0}>
-            {t('replayStart')}
-          </button>
-          <button type="button" className="btn-primary btn-replay-back" onClick={() => move(-1)} disabled={at === 0}>
-            {t('replayBack')}
-          </button>
-          <button type="button" className="btn-primary btn-replay-step" onClick={() => move(1)} disabled={at === steps.length - 1}>
-            {t('replayStep')}
-          </button>
-          <button type="button" className="btn-primary" onClick={() => go(steps.length - 1)} disabled={at === steps.length - 1}>
-            {t('replayEnd')}
+        <div className="track">
+          <input type="range" min={0} max={Math.max(last, 1)} value={at} disabled={last <= 0} aria-label={t('replayPos', { n: at + 1, total: steps.length })} onChange={(e) => go(Number(e.target.value))} />
+          <span className="plycnt">{t('replayPos', { n: at + 1, total: steps.length })}</span>
+          <button type="button" className="pb exit" onClick={onExit}>
+            {t('replayExit')}
           </button>
         </div>
       </div>

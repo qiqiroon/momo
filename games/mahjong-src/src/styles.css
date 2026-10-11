@@ -1045,17 +1045,121 @@ body.in-game .site-header .subtitle {
   gap: 8px;
 }
 
-.replay-bar {
+/* 再生の操作（将棋の感想戦の再生の帯にならう）：小さなボタンを 1 行に・下につまみと手の位置 */
+.playbar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 10px;
+  margin: 0 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 6px 8px 10px;
 }
 
-.replay-pos {
+.playbar .btns {
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pb {
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: 9px;
+  min-width: 40px;
+  height: 34px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.pb:hover {
+  border-color: var(--orange);
+}
+
+.pb:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pb:disabled:hover {
+  border-color: var(--border-strong);
+}
+
+.pb.auto {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pb.auto.playing {
+  background: var(--bg-selected);
+  border-color: var(--orange);
+  color: var(--orange-mid);
+}
+
+.pb.spd {
+  font-size: 11px;
+  min-width: 38px;
+}
+
+.pb.exit {
+  font-size: 12px;
+  flex: none;
+}
+
+.playbar .track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.playbar input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--orange-mid);
+  height: 20px;
+  cursor: pointer;
+}
+
+.playbar .plycnt {
   font-variant-numeric: tabular-nums;
-  min-width: 7em;
-  text-align: center;
+  font-size: 12px;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+/* 狭い画面ではボタンを詰める（1 行に収める） */
+@media (max-width: 420px) {
+  .playbar .btns {
+    gap: 3px;
+    flex-wrap: nowrap;
+  }
+  .pb {
+    min-width: 0;
+    flex: 1 1 0;
+    padding: 0 4px;
+    font-size: 12px;
+  }
+  .pb.auto,
+  .pb.spd {
+    flex: 1.5 1 0;
+    font-size: 11px;
+    padding: 0 2px;
+  }
+  .playbar {
+    margin: 0 4px 8px;
+    padding: 8px 6px;
+  }
 }
 
 .lane-hand {

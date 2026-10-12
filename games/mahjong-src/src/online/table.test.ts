@@ -58,8 +58,12 @@ class FakeNet {
     this.tables = this.tables.filter((y) => y.id !== id);
   }
 
+  /** 送った時刻の記録（送った人・種類・出来事の種類） */
+  sent: { from: string; type: string; ev?: string; at: number }[] = [];
+
   private push(from: string, to: 'all' | 'host', msg: Record<string, unknown>) {
     if (!this.tables.some((x) => x.id === from)) return;
+    this.sent.push({ from, type: String(msg.type), ev: (msg.env as Envelope | undefined)?.ev?.type, at: Date.now() });
     if (msg.type === 'mt-act') {
       const ev = (msg.envs as Envelope[])[0]?.ev;
       const at = this.lastDiscardAt.get(from);
@@ -268,14 +272,17 @@ describe('オンラインの卓（偽の通信）', () => {
     o.autoNext = false;
     o.dealHold = (first) => (first ? 600 : 300);
     ts[0].begin(ids.map((id) => ({ id, name: id })));
-    let dealtAt = 0;
-    let drawAt = 0;
-    await net.until(() => {
-      const p = ts[1].pub;
-      if (!dealtAt && p.phase === 'deal' && p.doraIndicators.length > 0) dealtAt = Date.now();
-      if (dealtAt && !drawAt && p.drawn.some((d) => d !== null)) drawAt = Date.now();
-      return drawAt > 0;
-    }, 30_000);
-    expect(drawAt - dealtAt).toBeGreaterThanOrEqual(550);
+    await net.until(() => ts[1].pub.drawn.some((d) => d !== null), 30_000);
+    // ホストが「配り終えた（ドラ表示牌）」を送った時刻と、最初の「ツモ」を送った時刻を、送った瞬間の記録で比べる。
+    // ★以前は 5 ミリ秒ごとの見回りで見つけた時刻で測っていたため、ほかの検査と並んで混むと見つけるのが遅れて短く出て、たまに赤になった（10-12）。
+    //   待ちはタイマーなので、混んでも早まることはない＝送った時刻なら必ず 600 以上
+    const dealt = net.sent.find((x) => x.from === 'A' && x.ev === 'doraReveal');
+    const drew = net.sent.find((x) => x.from === 'A' && x.ev === 'draw');
+    expect(dealt).toBeDefined();
+    expect(drew).toBeDefined();
+    expect(drew!.at - dealt!.at).toBeGreaterThanOrEqual(590);
+    // ゲストにも、ツモは配牌のあとに届いている
+    const seen = net.seen.get('B')!.map((m) => (m.env as Envelope | undefined)?.ev?.type);
+    expect(seen.indexOf('doraReveal')).toBeLessThan(seen.indexOf('draw'));
   }, 40_000);
 });

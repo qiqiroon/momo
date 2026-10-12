@@ -11,7 +11,7 @@ import { finalResult, type FinalRow } from '../engine/final';
 import { nextStep } from '../engine/game';
 import type { Action } from '../engine/round';
 import type { ScoreResult } from '../engine/score';
-import { liveWallLeft, type GameState, type OpenMeld } from '../engine/state';
+import { liveWallLeft, queOn, suitOfKind, type GameState, type OpenMeld } from '../engine/state';
 import { isRed, kindOf, type TileId } from '../engine/tiles';
 import { relFrom, useSeat } from './seatContext';
 import { translate, type Lang, type MessageKey } from '../i18n/strings';
@@ -114,8 +114,16 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
       .join(' ');
   /** 起家の印（親決めで最初の親になった人） */
   const chichaMark = (seat: number) => seat === view.chicha && <span className="chicha-mark">{t('chichaMark')}</span>;
+  /** 缺一門の印：宣言した色（伏せただけでまだ切っていなければ「？」）。中国式で缺一門ありのときだけ */
+  const queMark = (seat: number) => {
+    if (!queOn(view.rules)) return null;
+    const q = view.que[seat];
+    if (q !== null) return <span className="que-mark">{t('queMark', { suit: t(`suitShort${q}` as MessageKey) })}</span>;
+    return view.queHeld[seat] !== null ? <span className="que-mark pending">{t('queHidden')}</span> : null;
+  };
   const riichiMark = (seat: number) => (
     <>
+      {queMark(seat)}
       {view.riichi[seat] !== 'none' && <span className="riichi-mark">{t('riichi')}</span>}
       {seat === me && furiten && furiten.reasons.length > 0 && <span className="furiten-mark">{t('furiten')}</span>}
     </>
@@ -610,14 +618,27 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: Ga
   const riichiable = new Set(legal.flatMap((a) => (a.type === 'riichi' ? [a.tile] : [])));
   const discardable = new Set(legal.flatMap((a) => (a.type === 'discard' ? [a.tile] : [])));
   const picking = riichiPick && riichiable.size > 0;
+  // 缺一門：捨てる色の牌を伏せる。ふつうは押した牌の色が捨てる色。手に無い色があれば、その色を先に選んでから伏せる牌を押す
+  const queOpts = legal.filter((a): a is Extract<Action, { type: 'que' }> => a.type === 'que');
+  const [voidSuit, setVoidSuit] = useState<number | null>(null);
+  const voidSuits = [...new Set(queOpts.filter((a) => a.suit !== suitOfKind(kindOf(a.tile))).map((a) => a.suit))].sort();
+  const queSuitFor = (id: TileId) => voidSuit ?? suitOfKind(kindOf(id));
+  const queable = (id: TileId) => queOpts.some((a) => a.suit === queSuitFor(id) && kindOf(a.tile) === kindOf(id));
+  const queWaiting = view.phase === 'que' && view.queHeld[me] !== null;
+  const heldTile = view.queHeld[me];
   /** いま押せる牌（リーチの牌を選んでいるときは、リーチできる牌だけ） */
-  const usable = (id: TileId) => (picking ? riichiable.has(id) : discardable.has(id));
+  const usable = (id: TileId) => (queOpts.length > 0 ? queable(id) : picking ? riichiable.has(id) : discardable.has(id));
 
   const press = (id: TileId) => (e: PointerEvent) => {
     if (!usable(id)) return;
     if (e.pointerType === 'mouse' || raised === id) {
       setRaised(null);
       setRiichiPick(false);
+      if (queOpts.length > 0) {
+        setVoidSuit(null);
+        onChoose({ type: 'que', tile: id, suit: queSuitFor(id) });
+        return;
+      }
       onChoose(picking ? { type: 'riichi', tile: id } : { type: 'discard', tile: id });
     } else {
       setRaised(id);
@@ -625,14 +646,26 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: Ga
   };
 
   const tile = (id: TileId) => (
-    <button key={id} type="button" className={`hand-tile${raised === id ? ' raised' : ''}`} disabled={!usable(id)} onPointerUp={press(id)}>
+    <button key={id} type="button" className={`hand-tile${raised === id ? ' raised' : ''}${id === heldTile ? ' que-held' : ''}`} disabled={!usable(id)} onPointerUp={press(id)}>
       <Tile id={id} rules={view.rules} />
+      {id === heldTile && <span className="que-held-tag">{translate(lang, 'queHeldTag')}</span>}
     </button>
   );
 
   return (
     <div className={`my-hand${myTurn ? ' my-turn' : ''}`}>
       <div className="hand-actions">
+        {queOpts.length > 0 && (
+          <>
+            {voidSuits.map((s) => (
+              <button key={s} type="button" className={`btn-primary btn-que-void${voidSuit === s ? ' active' : ''}`} onClick={() => setVoidSuit(voidSuit === s ? null : s)}>
+                {translate(lang, 'queVoid', { suit: translate(lang, `suit${s}` as MessageKey) })}
+              </button>
+            ))}
+            <span className="hint que-hint">{translate(lang, voidSuit === null ? 'queHint' : 'queVoidPick')}</span>
+          </>
+        )}
+        {queWaiting && <span className="hint que-hint">{translate(lang, 'queWait')}</span>}
         {canTsumo && (
           <button type="button" className="btn-primary btn-tsumo" onClick={() => onChoose({ type: 'tsumo' })}>
             {translate(lang, 'tsumo')}

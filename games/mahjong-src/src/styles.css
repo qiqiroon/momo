@@ -914,6 +914,44 @@ body.in-game .site-header .subtitle {
   line-height: 1.3;
 }
 
+/* 缺一門（四川）：名札の「缺萬」など。伏せただけでまだ切っていない人は「缺？」（点線の枠） */
+.que-mark {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  border: 1px solid #fff;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.que-mark.pending {
+  border-style: dashed;
+}
+
+/* 自分の伏せた牌：手牌の中で少し下げ、下にオレンジ地の「伏」の札 */
+.hand-tile.que-held {
+  position: relative;
+  transform: translateY(10%);
+}
+
+.que-held-tag {
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  transform: translate(-50%, 100%);
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--orange);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
 /* 自分のフリテン：名札の印（オレンジ地に白い字＝利用者指定）と、元になっている河の牌の赤い枠（直前の牌の枠と重なっても両方見えるよう、枠は牌の内側に描く） */
 .furiten-mark {
   display: inline-block;

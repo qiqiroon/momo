@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { encodeRuleLink } from '../engine/ruleSets';
 import { JP_FIXED, JP_ITEMS, TIERS, type RuleItem } from '../engine/ruleTable';
-import { JP_RULE_ITEMS, JP_SETS, blockedBy, familyOf, generalChoice, isSupplied, labelOf, presetValue, rulesOfSet, type RuleChoice, type SetId } from '../engine/ruleSets';
+import { JP_RULE_ITEMS, JP_SETS, blockedBy, familyOf, generalChoice, isSupplied, labelOf, presetValue, rulesOfSet, type CnSetId, type RuleChoice, type SetId } from '../engine/ruleSets';
 import type { JpRuleKey } from '../engine/rules';
 import { groupName, optLabel, ruleName, ruleNote } from '../i18n/ruleText';
 import type { BaseLang, MessageKey } from '../i18n/strings';
@@ -20,6 +20,9 @@ export type { RuleChoice };
 
 const STORE_KEY = 'momo-mahjong.rules';
 
+/** いま遊べる中国式のセット（段階9：四川から。香港・国標はそれぞれの手順で足す） */
+export const CN_PLAYABLE: readonly CnSetId[] = ['sichuan'];
+
 /** 前に選んだルール（端末に覚える）。無ければ一般ルール */
 export function loadRuleChoice(): RuleChoice {
   try {
@@ -27,7 +30,7 @@ export function loadRuleChoice(): RuleChoice {
     if (raw) {
       const c = JSON.parse(raw) as RuleChoice;
       const full = rulesOfSet((JP_SETS as readonly string[]).includes(c.base) ? c.base : 'general');
-      if (full.family === 'jp') return { base: c.base, values: { ...full.values, ...c.values } };
+      if (full.family === 'jp') return { base: c.base, values: { ...full.values, ...c.values }, ...(c.cn && CN_PLAYABLE.includes(c.cn) ? { cn: c.cn } : {}) };
     }
   } catch {
     /* 読めなければ一般ルール */
@@ -97,13 +100,19 @@ function ShareLink({ t, choice }: { t: T; choice: RuleChoice }) {
 }
 
 /** share＝「このルールのリンクをコピー」を出す（CPU と対局の設定・ホストの待合） */
-export function RuleSettings({ t, lang, choice, onChange, readOnly = false, share = false }: { t: T; lang: BaseLang; choice: RuleChoice; onChange?: (c: RuleChoice) => void; readOnly?: boolean; share?: boolean }) {
+/** cnOk＝中国式のセット（いま遊べるもの）を選べる＝CPU と対局だけ（オンラインは中国式に対応するまで選べない） */
+export function RuleSettings({ t, lang, choice, onChange, readOnly = false, share = false, cnOk = false }: { t: T; lang: BaseLang; choice: RuleChoice; onChange?: (c: RuleChoice) => void; readOnly?: boolean; share?: boolean; cnOk?: boolean }) {
   /** 開いているまとまり（最初は全部畳む） */
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const label = labelOf(choice.values, choice.base);
+  const cn = cnOk ? choice.cn : undefined;
+  const label = cn ?? labelOf(choice.values, choice.base);
   const toggle = (key: string) => setOpen((o) => ({ ...o, [key]: !o[key] }));
   const pickSet = (set: string) => {
-    if (familyOf(set) !== 'jp') return; // 中国式は段階9
+    if (familyOf(set) !== 'jp') {
+      // 中国式は、いま遊べるセットだけ（日本式の値はそのまま持っておく）
+      if (cnOk && CN_PLAYABLE.includes(set as CnSetId)) onChange?.({ base: choice.base, values: choice.values, cn: set as CnSetId });
+      return;
+    }
     const r = rulesOfSet(set as SetId);
     if (r.family === 'jp') onChange?.({ base: set as SetId, values: { ...(r.values as Record<JpRuleKey, string>) } });
   };
@@ -180,7 +189,10 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false, shar
       </div>
       )}
       {!readOnly && label === 'custom' && <p className="cur">{t('rsChangedFrom', { set: t(`set_${choice.base}` as MessageKey) })}</p>}
-      {share && <ShareLink t={t} choice={choice} />}
+      {cn ? <p className="guide rs-cn-soon">{t('rsCnSoon')}</p> : null}
+      {share && !cn && <ShareLink t={t} choice={choice} />}
+      {!cn && (
+      <>
       <div className="indiv-head">{t(readOnly ? 'rsReadOnlyHead' : 'rsIndivHead')}</div>
       <div className="rule-rows">
         {groups().map((g) => {
@@ -211,6 +223,8 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false, shar
         })}
       </div>
       <p className="fixed">{lang === 'ja' ? JP_FIXED.replace(/<\/?b>/g, '') : t('rsFixed')}</p>
+      </>
+      )}
     </section>
   );
 }

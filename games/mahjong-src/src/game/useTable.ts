@@ -184,6 +184,21 @@ export function useTable() {
       const id = setTimeout(() => dispatch({ type: 'push', envs }), cpuRon ? CPU_DELAY : 0);
       return () => clearTimeout(id);
     }
+    // 缺一門：CPU は自分の見える局面で捨てる色の牌を伏せる（3 人まとめて）。人間は選んで押すのを待つ
+    if (full.phase === 'que') {
+      let next = full;
+      const envs: Envelope[] = [];
+      for (const seat of [1, 2, 3] as Seat[]) {
+        if (next.queHeld[seat] !== null) continue;
+        const cpuView = [...s.log, ...envs].reduce((st, e) => apply(st, mask(e, seat)), initialState());
+        const out = act(next, seat, cpu(cpuView, seat), srcOf(s, next));
+        for (const e of out) next = apply(next, e);
+        envs.push(...out);
+      }
+      if (envs.length === 0) return undefined;
+      const id = setTimeout(() => dispatch({ type: 'push', envs }), CPU_DELAY);
+      return () => clearTimeout(id);
+    }
     if (full.phase === 'deal' || full.phase === 'draw') {
       const wait = full.phase === 'deal' ? dealHold + (dealHold > 0 && showsDice(full) ? DICE_SHOW_MS : 0) : full.turn === HUMAN ? 0 : CPU_DELAY / 2;
       const id = setTimeout(() => dispatch({ type: 'push', envs: advance(full, srcOf(s, full)) }), wait);
@@ -219,7 +234,8 @@ export function useTable() {
     (a: Action) => {
       const replying = full.phase === 'claim' && full.claim?.replies[HUMAN] === null;
       const yame = full.phase === 'ended' && a.type === 'yame';
-      if (!replying && !yame && ((full.phase !== 'discard' && full.phase !== 'declare') || full.turn !== HUMAN)) return;
+      const que = full.phase === 'que' && a.type === 'que' && full.queHeld[HUMAN] === null;
+      if (!replying && !yame && !que && ((full.phase !== 'discard' && full.phase !== 'declare') || full.turn !== HUMAN)) return;
       dispatch({ type: 'push', envs: act(full, HUMAN, a, srcOf(s, full)) });
     },
     [full, s],

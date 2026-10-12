@@ -148,7 +148,7 @@ export function CpuSetup({ t, lang, onBack, onStart }: { t: T; lang: BaseLang; o
         <BackButton t={t} onClick={onBack} />
       </div>
       <StrengthPicker t={t} value={strength} onChange={changeStrength} />
-      <RuleSettings t={t} lang={lang} choice={choice} onChange={change} share />
+      <RuleSettings t={t} lang={lang} choice={choice} onChange={change} share cnOk />
     </>
   );
 }

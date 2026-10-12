@@ -228,7 +228,7 @@ describe('モード選択と、そこから入る画面', () => {
     expect(footer.querySelector('.title-foot')).toHaveTextContent('賭けには使えません');
   });
 
-  it('CPU と対局：最初は一般ルール。日本式のセットは選べ、中国式は押しても変わらない。個別に変えるとカスタム。モード選択へ戻れる', () => {
+  it('CPU と対局：最初は一般ルール。日本式のセットと四川は選べ、国標・香港は押しても変わらない。個別に変えるとカスタム。モード選択へ戻れる', () => {
     localStorage.removeItem('momo-mahjong.rules');
     render(<App startConsented />);
     fireEvent.click(screen.getByText('CPU と対局'));
@@ -236,8 +236,18 @@ describe('モード選択と、そこから入る画面', () => {
     expect(on()).toHaveTextContent('一般ルール');
     fireEvent.click(screen.getByRole('button', { name: /天鳳/ }));
     expect(on()).toHaveTextContent('天鳳');
+    // 四川（段階9）：選べる。中国式の個別設定はまだ無いので、項目の代わりに一言を出す
     fireEvent.click(screen.getByRole('button', { name: '四川麻将' }));
+    expect(on()).toHaveTextContent('四川麻将');
+    expect(document.querySelector('.rs-cn-soon')).not.toBeNull();
+    expect(document.querySelector('.rule-rows')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('momo-mahjong.rules')!).cn).toBe('sichuan');
+    fireEvent.click(screen.getByRole('button', { name: /香港/ }));
+    expect(on()).toHaveTextContent('四川麻将');
+    // 日本式のセットに戻ると、四川の選択は外れる
+    fireEvent.click(screen.getByRole('button', { name: /天鳳/ }));
     expect(on()).toHaveTextContent('天鳳');
+    expect(JSON.parse(localStorage.getItem('momo-mahjong.rules')!).cn).toBeUndefined();
     // 個別設定：まとまりを開いて喰いタンを「なし」にするとカスタム（どのセットとも違う）
     fireEvent.click(screen.getByRole('button', { name: /ドラ・役/ }));
     // どのセットも同じ値の項目は「細かい決まり」にさらに畳まれている

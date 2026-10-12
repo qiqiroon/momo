@@ -58,6 +58,8 @@ export function blockedBy(values: Readonly<Record<JpRuleKey, string>>, k: JpRule
 export interface RuleChoice {
   base: SetId;
   values: Record<JpRuleKey, string>;
+  /** 中国式のセットを選んだとき（段階9。いまは CPU と対局の四川だけ・個別設定はまだ無い）。日本式の値は前のまま持っておく */
+  cn?: CnSetId;
 }
 
 /** 一般ルールを選んだ状態 */

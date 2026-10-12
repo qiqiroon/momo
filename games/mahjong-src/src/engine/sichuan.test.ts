@@ -3,7 +3,7 @@
 import { mask, type Envelope, type GameEvent, type Seat } from './events';
 import { act, advance, callOptions, legalActions, startRound, type Action } from './round';
 import { rulesOfCnSet } from './ruleSets';
-import { apply, cnRonBlocked, initialState, liveWallLeft, startPoints, type GameState } from './state';
+import { apply, cnRonBlocked, initialState, kanProblem, liveWallLeft, startPoints, type GameState } from './state';
 import { sichuanScore } from './sichuan';
 import { kindOf, tileSetFor, type TileId } from './tiles';
 
@@ -282,7 +282,7 @@ const counts = (s: string) => {
   return c;
 };
 const score = (hand: string, pons: string[] = [], haidi = false) =>
-  sichuanScore({ concealed: counts(hand), pons: pons.map((x) => BASE[x[1] as 'm'] + Number(x[0]) - 1), haidi }, SICHUAN);
+  sichuanScore({ concealed: counts(hand), melds: pons.map((x) => ({ kind: BASE[x[1] as 'm'] + Number(x[0]) - 1, size: 3 as const })), haidi }, SICHUAN);
 const fanIds = (hand: string, pons: string[] = [], haidi = false) => score(hand, pons, haidi)?.fans.map((f) => `${f.id}${f.fan}`).sort();
 
 describe('四川の番と基本点', () => {
@@ -452,5 +452,74 @@ describe('血戦到底（段階9の手順3・MIL §3-3）：アガった人が�
     expect(t.s.result).toMatchObject({ type: 'cnWin', exhausted: true });
     expect(t.s.settlement).toEqual([-1, 1, 0, 0]);
     expect(t.s.scores).toEqual([-1, 1, 0, 0]);
+  });
+});
+describe('カン（段階9の手順4・MIL §8・§10）', () => {
+  const S0 = '9m1p2p3p4p5p6p7p8p9p1s1s5s';
+  const S1 = '1m1m1m2m3m4m5m6m7m2s3s4s9m';
+  const S3 = '8m1p2p8p8p8p9p9p9p6s7s8s9s';
+  /** 親が 9m を切り、全員見送って席 1 が 1m（4 枚目）を引いたところ。席 1 は筒子なし＝9m を伏せて筒子を捨てる色にしている */
+  function drew1m() {
+    const r = setup([S0, S1, '5m5m6m6p6p6p7p7p7p5s6s7s8s', S3], '6s');
+    const { t, d } = r;
+    t.do(0, { type: 'que', tile: tileOf(t.s, 0, '9m'), suit: 0 });
+    t.do(1, { type: 'que', tile: tileOf(t.s, 1, '9m'), suit: 1 });
+    t.do(2, { type: 'que', tile: tileOf(t.s, 2, '5s'), suit: 2 });
+    t.do(3, { type: 'que', tile: tileOf(t.s, 3, '6s'), suit: 2 });
+    t.do(0, { type: 'discard', tile: tileOf(t.s, 0, '9m') });
+    for (const seat of [1, 2, 3] as Seat[]) t.do(seat, { type: 'pass' });
+    t.push({ type: 'draw', seat: 1, tile: d('1m')[0] }, [1]);
+    return r;
+  }
+  const ankan1m = (t: Table) => {
+    const a = legalActions(t.s, 1).find((x) => x.type === 'kan' && x.kan === 'ankan');
+    if (!a) throw new Error('暗槓できるはず');
+    t.do(1, a);
+  };
+
+  it('暗槓：まだ抜けていない各人から 2 点（刮风下雨）。補充の牌は山の尻から', () => {
+    const { t } = drew1m();
+    ankan1m(t);
+    expect(t.s.scores).toEqual([-2, 6, -2, -2]);
+    expect(t.s.cnKans).toMatchObject([{ seat: 1, kind: 'ankan' }]);
+    expect(t.s.rinshanDue).toBe(true);
+    const full = { ...t.s, wall: Array.from({ length: 108 }, (_, i) => i) };
+    expect(advance(full)[0].ev).toMatchObject({ type: 'draw', rinshan: true, tile: 107 });
+  });
+
+  it('杠上开花：補充の牌でツモ＝1 番（根も付く）。ツモの払い', () => {
+    const { t, d } = drew1m();
+    ankan1m(t);
+    t.push({ type: 'draw', seat: 1, tile: d('9m')[0], rinshan: true }, [1]);
+    t.do(1, { type: 'tsumo' });
+    const w = t.s.cnWins[0];
+    expect(w.score.fans.map((f) => f.id).sort()).toEqual(['gangkai', 'gen']);
+    // 2 番 4 点＝各人 5 点。カンの 2 点と合わせて
+    expect(t.s.scores).toEqual([-7, 21, -7, -7]);
+  });
+
+  it('杠上炮：カンした人の直後の打牌でロン＝1 番。そのカンの収入は返す', () => {
+    const { t, d } = drew1m();
+    ankan1m(t);
+    // 席 2 を 9m 単騎の形にする（捨てる色の索子なし）
+    t.s = { ...t.s, hands: t.s.hands.map((h, i) => (i === 2 ? d('2m2m2m3m3m3m4m4m4m9m5p5p5p') : h)) };
+    t.push({ type: 'draw', seat: 1, tile: d('3p')[0], rinshan: true }, [1]);
+    // 最初の打牌は伏せた 9m
+    t.do(1, { type: 'discard', tile: tileOf(t.s, 1, '9m') });
+    t.do(2, { type: 'ron' });
+    t.do(3, { type: 'pass' });
+    t.do(0, { type: 'pass' });
+    expect(t.s.cnWins[0].score.fans.map((f) => f.id)).toContain('gangpao');
+    expect(t.s.cnKans[0].returned).toBe(true);
+    // 碰碰胡＋杠上炮＝2 番 4 点。カン [-2,6,-2,-2] → ロン 4 点（席 1 → 席 2）→ カンの収入を返す
+    expect(t.s.scores).toEqual([0, -4, 4, 0]);
+  });
+
+  it('伏せた牌・捨てる色の牌ではカンできない', () => {
+    const { t } = drew1m();
+    expect(kanProblem(t.s, 1, 'ankan', t.s.hands[1].filter((x) => kindOf(x) === 8).concat([0, 1, 2]))).not.toBeNull();
+    // 捨てる色（筒子）の牌を 4 枚持たせると暗槓の候補に出ない
+    t.s = { ...t.s, hands: t.s.hands.map((h, i) => (i === 1 ? [...h.filter((x) => kindOf(x) !== 0), 36, 37, 38, 39] : h)), drawn: t.s.drawn.map((x, i) => (i === 1 ? 39 : x)) };
+    expect(kanProblem(t.s, 1, 'ankan', [36, 37, 38, 39])).toContain('捨てる色');
   });
 });

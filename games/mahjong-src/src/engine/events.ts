@@ -46,8 +46,9 @@ export type GameEvent =
    *  返事がそろったとき、ロンが無く、優先順位（ポン・カン＞チー）で勝てば鳴ける */
   | { type: 'call'; seat: Seat; meld: 'chi' | 'pon' | 'kan'; tiles: readonly TileId[] }
   /** 自分の番のカン。全員に見える。ankan＝暗槓（手牌から 4 枚）／kakan＝加槓（ポンした面子に手牌から 1 枚足す）。
-   *  加槓は、ほかの 3 人の返事（槍槓のロン・見送る）を待ってから嶺上牌を引く。暗槓も国士無双のロンがあり得るルールなら待つ */
-  | { type: 'kan'; seat: Seat; kan: 'ankan' | 'kakan'; tiles: readonly TileId[] }
+   *  加槓は、ほかの 3 人の返事（槍槓のロン・見送る）を待ってから嶺上牌を引く。暗槓も国士無双のロンがあり得るルールなら待つ。
+   *  fresh＝中国式の加槓で、4 枚目を引いてすぐカンした（刮风下雨の 1 点はそのときだけ。引いた牌は本人にしか見えないので印で渡す） */
+  | { type: 'kan'; seat: Seat; kan: 'ankan' | 'kakan'; tiles: readonly TileId[]; fresh?: boolean }
   /** 切られた牌への返事「ロン」。全員に見える。手牌（13 枚）を開ける。ura＝めくった裏ドラ表示牌（リーチしているときだけ） */
   | { type: 'ron'; seat: Seat; hand: readonly TileId[]; ura: readonly TileId[] }
   /** 九種九牌で流す。全員に見える。手牌（14 枚）を開ける */

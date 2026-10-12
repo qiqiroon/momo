@@ -382,7 +382,8 @@ describe('四川：アガリの結果の枠（段階9の手順2）', () => {
     const w = view.result.wins[0];
     const { unmount } = render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} />);
     expect(document.querySelector('.score-total')).toHaveTextContent(`基本点 ${w.score.points}点`);
-    expect(document.querySelectorAll('.yaku-list tr')).toHaveLength(w.score.fans.length);
+    // 最初のアガリの番の表（血戦到底では局の全部のアガリが並ぶ・カンの点は別の表）
+    expect(document.querySelector('.score')!.querySelectorAll('.yaku-list tr')).toHaveLength(w.score.fans.length);
     expect(document.querySelectorAll('.result-hand .win-tile')).toHaveLength(view.result.wins.length);
     // 点の動きの表（4 人）
     expect(document.querySelectorAll('.points-list tr')).toHaveLength(4);

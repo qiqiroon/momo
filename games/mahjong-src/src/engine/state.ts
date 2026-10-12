@@ -49,6 +49,8 @@ export interface Claim {
   calls: CallOffer[];
   /** 切った人が嶺上牌を引いたあとの捨て牌か（槓振り） */
   afterKan?: boolean;
+  /** 中国式の加槓で、4 枚目を引いてすぐカンした（刮风下雨の 1 点はそのときだけ） */
+  fresh?: boolean;
   /** 中国式のロン（言った順）。日本式の rons と別に持つ（点数の形が違う） */
   cnRons?: { seat: Seat; score: CnScore }[];
 }
@@ -84,7 +86,7 @@ export type RoundResult =
   /** 途中流局。kyushu＝九種九牌（seat が流した）／sufon＝四風連打／suricchi＝四家立直／sukan＝四開槓 */
   | { type: 'abort'; reason: AbortReason; seat?: Seat }
   /** 中国式のアガリ（段階9）。wins＝アガった人（アガった順。同じ牌のロンは切った人の下家から順＝ルールの multiWin）。
-   *  血戦到底（アガった人が抜けて続く）は、局の終わりにその局の全部のアガリを入れる。exhausted＝山が尽きて終わった */
+   *  血戦到底（アガった人が抜けて続く）は、局の終わりにその局の全部のアガリを入れる。exhausted＝山が尽きて終わった（アガった人がいなくてカンの収入だけのときも＝wins は空） */
   | { type: 'cnWin'; wins: CnWin[]; exhausted?: boolean };
 
 /** 中国式のアガリ 1 人分。from＝切った人（ツモは null）。pays＝席ごとの点の動き（受け取りが＋・合計 0） */
@@ -214,6 +216,19 @@ export interface GameState {
   cnOut: boolean[];
   /** 血戦到底：この局のアガリ（アガった順。点はアガったときに持ち点へ足してある） */
   cnWins: CnWin[];
+  /** 刮风下雨：この局のカンの収入（カンした順。点はカンしたときに持ち点へ足してある。返したものは returned） */
+  cnKans: CnKan[];
+  /** 槍槓で無効になったカンの数（血戦到底で局が続くとき、嶺上牌を引かないカン） */
+  robbedKans: number;
+}
+
+/** 刮风下雨のカンの収入 1 回分。pays＝席ごとの点の動き（合計 0） */
+export interface CnKan {
+  seat: Seat;
+  kind: 'minkan' | 'ankan' | 'kakan';
+  pays: number[];
+  /** 返した（直後の打牌で放銃した＝MIL §8-4・流局でノーテン＝§8-5） */
+  returned?: boolean;
 }
 
 /** 血戦到底のルールか（中国式で afterWin が「抜けて続く」） */
@@ -339,6 +354,8 @@ export const initialState = (): GameState => ({
   cnMissed: [null, null, null, null],
   cnOut: [false, false, false, false],
   cnWins: [],
+  cnKans: [],
+  robbedKans: 0,
 });
 
 /** 王牌（ツモらずに残す山の尻）の枚数。日本式は 14 枚で固定（136 枚と同じく変えられない決まり）。中国式は段階9で決める */
@@ -435,6 +452,8 @@ export function apply(state: GameState, env: Envelope): GameState {
         cnMissed: [null, null, null, null],
         cnOut: [false, false, false, false],
         cnWins: [],
+        cnKans: [],
+        robbedKans: 0,
       };
     }
     case 'queHold': {
@@ -598,6 +617,11 @@ export function apply(state: GameState, env: Envelope): GameState {
         melds[ev.seat][i] = { ...pon, type: 'kakan', tiles, added: ev.tiles[0] };
       }
       const v = s.rules?.family === 'jp' ? s.rules.values : null;
+      const cnv = s.rules?.family === 'cn' ? s.rules.values : null;
+      // 加槓の「引いてすぐ」の印：引いた牌が見える端末では本当か確かめる（中国式だけ。日本式は付けない）
+      const fresh = ev.kan === 'kakan' && !!ev.fresh;
+      if (ev.fresh !== undefined && (!cnv || ev.kan !== 'kakan')) throw new Error('「引いてすぐ」の印は中国式の加槓だけ');
+      if (cnv && ev.kan === 'kakan' && s.drawn[ev.seat] !== HIDDEN && fresh !== (s.drawn[ev.seat] === ev.tiles[0])) throw new Error('加槓の「引いてすぐ」の印が違う');
       const drawn = s.drawn.slice();
       drawn[ev.seat] = null;
       // 一発：暗槓はその場で全員消える。加槓はルールの値（槍槓の確認のあと／加槓した時点）
@@ -615,13 +639,16 @@ export function apply(state: GameState, env: Envelope): GameState {
         pendingDora: s.pendingDora + (kanDora ? 1 : 0),
         deferDora: kanDora && ev.kan === 'kakan' && v?.kandoraWhen === 'split',
       };
-      // 加槓は槍槓、暗槓は（ルールが許せば）国士無双のロンを待つ
-      if (ev.kan === 'kakan' || v?.kokushiAnkan === 'on') {
-        const replies: Claim['replies'] = [null, null, null, null];
+      // 加槓は槍槓、暗槓は（ルールが許せば）国士無双のロンを待つ。中国式は加槓で、ルールの chankan が「あり」のときだけ待つ
+      const waitRob = cnv ? ev.kan === 'kakan' && cnv.chankan === 'on' : ev.kan === 'kakan' || v?.kokushiAnkan === 'on';
+      if (waitRob) {
+        const replies: Claim['replies'] = s.cnOut.map((o) => (o ? 'self' : null));
         replies[ev.seat] = 'self';
-        return { ...next, phase: 'claim', claim: { kind: ev.kan, from: ev.seat, tile: ev.tiles[0], replies, rons: [], calls: [] } };
+        return { ...next, phase: 'claim', claim: { kind: ev.kan, from: ev.seat, tile: ev.tiles[0], replies, rons: [], calls: [], ...(fresh ? { fresh } : {}) } };
       }
-      return { ...next, phase: 'draw', rinshanDue: true };
+      // 中国式の刮风下雨：暗槓はその場で、加槓（槍槓を待たないルール）もその場で受け取る
+      const paid = cnv ? cnKanIncome(next, ev.seat, ev.kan, fresh, null) : next;
+      return { ...paid, phase: 'draw', rinshanDue: true };
     }
     case 'pass': {
       const c = s.claim;
@@ -670,7 +697,7 @@ export function apply(state: GameState, env: Envelope): GameState {
         if (ev.ura.length !== 0) throw new Error('中国式に裏ドラは無い');
         const visible = !known.includes(HIDDEN);
         // 捨てる色が残っているかは手牌が見える局面だけで確かめる（点は開けた手牌から出す＝どの端末でも同じ）
-        const score = visible ? cnScoreRon(s, ev.seat, ev.hand, c.tile) : cnScoreOf(s, ev.seat, [...ev.hand, c.tile], liveWallLeft(s) === 0);
+        const score = visible ? cnScoreRon(s, ev.seat, ev.hand, c.tile) : cnScoreOf(s, ev.seat, [...ev.hand, c.tile], 'ron');
         if (!score || (s.rules.values.ron !== 'ok')) throw new Error('アガリの形でない（または捨てる色が残っている）のにロンした');
         if (visible && cnRonBlocked(s, ev.seat, score)) throw new Error('見逃したあと、自分が引く前に同じ点以下でロンした');
         const hands = s.hands.map((h) => h.slice());
@@ -706,7 +733,7 @@ export function apply(state: GameState, env: Envelope): GameState {
       if (s.rules?.family === 'cn') {
         if (ev.ura.length !== 0) throw new Error('中国式に裏ドラは無い');
         const visible = !known.includes(HIDDEN);
-        const score = visible ? cnScoreTsumo(s, ev.seat, ev.hand) : cnScoreOf(s, ev.seat, ev.hand, liveWallLeft(s) === 0);
+        const score = visible ? cnScoreTsumo(s, ev.seat, ev.hand) : cnScoreOf(s, ev.seat, ev.hand, 'tsumo');
         if (!score) throw new Error('アガリの形でない（または捨てる色が残っている）のにツモアガリした');
         hands[ev.seat] = ev.hand.slice();
         const opened = s.opened.slice();
@@ -729,7 +756,8 @@ export function apply(state: GameState, env: Envelope): GameState {
     case 'exhaust': {
       if (s.phase !== 'draw' || s.rinshanDue || liveWallLeft(s) > 0) throw new Error('山が残っているのに流局した');
       // 中国式の流局（查叫・花豬）は段階9の手順5。それまでは宣言なしで点を動かさずに終える
-      if (s.rules?.family === 'cn' && s.cnWins.length > 0) return cnFinish({ ...s, drawn: [null, null, null, null] }, true);
+      // 中国式：アガった人かカンの収入があれば、それを入れた結果にする（点はもう動いている）
+      if (s.rules?.family === 'cn' && (s.cnWins.length > 0 || s.cnKans.length > 0)) return cnFinish({ ...s, drawn: [null, null, null, null] }, true);
       if (s.rules?.family === 'cn') return finish({ ...s, drawn: [null, null, null, null] }, { type: 'exhaust', tenpai: [false, false, false, false], payments: [0, 0, 0, 0] }, [0, 0, 0, 0]);
       // 親から順に宣言する
       return { ...s, phase: 'declare', turn: s.dealer, drawn: [null, null, null, null] };
@@ -793,6 +821,11 @@ function settleClaim(s0: GameState): GameState {
   // リーチの宣言牌が通った（ロンされなかった）ら、リーチ棒を出す
   const declaredNow = c.kind === 'discard' && s0.riichi[c.from] !== 'none' && s0.riichiAt[c.from] === s0.discards[c.from].length - 1 && !s0.riichiStick[c.from];
   const s = declaredNow && ronCount(c) === 0 ? depositRiichi(s0, c.from) : s0;
+  if (c.rons.length === 0 && c.kind !== 'discard' && s.rules?.family === 'cn') {
+    // 中国式：加槓を誰もロンしなかった＝カンが成り立つ（刮风下雨の 1 点は引いてすぐのときだけ）
+    const paid = c.kind === 'kakan' ? cnKanIncome(s, c.from, 'kakan', !!c.fresh, null) : s;
+    return { ...paid, phase: 'draw', turn: c.from, claim: null, rinshanDue: true };
+  }
   if (c.rons.length === 0 && c.kind !== 'discard') {
     // カンの牌を誰もロンしなかった＝カンした人が嶺上牌を引く。加槓の一発は、ルールが「槍槓の確認のあと」ならここで消える
     return { ...s, phase: 'draw', turn: c.from, claim: null, rinshanDue: true, ippatsu: c.kind === 'kakan' ? [false, false, false, false] : s.ippatsu };
@@ -845,6 +878,13 @@ function settleCnRon(s: GameState, c: Claim): GameState {
   const v = s.rules?.family === 'cn' ? s.rules.values : null;
   const winners = v?.multiWin === 'atama' ? rons.slice(0, 1) : rons;
   const wins: CnWin[] = winners.map((r) => ({ seat: r.seat, from: c.from, winTile: c.tile, score: r.score, pays: cnRonPays(c.from, r.seat, r.score) }));
+  // 杠上炮（MIL §8-4）：カンした人が直後の打牌で放銃したら、そのカン（最後のカン）の収入を返す
+  if (c.kind === 'discard' && c.afterKan) {
+    const i = s.cnKans.map((k) => k.seat).lastIndexOf(c.from);
+    if (i >= 0) s = cnReturnKan(s, i);
+  }
+  // 抢杠（§10-8）：加槓の牌でロンされたカンは無効＝嶺上牌は引かない
+  if (c.kind === 'kakan') s = { ...s, robbedKans: s.robbedKans + 1 };
   // 血戦到底：次の番は、切った人から見て一番遠いアガった人の下家（間の人は飛ばされる）
   if (bloodBattle(s.rules)) return cnLeave({ ...s, claim: null }, wins, wins[wins.length - 1].seat);
   return finish({ ...s, claim: null }, { type: 'cnWin', wins }, sumPays(wins));
@@ -868,7 +908,35 @@ function cnLeave(s: GameState, wins: readonly CnWin[], last: Seat): GameState {
 
 /** 血戦到底の局の終わり：この局のアガリを全部結果に入れる（点はアガったときに足してある＝ここでは足さない） */
 function cnFinish(s: GameState, exhausted: boolean): GameState {
-  return { ...s, phase: 'ended', claim: null, result: { type: 'cnWin', wins: s.cnWins, ...(exhausted ? { exhausted } : {}) }, settlement: sumPays(s.cnWins) };
+  const kans = [0, 1, 2, 3].map((i) => s.cnKans.reduce((a, k) => a + (k.returned ? 0 : k.pays[i]), 0));
+  const settlement = sumPays(s.cnWins).map((n, i) => n + kans[i]);
+  return { ...s, phase: 'ended', claim: null, result: { type: 'cnWin', wins: s.cnWins, ...(exhausted ? { exhausted } : {}) }, settlement };
+}
+
+/**
+ * 刮风下雨（ルールの kanPay・MIL §8）：大明槓＝放銃者から 2 点／暗槓＝まだ抜けていない各人から 2 点／
+ * 加槓＝まだ抜けていない各人から 1 点（4 枚目を引いてすぐカンしたときだけ）。点はその場で持ち点に足して、記録に残す
+ */
+function cnKanIncome(s: GameState, seat: Seat, kind: CnKan['kind'], fresh: boolean, from: Seat | null): GameState {
+  if (s.rules?.family !== 'cn' || s.rules.values.kanPay !== 'on') return s;
+  if (kind === 'kakan' && !fresh) return s;
+  const pays = [0, 0, 0, 0];
+  const take = (p: Seat, n: number) => {
+    pays[p] -= n;
+    pays[seat] += n;
+  };
+  if (kind === 'minkan' && from !== null) take(from, 2);
+  else for (const p of SEATS_) if (p !== seat && !s.cnOut[p]) take(p, kind === 'ankan' ? 2 : 1);
+  return { ...s, scores: s.scores.map((x, i) => x + pays[i]), cnKans: [...s.cnKans, { seat, kind, pays }] };
+}
+
+/** カンの収入を返す（記録に returned を付け、持ち点から戻す） */
+function cnReturnKan(s: GameState, i: number): GameState {
+  const k = s.cnKans[i];
+  if (!k || k.returned) return s;
+  const cnKans = s.cnKans.slice();
+  cnKans[i] = { ...k, returned: true };
+  return { ...s, cnKans, scores: s.scores.map((x, j) => x - k.pays[j]) };
 }
 
 /** 局を終える：結果を置き、点の動きを持ち点に足す。供託は、アガった人に渡した分（settlement に入れた分）だけ卓から消える */
@@ -1014,9 +1082,9 @@ export function callProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan
   const cn = s.rules?.family === 'cn' ? s.rules.values : null;
   // 最後の捨て牌（河底）は鳴けない＝次のツモが無い（中国式はルールの lastTile が「できる」なら鳴ける）
   if (liveWallLeft(s) <= 0 && cn?.lastTile !== 'ok') return '山が尽きたあとの捨て牌は鳴けない';
+  // カンは補充の牌（嶺上牌）が要る＝山が尽きたあとはできない（最後の 1 枚で鳴けるルールでもポンだけ）
+  if (liveWallLeft(s) <= 0 && meld === 'kan') return '山が尽きたあとはカンできない';
   if (cn && meld === 'chi' && cn.chi !== 'on') return 'このルールではチーできない';
-  // 中国式のカンは段階9の手順4で入れる
-  if (cn && meld === 'kan') return '中国式のカンはまだできない';
   // 缺一門で伏せておいた牌は、最初の打牌で切るまで使えない
   const held = s.queHeld[seat];
   if (held !== null && held !== HIDDEN && tiles.includes(held)) return '伏せておいた牌（缺一門）は鳴きに使えない';
@@ -1025,7 +1093,7 @@ export function callProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan
     const q = s.que[seat] ?? s.queHeldSuit[seat];
     if (q !== null && q !== HIDDEN && suitOf(c.tile) === q) return '捨てる色の牌は鳴けない（缺一門）';
   }
-  if (meld === 'kan' && s.kans >= MAX_KANS) return 'カンは 1 局 4 回まで';
+  if (meld === 'kan' && !cn && s.kans >= MAX_KANS) return 'カンは 1 局 4 回まで';
   const need = meld === 'kan' ? 3 : 2;
   if (tiles.length !== need) return `${meld === 'kan' ? 'カン' : '鳴く'}には手牌から ${need} 枚出す`;
   if (new Set(tiles).size !== tiles.length) return '同じ牌を 2 回出した';
@@ -1057,9 +1125,14 @@ export function callProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan
  * リーチのあとの暗槓は、ルールが許し、ツモった牌を使い、待ちが変わらない（条件が「刻子としか読めない形」ならそれも）ときだけ
  */
 export function kanProblem(s: GameState, seat: Seat, kan: 'ankan' | 'kakan', tiles: readonly TileId[]): string | null {
-  // 中国式のカンは段階9の手順4で入れる
-  if (s.rules?.family === 'cn') return '中国式のカンはまだできない';
-  if (s.kans >= MAX_KANS) return 'カンは 1 局 4 回まで';
+  if (s.rules?.family === 'jp' && s.kans >= MAX_KANS) return 'カンは 1 局 4 回まで';
+  // 中国式：伏せた牌（缺一門）は使えない・捨てる色の牌はカンできない（鳴きと同じ＝利用者 2026-10-12 Q1=B の考え方）
+  if (s.rules?.family === 'cn') {
+    const held = s.queHeld[seat];
+    if (held !== null && held !== HIDDEN && tiles.includes(held)) return '伏せておいた牌（缺一門）はカンに使えない';
+    const q = s.que[seat] ?? s.queHeldSuit[seat];
+    if (queOn(s.rules) && q !== null && q !== HIDDEN && tiles.length > 0 && suitOf(tiles[0]) === q) return '捨てる色の牌はカンできない（缺一門）';
+  }
   // 最後のツモ（海底）のあとはカンできない＝嶺上牌を引いたあとの山が無い
   if (liveWallLeft(s) <= 0) return '山が尽きたあとはカンできない';
   if (tiles.length === 0) return 'カンに出す牌が無い';
@@ -1189,8 +1262,10 @@ function applyCall(s: GameState, c: Claim, call: CallOffer): GameState {
   calledAway[c.from].push(s.discards[c.from].length - 1);
   const v = s.rules?.family === 'jp' ? s.rules.values : null;
   const kanDora = kan && v?.kandora === 'on';
+  // 刮风下雨：大明槓は放銃者から 2 点（ポン・チーでは動かない）
+  const base: GameState = kan ? cnKanIncome(s, call.seat, 'minkan', false, c.from) : s;
   return {
-    ...s,
+    ...base,
     kuikaeBan: !kan && call.meld !== 'kan' && v?.kuikae === 'ng' ? kuikaeKinds(call.meld, c.tile, call.tiles) : [],
     phase: kan ? 'draw' : 'discard',
     rinshanDue: kan,
@@ -1356,26 +1431,39 @@ function queLeft(s: GameState, seat: Seat, tiles: readonly TileId[]): boolean {
 }
 
 /** 中国式のアガリの点（形と番だけ。全員に見えるものから出す＝どの端末でも同じ）。アガリの形でなければ null */
-function cnScoreOf(s: GameState, seat: Seat, tiles: readonly TileId[], haidi: boolean): CnScore | null {
+function cnScoreOf(s: GameState, seat: Seat, tiles: readonly TileId[], how: 'tsumo' | 'ron'): CnScore | null {
   if (!s.rules || s.rules.family !== 'cn') return null;
-  const pons = s.melds[seat].filter((m) => m.type === 'pon').map((m) => kindOf(m.tiles[0]));
-  return sichuanScore({ concealed: kindCounts(tiles), pons, haidi }, s.rules);
+  const melds = s.melds[seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: (isKanMeld(m) ? 4 : 3) as 3 | 4 }));
+  const kind = s.claim?.kind ?? 'discard';
+  return sichuanScore(
+    {
+      concealed: kindCounts(tiles),
+      melds,
+      // 海底：最後の 1 枚のツモ・最後の捨て牌でのロン（加槓の牌へのロンは捨て牌でない）
+      haidi: liveWallLeft(s) === 0 && (how === 'tsumo' || kind === 'discard'),
+      gangkai: how === 'tsumo' && s.rinshanDraw,
+      gangpao: how === 'ron' && kind === 'discard' && !!s.claim?.afterKan,
+      qianggang: how === 'ron' && kind === 'kakan',
+    },
+    s.rules,
+  );
 }
 
 /** 中国式のツモアガリ（ツモって切る前の局面）。アガれなければ null。捨てる色が残っていればアガれない（手牌が見える局面で確かめる） */
 export function cnScoreTsumo(s: GameState, seat: Seat, hand: readonly TileId[]): CnScore | null {
   if (queLeft(s, seat, hand)) return null;
-  return cnScoreOf(s, seat, hand, liveWallLeft(s) === 0);
+  return cnScoreOf(s, seat, hand, 'tsumo');
 }
 
 /** 中国式のロン（切られた牌に返事をしている局面）。hand は 13 枚。ルールがツモだけならロンできない。見逃しの縛りは cnRonBlocked */
 export function cnScoreRon(s: GameState, seat: Seat, hand: readonly TileId[], tile: TileId): CnScore | null {
   if (!s.rules || s.rules.family !== 'cn' || s.rules.values.ron !== 'ok') return null;
-  // カンの牌へのロン（槍槓）は手順4
-  if (s.claim && s.claim.kind !== 'discard') return null;
+  // 加槓の牌へのロン（抢杠）はルールの chankan が「あり」のときだけ。暗槓の牌へのロン（十三么）は国標・香港の手順で
+  if (s.claim && s.claim.kind === 'ankan') return null;
+  if (s.claim?.kind === 'kakan' && s.rules.values.chankan !== 'on') return null;
   const tiles = [...hand, tile];
   if (queLeft(s, seat, tiles)) return null;
-  return cnScoreOf(s, seat, tiles, liveWallLeft(s) === 0);
+  return cnScoreOf(s, seat, tiles, 'ron');
 }
 
 /** 見逃しの縛り（ルールの miss が nextDraw）：見送ったときより点が上がらなければロンできない（MIL §3-4） */

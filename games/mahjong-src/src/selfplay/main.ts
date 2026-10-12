@@ -44,6 +44,7 @@ console.log(`終わり方：アガリ ${sc.endings.cnWin}・流局 ${sc.endings.
 const cw = sc.paths.cn;
 console.log(`アガリ：ツモ ${cw.tsumo}・ロン ${cw.ron}（同じ牌で2人以上 ${cw.multi} 回）・上限で切った ${cw.capped}・見逃しの縛りが立った局 ${cw.missed}`);
 console.log(`血戦到底：1 局でアガった人数 ${cw.winners.map((n, i) => `${i}人 ${n}`).slice(1).join('・')}・アガった人がいて山が尽きた局 ${cw.exhaustedAfterWin}`);
+console.log(`刮风下雨：${Object.entries(cw.kanIncome).map(([k, n]) => `${k} ${n}`).join('・') || 'なし'}（返した ${cw.kanReturned}）・槍槓で無効になったカン ${cw.robbed}`);
 console.log(`番：${Object.entries(cw.fans).map(([k, n]) => `${k} ${n}`).join('・') || 'なし'}`);
 console.log(`缺一門：伏せた ${q.held} 回（手に無い色を宣言 ${q.voidSuit}）・宣言のあと捨てる色から切った ${q.fromQue}・ほかの色を切った ${q.other}`);
 for (const f of sc.failures.slice(0, 5)) {

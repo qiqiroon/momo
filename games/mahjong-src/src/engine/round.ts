@@ -313,7 +313,8 @@ function revealDora(full: GameState, n: number, at: (to: Visibility, ev: GameEve
 /** ツモる位置（山が尽きていれば null）。全員に見える数だけで決まる */
 export function drawPosition(view: GameState): { pos: number; rinshan: boolean } | null {
   const size = wallSizeOf(view);
-  if (view.rinshanDue) return { pos: size - DEAD_WALL + view.rinshanTaken, rinshan: true };
+  // 嶺上牌：日本式は王牌の頭から、中国式（王牌なし）は山の尻から順に引く
+  if (view.rinshanDue) return { pos: view.rules?.family === 'jp' ? size - DEAD_WALL + view.rinshanTaken : size - 1 - view.rinshanTaken, rinshan: true };
   if (liveWallLeft(view) <= 0) return null;
   // 山の頭から順に取る。引いた嶺上牌の数だけ、王牌が山の尻から補われている（その分は数えない）
   return { pos: size - view.wallLeft - view.rinshanTaken, rinshan: false };
@@ -405,7 +406,9 @@ export function act(full: GameState, seat: Seat, action: Action, src?: TileSourc
       if (action.kan === 'minkan') throw new Error('大明槓は切られた牌への返事');
       const problem = kanProblem(full, seat, action.kan, action.tiles);
       if (problem) throw new Error(problem);
-      return [at('all', { type: 'kan', seat, kan: action.kan, tiles: action.tiles.slice() })];
+      // 中国式の加槓は「4 枚目を引いてすぐ」かの印を付ける（刮风下雨）
+      const fresh = full.rules?.family === 'cn' && action.kan === 'kakan' ? { fresh: full.drawn[seat] === action.tiles[0] } : {};
+      return [at('all', { type: 'kan', seat, kan: action.kan, tiles: action.tiles.slice(), ...fresh })];
     }
     case 'tsumo': {
       const winTile = full.drawn[seat];

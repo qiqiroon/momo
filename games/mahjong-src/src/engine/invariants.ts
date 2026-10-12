@@ -72,9 +72,10 @@ export function checkState(full: GameState, views: readonly GameState[]): string
 
   // カンの数：1 局 4 回まで・面子の数と合う（槍槓で崩れた加槓も面子に残す）・嶺上牌はカンの数まで
   const kanMelds = full.melds.reduce((n, ms) => n + ms.filter(isKanMeld).length, 0);
-  if (full.kans > MAX_KANS) bad.push(`カンが 1 局 ${MAX_KANS} 回を超えた（${full.kans} 回）`);
+  if (full.rules.family === 'jp' && full.kans > MAX_KANS) bad.push(`カンが 1 局 ${MAX_KANS} 回を超えた（${full.kans} 回）`);
   if (kanMelds !== full.kans) bad.push(`カンの数と槓子の数が合わない（カン ${full.kans}・槓子 ${kanMelds}）`);
-  const lag = full.kans - full.rinshanTaken;
+  // 槍槓で無効になったカン（血戦到底で局が続くとき）は嶺上牌を引かない
+  const lag = full.kans - full.rinshanTaken - full.robbedKans;
   // 槍槓で局が終わると嶺上牌は引かれないまま（そのあと対局が終わっても同じ）
   const mayLag = full.rinshanDue || (full.claim !== null && full.claim.kind !== 'discard') || full.phase === 'ended' || full.phase === 'gameover';
   if (lag < 0 || lag > 1 || (lag === 1 && !mayLag)) {
@@ -200,11 +201,12 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   // 中国式のアガリ（段階9の手順2）：開けた手牌（＋ロンの牌）が四川の形で点が合う・捨てる色が残っていない・点の動きの合計 0・基本点＝2 の番数乗
   if (full.result?.type === 'cnWin') {
     const r = full.result;
-    if (r.wins.length === 0) bad.push('中国式のアガリにアガった人がいない');
+    if (r.wins.length === 0 && !r.exhausted) bad.push('中国式のアガリにアガった人がいない');
     for (const w of r.wins) {
       const tiles = w.from === null ? full.hands[w.seat] : [...full.hands[w.seat], w.winTile];
-      const pons = full.melds[w.seat].filter((m) => m.type === 'pon').map((m) => kindOf(m.tiles[0]));
-      const again = sichuanScore({ concealed: kindCounts(tiles), pons, haidi: w.score.fans.some((f) => f.id === 'haidi') }, full.rules);
+      const melds = full.melds[w.seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: (isKanMeld(m) ? 4 : 3) as 3 | 4 }));
+      const has = (id: string) => w.score.fans.some((f) => f.id === id);
+      const again = sichuanScore({ concealed: kindCounts(tiles), melds, haidi: has('haidi'), gangkai: has('gangkai'), gangpao: has('gangpao'), qianggang: has('qianggang') }, full.rules);
       if (!again || JSON.stringify(again) !== JSON.stringify(w.score)) bad.push(`席 ${w.seat}：中国式のアガリの点が手牌から出し直した点と合わない`);
       const q = full.que[w.seat] ?? full.queHeldSuit[w.seat];
       const sOf = (t: number) => (kindOf(t) < 27 ? Math.floor(kindOf(t) / 9) : -1);
@@ -214,6 +216,14 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       if (w.from === w.seat) bad.push('切った人が自分の牌でロンした');
       if (w.pays.reduce((a, b) => a + b, 0) !== 0) bad.push(`席 ${w.seat}：アガリの点の動きの合計が 0 でない`);
     }
+  }
+  // 刮风下雨（MIL §8）：大明槓＝払う人 1 人が 2 点／暗槓＝払う人がそれぞれ 2 点／加槓＝それぞれ 1 点。カンした人が全部を受け取る（合計 0）
+  for (const k of full.cnKans) {
+    const payers = k.pays.map((p, i) => ({ p, i })).filter((x) => x.i !== k.seat && x.p !== 0);
+    const each = k.kind === 'kakan' ? 1 : 2;
+    if (payers.some((x) => x.p !== -each)) bad.push(`席 ${k.seat}：${k.kind} の収入の額が違う`);
+    if (k.kind === 'minkan' && payers.length !== 1) bad.push(`席 ${k.seat}：大明槓で払った人が 1 人でない`);
+    if (k.pays.reduce((a, b) => a + b, 0) !== 0) bad.push(`席 ${k.seat}：カンの収入の合計が 0 でない`);
   }
   // 血戦到底：抜けた人に番が来ない・抜けた人は手牌を開けている・この局のアガリの点は持ち点に入っている（合計 0）・残りが 2 人以上いる間だけ続く
   if (full.cnOut.some(Boolean)) {
@@ -277,7 +287,9 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   // （手牌と山の残りが一緒にずれると「数」では気づけないので、並びで確かめる）
   if (full.wall) {
     const n = full.wall.length;
-    const used = [...full.wall.slice(0, n - full.wallLeft - full.rinshanTaken), ...full.wall.slice(n - 14, n - 14 + full.rinshanTaken)];
+    // 嶺上牌：日本式は王牌の頭から順に、中国式（王牌なし）は山の尻から順に
+    const back = full.rules.family === 'jp' ? full.wall.slice(n - 14, n - 14 + full.rinshanTaken) : full.wall.slice(n - full.rinshanTaken);
+    const used = [...full.wall.slice(0, n - full.wallLeft - full.rinshanTaken), ...back];
     const handSet = new Set([...full.hands.flat(), ...full.discards.flat(), ...full.melds.flatMap((ms) => ms.flatMap((m) => m.tiles))]);
     if (used.length !== handSet.size || used.some((t) => !handSet.has(t))) {
       bad.push('配った牌が山の先頭から順に取られていない');

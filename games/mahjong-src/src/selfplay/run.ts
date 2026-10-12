@@ -24,7 +24,7 @@ export interface SelfplayResult {
     /** 缺一門（中国式）：伏せた回数・手に無い色を宣言した回数・宣言のあと捨てる色から切った回数・ほかの色を切った回数（捨てる色が残っていない） */
     que: { held: number; voidSuit: number; fromQue: number; other: number };
     /** 中国式のアガリ：ツモ・ロン・同じ牌で 2 人以上・番ごとの回数・上限で切った回数・見逃しの縛りが立った局 */
-    cn: { tsumo: number; ron: number; multi: number; fans: Record<string, number>; capped: number; missed: number; winners: number[]; exhaustedAfterWin: number } };
+    cn: { tsumo: number; ron: number; multi: number; fans: Record<string, number>; capped: number; missed: number; winners: number[]; exhaustedAfterWin: number; kanIncome: Record<string, number>; kanReturned: number; robbed: number } };
   failures: { seed: string; seq: number; reasons: string[] }[];
 }
 
@@ -137,7 +137,7 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay', rules: Rules
     games: 0,
     events: 0,
     endings: { tsumo: 0, ron: 0, exhaust: 0, tripleRon: 0, abort: 0, cnWin: 0, unfinished: 0 },
-    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0, calls: 0, chi: 0, openWin: 0, kan: { ankan: 0, kakan: 0, minkan: 0, riichiAnkan: 0, rinshanWin: 0, chankan: 0, kanDora: 0, fourKans: 0 }, clash: { total: 0, ronWon: 0, ponWon: 0, chiLost: 0 }, aborts: {}, kuikaeBanned: 0, nagashi: 0, paoSet: 0, riichiSticks: 0, que: { held: 0, voidSuit: 0, fromQue: 0, other: 0 }, cn: { tsumo: 0, ron: 0, multi: 0, fans: {}, capped: 0, missed: 0, winners: [0, 0, 0, 0], exhaustedAfterWin: 0 } },
+    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0, calls: 0, chi: 0, openWin: 0, kan: { ankan: 0, kakan: 0, minkan: 0, riichiAnkan: 0, rinshanWin: 0, chankan: 0, kanDora: 0, fourKans: 0 }, clash: { total: 0, ronWon: 0, ponWon: 0, chiLost: 0 }, aborts: {}, kuikaeBanned: 0, nagashi: 0, paoSet: 0, riichiSticks: 0, que: { held: 0, voidSuit: 0, fromQue: 0, other: 0 }, cn: { tsumo: 0, ron: 0, multi: 0, fans: {}, capped: 0, missed: 0, winners: [0, 0, 0, 0], exhaustedAfterWin: 0, kanIncome: {}, kanReturned: 0, robbed: 0 } },
     failures: [],
   };
   for (let i = 0; i < games; i++) {
@@ -222,6 +222,11 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay', rules: Rules
       if (r.result.exhausted) cn.exhaustedAfterWin++;
     }
     if (r.cnMissed) result.paths.cn.missed++;
+    for (const k of r.final.cnKans) {
+      result.paths.cn.kanIncome[k.kind] = (result.paths.cn.kanIncome[k.kind] ?? 0) + 1;
+      if (k.returned) result.paths.cn.kanReturned++;
+    }
+    result.paths.cn.robbed += r.final.robbedKans;
     if (r.failure) result.failures.push(r.failure);
   }
   return result;

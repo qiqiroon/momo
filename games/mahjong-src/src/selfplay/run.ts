@@ -20,7 +20,9 @@ export interface SelfplayResult {
   /** 終わり方の内訳（ツモアガリ・流局・途中で止まった） */
   endings: { tsumo: number; ron: number; exhaust: number; tripleRon: number; abort: number; unfinished: number };
   /** 通った道の数（0 なら、その道は検査に乗っていない）：リーチ・ダブル立直・リーチでのツモ・一発・裏ドラが乗ったアガリ */
-  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[]; doubleRon: number; missed: number; calls: number; chi: number; openWin: number; kan: { ankan: number; kakan: number; minkan: number; riichiAnkan: number; rinshanWin: number; chankan: number; kanDora: number; fourKans: number }; clash: { total: number; ronWon: number; ponWon: number; chiLost: number }; aborts: Record<string, number>; kuikaeBanned: number; nagashi: number; paoSet: number; riichiSticks: number };
+  paths: { riichi: number; double: number; riichiWin: number; ippatsu: number; ura: number; tenpaiCounts: number[]; doubleRon: number; missed: number; calls: number; chi: number; openWin: number; kan: { ankan: number; kakan: number; minkan: number; riichiAnkan: number; rinshanWin: number; chankan: number; kanDora: number; fourKans: number }; clash: { total: number; ronWon: number; ponWon: number; chiLost: number }; aborts: Record<string, number>; kuikaeBanned: number; nagashi: number; paoSet: number; riichiSticks: number;
+    /** 缺一門（中国式）：伏せた回数・手に無い色を宣言した回数・宣言のあと捨てる色から切った回数・ほかの色を切った回数（捨てる色が残っていない） */
+    que: { held: number; voidSuit: number; fromQue: number; other: number } };
   failures: { seed: string; seq: number; reasons: string[] }[];
 }
 
@@ -103,6 +105,11 @@ export function playOne(
           if (n.type === 'round') hands++;
           failure = feed(nextHand(s, seed));
         }
+      } else if (s.phase === 'que') {
+        // 缺一門：まだ伏せていない人が伏せる。4 人が同時に選ぶので、順番は種と通し番号で毎回変える
+        const waiting = ([0, 1, 2, 3] as Seat[]).filter((x) => s.queHeld[x] === null);
+        const seat = waiting[(seedNumber + s.nextSeq) % waiting.length];
+        failure = feed(act(s, seat, who(seat)(w.views[seat], seat)));
       } else if (s.phase === 'claim') {
         // 返事がまだの人が、その席から見える局面で返事をする。オンラインでは届く順番が決まらないので、
         // 返事の順番は種と通し番号から決めて毎回変える（順番で結果が変わらないことも見張る）
@@ -120,16 +127,16 @@ export function playOne(
   return done(failure);
 }
 
-export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayResult {
+export function runSelfplay(games: number, seedPrefix = 'selfplay', rules: Rules = GENERAL_RULES): SelfplayResult {
   const result: SelfplayResult = {
     games: 0,
     events: 0,
     endings: { tsumo: 0, ron: 0, exhaust: 0, tripleRon: 0, abort: 0, unfinished: 0 },
-    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0, calls: 0, chi: 0, openWin: 0, kan: { ankan: 0, kakan: 0, minkan: 0, riichiAnkan: 0, rinshanWin: 0, chankan: 0, kanDora: 0, fourKans: 0 }, clash: { total: 0, ronWon: 0, ponWon: 0, chiLost: 0 }, aborts: {}, kuikaeBanned: 0, nagashi: 0, paoSet: 0, riichiSticks: 0 },
+    paths: { riichi: 0, double: 0, riichiWin: 0, ippatsu: 0, ura: 0, tenpaiCounts: [0, 0, 0, 0, 0], doubleRon: 0, missed: 0, calls: 0, chi: 0, openWin: 0, kan: { ankan: 0, kakan: 0, minkan: 0, riichiAnkan: 0, rinshanWin: 0, chankan: 0, kanDora: 0, fourKans: 0 }, clash: { total: 0, ronWon: 0, ponWon: 0, chiLost: 0 }, aborts: {}, kuikaeBanned: 0, nagashi: 0, paoSet: 0, riichiSticks: 0, que: { held: 0, voidSuit: 0, fromQue: 0, other: 0 } },
     failures: [],
   };
   for (let i = 0; i < games; i++) {
-    const r = playOne(`${seedPrefix}-${i}`, GENERAL_RULES, i % 2 === 0 ? tsumogiriCpu : benchCpu);
+    const r = playOne(`${seedPrefix}-${i}`, rules, i % 2 === 0 ? tsumogiriCpu : benchCpu);
     result.games++;
     result.events += r.events;
     result.endings[r.ending]++;
@@ -137,7 +144,19 @@ export function runSelfplay(games: number, seedPrefix = 'selfplay'): SelfplayRes
     const riichiSeats = new Set<number>();
     let indicators = 0;
     let kans = 0;
+    const declared: (number | null)[] = [null, null, null, null];
+    const suitOf = (t: number) => (kindOf(t) < 27 ? Math.floor(kindOf(t) / 9) : -1);
     for (const e of r.log) {
+      if (e.ev.type === 'queHold') {
+        result.paths.que.held++;
+        if (e.ev.suit !== suitOf(e.ev.tile)) result.paths.que.voidSuit++;
+      }
+      if (e.ev.type === 'discard') {
+        const q = declared[e.ev.seat];
+        if (q !== null) result.paths.que[suitOf(e.ev.tile) === q ? 'fromQue' : 'other']++;
+        if (e.ev.que !== undefined) declared[e.ev.seat] = e.ev.que;
+      }
+      if (e.ev.type === 'roundStart') declared.fill(null);
       if (e.ev.type === 'discard' && e.ev.riichi) {
         result.paths.riichi++;
         riichiSeats.add(e.ev.seat);

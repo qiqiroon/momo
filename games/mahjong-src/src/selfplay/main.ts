@@ -2,6 +2,7 @@
 // 例）npm run selfplay -- 1000 test
 // 失敗したら、表示された種をそのまま playOne(種) に渡すと同じ対局が再現できる。
 
+import { rulesOfCnSet } from '../engine/ruleSets';
 import { runGames, runSelfplay } from './run';
 
 const games = Number(process.argv[2] ?? 500);
@@ -32,6 +33,20 @@ for (const f of r.failures.slice(0, 5)) {
   for (const reason of f.reasons) console.log(`    ${reason}`);
 }
 if (r.failures.length) process.exitCode = 1;
+
+// 四川（段階9）：いまは 1 局ずつ（アガリは手順2・カンは手順4・局の進め方は手順6）
+const c0 = Date.now();
+const sc = runSelfplay(games, `${prefix}-sichuan`, rulesOfCnSet('sichuan'));
+const q = sc.paths.que;
+console.log(`
+四川：${sc.games} 局・見張った出来事 ${sc.events}・失敗 ${sc.failures.length}（${Date.now() - c0} ms）`);
+console.log(`終わり方：流局 ${sc.endings.exhaust}・途中で止まった ${sc.endings.unfinished}・鳴き ${sc.paths.calls} 回（うちチー ${sc.paths.chi}）`);
+console.log(`缺一門：伏せた ${q.held} 回（手に無い色を宣言 ${q.voidSuit}）・宣言のあと捨てる色から切った ${q.fromQue}・ほかの色を切った ${q.other}`);
+for (const f of sc.failures.slice(0, 5)) {
+  console.log(`  失敗：種 ${f.seed}・通し番号 ${f.seq}`);
+  for (const reason of f.reasons) console.log(`    ${reason}`);
+}
+if (sc.games === 0 || sc.failures.length || q.held !== sc.games * 4) process.exitCode = 1;
 
 // 対局を終わりまで（半荘の完走）
 const gameCount = Number(process.argv[4] ?? Math.max(1, Math.round(games / 10)));

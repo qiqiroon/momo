@@ -12,7 +12,7 @@ import { HIDDEN, SEATS, mask, type Envelope, type Seat } from './events';
 import { isWinningHand, waitKinds } from './agari';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { finalResult } from './final';
-import { apply, initialState, isKanMeld, MAX_KANS, RIICHI_STICK, startPoints, type GameState } from './state';
+import { apply, initialState, isKanMeld, MAX_KANS, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
 import { kindOf, tileSetFor } from './tiles';
 
 export class Watcher {
@@ -55,9 +55,9 @@ export function checkState(full: GameState, views: readonly GameState[]): string
 
   // 手牌の枚数：ツモったあと（切る前）は番の人 14 枚・ほかは 13 枚、ツモる前は全員 13 枚
   // 鳴いた面子 1 組につき 3 枚減る（カンは 4 枚出して嶺上牌を 1 枚引くので、引く前も引いたあとも同じ数え方になる）
-  if (full.phase === 'draw' || full.phase === 'discard' || full.phase === 'claim') {
+  if (full.phase === 'draw' || full.phase === 'discard' || full.phase === 'claim' || full.phase === 'que') {
     full.hands.forEach((h, seat) => {
-      const want = (full.phase === 'discard' && seat === full.turn ? 14 : 13) - 3 * full.melds[seat].length;
+      const want = ((full.phase === 'discard' || full.phase === 'que') && seat === full.turn ? 14 : 13) - 3 * full.melds[seat].length;
       if (h.length !== want) bad.push(`手牌の枚数が違う（席 ${seat}：${h.length} 枚・正しくは ${want} 枚）`);
     });
   }
@@ -173,6 +173,27 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     if (kinds.size === 0 || [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33].filter((x) => kinds.has(x)).length < 9) bad.push('九種九牌でないのに流した');
     if (!full.opened[full.result.seat]) bad.push('九種九牌で流した人の手牌が開いていない');
   }
+  // 缺一門（段階9の手順1）：伏せた牌は手牌の中にある・伏せたまま宣言していない人は河が空・
+  // 4 人そろうまで誰も切らない・捨てる色以外を切ったなら、手に捨てる色の牌は残っていない
+  if (queOn(full.rules)) {
+    full.queHeld.forEach((t, seat) => {
+      if (t !== null && !full.hands[seat].includes(t)) bad.push(`席 ${seat}：伏せた牌（缺一門）が手牌に無い`);
+      if (t !== null && full.que[seat] !== null) bad.push(`席 ${seat}：宣言したのに伏せた牌が残っている`);
+      if (full.que[seat] === null && full.discards[seat].length > 0) bad.push(`席 ${seat}：捨てる色を宣言せずに切った`);
+      if (full.que[seat] !== null && full.discards[seat].length === 0) bad.push(`席 ${seat}：切らずに捨てる色を宣言した`);
+    });
+    if ((full.phase === 'discard' || full.phase === 'claim' || full.phase === 'draw') && full.queHeld.some((t, seat) => t === null && full.que[seat] === null)) {
+      bad.push('捨てる色を決めていない人がいるのに打牌に進んだ');
+    }
+    const c = full.claim;
+    if (full.phase === 'claim' && c?.kind === 'discard') {
+      const q = full.que[c.from];
+      const sOf = (t: number) => (kindOf(t) < 27 ? Math.floor(kindOf(t) / 9) : -1);
+      // 最初の打牌は伏せた牌（手に無い色を宣言して、そのあと引いた牌に捨てる色があっても伏せた牌を切る＝MIL §5）
+      const first = full.discards[c.from].length === 1;
+      if (q !== null && !first && sOf(c.tile) !== q && full.hands[c.from].some((t) => sOf(t) === q)) bad.push(`席 ${c.from}：捨てる色の牌が手にあるのに、ほかの牌を切った（缺一門）`);
+    }
+  }
   // 喰い替え禁止の牌が残っているのは、鳴いた人が切る前だけ
   if (full.kuikaeBan.length > 0 && full.phase !== 'discard') bad.push('喰い替え禁止の牌が、切る番の外で残っている');
 
@@ -253,6 +274,13 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       bad.push(`席 ${viewer}：カンの進み具合が全体と違う`);
     }
     if (JSON.stringify(v.claim) !== JSON.stringify(full.claim)) bad.push(`席 ${viewer}：返事の集まり方が全体と違う`);
+    // 缺一門：宣言した色は全員同じ。伏せた牌と色は本人だけが知る（ほかの人には伏せた事実だけ）
+    if (v.que.join() !== full.que.join()) bad.push(`席 ${viewer}：缺一門の宣言が全体と違う`);
+    full.queHeld.forEach((t, seat) => {
+      const want = t === null ? null : seat === viewer ? t : HIDDEN;
+      const wantSuit = full.queHeldSuit[seat] === null ? null : seat === viewer ? full.queHeldSuit[seat] : HIDDEN;
+      if (v.queHeld[seat] !== want || v.queHeldSuit[seat] !== wantSuit) bad.push(`席 ${viewer}：席 ${seat} の伏せた牌の見え方が違う`);
+    });
     // 見逃しのフリテンは本人と全体だけが知る＝本人の局面は全体と同じ
     if (v.missedTurn[viewer] !== full.missedTurn[viewer] || v.missedRiichi[viewer] !== full.missedRiichi[viewer]) bad.push(`席 ${viewer}：自分の見逃しのフリテンが全体と違う`);
     full.discards.forEach((d, seat) => {

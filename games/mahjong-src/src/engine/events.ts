@@ -31,8 +31,12 @@ export type GameEvent =
   | { type: 'doraReveal'; tile: TileId }
   /** ツモ。本人だけに見える。rinshan＝カンのあとの補充（王牌の嶺上牌から引く） */
   | { type: 'draw'; seat: Seat; tile: TileId; rinshan?: boolean }
-  /** 打牌。全員に見える。tsumogiri＝引いた牌をそのまま切った。riichi＝この牌でリーチを宣言した（横に曲げて置く） */
-  | { type: 'discard'; seat: Seat; tile: TileId; tsumogiri: boolean; riichi?: boolean }
+  /** 打牌。全員に見える。tsumogiri＝引いた牌をそのまま切った。riichi＝この牌でリーチを宣言した（横に曲げて置く）。
+   *  que＝缺一門の宣言（その人の最初の打牌だけ。伏せておいた牌を切り、捨てる色 0 萬・1 筒・2 索を全員に明かす） */
+  | { type: 'discard'; seat: Seat; tile: TileId; tsumogiri: boolean; riichi?: boolean; que?: number }
+  /** 缺一門（中国式・四川）：捨てる色の牌を 1 枚伏せて置く。本人だけに見える（ほかの人には「伏せた」ことだけ）。
+   *  suit＝捨てる色（ふつうは伏せた牌の色。手牌にその色が 1 枚も無い色なら、伏せた牌と違う色でもよい＝MIL §5） */
+  | { type: 'queHold'; seat: Seat; tile: TileId; suit: number }
   /** ツモアガリ。全員に見える。手牌（14 枚）とアガリ牌（ツモった牌）を開ける。
    *  ura＝めくった裏ドラ表示牌（リーチでアガったときだけ。ドラ表示牌の真下を同じ枚数） */
   | { type: 'tsumo'; seat: Seat; hand: readonly TileId[]; winTile: TileId; ura: readonly TileId[] }
@@ -79,6 +83,8 @@ export function mask(env: Envelope, viewer: Seat): Envelope {
       return { ...env, ev: { ...ev, tiles: ev.tiles.map(() => HIDDEN) } };
     case 'draw':
       return { ...env, ev: { ...ev, tile: HIDDEN } };
+    case 'queHold':
+      return { ...env, ev: { ...ev, tile: HIDDEN, suit: HIDDEN } };
     default:
       return env;
   }

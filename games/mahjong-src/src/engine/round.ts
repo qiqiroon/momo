@@ -3,7 +3,7 @@
 
 import { HIDDEN, SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
 import { furitenOf } from './furiten';
-import { callProblem, dealerByDice, kanProblem, kyushuOk, liveWallLeft, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
+import { callProblem, dealerByDice, kanProblem, kyushuOk, liveWallLeft, queDiscardProblem, queHoldProblem, queOn, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
 import { doraIndicatorPos, uraIndicatorPos } from './dora';
 import { waitKinds } from './agari';
 import { nextStep } from './game';
@@ -128,7 +128,9 @@ export type Action =
   /** カン。minkan＝大明槓（切られた牌への返事・手牌から 3 枚）／ankan＝暗槓（自分の番・4 枚）／kakan＝加槓（自分の番・ポンに足す 1 枚） */
   | { type: 'kan'; kan: 'minkan' | 'ankan' | 'kakan'; tiles: TileId[] }
   /** オーラスでトップの親が、やめる（stop）か続けるか */
-  | { type: 'yame'; stop: boolean };
+  | { type: 'yame'; stop: boolean }
+  /** 缺一門：捨てる色の牌を 1 枚伏せる（suit＝捨てる色。手に 1 枚も無い色なら、伏せる牌と違う色でもよい） */
+  | { type: 'que'; tile: TileId; suit: number };
 
 /**
  * 局が終わった局面から、次の局（配牌まで）か対局の終わりの出来事を作る（進行役だけが呼ぶ）。
@@ -230,6 +232,7 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
     return n.type === 'yame' && n.seat === seat ? [{ type: 'yame', stop: true }, { type: 'yame', stop: false }] : [];
   }
   if (view.phase === 'declare' && view.turn === seat) return declareOptions(view, seat);
+  if (view.phase === 'que') return queOptions(view, seat);
   if (view.phase === 'claim') {
     if (view.claim?.replies[seat] !== null) return [];
     return [...(canRon(view, seat) ? [{ type: 'ron' } as Action] : []), ...callOptions(view, seat), { type: 'pass' }];
@@ -251,8 +254,8 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
     out.push(...kanOptions(view, seat));
     return out;
   }
-  // 喰い替え禁止のときは、鳴いた直後に切れない牌を除く
-  for (const tile of hand) if (!view.kuikaeBan.includes(kindOf(tile))) out.push({ type: 'discard', tile });
+  // 喰い替え禁止のときは、鳴いた直後に切れない牌を除く。缺一門の縛り（最初は伏せた牌・そのあとは捨てる色から）も
+  for (const tile of hand) if (!view.kuikaeBan.includes(kindOf(tile)) && !queDiscardProblem(view, seat, tile)) out.push({ type: 'discard', tile });
   for (const tile of riichiTiles(view, seat)) out.push({ type: 'riichi', tile });
   out.push(...kanOptions(view, seat));
   return out;
@@ -266,6 +269,27 @@ function declareOptions(view: GameState, seat: Seat): Action[] {
   if (tenpai) out.push({ type: 'tenpai' });
   const mayHide = view.riichi[seat] === 'none' && view.rules?.family === 'jp' && view.rules.values.tenpaiHide === 'ok';
   if (!tenpai || mayHide) out.push({ type: 'noten' });
+  return out;
+}
+
+/**
+ * 缺一門で伏せられる牌と色（本人の局面で決まる）。ふつうは数牌の 1 枚とその色。
+ * 手に 1 枚も無い色があれば、どの数牌を伏せてもその色を捨てる色にできる（MIL §5-4）。同じ見分けの牌は 1 つにまとめる
+ */
+function queOptions(view: GameState, seat: Seat): Action[] {
+  if (view.queHeld[seat] !== null) return [];
+  const hand = view.hands[seat];
+  if (hand.includes(HIDDEN)) return [];
+  const out: Action[] = [];
+  const seen = new Set<string>();
+  for (const tile of hand) {
+    for (const suit of [0, 1, 2]) {
+      const key = `${faceOf(view, tile)}:${suit}`;
+      if (seen.has(key) || queHoldProblem(view, seat, tile, suit)) continue;
+      seen.add(key);
+      out.push({ type: 'que', tile, suit });
+    }
+  }
   return out;
 }
 
@@ -323,6 +347,12 @@ export function act(full: GameState, seat: Seat, action: Action, src?: TileSourc
     return [{ seq: full.nextSeq, to: 'all', ev: { type: 'declare', seat, tenpai, hand: tenpai ? full.hands[seat].slice() : null } }];
   }
   const at = envelopesFrom(full);
+  if (full.phase === 'que') {
+    if (action.type !== 'que') throw new Error(`いまは捨てる色の牌を伏せるだけ（${action.type}）`);
+    const problem = queHoldProblem(full, seat, action.tile, action.suit);
+    if (problem) throw new Error(problem);
+    return [at([seat], { type: 'queHold', seat, tile: action.tile, suit: action.suit })];
+  }
   if (full.phase === 'claim') {
     if (full.claim?.replies[seat] !== null) throw new Error(`席 ${seat} は返事をする人ではない（または返事をした）`);
     if (action.type === 'pass') return [at('all', { type: 'pass', seat })];
@@ -353,8 +383,14 @@ export function act(full: GameState, seat: Seat, action: Action, src?: TileSourc
       if (full.kuikaeBan.includes(kindOf(action.tile))) throw new Error('喰い替えになる牌は切れない');
       if (full.rules?.family === 'jp' && full.rules.values.kyushuHow === 'must' && kyushuOk(full, seat)) throw new Error('九種九牌は必ず流すルール');
       if (full.riichi[seat] !== 'none' && action.tile !== full.drawn[seat]) throw new Error('リーチのあとはツモった牌しか切れない');
+      {
+        const problem = queDiscardProblem(full, seat, action.tile);
+        if (problem) throw new Error(problem);
+      }
+      // 缺一門：最初の打牌（伏せておいた牌）で捨てる色を全員に明かす
+      const que = queOn(full.rules) && full.que[seat] === null ? { que: full.queHeldSuit[seat]! } : {};
       // 打牌のときに、まだめくっていない明槓のカンドラをめくる（この打牌へのロンにも乗る）
-      return [at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat] }), ...revealDora(full, full.pendingDora, at, tileAt)];
+      return [at('all', { type: 'discard', seat, tile: action.tile, tsumogiri: action.tile === full.drawn[seat], ...que }), ...revealDora(full, full.pendingDora, at, tileAt)];
     case 'riichi':
       if (!riichiTiles(full, seat).includes(action.tile)) throw new Error(`その牌ではリーチできない（背番号 ${action.tile}）`);
       return [

@@ -4,8 +4,8 @@
 //  - 押せない理由は「別の項目の値と矛盾する」ことだけ
 // 表そのものは ruleTable.ts（見本から写したもの）。
 
-import { FAMILY, JP_ITEMS, ORDER, SUPP, TIERS, type RuleItem } from './ruleTable';
-import { JP_RULE_KEYS, type JpRuleKey, type Rules } from './rules';
+import { CN_ITEMS, FAMILY, JP_ITEMS, ORDER, ORDER_CN, SUPP, SUPP_CN, TIERS, type RuleItem } from './ruleTable';
+import { CN_RULE_KEYS, JP_RULE_KEYS, type CnRuleKey, type JpRuleKey, type Rules } from './rules';
 
 export type SetId = (typeof ORDER)[number];
 export const JP_SETS: readonly SetId[] = ORDER;
@@ -131,6 +131,21 @@ export function decodeRuleValues(code: string): Record<JpRuleKey, string> | null
     values[it.k] = v;
   }
   return values;
+}
+
+export type CnSetId = (typeof ORDER_CN)[number];
+
+/** 中国式のセットのルール（全 35 項目。条文が無ければ MOMO が補った値）。段階9 で画面につなぐ */
+export function rulesOfCnSet(set: CnSetId): Rules {
+  const values = {} as Record<CnRuleKey, string>;
+  for (const k of CN_RULE_KEYS) {
+    const it = CN_ITEMS.find((x) => x.k === k);
+    if (!it?.v) throw new Error(`知らない項目: ${k}`);
+    const v = it.v[ORDER_CN.indexOf(set)] ?? SUPP_CN[set]?.[k] ?? null;
+    if (v === null) throw new Error(`値が決まっていない: ${set} の ${k}`);
+    values[k] = v;
+  }
+  return { family: 'cn', values };
 }
 
 /** セットの表示名（日本語・見本のまま） */

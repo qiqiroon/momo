@@ -70,6 +70,25 @@ export function shantenAfterCall(view: GameState, seat: Seat, tiles: readonly Ti
   return best;
 }
 
+/**
+ * 缺一門の仮の決め方（段階9の手順1。考えて選ぶのは手順7）：手に一番少ない色を捨てる色にし、その中で一番孤立した牌を伏せる。
+ * 手に 1 枚も無い色があれば、その色を捨てる色にして、一番孤立した数牌を伏せる
+ */
+export function chooseQue(view: GameState, seat: Seat, legal: readonly Action[]): Action {
+  const hand = view.hands[seat];
+  const counts = kindCounts(hand);
+  const bySuit = [0, 1, 2].map((s) => hand.filter((t) => kindOf(t) < 27 && Math.floor(kindOf(t) / 9) === s).length);
+  const suit = bySuit.indexOf(Math.min(...bySuit));
+  let best: Action | null = null;
+  let bestScore = Infinity;
+  for (const a of legal) {
+    if (a.type !== 'que' || a.suit !== suit) continue;
+    const s = connection(a.tile, counts);
+    if (s < bestScore) [best, bestScore] = [a, s];
+  }
+  return best ?? legal[0];
+}
+
 /** 選べることの中から、決まった種類のものを探す */
 export const pick = <T extends Action['type']>(legal: readonly Action[], type: T) =>
   legal.find((a): a is Extract<Action, { type: T }> => a.type === type);

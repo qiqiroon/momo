@@ -14,8 +14,9 @@ import { kindOf, tileSetFor, type TileId } from './tiles';
 
 /** 局の進み具合。deal＝配っている途中／draw＝番の人がツモる前（カンのあとは嶺上牌を引く前）／discard＝番の人が切る（またはアガる・カンする）前／
  *  claim＝切られた牌（または加槓・暗槓の牌）にほかの 3 人が返事をしている（見送る・ロン・鳴く）／
- *  declare＝流局してテンパイ・ノーテンを宣言している（番の人が宣言する）／ended＝局が終わった */
-export type Phase = 'idle' | 'deal' | 'draw' | 'discard' | 'claim' | 'declare' | 'ended' | 'gameover';
+ *  declare＝流局してテンパイ・ノーテンを宣言している（番の人が宣言する）／ended＝局が終わった／
+ *  que＝缺一門（中国式・四川）：親が 14 枚目を引いたあと、4 人が捨てる色の牌を 1 枚伏せて置く（4 人そろうまで親は切れない） */
+export type Phase = 'idle' | 'deal' | 'draw' | 'que' | 'discard' | 'claim' | 'declare' | 'ended' | 'gameover';
 
 /** ロンでアガった 1 人分。score は開けた手牌・ドラ表示牌など全員に見えるものだけから出す */
 export interface RonWin {
@@ -182,6 +183,53 @@ export interface GameState {
   /** 対局が終わった理由（終わるまで null） */
   gameOver: GameEndReason | null;
   result: RoundResult | null;
+  /** 缺一門：席ごとの伏せて置いた牌（伏せていない・もう切った＝null。ほかの人の分は HIDDEN）。牌は手牌の中に入れたまま */
+  queHeld: (TileId | null)[];
+  /** 缺一門：伏せたときに決めた捨てる色（0 萬・1 筒・2 索。ほかの人の分は HIDDEN） */
+  queHeldSuit: (number | null)[];
+  /** 缺一門：最初の打牌で宣言した捨てる色（全員に見える。宣言する前は null） */
+  que: (number | null)[];
+}
+
+/** 缺一門のルールか（中国式で queyimen が「あり」） */
+export const queOn = (rules: Rules | null): boolean => rules?.family === 'cn' && rules.values.queyimen === 'on';
+
+/** 数牌の色（0 萬・1 筒・2 索）。字牌・花牌は -1 */
+export const suitOfKind = (k: number): number => (k < 27 ? Math.floor(k / 9) : -1);
+const suitOf = (t: TileId): number => suitOfKind(kindOf(t));
+
+/**
+ * 缺一門の打牌の縛り（MIL §5）。切れないなら理由、切れるなら null。手牌が見える局面でだけ確かめる。
+ * 最初の打牌は伏せた牌だけ／宣言したあとは、捨てる色の牌が手に残るうちはその色しか切れない
+ */
+export function queDiscardProblem(s: GameState, seat: Seat, tile: TileId): string | null {
+  if (!queOn(s.rules)) return null;
+  const held = s.queHeld[seat];
+  if (s.que[seat] === null) {
+    if (held === null) return '捨てる色の牌を伏せる前に切った';
+    if (held !== HIDDEN && tile !== held) return '最初の打牌は伏せておいた牌（缺一門）';
+    return null;
+  }
+  const hand = s.hands[seat];
+  if (hand.includes(HIDDEN)) return null;
+  const q = s.que[seat];
+  if (suitOf(tile) !== q && hand.some((t) => suitOf(t) === q)) return '捨てる色の牌が手に残っているうちは、ほかの牌を切れない（缺一門）';
+  return null;
+}
+
+/** 缺一門で伏せる牌と色がおかしければ理由を返す（手牌が見える局面でだけ確かめる） */
+export function queHoldProblem(s: GameState, seat: Seat, tile: TileId, suit: number): string | null {
+  if (!queOn(s.rules)) return 'このルールに缺一門は無い';
+  if (s.phase !== 'que') return '捨てる色を決める時ではない';
+  if (s.queHeld[seat] !== null) return '捨てる色の牌はもう伏せた';
+  const hand = s.hands[seat];
+  if (hand.includes(HIDDEN) || tile === HIDDEN) return null;
+  if (!hand.includes(tile)) return '持っていない牌を伏せた';
+  if (![0, 1, 2].includes(suit)) return '捨てる色は萬子・筒子・索子のどれか';
+  if (suitOf(tile) < 0) return '伏せる牌は数牌（萬子・筒子・索子）';
+  // 伏せた牌と違う色を宣言できるのは、手牌にその色が 1 枚も無いときだけ（MIL §5-4）
+  if (suit !== suitOf(tile) && hand.some((t) => suitOf(t) === suit)) return '伏せた牌と違う色を捨てる色にできるのは、その色が手に 1 枚も無いときだけ';
+  return null;
 }
 
 /** 責任払い（包）。seat＝包の人／yaku＝その役 */
@@ -195,11 +243,12 @@ export const HONBA_POINTS = 300;
 /** リーチ棒 1 本 */
 export const RIICHI_STICK = 1000;
 
-/** ルールの持ち点（日本式の start は千点単位の文字） */
+/** ルールの持ち点（日本式の start は千点単位の文字。中国式は点そのもの＝0点から・500点） */
 export function startPoints(rules: Rules | null): number {
   if (!rules) return 0;
   const n = Number(rules.values.start);
-  return Number.isFinite(n) ? n * 1000 : 0;
+  if (!Number.isFinite(n)) return 0;
+  return rules.family === 'jp' ? n * 1000 : n;
 }
 
 export const initialState = (): GameState => ({
@@ -246,6 +295,9 @@ export const initialState = (): GameState => ({
   handCount: 0,
   gameOver: null,
   result: null,
+  queHeld: [null, null, null, null],
+  queHeldSuit: [null, null, null, null],
+  que: [null, null, null, null],
 });
 
 /** 王牌（ツモらずに残す山の尻）の枚数。日本式は 14 枚で固定（136 枚と同じく変えられない決まり）。中国式は段階9で決める */
@@ -336,7 +388,20 @@ export function apply(state: GameState, env: Envelope): GameState {
         pao: [null, null, null, null],
         settlement: null,
         result: null,
+        queHeld: [null, null, null, null],
+        queHeldSuit: [null, null, null, null],
+        que: [null, null, null, null],
       };
+    }
+    case 'queHold': {
+      const problem = queHoldProblem(s, ev.seat, ev.tile, ev.suit);
+      if (problem) throw new Error(problem);
+      const queHeld = s.queHeld.slice();
+      const queHeldSuit = s.queHeldSuit.slice();
+      queHeld[ev.seat] = ev.tile;
+      queHeldSuit[ev.seat] = ev.suit;
+      // 4 人とも伏せたら、親が最初の 1 枚（伏せた牌）を切る
+      return { ...s, queHeld, queHeldSuit, phase: queHeld.every((t) => t !== null) ? 'discard' : 'que' };
     }
     case 'wallSeed': {
       if (ev.seed === null || !s.rules) return s;
@@ -373,7 +438,8 @@ export function apply(state: GameState, env: Envelope): GameState {
       drawn[ev.seat] = ev.tile;
       return {
         ...s,
-        phase: 'discard',
+        // 缺一門のルールでは、親の 14 枚目で配り終えたところで 4 人が捨てる色を決める
+        phase: s.phase === 'deal' && queOn(s.rules) ? 'que' : 'discard',
         hands,
         drawn,
         wallLeft: s.wallLeft - 1,
@@ -393,6 +459,19 @@ export function apply(state: GameState, env: Envelope): GameState {
       if (i < 0) throw new Error(`持っていない牌を切った（席 ${ev.seat}・背番号 ${ev.tile}）`);
       if (s.kuikaeBan.includes(kindOf(ev.tile))) throw new Error('喰い替えになる牌を切った（このルールでは禁止）');
       if (s.rules?.family === 'jp' && s.rules.values.kyushuHow === 'must' && kyushuOk(s, ev.seat)) throw new Error('九種九牌は必ず流すルールなのに切った');
+      // 缺一門：最初の打牌で捨てる色を宣言する（伏せた牌を切る）。そのあとは捨てる色が残るうちはその色だけ
+      const quePr = queDiscardProblem(s, ev.seat, ev.tile);
+      if (quePr) throw new Error(quePr);
+      const que = s.que.slice();
+      const queHeld = s.queHeld.slice();
+      const queHeldSuit = s.queHeldSuit.slice();
+      if (queOn(s.rules) && s.que[ev.seat] === null) {
+        if (ev.que === undefined || ![0, 1, 2].includes(ev.que)) throw new Error('最初の打牌で捨てる色を宣言していない（缺一門）');
+        if (s.queHeldSuit[ev.seat] !== HIDDEN && ev.que !== s.queHeldSuit[ev.seat]) throw new Error('宣言した色が、伏せたときに決めた色と違う');
+        que[ev.seat] = ev.que;
+        queHeld[ev.seat] = null;
+        queHeldSuit[ev.seat] = null;
+      } else if (ev.que !== undefined) throw new Error('捨てる色を宣言できるのは最初の打牌だけ');
       hand.splice(i, 1);
       const riichi = s.riichi.slice();
       const riichiAt = s.riichiAt.slice();
@@ -424,7 +503,7 @@ export function apply(state: GameState, env: Envelope): GameState {
       const replies: Claim['replies'] = [null, null, null, null];
       replies[ev.seat] = 'self';
       const claim: Claim = { kind: 'discard', from: ev.seat, tile: ev.tile, replies, rons: [], calls: [], afterKan: s.rinshanDraw };
-      const after: GameState = { ...s, phase: 'claim', hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn, claim, rinshanDraw: false, kuikaeBan: [] };
+      const after: GameState = { ...s, phase: 'claim', hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn, claim, rinshanDraw: false, kuikaeBan: [], que, queHeld, queHeldSuit };
       // 四家立直：ルールが「4 人目が宣言したとき」なら、宣言牌への返事を待たずに流局
       const v = s.rules?.family === 'jp' ? s.rules.values : null;
       if (ev.riichi && v?.suricchi === 'on' && v.suricchiWhen === 'declare' && riichi.every((r) => r !== 'none')) {
@@ -572,6 +651,8 @@ export function apply(state: GameState, env: Envelope): GameState {
     }
     case 'exhaust': {
       if (s.phase !== 'draw' || s.rinshanDue || liveWallLeft(s) > 0) throw new Error('山が残っているのに流局した');
+      // 中国式の流局（查叫・花豬）は段階9の手順5。それまでは宣言なしで点を動かさずに終える
+      if (s.rules?.family === 'cn') return finish({ ...s, drawn: [null, null, null, null] }, { type: 'exhaust', tenpai: [false, false, false, false], payments: [0, 0, 0, 0] }, [0, 0, 0, 0]);
       // 親から順に宣言する
       return { ...s, phase: 'declare', turn: s.dealer, drawn: [null, null, null, null] };
     }
@@ -803,8 +884,15 @@ export function callProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan
   if (c.kind !== 'discard') return 'カンの牌は鳴けない（ロンだけ）';
   if (seat === c.from) return '自分の切った牌は鳴けない';
   if (s.riichi[seat] !== 'none') return 'リーチのあとは鳴けない';
-  // 最後の捨て牌（河底）は鳴けない＝次のツモが無い
-  if (liveWallLeft(s) <= 0) return '山が尽きたあとの捨て牌は鳴けない';
+  const cn = s.rules?.family === 'cn' ? s.rules.values : null;
+  // 最後の捨て牌（河底）は鳴けない＝次のツモが無い（中国式はルールの lastTile が「できる」なら鳴ける）
+  if (liveWallLeft(s) <= 0 && cn?.lastTile !== 'ok') return '山が尽きたあとの捨て牌は鳴けない';
+  if (cn && meld === 'chi' && cn.chi !== 'on') return 'このルールではチーできない';
+  // 中国式のカンは段階9の手順4で入れる
+  if (cn && meld === 'kan') return '中国式のカンはまだできない';
+  // 缺一門で伏せておいた牌は、最初の打牌で切るまで使えない
+  const held = s.queHeld[seat];
+  if (held !== null && held !== HIDDEN && tiles.includes(held)) return '伏せておいた牌（缺一門）は鳴きに使えない';
   if (meld === 'kan' && s.kans >= MAX_KANS) return 'カンは 1 局 4 回まで';
   const need = meld === 'kan' ? 3 : 2;
   if (tiles.length !== need) return `${meld === 'kan' ? 'カン' : '鳴く'}には手牌から ${need} 枚出す`;
@@ -837,6 +925,8 @@ export function callProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan
  * リーチのあとの暗槓は、ルールが許し、ツモった牌を使い、待ちが変わらない（条件が「刻子としか読めない形」ならそれも）ときだけ
  */
 export function kanProblem(s: GameState, seat: Seat, kan: 'ankan' | 'kakan', tiles: readonly TileId[]): string | null {
+  // 中国式のカンは段階9の手順4で入れる
+  if (s.rules?.family === 'cn') return '中国式のカンはまだできない';
   if (s.kans >= MAX_KANS) return 'カンは 1 局 4 回まで';
   // 最後のツモ（海底）のあとはカンできない＝嶺上牌を引いたあとの山が無い
   if (liveWallLeft(s) <= 0) return '山が尽きたあとはカンできない';

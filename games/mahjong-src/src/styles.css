@@ -395,10 +395,28 @@ body.in-game .site-header .subtitle {
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
   max-width: calc(100% - 24px);
-  /* 画面からはみ出すときは枠の中を送って読む（利用者指示 10-09）。指でも縦に送れるように */
+  /* 画面からはみ出すときは枠の中を送って読む（利用者指示 10-09）。指でも縦に送れるように。
+     送るのは中身（.result-body）だけで、下のボタンは枠の下に残す（10-12 見回り） */
   max-height: calc(100% - 24px);
-  overflow-y: auto;
+  overflow: hidden;
   box-sizing: border-box;
+}
+
+.result > * {
+  flex-shrink: 0;
+}
+
+.result > .result-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 1;
+  min-height: 0;
+  max-width: 100%;
+  overflow-y: auto;
+  /* 縦のスクロールバーの幅を先に取っておく（取らないと中身がその幅だけ押し出されて、横のスクロールバーまで出ていた） */
+  scrollbar-gutter: stable;
 }
 
 .result.draggable {
@@ -930,6 +948,17 @@ body.in-game .site-header .subtitle {
 .exhaust-list {
   border-collapse: collapse;
   font-size: 14px;
+  width: 100%;
+}
+
+/* 流局の枠は、使える幅いっぱい（最大 480px）に広げる：表が中身の最小の幅に縮むと、手牌が小さくなりすぎる（10-12 見回り） */
+.result:has(.exhaust-list) {
+  width: calc(100% - 24px);
+  max-width: 480px;
+}
+
+.result:has(.exhaust-list) > .result-body {
+  align-self: stretch;
 }
 
 .exhaust-list th {
@@ -949,6 +978,25 @@ body.in-game .site-header .subtitle {
   white-space: nowrap;
 }
 
+/* 携帯の幅：流局の表が枠より広く、向き・名前と点数が左右で切れていた（375px で 21px）。枠の内側の余白と表の間を詰める（10-12 見回り） */
+@media (max-width: 480px) {
+  .result {
+    padding: 16px 12px;
+  }
+
+  .exhaust-list {
+    font-size: 12px;
+  }
+
+  .exhaust-list th {
+    padding-right: 4px;
+  }
+
+  .exhaust-list td {
+    padding: 3px 4px;
+  }
+}
+
 .exhaust-state {
   color: var(--text-sub);
 }
@@ -958,19 +1006,32 @@ body.in-game .site-header .subtitle {
   font-weight: 700;
 }
 
-.exhaust-hand {
-  display: flex;
-  gap: 1px;
-  padding-bottom: 4px;
-}
-
+/* 流局でテンパイした人の手牌と鳴いた面子：同じ大きさで、表の横幅に収める（10-12 見回り）。
+   手牌は 14px 固定・面子は大きさの指定なし（32px・横向き 44px）で、面子だけ大きく枠からはみ出していた。
+   行の幅は中身に引っぱられないようにして（名前の列が消えていた）、牌の大きさを行の幅から決める（14 枚＋面子の曲げぶんで 18 枚ぶん） */
 .exhaust-hand-row td {
   padding-top: 0;
 }
 
-.exhaust-hand .tile.mini {
-  --tw: 14px;
+/* 表のマスには「中身に引っぱられない」指定が効かないので、マスの中の箱で受ける：
+   幅 0＋最小 100%＝表の幅は名前などの列だけで決まり、箱はそのマスいっぱいに広がる */
+.exhaust-hand {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  padding-bottom: 4px;
+  width: 0;
+  min-width: 100%;
+  container-type: inline-size;
+  --tw: min(var(--res-tw, 24px), calc((100cqw - 20px) / 18));
+}
+
+.exhaust-hand .tile {
   margin-bottom: 0;
+}
+
+.exhaust-hand .melds {
+  margin-left: 6px;
 }
 
 .exhaust-pay {
@@ -1043,6 +1104,8 @@ body.in-game .site-header .subtitle {
 
 .final-list tbody th {
   text-align: left;
+  /* 名前と持ち点がくっつかないように（10-12 見回り） */
+  padding-right: 14px;
 }
 
 .final-list .final-total {
@@ -1171,7 +1234,9 @@ body.in-game .site-header .subtitle {
 
 .playbar .hand-pick {
   flex: none;
-  max-width: 9.5em;
+  /* 「南4局・1本場」と矢印が入る幅（中身なりの 96px では矢印のぶん「場」が切れていた＝10-12 見回り） */
+  min-width: 9.6em;
+  max-width: 11em;
   font-size: 12px;
   padding: 4px 6px;
   background: var(--surface2);
@@ -1224,8 +1289,16 @@ body.in-game .site-header .subtitle {
   }
   .playbar .hand-pick {
     flex: 1 1 0;
-    min-width: 0;
+    /* 「南4局・1本場」が切れない幅（10-12 見回り：94px で「場」が切れていた） */
+    min-width: 9.6em;
     max-width: none;
+  }
+  .playbar .track {
+    column-gap: 5px;
+  }
+  .playbar .pb.exit {
+    padding-left: 6px;
+    padding-right: 6px;
   }
   .playbar input[type='range'] {
     order: 3;
@@ -2554,8 +2627,18 @@ body.in-game .site-header .subtitle {
 
 .side-col .playbar .hand-pick {
   flex: 1 1 0;
-  min-width: 0;
+  /* 「南4局・1本場」が切れない幅（10-12 見回り） */
+  min-width: 9.6em;
   max-width: none;
+}
+
+.side-col .playbar .track {
+  column-gap: 5px;
+}
+
+.side-col .playbar .pb.exit {
+  padding-left: 6px;
+  padding-right: 6px;
 }
 
 .side-col .playbar input[type='range'] {

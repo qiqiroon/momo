@@ -179,6 +179,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   const showFinal = view.phase === 'gameover' && finalShown;
   const result = (view.phase === 'ended' || view.phase === 'gameover') && r && (
     <DraggableDialog className="result">
+      {/* 中身だけを送る（長いときに下のボタンまで一緒に送られて切れて見えていた＝10-12 見回り） */}
+      <div className="result-body">
       {showFinal && view.gameOver && (
         <>
           <p className="result-title game-over-title">{t('gameOverTitle')}</p>
@@ -297,7 +299,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
                       <td colSpan={4}>
                         <div className="exhaust-hand">
                           {sortTiles(view.hands[seat]).map((id) => (
-                            <Tile key={id} id={id} rules={view.rules} className="mini" />
+                            <Tile key={id} id={id} rules={view.rules} />
                           ))}
                           {meldsOf(seat)}
                         </div>
@@ -312,6 +314,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
       )}
         </>
       )}
+      </div>
       {view.phase === 'gameover' && !showFinal ? (
         <button type="button" className="btn-primary btn-final" onClick={() => setFinalShown(true)}>
           {t('toFinalResult')}

@@ -3,7 +3,7 @@
 
 import { HIDDEN, SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
 import { furitenOf } from './furiten';
-import { callProblem, dealerByDice, kanProblem, kyushuOk, liveWallLeft, queDiscardProblem, queHoldProblem, queOn, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
+import { callProblem, cnRonBlocked, cnScoreRon, cnScoreTsumo, dealerByDice, kanProblem, kyushuOk, liveWallLeft, queDiscardProblem, queHoldProblem, queOn, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
 import { doraIndicatorPos, uraIndicatorPos } from './dora';
 import { waitKinds } from './agari';
 import { nextStep } from './game';
@@ -184,6 +184,10 @@ export function canRon(view: GameState, seat: Seat): boolean {
   const hand = view.hands[seat];
   if (hand.includes(HIDDEN)) return false;
   if (furitenOf(view, seat)?.reasons.length) return false;
+  if (view.rules?.family === 'cn') {
+    const score = cnScoreRon(view, seat, hand, c.tile);
+    return score !== null && !cnRonBlocked(view, seat, score);
+  }
   return scoreRon(view, seat, hand, c.tile) !== null;
 }
 
@@ -242,7 +246,7 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
   const out: Action[] = [];
   // アガリの形で、役がある（縛りに届く）ときだけツモアガリできる
   const drawn = view.drawn[seat];
-  if (drawn !== null && scoreTsumo(view, seat, hand, drawn)) out.push({ type: 'tsumo' });
+  if (drawn !== null && (view.rules?.family === 'cn' ? cnScoreTsumo(view, seat, hand) : scoreTsumo(view, seat, hand, drawn))) out.push({ type: 'tsumo' });
   // 九種九牌：ルールが「必ず流す」なら、流すしかない（国士無双でツモアガリできるときだけアガりも選べる）
   if (kyushuOk(view, seat)) {
     out.push({ type: 'kyushu' });
@@ -369,7 +373,7 @@ export function act(full: GameState, seat: Seat, action: Action, src?: TileSourc
     const v = full.rules?.family === 'jp' ? full.rules.values : null;
     const reveals = full.claim.kind === 'kakan' && v?.chankanDora === 'yes' ? revealDora(full, full.pendingDora, at, tileAt) : [];
     const shown = full.doraIndicators.length + reveals.length;
-    const ura = full.riichi[seat] === 'none' ? [] : Array.from({ length: shown }, (_, i) => tileAt(uraIndicatorPos(size, i)));
+    const ura = full.riichi[seat] === 'none' || full.rules?.family === 'cn' ? [] : Array.from({ length: shown }, (_, i) => tileAt(uraIndicatorPos(size, i)));
     return [...reveals, at('all', { type: 'ron', seat, hand: full.hands[seat].slice(), ura })];
   }
   if (full.phase !== 'discard' || full.turn !== seat) throw new Error(`席 ${seat} の番ではない`);
@@ -405,10 +409,11 @@ export function act(full: GameState, seat: Seat, action: Action, src?: TileSourc
     }
     case 'tsumo': {
       const winTile = full.drawn[seat];
-      if (winTile === null || !scoreTsumo(full, seat, hand, winTile)) throw new Error('アガリの形になっていない（または役が無い）');
+      const cn = full.rules?.family === 'cn';
+      if (winTile === null || !(cn ? cnScoreTsumo(full, seat, hand) : scoreTsumo(full, seat, hand, winTile))) throw new Error('アガリの形になっていない（または役が無い）');
       // 裏ドラはリーチでアガったときだけ、ドラ表示牌の真下をめくる
       const size = wallSizeOf(full);
-      const ura = full.riichi[seat] === 'none' ? [] : full.doraIndicators.map((_, i) => tileAt(uraIndicatorPos(size, i)));
+      const ura = full.riichi[seat] === 'none' || cn ? [] : full.doraIndicators.map((_, i) => tileAt(uraIndicatorPos(size, i)));
       return [at('all', { type: 'tsumo', seat, hand: hand.slice(), winTile, ura })];
     }
     default:

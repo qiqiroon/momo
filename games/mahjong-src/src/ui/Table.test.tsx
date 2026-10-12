@@ -369,3 +369,28 @@ describe('四川：捨てる色の牌を伏せる（段階9の手順1）', () =>
     expect(document.querySelector('.que-hint')).toHaveTextContent('ほかの人が捨てる色を決めています');
   });
 });
+describe('四川：アガリの結果の枠（段階9の手順2）', () => {
+  it('番の名前と数・基本点・払いが出る（日英中）', () => {
+    let log: Envelope[] | null = null;
+    for (let i = 0; i < 200 && !log; i++) {
+      const r = playOne(`sc-table-${i}`, rulesOfCnSet('sichuan'), benchCpu);
+      if (r.result?.type === 'cnWin' && !r.failure && r.result.wins[0].score.fans.length > 0) log = r.log;
+    }
+    if (!log) throw new Error('四川のアガリが見つからない');
+    const view = viewFor(log, 0);
+    if (view.result?.type !== 'cnWin') throw new Error('中国式のアガリのはず');
+    const w = view.result.wins[0];
+    const { unmount } = render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} />);
+    expect(document.querySelector('.score-total')).toHaveTextContent(`基本点 ${w.score.points}点`);
+    expect(document.querySelectorAll('.yaku-list tr')).toHaveLength(w.score.fans.length);
+    expect(document.querySelectorAll('.result-hand .win-tile')).toHaveLength(view.result.wins.length);
+    // 点の動きの表（4 人）
+    expect(document.querySelectorAll('.points-list tr')).toHaveLength(4);
+    unmount();
+    const en = render(<Table narrow={false} view={view} legal={[]} lang="en" onChoose={() => {}} onNext={() => {}} />);
+    expect(document.querySelector('.score-total')).toHaveTextContent(`Base ${w.score.points} pts`);
+    en.unmount();
+    render(<Table narrow={false} view={view} legal={[]} lang="zh" onChoose={() => {}} onNext={() => {}} />);
+    expect(document.querySelector('.score-total')).toHaveTextContent(`底分 ${w.score.points}`);
+  });
+});

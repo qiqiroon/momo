@@ -11,6 +11,7 @@ import { finalResult, type FinalRow } from '../engine/final';
 import { nextStep } from '../engine/game';
 import type { Action } from '../engine/round';
 import type { ScoreResult } from '../engine/score';
+import type { CnScore } from '../engine/sichuan';
 import { liveWallLeft, queOn, suitOfKind, type GameState, type OpenMeld } from '../engine/state';
 import { isRed, kindOf, type TileId } from '../engine/tiles';
 import { relFrom, useSeat } from './seatContext';
@@ -151,7 +152,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
 
   // 狭い画面の自分の手牌の列の長さ（横幅いっぱいに収める）
   const narrowUnits = handRowUnits(view.hands[me].length, view.drawn[me] !== null, view.melds[me]);
-  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} melds={meldsOf(me)} dealt={dealt} hints={!replay && playing && dealt === null} />;
+  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} melds={meldsOf(me)} dealt={dealt} hints={!replay && playing && dealt === null && view.rules?.family === 'jp'} />;
 
   // ドラ表示牌（めくられた順）
   const indicators = view.doraIndicators.length > 0 && (
@@ -258,6 +259,22 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
           <ScoreView score={won.score} lang={lang} />
         </Fragment>
       ))}
+      {/* 中国式のアガリ（段階9）：手牌・アガリ牌・番・基本点・払い */}
+      {r.type === 'cnWin' &&
+        r.wins.map((w) => (
+          <Fragment key={w.seat}>
+            <p className="result-title">{w.from === null ? t('resultTsumo', { name: nameOf(w.seat) }) : t('resultRon', { name: nameOf(w.seat), from: nameOf(w.from) })}</p>
+            <div className="result-hand">
+              {sortTiles(w.from === null ? view.hands[w.seat].filter((x) => x !== w.winTile) : view.hands[w.seat]).map((id) => (
+                <Tile key={id} id={id} rules={view.rules} />
+              ))}
+              <span className="drawn-gap" />
+              <Tile id={w.winTile} rules={view.rules} className="win-tile" />
+              {meldsOf(w.seat)}
+            </div>
+            <CnScoreView score={w.score} tsumo={w.from === null} rules={view.rules} t={t} />
+          </Fragment>
+        ))}
       {r.type === 'exhaust' &&
         r.nagashi?.map((seat) => (
           <p key={seat} className="result-title">
@@ -558,6 +575,31 @@ function ScoreView({ score, lang }: { score: ScoreResult; lang: Lang }) {
       <p className="score-level">{level}</p>
       <p className="score-pay">{pay}</p>
       <p className="score-total">{t('totalPoints', { n: score.total })}</p>
+    </div>
+  );
+}
+
+/** 中国式（四川）のアガリの番と点。番の名前と数・合計（上限で切ったら印）・基本点・払い */
+function CnScoreView({ score, tsumo, rules, t }: { score: CnScore; tsumo: boolean; rules: Rules | null; t: (k: MessageKey, v?: Record<string, string | number>) => string }) {
+  const cap = rules?.family === 'cn' ? rules.values.cap : 'none';
+  return (
+    <div className="score">
+      <table className="yaku-list">
+        <tbody>
+          {score.fans.map((f) => (
+            <tr key={f.id}>
+              <th>{t(`cnFan_${f.id}` as MessageKey)}</th>
+              <td>{t('fanN', { n: f.fan })}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="score-level">
+        {score.fan === 0 ? t('cnNoFan') : t('fanN', { n: score.fan })}
+        {score.capped ? t('cnCapped', { cap }) : ''}
+      </p>
+      <p className="score-pay">{tsumo ? t('cnPayTsumo', { n: score.points + 1 }) : t('cnPayRon', { n: score.points })}</p>
+      <p className="score-total">{t('cnPoints', { n: score.points })}</p>
     </div>
   );
 }

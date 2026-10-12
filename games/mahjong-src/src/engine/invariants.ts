@@ -9,7 +9,8 @@
 // 席から見た局面には、その席に渡す形（mask 済み）だけを当てはめる＝実際に渡すものと同じ。
 
 import { HIDDEN, SEATS, mask, type Envelope, type Seat } from './events';
-import { isWinningHand, waitKinds } from './agari';
+import { isWinningHand, kindCounts, waitKinds } from './agari';
+import { sichuanScore } from './sichuan';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { finalResult } from './final';
 import { apply, initialState, isKanMeld, MAX_KANS, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
@@ -192,6 +193,24 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       // 最初の打牌は伏せた牌（手に無い色を宣言して、そのあと引いた牌に捨てる色があっても伏せた牌を切る＝MIL §5）
       const first = full.discards[c.from].length === 1;
       if (q !== null && !first && sOf(c.tile) !== q && full.hands[c.from].some((t) => sOf(t) === q)) bad.push(`席 ${c.from}：捨てる色の牌が手にあるのに、ほかの牌を切った（缺一門）`);
+    }
+  }
+  // 中国式のアガリ（段階9の手順2）：開けた手牌（＋ロンの牌）が四川の形で点が合う・捨てる色が残っていない・点の動きの合計 0・基本点＝2 の番数乗
+  if (full.result?.type === 'cnWin') {
+    const r = full.result;
+    if (r.wins.length === 0) bad.push('中国式のアガリにアガった人がいない');
+    for (const w of r.wins) {
+      const tiles = w.from === null ? full.hands[w.seat] : [...full.hands[w.seat], w.winTile];
+      const pons = full.melds[w.seat].filter((m) => m.type === 'pon').map((m) => kindOf(m.tiles[0]));
+      const again = sichuanScore({ concealed: kindCounts(tiles), pons, haidi: w.score.fans.some((f) => f.id === 'haidi') }, full.rules);
+      if (!again || JSON.stringify(again) !== JSON.stringify(w.score)) bad.push(`席 ${w.seat}：中国式のアガリの点が手牌から出し直した点と合わない`);
+      const q = full.que[w.seat] ?? full.queHeldSuit[w.seat];
+      const sOf = (t: number) => (kindOf(t) < 27 ? Math.floor(kindOf(t) / 9) : -1);
+      if (q !== null && [...tiles, ...full.melds[w.seat].flatMap((m) => m.tiles)].some((t) => sOf(t) === q)) bad.push(`席 ${w.seat}：捨てる色が残ったままアガった（缺一門）`);
+      const cap = full.rules.family === 'cn' && full.rules.values.cap !== 'none' ? Number(full.rules.values.cap) : Infinity;
+      if (w.score.points !== 2 ** Math.min(w.score.fan, cap)) bad.push(`席 ${w.seat}：基本点が番から出した値と違う`);
+      if (w.from === w.seat) bad.push('切った人が自分の牌でロンした');
+      if (w.pays.reduce((a, b) => a + b, 0) !== 0) bad.push(`席 ${w.seat}：アガリの点の動きの合計が 0 でない`);
     }
   }
   // 喰い替え禁止の牌が残っているのは、鳴いた人が切る前だけ

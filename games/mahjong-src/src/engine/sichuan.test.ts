@@ -3,7 +3,8 @@
 import { mask, type Envelope, type GameEvent, type Seat } from './events';
 import { act, advance, callOptions, legalActions, startRound, type Action } from './round';
 import { rulesOfCnSet } from './ruleSets';
-import { apply, initialState, liveWallLeft, startPoints, type GameState } from './state';
+import { apply, cnRonBlocked, initialState, liveWallLeft, startPoints, type GameState } from './state';
+import { sichuanScore } from './sichuan';
 import { kindOf, tileSetFor, type TileId } from './tiles';
 
 const SICHUAN = rulesOfCnSet('sichuan');
@@ -269,5 +270,110 @@ describe('四川の流局（手順1の仮）', () => {
     t.s = apply(t.s, ev);
     expect(t.s.phase).toBe('ended');
     expect(t.s.settlement).toEqual([0, 0, 0, 0]);
+  });
+});
+
+// ---- 手順2：アガリと点（MIL §3・§9・§10） ----
+
+/** 「1m1m1m2m…」の手（14 枚）を種類ごとの枚数にする */
+const counts = (s: string) => {
+  const c = new Array(34).fill(0);
+  for (const [, nums, suit] of s.matchAll(/(\d+)([mps])/g)) for (const d of nums) c[BASE[suit as 'm'] + Number(d) - 1]++;
+  return c;
+};
+const score = (hand: string, pons: string[] = [], haidi = false) =>
+  sichuanScore({ concealed: counts(hand), pons: pons.map((x) => BASE[x[1] as 'm'] + Number(x[0]) - 1), haidi }, SICHUAN);
+const fanIds = (hand: string, pons: string[] = [], haidi = false) => score(hand, pons, haidi)?.fans.map((f) => `${f.id}${f.fan}`).sort();
+
+describe('四川の番と基本点', () => {
+  it('役が無くてもアガれる（0 番＝1 点）。形でなければ null', () => {
+    expect(score('1m1m1m2m3m4m5m6m7m2s3s4s9m9m')).toMatchObject({ fan: 0, points: 1, capped: false });
+    expect(score('1m1m1m2m3m4m5m6m7m2s3s4s9m7s')).toBeNull();
+  });
+
+  it('碰碰胡 1・清一色 2・根（同じ牌 4 枚ごとに 1）', () => {
+    expect(fanIds('1m1m1m3m3m3m5s5s5s7s7s7s9s9s')).toEqual(['pengpeng1']);
+    expect(fanIds('1m2m3m2m3m4m4m5m6m7m8m9m9m9m')).toEqual(['qingyise2']);
+    // 1m を 4 枚（123m＋111m）：根 1
+    expect(fanIds('1m1m1m1m2m3m5s6s7s7p8p9p9p9p')).toEqual(['gen1']);
+  });
+
+  it('七对 2。同じ牌 4 枚は 2 対に数えて根 1 も付く（龙七对＝3 番 8 点）', () => {
+    expect(fanIds('1m1m3m3m5m5m2s2s4s4s6s6s8s8s')).toEqual(['qidui2']);
+    expect(score('1m1m1m1m5m5m2s2s4s4s6s6s8s8s')).toMatchObject({ fan: 3, points: 8 });
+  });
+
+  it('金钩钓：4 組とも鳴いて単騎（碰碰胡も付く）・海底 1', () => {
+    expect(fanIds('9s9s', ['1m', '3m', '5s', '7s'])).toEqual(['jingou1', 'pengpeng1']);
+    expect(fanIds('1m1m1m2m3m4m5m6m7m2s3s4s9m9m', [], true)).toEqual(['haidi1']);
+  });
+
+  it('上限 3 番（8 点）で切る：清一色＋七对＋根 2＝6 番でも 8 点', () => {
+    const r = score('1m1m1m1m3m3m3m3m5m5m7m7m9m9m');
+    expect(r).toMatchObject({ fan: 6, points: 8, capped: true });
+  });
+});
+
+describe('四川のアガリ：払い方と見逃しの縛り', () => {
+  // 席 1 は筒子が無い＝9m を伏せて「筒子」を捨てる色にする。1m1m1m 234m 567m 234s 9m の単騎＝9m でアガる（0 番 1 点）
+  const S0 = '9m1p2p3p4p5p6p7p8p9p1s1s5s';
+  const S1 = '1m1m1m2m3m4m5m6m7m2s3s4s9m';
+  const S3 = '8m1p2p8p8p8p9p9p9p6s7s8s9s';
+  function ready() {
+    const r = setup([S0, S1, '5m5m6m6p6p6p7p7p7p5s6s7s8s', S3], '6s');
+    const { t } = r;
+    t.do(0, { type: 'que', tile: tileOf(t.s, 0, '9m'), suit: 0 });
+    t.do(1, { type: 'que', tile: tileOf(t.s, 1, '9m'), suit: 1 });
+    t.do(2, { type: 'que', tile: tileOf(t.s, 2, '5s'), suit: 2 });
+    t.do(3, { type: 'que', tile: tileOf(t.s, 3, '6s'), suit: 2 });
+    t.do(0, { type: 'discard', tile: tileOf(t.s, 0, '9m') });
+    return r;
+  }
+
+  it('ロン：放銃者が基本点を払う。ほかの人の端末でも同じ結果', () => {
+    const { t } = ready();
+    expect(legalActions(t.s, 1).some((a) => a.type === 'ron')).toBe(true);
+    t.do(1, { type: 'ron' });
+    t.do(2, { type: 'pass' });
+    t.do(3, { type: 'pass' });
+    expect(t.s.result?.type).toBe('cnWin');
+    expect(t.s.settlement).toEqual([-1, 1, 0, 0]);
+    expect(JSON.stringify(t.view(3).result)).toBe(JSON.stringify(t.s.result));
+  });
+
+  it('ツモ：ほかの 3 人がそれぞれ（基本点＋1）を払う', () => {
+    const { t, d } = ready();
+    for (const seat of [1, 2, 3] as Seat[]) t.do(seat, { type: 'pass' });
+    t.push({ type: 'draw', seat: 1, tile: d('9m')[0] }, [1]);
+    expect(legalActions(t.s, 1).some((a) => a.type === 'tsumo')).toBe(true);
+    t.do(1, { type: 'tsumo' });
+    expect(t.s.settlement).toEqual([-2, 6, -2, -2]);
+  });
+
+  it('見逃したら、自分が次に引くまで同じ点以下ではロンできない（点が上がればできる）', () => {
+    const { t, d } = ready();
+    t.do(1, { type: 'pass' });
+    expect(t.s.cnMissed[1]).toBe(1);
+    // ほかの人の端末には見逃しは見えない
+    expect(t.view(2).cnMissed[1]).toBeNull();
+    expect(cnRonBlocked(t.s, 1, { fans: [], fan: 0, capped: false, points: 1 })).toBe(true);
+    expect(cnRonBlocked(t.s, 1, { fans: [], fan: 1, capped: false, points: 2 })).toBe(false);
+    t.do(2, { type: 'pass' });
+    t.do(3, { type: 'pass' });
+    t.push({ type: 'draw', seat: 1, tile: d('3s')[0] }, [1]);
+    expect(t.s.cnMissed[1]).toBeNull();
+  });
+
+  it('捨てる色が残っているとアガれない', () => {
+    // 席 1 が筒子を捨てる色にせず、萬子（9m の色）にしたら、萬子だらけの手ではアガれない
+    const r = setup([S0, S1, '5m5m6m6p6p6p7p7p7p5s6s7s8s', S3], '6s');
+    const { t } = r;
+    t.do(0, { type: 'que', tile: tileOf(t.s, 0, '9m'), suit: 0 });
+    t.do(1, { type: 'que', tile: tileOf(t.s, 1, '9m'), suit: 0 });
+    t.do(2, { type: 'que', tile: tileOf(t.s, 2, '5s'), suit: 2 });
+    t.do(3, { type: 'que', tile: tileOf(t.s, 3, '6s'), suit: 2 });
+    t.do(0, { type: 'discard', tile: tileOf(t.s, 0, '9m') });
+    expect(legalActions(t.s, 1).some((a) => a.type === 'ron')).toBe(false);
+    expect(() => t.do(1, { type: 'ron' })).toThrow();
   });
 });

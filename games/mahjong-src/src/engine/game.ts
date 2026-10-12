@@ -36,6 +36,8 @@ export function dealerStays(s: GameState): boolean {
   if (!r) throw new Error('局が終わっていない');
   if (r.type === 'tsumo') return r.seat === s.dealer;
   if (r.type === 'ron') return r.wins.some((w) => w.seat === s.dealer);
+  // 中国式の親の決め方（ルールの dealer）は段階9の手順6。それまでは親がアガれば続ける
+  if (r.type === 'cnWin') return r.wins.some((w) => w.seat === s.dealer);
   if (r.type === 'exhaust') return v?.renchan !== 'agari' && r.tenpai[s.dealer];
   // 途中流局・3 人同時ロンの流局
   return v?.abortRenchan !== 'pass';

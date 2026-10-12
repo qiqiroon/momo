@@ -1,3 +1,6 @@
+import { decodeSameLink, encodeSameLink, sameWallOf } from '../kifu/same';
+import { startRoundFromWall } from '../engine/round';
+import { dealerByDice } from '../engine/state';
 import { describe, expect, it } from 'vitest';
 import { rulesOfSet } from '../engine/ruleSets';
 import { packKifu, unpackKifu } from '../kifu/link';
@@ -161,6 +164,13 @@ describe('オンラインの卓（偽の通信）', () => {
     // 山の並びの控えが無い（ファイルから読んだ）牌譜も、出来事から山を読み取って詰められる
     const fromFile = { ...src, walls: undefined };
     expect(unpackKifu(packKifu(fromFile)).events).toEqual(full[0]);
+    // 同じ山で勝負（Q5=A）：錠前で配った本物の山。席 2 の人の牌譜から作ったリンクで、受け取った人（席 0）は席 2 の配牌から始まる
+    const sw = decodeSameLink(encodeSameLink(sameWallOf({ ...src, me: 2 })))!;
+    const o = sw.online!;
+    const mine = startRoundFromWall(2, { roundIndex: 0, dealer: dealerByDice(o.by, o.dice), honba: 0 }, (pos) => o.walls[0][pos]).flatMap((e) => (e.ev.type === 'deal' && e.ev.seat === 0 ? e.ev.tiles : []));
+    const theirs = full[0]!.flatMap((e) => (e.ev.type === 'deal' && e.ev.seat === 2 ? e.ev.tiles : []));
+    expect(mine).toHaveLength(13);
+    expect(mine).toEqual(theirs);
   }, 70_000);
 
   it('ホストが選んだルール（WRC）で 1 局：全員の局面のルールがそれになり、局が終わって検算も通る', async () => {

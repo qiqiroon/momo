@@ -14,7 +14,7 @@
 
 import { cpuOf, DEFAULT_STRENGTH, loadStrength, strengthOf, type Strength } from '../cpu/strength';
 import { generalChoice, labelOf, ruleChoiceOf, type RuleChoice } from '../engine/ruleSets';
-import { isoLocal } from '../kifu/kifu';
+import { isoLocal, type KifuSource } from '../kifu/kifu';
 import { saveLastGame } from '../kifu/store';
 import { DEAL_SHOW_MS, DICE_SHOW_MS, dealShowOn } from '../game/useTable';
 import { OnlineTable, type LockerStore, type SyncData, type TableOptions, type WireLocker } from './table';
@@ -425,27 +425,46 @@ export class OnlineSession {
       // 一人用と同じ長さ（useTable の DEAL_SHOW_MS・DICE_SHOW_MS）
       dealHold: (first) => (dealShowOn() ? DEAL_SHOW_MS + (first ? DICE_SHOW_MS : 0) : 0),
       store: lockerStore(roomId, this.myId),
-      onChange: () => this.set({ tableRev: this.s.tableRev + 1 }),
+      onChange: () => {
+        this.set({ tableRev: this.s.tableRev + 1 });
+        // 終局したら一度控え直す（最後の局の検算のあとに来る「対局の終わり」まで牌譜に入れる）
+        if (this.table?.view.phase === 'gameover' && !this.savedOver) {
+          this.savedOver = true;
+          this.saveKifu();
+        }
+      },
       onVerified: () => this.saveKifu(),
     });
     t.noCalls = readNoCalls();
     this.startedAt = isoLocal(new Date());
+    this.savedOver = false;
     return t;
   }
 
   /** 対局を始めた時刻（牌譜に残す） */
   private startedAt = '';
+  /** 終局のあと牌譜を控え直したか */
+  private savedOver = false;
 
   /**
    * 局の検算が済むたびに、全員の牌が見える牌譜を「最後に打った・開いた対局」に控え直す（6d・Q42＝A）。
    * 山が分からない局がある（途中で入り直した等）なら控えない
    */
   private saveKifu() {
+    const src = this.kifuSource();
+    if (src) saveLastGame(src);
+  }
+
+  /**
+   * いまの対局の牌譜（全員の牌が見える形）。山が分からない局がある（検算が済んでいない・途中で入り直した等）なら null。
+   * 終局の画面の保存とリンク（10-12・Q6=A）は、押したときにここから作る
+   */
+  kifuSource(): KifuSource | null {
     const t = this.table;
     const events = t?.fullLog();
-    if (!t || !events || events.length === 0) return;
+    if (!t || !events || events.length === 0) return null;
     const rules = this.s.rules;
-    saveLastGame({
+    return {
       seed: 'online',
       startedAt: this.startedAt,
       players: t.seats.map((x) => (x.kind === 'human' ? { name: x.name, kind: 'human' as const } : { name: 'CPU', kind: 'cpu' as const })),
@@ -455,7 +474,7 @@ export class OnlineSession {
       mode: 'online',
       walls: t.walls.map((w) => w.slice()),
       me: t.mySeat ?? 0,
-    });
+    };
   }
 
   private toLobby(note: OnlineNote | null) {

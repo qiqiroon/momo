@@ -145,7 +145,20 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
       setNote(t('saveFailed', { why: (e as Error).message }));
     }
   };
-  const toTop = () => {
+  /**
+   * オンライン対局の終局の画面の保存とリンク（10-12・Q6=A）。CPU と対局の終局と同じボタン（ファイル・Google ドライブ・牌譜のリンク・同じ山で勝負のリンク）。
+   * 牌譜が作れない（山が分からない局がある）ときは出さない
+   */
+  const onlineSave = (src: KifuSource | null) =>
+    src
+      ? {
+          onSaveFile: () => saveFile(src),
+          onSaveDrive: () => void saveDrive(src),
+          makeKifuLink: async () => `${location.origin}${location.pathname}#kifu=${await encodeKifuLink(src)}`,
+          makeSameLink: sameLinkOf(src),
+          saveNote: note,
+        }
+      : {};  const toTop = () => {
     quit();
     setScreen('top');
     setReplaying(null);
@@ -325,6 +338,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             onNext={() => tbl.next()}
             nextWait={ol.room?.isHost ? undefined : t('olWaitNext')}
             onTop={onTitle}
+            {...onlineSave(tbl.view.phase === 'gameover' ? online.kifuSource() : null)}
             dealt={fx.dealt}
             onQuit={onTitle}
             chat={<Chat t={t} you={t('you')} online={{ lines: ol.chat, myId: online.myId, onSend: (s) => online.sendChat(s) }} />}

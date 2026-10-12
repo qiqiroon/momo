@@ -65,6 +65,8 @@ export interface KifuSource {
   mode?: 'solo' | 'online';
   /** オンライン対局：局ごとの山の並び（検算で分かったもの。牌譜のリンクに入れる） */
   walls?: number[][];
+  /** 自分の席（オンライン対局。同じ山で勝負のリンクで自分の成績と席を使う。無ければ 0） */
+  me?: Seat;
   /** CPU の強さ（段階7。無ければ記録の前＝10-11 より前の対局） */
   cpu?: 'easy' | 'hard' | 'apocalypse';
 }

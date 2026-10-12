@@ -454,6 +454,7 @@ export class OnlineSession {
       events,
       mode: 'online',
       walls: t.walls.map((w) => w.slice()),
+      me: t.mySeat ?? 0,
     });
   }
 

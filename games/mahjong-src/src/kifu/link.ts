@@ -13,8 +13,7 @@
 // 版 2（10-11）：ルールは全項目の値をそのまま書く（a）。版 1 はセットとの差だけ（r）だったので、あとでセットの値が変わると読み違える。
 
 import { strengthOf } from '../cpu/strength';
-import { act, advance, dealChunkPositions, legalActions, nextHand, rollForDealer, startRound } from '../engine/round';
-import { doraIndicatorPos } from '../engine/dora';
+import { act, advance, legalActions, nextHand, rollForDealer, startRound, startRoundFromWall } from '../engine/round';
 import { dealerByDice } from '../engine/state';
 import { decodeRuleLink, decodeRuleValues, encodeRuleValues } from '../engine/ruleSets';
 import type { JpRuleKey, Rules } from '../engine/rules';
@@ -43,6 +42,8 @@ interface Head {
   o?: { d: [Seat, number, number]; w: number };
   /** CPU の強さ（段階7で追加。無ければ書かれる前のリンク） */
   c?: KifuSource['cpu'];
+  /** 1＝一人用だが山は決まった並び（オンライン対局から作った同じ山で勝負）。o の山で作り直すが、オンライン対局ではない */
+  l?: 1;
 }
 
 /** 局ごとの山（位置→牌の背番号。まだ分からない位置は -1） */
@@ -121,12 +122,9 @@ const srcOf = (s: GameState, head: Head, walls: Walls) => (head.o ? (pos: number
 
 /** オンライン対局の局の始まり（table.ts の startRound と同じ並び） */
 function roundStartOnline(seq: number, r: { roundIndex: number; dealer: Seat; honba: number }, walls: Walls, hand: number): Envelope[] {
-  const at = (pos: number) => tileAt(walls, hand, pos);
-  const out: Envelope[] = [{ seq: seq++, to: 'all', ev: { type: 'roundStart', roundIndex: r.roundIndex, dealer: r.dealer, honba: r.honba } }];
-  for (const c of dealChunkPositions(r.dealer)) out.push({ seq: seq++, to: [c.seat], ev: { type: 'deal', seat: c.seat, tiles: c.positions.map(at) } });
-  out.push({ seq: seq++, to: 'all', ev: { type: 'doraReveal', tile: at(doraIndicatorPos(136, 0)) } });
-  return out;
+  return startRoundFromWall(seq, r, (pos) => tileAt(walls, hand, pos));
 }
+
 
 /** 牌譜を、詰めた中身（縮める前のバイト列）にする */
 export function packKifu(src: KifuSource): Uint8Array {
@@ -139,9 +137,10 @@ export function packKifu(src: KifuSource): Uint8Array {
   if (src.cpu) head.c = src.cpu;
   // 山の並び：控えがあればそれ、無ければ作り直しながら牌譜から読み取る
   const walls: Walls = (src.walls ?? []).map((w) => w.slice());
-  if (src.mode === 'online') {
+  if (src.mode === 'online' || src.walls) {
     const d = ev[1].ev;
     head.o = { d: [d.by, d.dice[0], d.dice[1]], w: walls.length };
+    if (src.mode !== 'online') head.l = 1;
   }
   const out: number[] = [];
   // 作り直しながら進め、選んだところだけを書く（作り直した列が元と同じことも同時に確かめる）
@@ -242,7 +241,7 @@ export function unpackKifu(bytes: Uint8Array): KifuSource {
     take(act(s, seat, legal[n], srcOf(s, head, walls)));
   }
   if (events.length !== head.n) throw new Error('出来事の数が合わない');
-  return { seed: head.s, startedAt: head.t, players: head.p ?? [], set: head.e, events, ...(head.c ? { cpu: strengthOf(head.c) } : {}), ...(head.o ? { mode: 'online' as const, walls } : {}) };
+  return { seed: head.s, startedAt: head.t, players: head.p ?? [], set: head.e, events, ...(head.c ? { cpu: strengthOf(head.c) } : {}), ...(head.o ? (head.l ? { walls } : { mode: 'online' as const, walls }) : {}) };
 }
 
 // ---- 縮める・URL の文字にする ----

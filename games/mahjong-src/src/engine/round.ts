@@ -96,6 +96,17 @@ export function startRound(state: GameState, gameSeed: string, roundIndex: numbe
   return out;
 }
 
+/**
+ * 決まった山の並びから局を始める（オンライン対局の牌譜の作り直し・同じ山で勝負のオンライン版）。
+ * 並びは局面に持たせず、src で山の位置の牌を聞く＝このあとの advance・act にも同じ src を渡す。
+ * 出来事の並びはオンラインの卓（online/table.ts）と同じ：局の始まり→配牌の塊→ドラ表示牌
+ */
+export function startRoundFromWall(seq: number, r: { roundIndex: number; dealer: Seat; honba: number }, src: TileSource): Envelope[] {
+  const out: Envelope[] = [{ seq: seq++, to: 'all', ev: { type: 'roundStart', roundIndex: r.roundIndex, dealer: r.dealer, honba: r.honba } }];
+  for (const c of dealChunkPositions(r.dealer)) out.push({ seq: seq++, to: [c.seat], ev: { type: 'deal', seat: c.seat, tiles: c.positions.map(src) } });
+  out.push({ seq: seq++, to: 'all', ev: { type: 'doraReveal', tile: src(doraIndicatorPos(136, 0)) } });
+  return out;
+}
 // ---- 局の進行（段階1：ツモって切る） ----
 // 進め方：番の人がツモる前（phase='draw'）なら advance、切る前（phase='discard'）ならその席の人（画面か CPU）が選んだ act を出す。
 // どちらも「全部を知る局面」を受け取り、次の出来事を返すだけ。局面を変えるのは state.ts の apply だけ。

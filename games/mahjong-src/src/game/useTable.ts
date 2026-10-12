@@ -7,9 +7,11 @@ import { useCallback, useEffect, useReducer } from 'react';
 import { cpuOf, DEFAULT_STRENGTH, type Strength } from '../cpu/strength';
 import { mask, type Envelope, type Seat } from '../engine/events';
 import { nextStep } from '../engine/game';
-import { act, advance, legalActions, nextHand, rollForDealer, startRound, type Action } from '../engine/round';
+import { act, advance, legalActions, nextHand, rollForDealer, roundSeed, startRound, startRoundFromWall, type Action, type TileSource } from '../engine/round';
 import { GENERAL_RULES, type Rules } from '../engine/rules';
-import { apply, initialState, type GameState } from '../engine/state';
+import { apply, dealerByDice, initialState, type GameState } from '../engine/state';
+import { createRng, shuffle } from '../engine/rng';
+import type { SameWallOnline } from '../kifu/same';
 import { isoLocal, type KifuSource } from '../kifu/kifu';
 import { saveLastGame } from '../kifu/store';
 
@@ -37,6 +39,8 @@ interface TableState {
   set: string;
   /** CPU の強さ（3 人まとめて 1 つ） */
   strength: Strength;
+  /** 決まった山の並びで打つ（オンライン対局から作った同じ山で勝負）。null＝山は種から作る */
+  fixed: SameWallOnline | null;
   /** 対局を始めた日時（牌譜のファイル名と記録に使う） */
   startedAt: string;
   log: Envelope[];
@@ -44,7 +48,7 @@ interface TableState {
   view: GameState;
 }
 
-const empty = (seed = '', startedAt = '', set = 'general', strength: Strength = DEFAULT_STRENGTH): TableState => ({ seed, startedAt, set, strength, log: [], full: initialState(), view: initialState() });
+const empty = (seed = '', startedAt = '', set = 'general', strength: Strength = DEFAULT_STRENGTH, fixed: SameWallOnline | null = null): TableState => ({ seed, startedAt, set, strength, fixed, log: [], full: initialState(), view: initialState() });
 
 function pushAll(s: TableState, envs: readonly Envelope[]): TableState {
   // 古い局面から作った出来事（二重に届いたもの）は捨てる
@@ -57,15 +61,37 @@ function pushAll(s: TableState, envs: readonly Envelope[]): TableState {
   return { ...s, log: [...s.log, ...envs], full, view };
 }
 
-type Msg = { type: 'reset'; seed: string; startedAt: string; set: string; strength: Strength } | { type: 'push'; envs: Envelope[] } | { type: 'clear' };
+type Msg = { type: 'reset'; seed: string; startedAt: string; set: string; strength: Strength; fixed: SameWallOnline | null } | { type: 'push'; envs: Envelope[] } | { type: 'clear' };
 
 function reducer(s: TableState, m: Msg): TableState {
   if (m.type === 'clear') return empty();
-  return m.type === 'reset' ? empty(m.seed, m.startedAt, m.set, m.strength) : pushAll(s, m.envs);
+  return m.type === 'reset' ? empty(m.seed, m.startedAt, m.set, m.strength, m.fixed) : pushAll(s, m.envs);
 }
 
 /** 最後の対局として端末に覚える形（名前は保存するときの表示の言葉で入れる） */
-const sourceOf = (s: TableState): KifuSource => ({ seed: s.seed, startedAt: s.startedAt, players: [], set: s.set, cpu: s.strength, events: s.log });
+const sourceOf = (s: TableState): KifuSource => ({
+  seed: s.seed,
+  startedAt: s.startedAt,
+  players: [],
+  set: s.set,
+  cpu: s.strength,
+  events: s.log,
+  // 決まった山で打った対局は、使った局の山を残す（牌譜のリンク・次の同じ山で勝負に使う）
+  ...(s.fixed ? { walls: Array.from({ length: s.full.handCount }, (_, h) => wallOf(s, h)) } : {}),
+});
+
+/** 決まった山で打つとき、h 局目（0 から）の山。リンクの山より局が多くなったら、種から作った新しい山で続ける */
+function wallOf(s: TableState, h: number): number[] {
+  const given = s.fixed?.walls[h];
+  return given ?? shuffle(Array.from({ length: 136 }, (_, i) => i), createRng(roundSeed(s.seed, h)));
+}
+
+/** 決まった山で打つとき、いまの局の山の位置の牌を返すもの（種から作る対局は undefined＝局面が山を持っている） */
+const srcOf = (s: TableState, full: GameState): TileSource | undefined => {
+  if (!s.fixed) return undefined;
+  const w = wallOf(s, full.handCount - 1);
+  return (pos) => w[pos];
+};
 
 /** 端末に書く間隔（出来事のたびに全部を書くと重いので、まとめて書く） */
 const SAVE_DELAY = 800;
@@ -81,15 +107,20 @@ export function useTable() {
   const { full, view } = s;
   const cpu = cpuOf(s.strength);
 
-  /** 対局を始める。rules＝選んだルール（無ければ一般ルール）・set＝セットの名前か 'custom'（牌譜に残す）・given＝山の種（同じ山で勝負のとき）・strength＝CPU の強さ */
-  const start = useCallback((rules: Rules = GENERAL_RULES, set = 'general', given?: string, strength: Strength = DEFAULT_STRENGTH) => {
+  /** 対局を始める。rules＝選んだルール（無ければ一般ルール）・set＝セットの名前か 'custom'（牌譜に残す）・given＝山の種（同じ山で勝負のとき）・strength＝CPU の強さ・fixed＝決まった山の並び（オンライン対局から作った同じ山で勝負） */
+  const start = useCallback((rules: Rules = GENERAL_RULES, set = 'general', given?: string, strength: Strength = DEFAULT_STRENGTH, fixed: SameWallOnline | null = null) => {
     const seed = given ?? newSeed();
     const first: Envelope = { seq: 0, to: 'all', ev: { type: 'gameStart', rules } };
     // 親決め（自分が仮親としてサイコロを振る）→ 起家から最初の局
-    const dice: Envelope = { seq: 1, to: 'all', ev: rollForDealer(seed, HUMAN) };
+    const dice: Envelope = fixed
+      ? { seq: 1, to: 'all', ev: { type: 'dealerDice', by: fixed.by, dice: fixed.dice, dealer: dealerByDice(fixed.by, fixed.dice) } }
+      : { seq: 1, to: 'all', ev: rollForDealer(seed, HUMAN) };
     const afterDice = apply(apply(initialState(), first), dice);
-    dispatch({ type: 'reset', seed, startedAt: isoLocal(new Date()), set, strength });
-    dispatch({ type: 'push', envs: [first, dice, ...startRound(afterDice, seed, 0, afterDice.chicha)] });
+    dispatch({ type: 'reset', seed, startedAt: isoLocal(new Date()), set, strength, fixed });
+    const firstRound = fixed
+      ? startRoundFromWall(2, { roundIndex: 0, dealer: afterDice.chicha, honba: 0 }, (pos) => fixed.walls[0][pos])
+      : startRound(afterDice, seed, 0, afterDice.chicha);
+    dispatch({ type: 'push', envs: [first, dice, ...firstRound] });
   }, []);
 
   // 最後の対局を端末に覚える（少し待ってまとめて書く。対局が終わったらすぐ書く）
@@ -112,9 +143,16 @@ export function useTable() {
   // 局が終わったあと「次の局へ」：次の局を配る（オーラスでやめるか選ぶ番なら、親が選ぶまで何もしない）
   const next = useCallback(() => {
     if (full.phase !== 'ended') return;
-    const envs = nextHand(full, s.seed);
+    let envs = nextHand(full, s.seed);
+    if (s.fixed) {
+      const n = nextStep(full);
+      if (n.type === 'round') {
+        const w = wallOf(s, full.handCount);
+        envs = startRoundFromWall(full.nextSeq, n, (pos) => w[pos]);
+      }
+    }
     if (envs.length > 0) dispatch({ type: 'push', envs });
-  }, [full, s.seed]);
+  }, [full, s]);
 
   // 自動で進むところ：ツモ（人間の番はすぐ・CPU の番は少し間を置く）と CPU の打牌・切られた牌への返事
   useEffect(() => {
@@ -138,7 +176,7 @@ export function useTable() {
           a = cpu(cpuView, seat);
           if (a.type === 'ron') cpuRon = true;
         }
-        const out = act(next, seat, a);
+        const out = act(next, seat, a, srcOf(s, next));
         for (const e of out) next = apply(next, e);
         envs.push(...out);
       }
@@ -148,14 +186,14 @@ export function useTable() {
     }
     if (full.phase === 'deal' || full.phase === 'draw') {
       const wait = full.phase === 'deal' ? dealHold + (dealHold > 0 && showsDice(full) ? DICE_SHOW_MS : 0) : full.turn === HUMAN ? 0 : CPU_DELAY / 2;
-      const id = setTimeout(() => dispatch({ type: 'push', envs: advance(full) }), wait);
+      const id = setTimeout(() => dispatch({ type: 'push', envs: advance(full, srcOf(s, full)) }), wait);
       return () => clearTimeout(id);
     }
     // 流局の宣言：自分が言えることが 1 つだけなら自動で言う（テンパイを隠せるときだけボタンで選ぶ）
     if (full.phase === 'declare' && full.turn === HUMAN) {
       const options = legalActions(full, HUMAN);
       if (options.length !== 1) return undefined;
-      const id = setTimeout(() => dispatch({ type: 'push', envs: act(full, HUMAN, options[0]) }), CPU_DELAY / 2);
+      const id = setTimeout(() => dispatch({ type: 'push', envs: act(full, HUMAN, options[0], srcOf(s, full)) }), CPU_DELAY / 2);
       return () => clearTimeout(id);
     }
     // オーラスでトップの親が CPU なら、やめるか続けるかを CPU が選ぶ
@@ -164,27 +202,27 @@ export function useTable() {
       if (n.type !== 'yame' || n.seat === HUMAN) return undefined;
       const seat = n.seat;
       const cpuView = s.log.reduce((st, e) => apply(st, mask(e, seat)), initialState());
-      const id = setTimeout(() => dispatch({ type: 'push', envs: act(full, seat, cpu(cpuView, seat)) }), CPU_DELAY);
+      const id = setTimeout(() => dispatch({ type: 'push', envs: act(full, seat, cpu(cpuView, seat), srcOf(s, full)) }), CPU_DELAY);
       return () => clearTimeout(id);
     }
     if ((full.phase === 'discard' || full.phase === 'declare') && full.turn !== HUMAN) {
       const seat = full.turn;
       // CPU には、その席から見える局面だけを渡す
       const cpuView = s.log.reduce((st, e) => apply(st, mask(e, seat)), initialState());
-      const id = setTimeout(() => dispatch({ type: 'push', envs: act(full, seat, cpu(cpuView, seat)) }), CPU_DELAY);
+      const id = setTimeout(() => dispatch({ type: 'push', envs: act(full, seat, cpu(cpuView, seat), srcOf(s, full)) }), CPU_DELAY);
       return () => clearTimeout(id);
     }
     return undefined;
-  }, [full, s.log, cpu]);
+  }, [full, s, cpu]);
 
   const choose = useCallback(
     (a: Action) => {
       const replying = full.phase === 'claim' && full.claim?.replies[HUMAN] === null;
       const yame = full.phase === 'ended' && a.type === 'yame';
       if (!replying && !yame && ((full.phase !== 'discard' && full.phase !== 'declare') || full.turn !== HUMAN)) return;
-      dispatch({ type: 'push', envs: act(full, HUMAN, a) });
+      dispatch({ type: 'push', envs: act(full, HUMAN, a, srcOf(s, full)) });
     },
-    [full],
+    [full, s],
   );
 
   return { view, legal: legalActions(view, HUMAN), start, next, choose, quit, source: sourceOf(s), started: s.log.length > 0 };

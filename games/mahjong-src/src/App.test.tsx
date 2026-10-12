@@ -2,8 +2,12 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { App } from './App';
 import { benchCpu } from './cpu/bench';
 import { GENERAL_RULES } from './engine/rules';
-import { encodeKifuLink } from './kifu/link';
-import { encodeSameLink } from './kifu/same';
+import { decodeKifuLink, encodeKifuLink } from './kifu/link';
+import { encodeSameLink, sameWallOf } from './kifu/same';
+import type { KifuSource } from './kifu/kifu';
+import type { Envelope } from './engine/events';
+import { createRng, shuffle } from './engine/rng';
+import { tileSetFor } from './engine/tiles';
 import { decodeRuleLink } from './engine/ruleSets';
 import { playOne } from './selfplay/run';
 import { APP_VERSION } from './version';
@@ -437,6 +441,31 @@ describe('同じ山で勝負（6e）', () => {
     expect(localStorage.getItem('momo-mahjong.rules')).toBeNull();
   });
 
+  it('オンライン対局から作ったリンク（Q5=A）：説明が出て、始めると送った人の席の配牌で打つ。その対局は山ごと牌譜のリンクにできる（オンライン対局とは記録しない）', async () => {
+    const r = playOne('app-same-online', GENERAL_RULES, benchCpu, true);
+    const walls = r.log.filter((e) => e.ev.type === 'wallSeed').map((e) => (e.ev.type === 'wallSeed' ? shuffle(tileSetFor(GENERAL_RULES), createRng(e.ev.seed ?? '')) : []));
+    const sw = sameWallOf({ seed: 'online', startedAt: '2026-10-12T10:00:00+09:00', players: [], set: 'general', events: r.log, mode: 'online', walls, me: 1 });
+    localStorage.removeItem('momo-mahjong.lastGame');
+    history.replaceState(null, '', `#same=${encodeSameLink(sw)}`);
+    render(<App startConsented />);
+    // 単独で回すと言語が変わるので、文字でなく欄の印で確かめる
+    expect(document.querySelector('.same-online')).not.toBeNull();
+    expect(document.querySelector('.same-fair')).not.toBeNull();
+    fireEvent.click(document.querySelector('.btn-start')!);
+    await waitFor(() => expect(localStorage.getItem('momo-mahjong.lastGame')).not.toBeNull(), { timeout: 3000 });
+    const src = JSON.parse(localStorage.getItem('momo-mahjong.lastGame')!) as KifuSource;
+    // 自分（席 0）の配牌＝送った人（席 1）の最初の配牌
+    const deals = (log: Envelope[], seat: number) => log.slice(0, 40).flatMap((e) => (e.ev.type === 'deal' && e.ev.seat === seat ? e.ev.tiles : []));
+    expect(deals(src.events, 0)).toEqual(deals(r.log, 1));
+    expect(src.walls?.[0]).toEqual(walls[0]);
+    expect(src.mode).toBeUndefined();
+    // 牌譜のリンクにして読み直すと、同じ出来事・同じ山（一人用のまま）
+    const back = await decodeKifuLink(await encodeKifuLink(src));
+    expect(back.events).toEqual(src.events);
+    expect(back.mode).toBeUndefined();
+    expect(back.walls?.[0]).toEqual(walls[0]);
+    localStorage.removeItem('momo-mahjong.lastGame');
+  });
   it('壊れたリンクは「読めませんでした」を出す', () => {
     history.replaceState(null, '', '#same=abc');
     render(<App startConsented />);

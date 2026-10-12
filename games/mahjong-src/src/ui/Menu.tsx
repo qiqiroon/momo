@@ -188,6 +188,7 @@ export function SameWallScreen({ t, lang, sw, onStart, onCancel }: { t: T; lang:
           <p className="guide">{t('sameGuide')}</p>
           {sw.result && <p className="guide same-result">{t('sameTheirResult', { rank: sw.result.rank, total: (sw.result.total > 0 ? '+' : '') + sw.result.total.toFixed(1) })}</p>}
           <p className="guide same-strength">{t('sameStrength', { s: STRENGTH_LABEL[sw.strength] })}</p>
+          {sw.online && <p className="guide same-online">{t('sameOnlineNote')}</p>}
           {/* 山が分かってしまうので公平性は無い（利用者指示 10-11）。同意は求めない */}
           <p className="guide same-fair" role="note">
             {t('sameStartWarn')}

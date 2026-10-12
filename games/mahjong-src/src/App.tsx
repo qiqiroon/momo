@@ -2,10 +2,8 @@ import { loadStrength, strengthOf } from './cpu/strength';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Envelope } from './engine/events';
 import { HUMAN, useTable } from './game/useTable';
-import { decodeRuleLink, JP_SETS, labelOf, type RuleChoice, type SetId } from './engine/ruleSets';
-import { decodeSameLink, encodeSameLink, type SameWall } from './kifu/same';
-import { finalResult } from './engine/final';
-import { apply, initialState } from './engine/state';
+import { decodeRuleLink, labelOf, type RuleChoice } from './engine/ruleSets';
+import { decodeSameLink, encodeSameLink, sameWallOf, type SameWall } from './kifu/same';
 import { loadRuleChoice, saveRuleChoice } from './ui/RuleSettings';
 import { SeatContext, type SeatInfo } from './ui/seatContext';
 import { buildKifu, kifuFileName, parseKifu, type Kifu, type KifuSource } from './kifu/kifu';
@@ -43,16 +41,6 @@ function readSameLink(): { sw: SameWall | null } | null {
   return m ? { sw: decodeSameLink(m[1]) } : null;
 }
 
-/** 牌譜（CPU と対局）から、同じ山で勝負のリンクの中身を作る。終わった対局なら自分（席 0）の順位と最終得点も入れる */
-function sameWallOf(src: KifuSource): SameWall {
-  let s = initialState();
-  for (const e of src.events) s = apply(s, e);
-  const values = (s.rules?.family === 'jp' ? s.rules.values : {}) as RuleChoice['values'];
-  const base = (JP_SETS as readonly string[]).includes(src.set) ? (src.set as SetId) : 'general';
-  const me = s.phase === 'gameover' ? finalResult(s).find((r) => r.seat === 0) : undefined;
-  return { choice: { base, values }, seed: src.seed, strength: strengthOf(src.cpu), ...(me ? { result: { rank: me.rank, total: me.total } } : {}) };
-}
-
 /** ページの住所の #rules=… を読む（無ければ null） */
 function readRuleLink(): { choice: RuleChoice | null } | null {
   const m = /^#rules=(.+)$/.exec(location.hash);
@@ -83,8 +71,8 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   };
   /** 牌譜ファイル（読み込んだもの）を牌譜の元にする */
   const srcOfKifu = (k: Kifu): KifuSource => ({ seed: k.seed, startedAt: k.startedAt, players: k.players.map((p) => ({ name: p.name, kind: p.kind })), set: k.rules.set, events: k.events, mode: k.mode, ...(k.cpu ? { cpu: strengthOf(k.cpu) } : {}) });
-  /** 同じ山で勝負のリンク（CPU と対局の牌譜だけ） */
-  const sameLinkOf = (src: KifuSource | null) => (src && src.mode !== 'online' && src.seed ? () => `${location.origin}${location.pathname}#same=${encodeSameLink(sameWallOf(src))}` : null);
+  /** 同じ山で勝負のリンク（CPU と対局の牌譜か、山の並びを持つ牌譜＝オンライン対局など） */
+  const sameLinkOf = (src: KifuSource | null) => (src && (src.walls?.length || (src.mode !== 'online' && src.seed)) ? () => `${location.origin}${location.pathname}#same=${encodeSameLink(sameWallOf(src))}` : null);
   /** トップ画面で覚えている最後の対局（トップへ戻るたびに読み直す） */
   const [last, setLast] = useState<KifuSource | null>(() => loadLastGame());
   /** 保存・読み込みの結果の一言 */
@@ -357,7 +345,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
                 setScreen('top');
                 // 同じ山（種）とルールで CPU と対局（端末のルールの控えは変えない）
                 setSameFrom(sw?.result ?? null);
-                if (sw) start({ family: 'jp', values: sw.choice.values }, labelOf(sw.choice.values, sw.choice.base), sw.seed, sw.strength);
+                if (sw) start({ family: 'jp', values: sw.choice.values }, labelOf(sw.choice.values, sw.choice.base), sw.seed, sw.strength, sw.online ?? null);
               }}
               onCancel={() => {
                 history.replaceState(null, '', location.pathname + location.search);

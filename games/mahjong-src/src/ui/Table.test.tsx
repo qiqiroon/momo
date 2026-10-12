@@ -394,3 +394,27 @@ describe('四川：アガリの結果の枠（段階9の手順2）', () => {
     expect(document.querySelector('.score-total')).toHaveTextContent(`底分 ${w.score.points}`);
   });
 });
+describe('血戦到底：局の途中の画面（段階9の手順3）', () => {
+  it('アガって抜けた人の名札に「アガリ」、卓の上に最後にアガった人の一言。結果の枠には局の全部のアガリ', () => {
+    let log: Envelope[] | null = null;
+    for (let i = 0; i < 300 && !log; i++) {
+      const r = playOne(`bb-table-${i}`, rulesOfCnSet('sichuan'), benchCpu);
+      if (r.result?.type === 'cnWin' && !r.failure && r.result.wins.length >= 2) log = r.log;
+    }
+    if (!log) throw new Error('2 人以上アガる局が見つからない');
+    // 最初に誰かが抜けた直後まで
+    let cut = 0;
+    while (!viewFor(log.slice(0, cut), 0).cnOut.some(Boolean)) cut++;
+    const mid = viewFor(log.slice(0, cut), 0);
+    expect(mid.phase).not.toBe('ended');
+    const { unmount } = render(<Table narrow={false} view={mid} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} />);
+    expect(document.querySelectorAll('.cn-out-mark')).toHaveLength(1);
+    expect(document.querySelector('.cn-win-note')).toHaveTextContent(/がアガリ（\d+点）/);
+    unmount();
+    const end = viewFor(log, 0);
+    if (end.result?.type !== 'cnWin') throw new Error('中国式のアガリのはず');
+    render(<Table narrow={false} view={end} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} />);
+    expect(document.querySelectorAll('.score-total')).toHaveLength(end.result.wins.length);
+    expect(document.querySelector('.cn-win-note')).toBeNull();
+  });
+});

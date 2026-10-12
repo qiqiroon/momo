@@ -124,11 +124,16 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   };
   const riichiMark = (seat: number) => (
     <>
+      {view.cnOut[seat] && <span className="cn-out-mark">{t('cnOutMark')}</span>}
       {queMark(seat)}
       {view.riichi[seat] !== 'none' && <span className="riichi-mark">{t('riichi')}</span>}
       {seat === me && furiten && furiten.reasons.length > 0 && <span className="furiten-mark">{t('furiten')}</span>}
     </>
   );
+
+  // 血戦到底：局の途中で最後にアガった人（局が終わるまで卓の上の帯に一言で出す）
+  const lastWin = view.phase !== 'ended' && view.phase !== 'gameover' ? view.cnWins[view.cnWins.length - 1] : undefined;
+  const winNote = lastWin && <span className="cn-win-note">{t('cnWinNote', { name: nameOf(lastWin.seat), n: lastWin.score.points })}</span>;
 
   const river = (seat: number) => (
     <div className="river">
@@ -228,6 +233,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
       {!showFinal && (
         <>
       {r.type === 'exhaust' && <p className="result-title">{t('resultExhaust')}</p>}
+      {r.type === 'cnWin' && r.exhausted && <p className="result-title">{t('cnExhausted')}</p>}
       {r.type === 'tripleRon' && <p className="result-title">{t('resultTripleRon')}</p>}
       {r.type === 'abort' && <p className="result-title">{t(`resultAbort_${r.reason}`, { name: r.seat === undefined ? '' : nameOf(r.seat) })}</p>}
       {r.type === 'abort' && r.reason === 'kyushu' && r.seat !== undefined && (
@@ -416,6 +422,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
           <span className="wall-left">{t('wallLeft', { n: left })}</span>
           {sticks}
           {indicators}
+          {winNote}
         </div>
         <div className="lanes">
           {[1, 2, 3, 0].map((rel) => {
@@ -490,6 +497,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
           <span className="wall-left">{t('wallLeft', { n: left })}</span>
           {sticks}
           {indicators}
+          {winNote}
           {[0, 1, 2, 3].map((rel) => {
             const seat = seatAt(rel);
             return (
@@ -708,6 +716,7 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: Ga
           </>
         )}
         {queWaiting && <span className="hint que-hint">{translate(lang, 'queWait')}</span>}
+        {view.cnOut[me] && view.phase !== 'ended' && view.phase !== 'gameover' && <span className="hint que-hint">{translate(lang, 'cnOutHint')}</span>}
         {canTsumo && (
           <button type="button" className="btn-primary btn-tsumo" onClick={() => onChoose({ type: 'tsumo' })}>
             {translate(lang, 'tsumo')}

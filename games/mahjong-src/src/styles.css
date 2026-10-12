@@ -921,6 +921,25 @@ body.in-game .site-header .subtitle {
   flex-wrap: wrap;
 }
 
+/* 血戦到底：アガって抜けた人の名札の印（オレンジ地に白い字）と、局の途中で最後にアガった人の一言 */
+.cn-out-mark {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--orange);
+  color: #fff;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.cn-win-note {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 /* 缺一門（四川）：名札の「缺萬」など。伏せただけでまだ切っていない人は「缺？」（点線の枠） */
 .que-mark {
   display: inline-block;

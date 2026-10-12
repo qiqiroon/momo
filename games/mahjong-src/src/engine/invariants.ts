@@ -58,6 +58,8 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   // 鳴いた面子 1 組につき 3 枚減る（カンは 4 枚出して嶺上牌を 1 枚引くので、引く前も引いたあとも同じ数え方になる）
   if (full.phase === 'draw' || full.phase === 'discard' || full.phase === 'claim' || full.phase === 'que') {
     full.hands.forEach((h, seat) => {
+      // 血戦到底でアガって抜けた人は、アガったときの手牌のまま（ツモは 14 枚・ロンは 13 枚）
+      if (full.cnOut[seat]) return;
       const want = ((full.phase === 'discard' || full.phase === 'que') && seat === full.turn ? 14 : 13) - 3 * full.melds[seat].length;
       if (h.length !== want) bad.push(`手牌の枚数が違う（席 ${seat}：${h.length} 枚・正しくは ${want} 枚）`);
     });
@@ -213,6 +215,15 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       if (w.pays.reduce((a, b) => a + b, 0) !== 0) bad.push(`席 ${w.seat}：アガリの点の動きの合計が 0 でない`);
     }
   }
+  // 血戦到底：抜けた人に番が来ない・抜けた人は手牌を開けている・この局のアガリの点は持ち点に入っている（合計 0）・残りが 2 人以上いる間だけ続く
+  if (full.cnOut.some(Boolean)) {
+    if ((full.phase === 'draw' || full.phase === 'discard') && full.cnOut[full.turn]) bad.push(`席 ${full.turn}：アガって抜けたのに番が来た`);
+    full.cnOut.forEach((o, seat) => {
+      if (o && !full.opened[seat]) bad.push(`席 ${seat}：抜けたのに手牌を開けていない`);
+      if (o && !full.cnWins.some((w) => w.seat === seat)) bad.push(`席 ${seat}：アガっていないのに抜けた`);
+    });
+    if (full.phase !== 'ended' && full.phase !== 'gameover' && full.cnOut.filter((o) => !o).length < 2) bad.push('残りが 1 人なのに局が続いている');
+  }
   // 喰い替え禁止の牌が残っているのは、鳴いた人が切る前だけ
   if (full.kuikaeBan.length > 0 && full.phase !== 'discard') bad.push('喰い替え禁止の牌が、切る番の外で残っている');
 
@@ -295,6 +306,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     if (JSON.stringify(v.claim) !== JSON.stringify(full.claim)) bad.push(`席 ${viewer}：返事の集まり方が全体と違う`);
     // 缺一門：宣言した色は全員同じ。伏せた牌と色は本人だけが知る（ほかの人には伏せた事実だけ）
     if (v.que.join() !== full.que.join()) bad.push(`席 ${viewer}：缺一門の宣言が全体と違う`);
+    if (v.cnOut.join() !== full.cnOut.join() || JSON.stringify(v.cnWins) !== JSON.stringify(full.cnWins)) bad.push(`席 ${viewer}：血戦到底の抜けた人・アガリが全体と違う`);
     full.queHeld.forEach((t, seat) => {
       const want = t === null ? null : seat === viewer ? t : HIDDEN;
       const wantSuit = full.queHeldSuit[seat] === null ? null : seat === viewer ? full.queHeldSuit[seat] : HIDDEN;

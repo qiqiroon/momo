@@ -83,8 +83,9 @@ export type RoundResult =
   | { type: 'tripleRon'; from: Seat; seats: Seat[] }
   /** 途中流局。kyushu＝九種九牌（seat が流した）／sufon＝四風連打／suricchi＝四家立直／sukan＝四開槓 */
   | { type: 'abort'; reason: AbortReason; seat?: Seat }
-  /** 中国式のアガリ（段階9）。wins＝アガった人（ロンは切った人の下家から順。同じ牌で何人でも＝ルールの multiWin） */
-  | { type: 'cnWin'; wins: CnWin[] };
+  /** 中国式のアガリ（段階9）。wins＝アガった人（アガった順。同じ牌のロンは切った人の下家から順＝ルールの multiWin）。
+   *  血戦到底（アガった人が抜けて続く）は、局の終わりにその局の全部のアガリを入れる。exhausted＝山が尽きて終わった */
+  | { type: 'cnWin'; wins: CnWin[]; exhausted?: boolean };
 
 /** 中国式のアガリ 1 人分。from＝切った人（ツモは null）。pays＝席ごとの点の動き（受け取りが＋・合計 0） */
 export interface CnWin {
@@ -209,6 +210,23 @@ export interface GameState {
   /** 中国式の見逃し（ルールの miss が nextDraw）：ロンできたのに見送った人の、そのときの基本点（次に自分が引くまで、それより高くなければロンできない）。
    *  手牌が見える本人の端末と全体の局面でだけ立つ */
   cnMissed: (number | null)[];
+  /** 血戦到底：アガって抜けた席（局の終わりまで打たない・手牌は開けたまま） */
+  cnOut: boolean[];
+  /** 血戦到底：この局のアガリ（アガった順。点はアガったときに持ち点へ足してある） */
+  cnWins: CnWin[];
+}
+
+/** 血戦到底のルールか（中国式で afterWin が「抜けて続く」） */
+export const bloodBattle = (rules: Rules | null): boolean => rules?.family === 'cn' && rules.values.afterWin === 'leave';
+
+/** seat の下家から順に、まだ抜けていない最初の席（抜けた人がいなければ下家） */
+export function nextActive(s: GameState, seat: Seat): Seat {
+  let x = seat;
+  for (let i = 0; i < 4; i++) {
+    x = ((x + 1) % 4) as Seat;
+    if (!s.cnOut[x]) return x;
+  }
+  return x;
 }
 
 /** 缺一門のルールか（中国式で queyimen が「あり」） */
@@ -319,6 +337,8 @@ export const initialState = (): GameState => ({
   queHeldSuit: [null, null, null, null],
   que: [null, null, null, null],
   cnMissed: [null, null, null, null],
+  cnOut: [false, false, false, false],
+  cnWins: [],
 });
 
 /** 王牌（ツモらずに残す山の尻）の枚数。日本式は 14 枚で固定（136 枚と同じく変えられない決まり）。中国式は段階9で決める */
@@ -413,6 +433,8 @@ export function apply(state: GameState, env: Envelope): GameState {
         queHeldSuit: [null, null, null, null],
         que: [null, null, null, null],
         cnMissed: [null, null, null, null],
+        cnOut: [false, false, false, false],
+        cnWins: [],
       };
     }
     case 'queHold': {
@@ -447,6 +469,7 @@ export function apply(state: GameState, env: Envelope): GameState {
       // 最初のツモで配り終わりになる
       if (s.phase !== 'deal' && s.phase !== 'draw') throw new Error('ツモる時ではない');
       if (ev.seat !== s.turn) throw new Error(`番でない席がツモった（番 ${s.turn}・ツモ ${ev.seat}）`);
+      if (s.cnOut[ev.seat]) throw new Error('アガって抜けた人がツモった');
       const rinshan = !!ev.rinshan;
       if (rinshan !== s.rinshanDue) throw new Error(rinshan ? 'カンしていないのに嶺上牌を引いた' : 'カンのあとなのに嶺上牌でなく山から引いた');
       // 嶺上牌は王牌から引く（カンできるのは山が残っているときだけ＝引いたあとも王牌は山の尻から補われて 14 枚のまま）
@@ -526,7 +549,8 @@ export function apply(state: GameState, env: Envelope): GameState {
       const missedTurn = s.missedTurn.slice();
       missedTurn[ev.seat] = false;
       // ほかの 3 人の返事を待つ（番は切った人のまま。全員見送ったら次の人へ）
-      const replies: Claim['replies'] = [null, null, null, null];
+      // 血戦到底で抜けた人は返事をしない（切った本人と同じ扱い）
+      const replies: Claim['replies'] = s.cnOut.map((o) => (o ? 'self' : null));
       replies[ev.seat] = 'self';
       const claim: Claim = { kind: 'discard', from: ev.seat, tile: ev.tile, replies, rons: [], calls: [], afterKan: s.rinshanDraw };
       const after: GameState = { ...s, phase: 'claim', hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn, claim, rinshanDraw: false, kuikaeBan: [], que, queHeld, queHeldSuit };
@@ -687,7 +711,8 @@ export function apply(state: GameState, env: Envelope): GameState {
         hands[ev.seat] = ev.hand.slice();
         const opened = s.opened.slice();
         opened[ev.seat] = true;
-        const win: CnWin = { seat: ev.seat, from: null, winTile: ev.winTile, score, pays: cnTsumoPays(ev.seat, score) };
+        const win: CnWin = { seat: ev.seat, from: null, winTile: ev.winTile, score, pays: cnTsumoPays(s, ev.seat, score) };
+        if (bloodBattle(s.rules)) return cnLeave({ ...s, hands, opened }, [win], ev.seat);
         return finish({ ...s, hands, opened }, { type: 'cnWin', wins: [win] }, win.pays);
       }
       // 裏ドラはリーチしている人だけ、ドラ表示牌と同じ枚数をめくる
@@ -704,6 +729,7 @@ export function apply(state: GameState, env: Envelope): GameState {
     case 'exhaust': {
       if (s.phase !== 'draw' || s.rinshanDue || liveWallLeft(s) > 0) throw new Error('山が残っているのに流局した');
       // 中国式の流局（查叫・花豬）は段階9の手順5。それまでは宣言なしで点を動かさずに終える
+      if (s.rules?.family === 'cn' && s.cnWins.length > 0) return cnFinish({ ...s, drawn: [null, null, null, null] }, true);
       if (s.rules?.family === 'cn') return finish({ ...s, drawn: [null, null, null, null] }, { type: 'exhaust', tenpai: [false, false, false, false], payments: [0, 0, 0, 0] }, [0, 0, 0, 0]);
       // 親から順に宣言する
       return { ...s, phase: 'declare', turn: s.dealer, drawn: [null, null, null, null] };
@@ -778,7 +804,7 @@ function settleClaim(s0: GameState): GameState {
       // 打牌が通った（誰もロンも鳴きもしない）ところで、途中流局を確かめる
       const reason = abortAfterPass(s, c);
       if (reason) return finish({ ...s, claim: null }, { type: 'abort', reason }, [0, 0, 0, 0]);
-      return { ...s, phase: 'draw', turn: nextSeat(c.from), claim: null };
+      return { ...s, phase: 'draw', turn: nextActive(s, c.from), claim: null };
     }
     return applyCall(s, c, call);
   }
@@ -819,7 +845,30 @@ function settleCnRon(s: GameState, c: Claim): GameState {
   const v = s.rules?.family === 'cn' ? s.rules.values : null;
   const winners = v?.multiWin === 'atama' ? rons.slice(0, 1) : rons;
   const wins: CnWin[] = winners.map((r) => ({ seat: r.seat, from: c.from, winTile: c.tile, score: r.score, pays: cnRonPays(c.from, r.seat, r.score) }));
+  // 血戦到底：次の番は、切った人から見て一番遠いアガった人の下家（間の人は飛ばされる）
+  if (bloodBattle(s.rules)) return cnLeave({ ...s, claim: null }, wins, wins[wins.length - 1].seat);
   return finish({ ...s, claim: null }, { type: 'cnWin', wins }, sumPays(wins));
+}
+
+/**
+ * 血戦到底（MIL §3-3）：アガった人は点を受け取って抜け、残りの人で続ける。点はその場で持ち点に足す。
+ * 残りが 1 人になったら局を終える。続けるときは last（ツモはアガった人・ロンは切った人から一番遠いアガった人）の次の、抜けていない人がツモる
+ */
+function cnLeave(s: GameState, wins: readonly CnWin[], last: Seat): GameState {
+  const pays = sumPays(wins);
+  const scores = s.scores.map((p, i) => p + pays[i]);
+  const cnOut = s.cnOut.slice();
+  for (const w of wins) cnOut[w.seat] = true;
+  const drawn = s.drawn.slice();
+  for (const w of wins) drawn[w.seat] = null;
+  const next: GameState = { ...s, scores, cnOut, drawn, cnWins: [...s.cnWins, ...wins], claim: null, rinshanDraw: false };
+  if (cnOut.filter((o) => !o).length <= 1) return cnFinish(next, false);
+  return { ...next, phase: 'draw', turn: nextActive(next, last) };
+}
+
+/** 血戦到底の局の終わり：この局のアガリを全部結果に入れる（点はアガったときに足してある＝ここでは足さない） */
+function cnFinish(s: GameState, exhausted: boolean): GameState {
+  return { ...s, phase: 'ended', claim: null, result: { type: 'cnWin', wins: s.cnWins, ...(exhausted ? { exhausted } : {}) }, settlement: sumPays(s.cnWins) };
 }
 
 /** 局を終える：結果を置き、点の動きを持ち点に足す。供託は、アガった人に渡した分（settlement に入れた分）だけ卓から消える */
@@ -1336,10 +1385,10 @@ export function cnRonBlocked(s: GameState, seat: Seat, score: CnScore): boolean 
 }
 
 /** 中国式のツモの払い：まだアガっていない人がそれぞれ（基本点＋1）（ルールの pay が sichuan）。アガった人が抜ける血戦到底は手順3 */
-function cnTsumoPays(seat: Seat, score: CnScore): number[] {
+function cnTsumoPays(s: GameState, seat: Seat, score: CnScore): number[] {
   const out = [0, 0, 0, 0];
   for (const p of SEATS_) {
-    if (p === seat) continue;
+    if (p === seat || s.cnOut[p]) continue;
     out[p] -= score.points + 1;
     out[seat] += score.points + 1;
   }

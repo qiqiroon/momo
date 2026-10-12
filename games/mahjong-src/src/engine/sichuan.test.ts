@@ -315,6 +315,7 @@ describe('四川の番と基本点', () => {
 });
 
 describe('四川のアガリ：払い方と見逃しの縛り', () => {
+  // ※血戦到底（手順3）の流れは下の describe。ここの点の動きはアガった直後の持ち点の変化で見る
   // 席 1 は筒子が無い＝9m を伏せて「筒子」を捨てる色にする。1m1m1m 234m 567m 234s 9m の単騎＝9m でアガる（0 番 1 点）
   const S0 = '9m1p2p3p4p5p6p7p8p9p1s1s5s';
   const S1 = '1m1m1m2m3m4m5m6m7m2s3s4s9m';
@@ -336,9 +337,8 @@ describe('四川のアガリ：払い方と見逃しの縛り', () => {
     t.do(1, { type: 'ron' });
     t.do(2, { type: 'pass' });
     t.do(3, { type: 'pass' });
-    expect(t.s.result?.type).toBe('cnWin');
-    expect(t.s.settlement).toEqual([-1, 1, 0, 0]);
-    expect(JSON.stringify(t.view(3).result)).toBe(JSON.stringify(t.s.result));
+    expect(t.s.scores).toEqual([-1, 1, 0, 0]);
+    expect(JSON.stringify(t.view(3).cnWins)).toBe(JSON.stringify(t.s.cnWins));
   });
 
   it('ツモ：ほかの 3 人がそれぞれ（基本点＋1）を払う', () => {
@@ -347,7 +347,7 @@ describe('四川のアガリ：払い方と見逃しの縛り', () => {
     t.push({ type: 'draw', seat: 1, tile: d('9m')[0] }, [1]);
     expect(legalActions(t.s, 1).some((a) => a.type === 'tsumo')).toBe(true);
     t.do(1, { type: 'tsumo' });
-    expect(t.s.settlement).toEqual([-2, 6, -2, -2]);
+    expect(t.s.scores).toEqual([-2, 6, -2, -2]);
   });
 
   it('見逃したら、自分が次に引くまで同じ点以下ではロンできない（点が上がればできる）', () => {
@@ -375,5 +375,82 @@ describe('四川のアガリ：払い方と見逃しの縛り', () => {
     t.do(0, { type: 'discard', tile: tileOf(t.s, 0, '9m') });
     expect(legalActions(t.s, 1).some((a) => a.type === 'ron')).toBe(false);
     expect(() => t.do(1, { type: 'ron' })).toThrow();
+  });
+});
+describe('血戦到底（段階9の手順3・MIL §3-3）：アガった人が抜けて続く', () => {
+  const S0 = '9m1p2p3p4p5p6p7p8p9p1s1s5s';
+  const S1 = '1m1m1m2m3m4m5m6m7m2s3s4s9m';
+  const S3 = '8m1p2p8p8p8p9p9p9p6s7s8s9s';
+  function ready() {
+    const r = setup([S0, S1, '5m5m6m6p6p6p7p7p7p5s6s7s8s', S3], '6s');
+    const { t } = r;
+    t.do(0, { type: 'que', tile: tileOf(t.s, 0, '9m'), suit: 0 });
+    t.do(1, { type: 'que', tile: tileOf(t.s, 1, '9m'), suit: 1 });
+    t.do(2, { type: 'que', tile: tileOf(t.s, 2, '5s'), suit: 2 });
+    t.do(3, { type: 'que', tile: tileOf(t.s, 3, '6s'), suit: 2 });
+    t.do(0, { type: 'discard', tile: tileOf(t.s, 0, '9m') });
+    return r;
+  }
+
+  it('ロンした人は抜け、局は続く。次は抜けた人の下家がツモる。抜けた人は手牌を開けたまま', () => {
+    const { t } = ready();
+    t.do(1, { type: 'ron' });
+    t.do(2, { type: 'pass' });
+    t.do(3, { type: 'pass' });
+    expect(t.s.phase).toBe('draw');
+    expect(t.s.turn).toBe(2);
+    expect(t.s.cnOut).toEqual([false, true, false, false]);
+    expect(t.s.opened[1]).toBe(true);
+    expect(t.s.cnWins).toHaveLength(1);
+    // ほかの人の端末でも、抜けた人の手牌が見えている
+    expect(t.view(3).hands[1].every((x) => x >= 0)).toBe(true);
+  });
+
+  it('抜けた人は打たない：ツモれない・切られた牌に返事をしない', () => {
+    const { t, d } = ready();
+    t.do(1, { type: 'ron' });
+    t.do(2, { type: 'pass' });
+    t.do(3, { type: 'pass' });
+    // 番を無理に席 1 にしても、抜けた人はツモれない（番の決まりとは別に止める）
+    const saved = t.s;
+    t.s = { ...t.s, turn: 1 };
+    expect(() => t.push({ type: 'draw', seat: 1, tile: d('3s')[0] }, [1])).toThrow('抜けた人がツモった');
+    t.s = saved;
+    t.push({ type: 'draw', seat: 2, tile: d('6m')[0] }, [2]);
+    const cut = legalActions(t.s, 2).find((a) => a.type === 'discard')!;
+    t.do(2, cut);
+    expect(t.s.claim?.replies[1]).toBe('self');
+    expect(legalActions(t.s, 1)).toEqual([]);
+  });
+
+  it('ツモで抜けたら、払うのはまだ抜けていない人だけ（基本点＋1）', () => {
+    const { t, d } = ready();
+    t.do(1, { type: 'ron' });
+    t.do(2, { type: 'pass' });
+    t.do(3, { type: 'pass' });
+    // 席 1 が抜けたあとに、席 2 がツモアガリしたことにする（手牌を差し替えて形を作る）
+    const before = t.s.scores.slice();
+    t.s = { ...t.s, hands: t.s.hands.map((h, i) => (i === 2 ? d('2m2m2m3m3m3m4m4m4m8m8m8m7m') : h)) };
+    t.push({ type: 'draw', seat: 2, tile: d('7m')[0] }, [2]);
+    t.do(2, { type: 'tsumo' });
+    // 碰碰胡 1＋清一色 2＝3 番 8 点。席 0 と席 3 が 9 点ずつ。抜けた席 1 は払わない
+    expect(t.s.scores.map((x, i) => x - before[i])).toEqual([-9, 0, 18, -9]);
+    // 残りが 2 人（席 0・3）なので、まだ続く
+    expect(t.s.phase).toBe('draw');
+    expect(t.s.turn).toBe(3);
+  });
+
+  it('山が尽きたら、それまでのアガリを全部結果に入れて終える（点はアガったときに動いている）', () => {
+    const { t } = ready();
+    t.do(1, { type: 'ron' });
+    t.do(2, { type: 'pass' });
+    t.do(3, { type: 'pass' });
+    t.s = { ...t.s, wallLeft: 0 };
+    const [ev] = advance(t.s);
+    t.s = apply(t.s, ev);
+    expect(t.s.phase).toBe('ended');
+    expect(t.s.result).toMatchObject({ type: 'cnWin', exhausted: true });
+    expect(t.s.settlement).toEqual([-1, 1, 0, 0]);
+    expect(t.s.scores).toEqual([-1, 1, 0, 0]);
   });
 });

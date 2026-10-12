@@ -260,15 +260,168 @@ describe('缺一門：捨てる色の牌は鳴けない（利用者 2026-10-12 Q
   });
 });
 
-describe('四川の流局（手順1の仮）', () => {
-  it('山が尽きたら宣言なしで点を動かさずに終える（查叫・花豬は手順5）', () => {
-    const t = new Table();
-    t.push({ type: 'gameStart', rules: SICHUAN });
-    for (const e of startRound(t.s, 'sc2', 0, 0)) t.s = apply(t.s, e);
-    t.s = { ...t.s, wallLeft: 0, phase: 'draw' };
-    const [ev] = advance(t.s);
-    expect(ev.ev.type).toBe('exhaust');
-    t.s = apply(t.s, ev);
+// ---- 手順5：流局（MIL §8-5・§11）。花豬の罰は誰も受け取らない（利用者 Q1=A）・花豬もカンの収入を返す（Q2=A）・
+//      全員同じ状態でもカンの返金と花豬の罰はする（Q3=A）・花豬＝捨てる色の牌が 1 枚でも残っている（Q4=A） ----
+
+/** 4 人の手（13 枚ずつ）と捨てる色で、山が尽きたところ（流局の出来事まで） */
+function exhausted(hands: [string, string, string, string], que: number[], rules = SICHUAN, patch: Partial<GameState> = {}) {
+  const d = dealer();
+  const t = new Table();
+  t.push({ type: 'gameStart', rules });
+  t.push({ type: 'roundStart', roundIndex: 0, dealer: 0 });
+  hands.forEach((h, seat) => t.push({ type: 'deal', seat: seat as Seat, tiles: d(h) }, [seat as Seat]));
+  t.s = { ...t.s, phase: 'draw', turn: 0, wallLeft: 0, wall: [], que: que.slice(), queHeldSuit: que.slice(), ...patch };
+  t.push({ type: 'exhaust' });
+  return t;
+}
+
+/** 流局の宣言を、言えること（1 つだけ）で順に言わせる。言った席の順を返す */
+function declareAll(t: Table): Seat[] {
+  const order: Seat[] = [];
+  while (t.s.phase === 'declare') {
+    // 同じ人が 2 度言う・終わらない、を止める（壊したときに検査が固まらないように）
+    if (order.length >= 4) throw new Error(`流局の宣言が終わらない（${order.join(',')}）`);
+    const seat = t.s.turn;
+    const legal = legalActions(t.s, seat);
+    expect(legal).toHaveLength(1);
+    order.push(seat);
+    t.do(seat, legal[0]);
+  }
+  return order;
+}
+
+const drawOf = (s: GameState) => (s.result?.type === 'cnWin' ? s.result.draw : undefined);
+
+// 席 0：萬子の清一色のテンパイ（4m 待ちで 11 123 456 456 789＝清一色 2 番 4 点）・捨てる色は索子
+// 席 1：ノーテン（捨てる色の筒子は無い）／席 2：花豬（捨てる色の萬子 2m が残っている）／席 3：ノーテン（捨てる色の索子は無い）
+const R0 = '1m2m3m4m5m6m7m8m9m1m1m5m6m';
+const N1 = '1m3m5m7m9m2s4s6s8s1s3s5s7s';
+const P2 = '2m1p2p3p4p5p6p7p8p1s2s3s4s';
+const N3 = '1p1p3p5p7p8p2m4m6m8m9m9m3m';
+const QUE = [2, 1, 0, 2];
+
+describe('四川の流局（段階9の手順5・MIL §11）', () => {
+  it('山が尽きたら、アガっていない人が親から順に手牌を開けて宣言する', () => {
+    const t = exhausted([R0, N1, P2, N3], QUE);
+    expect(t.s.phase).toBe('declare');
+    expect(t.s.turn).toBe(0);
+    expect(declareAll(t)).toEqual([0, 1, 2, 3]);
+    expect(t.s.opened).toEqual([true, true, true, true]);
+    expect(t.s.phase).toBe('ended');
+  });
+
+  it('状態はテンパイ・ノーテン・花豬に分かれ、ノーテンの人がテンパイの人へ最大点を払う。花豬は 48 点を払い、誰も受け取らない', () => {
+    const t = exhausted([R0, N1, P2, N3], QUE);
+    declareAll(t);
+    expect(t.s.result).toMatchObject({ type: 'cnWin', wins: [], exhausted: true });
+    const draw = drawOf(t.s);
+    expect(draw?.states).toEqual(['ready', 'noten', 'pig', 'noten']);
+    expect(draw?.maxPoints).toEqual([4, null, null, null]);
+    expect(draw?.chajiao).toEqual([8, -4, 0, -4]);
+    expect(draw?.pig).toEqual([0, 0, -48, 0]);
+    expect(t.s.settlement).toEqual([8, -4, -48, -4]);
+    expect(t.s.scores).toEqual([8, -4, -48, -4]);
+    // 消えた 48 点は cnBurned に残す（持ち点の合計＋これ＝持ち点 4 人分）
+    expect(t.s.cnBurned).toBe(48);
+    expect(t.s.scores.reduce((a, b) => a + b, 0) + t.s.cnBurned).toBe(startPoints(t.s.rules) * 4);
+  });
+
+  it('テンパイの人が 2 人なら、ノーテンの人はそれぞれへ払う', () => {
+    // 席 3 を、席 0 と同じ形の筒子のテンパイにする（4p 待ちで清一色 4 点）
+    const t = exhausted([R0, N1, P2, '1p2p3p4p5p6p7p8p9p1p1p5p6p'], QUE);
+    declareAll(t);
+    const draw = drawOf(t.s);
+    expect(draw?.states).toEqual(['ready', 'noten', 'pig', 'ready']);
+    expect(draw?.chajiao).toEqual([4, -8, 0, 4]);
+  });
+
+  it('最大点の数え方が「ツモの点」なら、基本点＋1 を払う', () => {
+    const rules = { ...SICHUAN, values: { ...SICHUAN.values, chajiaoPts: 'tsumo' } } as typeof SICHUAN;
+    const t = exhausted([R0, N1, P2, N3], QUE, rules);
+    declareAll(t);
+    const draw = drawOf(t.s);
+    expect(draw?.maxPoints).toEqual([5, null, null, null]);
+    expect(draw?.chajiao).toEqual([10, -5, 0, -5]);
+  });
+
+  it('花豬が「なし」のルールなら、捨てる色の牌が残っている人はノーテンとして払う', () => {
+    const rules = { ...SICHUAN, values: { ...SICHUAN.values, huazhu: 'off' } } as typeof SICHUAN;
+    const t = exhausted([R0, N1, P2, N3], QUE, rules);
+    declareAll(t);
+    const draw = drawOf(t.s);
+    expect(draw?.states).toEqual(['ready', 'noten', 'noten', 'noten']);
+    expect(draw?.chajiao).toEqual([12, -4, -4, -4]);
+    expect(t.s.cnBurned).toBe(0);
+  });
+
+  it('捨てる色の牌が残っていれば、ほかの色が 1 色でも花豬（Q4=A）', () => {
+    // 席 2：萬子（捨てる色）と筒子だけ＝手の色は 2 つ
+    const t = exhausted([R0, N1, '2m1p2p3p4p5p6p7p8p9p9p9p8p', N3], QUE);
+    declareAll(t);
+    expect(drawOf(t.s)?.states[2]).toBe('pig');
+  });
+
+  it('待ちが自分で 4 枚とも持っている牌だけなら、テンパイでない（5 枚目は無い）', () => {
+    // 席 0：234m 567m 234p＋9p 4 枚＝待ちは 9p だけ（単騎・シャンポンどちらでも）
+    const t = exhausted(['2m3m4m5m6m7m2p3p4p9p9p9p9p', N1, P2, N3], QUE);
+    declareAll(t);
+    expect(drawOf(t.s)?.states[0]).toBe('noten');
+  });
+
+  it('ノーテンの人は、この局のカンの収入を全部返す（§8-5）。テンパイの人は返さない', () => {
+    // 席 1（ノーテン）が暗槓で各 2 点、席 0（テンパイ）が暗槓で各 2 点を受け取っていたことにする
+    const cnKans = [
+      { seat: 1 as Seat, kind: 'ankan' as const, pays: [-2, 6, -2, -2] },
+      { seat: 0 as Seat, kind: 'ankan' as const, pays: [6, -2, -2, -2] },
+    ];
+    const t = exhausted([R0, N1, P2, N3], QUE, SICHUAN, { cnKans, scores: [4, 4, -4, -4] });
+    declareAll(t);
+    expect(drawOf(t.s)?.kanReturn).toEqual([2, -6, 2, 2]);
+    expect(t.s.cnKans.map((k) => !!k.returned)).toEqual([true, false]);
+    // 点の動き＝返さなかったカン（席 0）＋查叫＋花豬
+    expect(t.s.settlement).toEqual([6 + 8, -2 - 4, -2 - 48, -2 - 4]);
+    expect(t.s.scores).toEqual([4 + 2 + 8, 4 - 6 - 4, -4 + 2 - 48, -4 + 2 - 4]);
+  });
+
+  it('花豬の人もカンの収入を返す（Q2=A）', () => {
+    const cnKans = [{ seat: 2 as Seat, kind: 'ankan' as const, pays: [-2, -2, 6, -2] }];
+    const t = exhausted([R0, N1, P2, N3], QUE, SICHUAN, { cnKans, scores: [-2, -2, 6, -2] });
+    declareAll(t);
+    expect(drawOf(t.s)?.kanReturn).toEqual([2, 2, -6, 2]);
+    expect(t.s.scores).toEqual([8, -4, -48, -4]);
+  });
+
+  it('アガっていない人が全員ノーテンなら查叫は無いが、カンの返金と花豬の罰はする（Q3=A）', () => {
+    const cnKans = [{ seat: 1 as Seat, kind: 'ankan' as const, pays: [-2, 6, -2, -2] }];
+    // 席 0 はアガって抜けたことにする（宣言しない・状態なし）
+    const t = exhausted([R0, N1, P2, N3], QUE, SICHUAN, { cnKans, scores: [-2, 6, -2, -2], cnOut: [true, false, false, false], opened: [true, false, false, false] });
+    expect(t.s.turn).toBe(1);
+    expect(declareAll(t)).toEqual([1, 2, 3]);
+    const draw = drawOf(t.s);
+    expect(draw?.states).toEqual([null, 'noten', 'pig', 'noten']);
+    expect(draw?.chajiao).toEqual([0, 0, 0, 0]);
+    expect(draw?.pig).toEqual([0, 0, -48, 0]);
+    expect(draw?.kanReturn).toEqual([2, -6, 2, 2]);
+  });
+
+  it('開けた手牌と宣言が合わなければ止める・宣言は手牌を付けて全員あて', () => {
+    const t = exhausted([R0, N1, P2, N3], QUE);
+    const hand = t.s.hands[0].slice();
+    expect(() => t.push({ type: 'declare', seat: 0, tenpai: false, hand })).toThrow('開けた手牌と宣言');
+    expect(() => t.push({ type: 'declare', seat: 0, tenpai: true, hand: null })).toThrow('手牌を開けていない');
+    declareAll(t);
+    // 宣言は全員あてで、手牌が付いている（ほかの人の端末の局面が全体と同じになるかは、自動対局の見張り役が毎回確かめる）
+    const decl = t.log.filter((e) => e.ev.type === 'declare');
+    expect(decl).toHaveLength(4);
+    for (const e of decl) {
+      expect(e.to).toBe('all');
+      expect(e.ev.type === 'declare' && e.ev.hand?.length).toBe(13);
+    }
+  });
+
+  it('精算の無いルール（查叫・花豬・カンの収入がすべて「なし」）なら、宣言なしで点を動かさずに終える', () => {
+    const rules = { ...SICHUAN, values: { ...SICHUAN.values, chajiao: 'off', huazhu: 'off', kanPay: 'off' } } as typeof SICHUAN;
+    const t = exhausted([R0, N1, P2, N3], QUE, rules);
     expect(t.s.phase).toBe('ended');
     expect(t.s.settlement).toEqual([0, 0, 0, 0]);
   });
@@ -449,10 +602,15 @@ describe('血戦到底（段階9の手順3・MIL §3-3）：アガった人が�
     t.s = { ...t.s, wallLeft: 0 };
     const [ev] = advance(t.s);
     t.s = apply(t.s, ev);
+    // 残りの 3 人が流局の宣言をして終える（席 1 は抜けたので言わない）
+    expect(declareAll(t)).not.toContain(1);
     expect(t.s.phase).toBe('ended');
     expect(t.s.result).toMatchObject({ type: 'cnWin', exhausted: true });
-    expect(t.s.settlement).toEqual([-1, 1, 0, 0]);
-    expect(t.s.scores).toEqual([-1, 1, 0, 0]);
+    // アガリの点（席 0 が 1 点放銃）は結果に残り、点の動きはそれに流局の精算を足したもの
+    const r = t.s.result?.type === 'cnWin' ? t.s.result : null;
+    expect(r?.wins.map((w) => w.pays)).toEqual([[-1, 1, 0, 0]]);
+    const extra = [0, 1, 2, 3].map((i) => r!.draw!.chajiao[i] + r!.draw!.pig[i]);
+    expect(t.s.settlement).toEqual([-1 + extra[0], 1 + extra[1], extra[2], extra[3]]);
   });
 });
 describe('カン（段階9の手順4・MIL §8・§10）', () => {
@@ -525,11 +683,13 @@ describe('カン（段階9の手順4・MIL §8・§10）', () => {
   });
 });
 describe('四川の画面の言葉', () => {
-  it('番の名前・カンの種類が日英中の辞書に全部ある（抜けると結果の枠で画面が止まる＝10-12 に一度起きた）', () => {
+  it('番の名前・カンの種類・流局の状態が日英中の辞書に全部ある（抜けると結果の枠で画面が止まる＝10-12 に一度起きた）', () => {
     for (const lang of ['ja', 'en', 'zh'] as const) {
       const d = dictFor(lang) as Record<string, string>;
       for (const id of CN_FAN_IDS) expect(d[`cnFan_${id}`], `${lang} cnFan_${id}`).toBeTruthy();
       for (const k of ['minkan', 'ankan', 'kakan']) expect(d[`cnKan_${k}`], `${lang} cnKan_${k}`).toBeTruthy();
+      // 流局の状態（画面は cnDraw_<状態>・アガって抜けた人は out）
+      for (const k of ['ready', 'noten', 'pig', 'out']) expect(d[`cnDraw_${k}`], `${lang} cnDraw_${k}`).toBeTruthy();
     }
   });
 });

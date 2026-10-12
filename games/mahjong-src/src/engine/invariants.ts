@@ -13,7 +13,7 @@ import { isWinningHand, kindCounts, waitKinds } from './agari';
 import { sichuanScore } from './sichuan';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { finalResult } from './final';
-import { apply, initialState, isKanMeld, MAX_KANS, meldSize, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
+import { apply, cnDrawStateOf, initialState, isKanMeld, MAX_KANS, meldSize, PIG_PENALTY, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
 import { kindOf, tileSetFor } from './tiles';
 
 export class Watcher {
@@ -238,11 +238,24 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   if (full.kuikaeBan.length > 0 && full.phase !== 'discard') bad.push('喰い替え禁止の牌が、切る番の外で残っている');
 
   // 点棒：4 人の持ち点と卓のリーチ棒を合わせると、いつも持ち点 4 人分（点は動くだけで増えも減りもしない）
-  const total = full.scores.reduce((a, b) => a + b, 0) + full.kyotaku * RIICHI_STICK;
+  //   例外は中国式の花豬の罰だけ（誰も受け取らない＝利用者 Q1=A）。消えた分は cnBurned に足してある
+  const total = full.scores.reduce((a, b) => a + b, 0) + full.kyotaku * RIICHI_STICK + full.cnBurned;
   if (total !== startPoints(full.rules) * 4) bad.push(`点棒の合計が合わない（${total}・正しくは ${startPoints(full.rules) * 4}）`);
-  // 流局・途中流局の点の動きは 4 人で合計 0（アガリは卓の供託の分だけ増える）
-  if (full.settlement && full.result && full.result.type !== 'tsumo' && full.result.type !== 'ron' && full.settlement.reduce((a, b) => a + b, 0) !== 0) {
+  // 流局・途中流局の点の動きは 4 人で合計 0（アガリは卓の供託の分だけ増える。中国式は花豬の罰の分だけ減る）
+  const burnedNow = full.result?.type === 'cnWin' && full.result.draw ? full.result.draw.pig.reduce((a, b) => a + b, 0) : 0;
+  if (full.settlement && full.result && full.result.type !== 'tsumo' && full.result.type !== 'ron' && full.settlement.reduce((a, b) => a + b, 0) !== burnedNow) {
     bad.push('流局・途中流局の点の動きの合計が 0 でない');
+  }
+  // 中国式の流局の精算：アガっていない人は全員手牌を開けている・状態は開けた手牌と合う・花豬の罰は 48 点
+  if (full.result?.type === 'cnWin' && full.result.draw) {
+    const d = full.result.draw;
+    d.states.forEach((st, seat) => {
+      if ((st === null) !== full.cnOut[seat]) bad.push(`席 ${seat}：流局の状態の有る無しがアガったかと食い違う`);
+      if (st !== null && !full.opened[seat]) bad.push(`席 ${seat}：流局の精算なのに手牌を開けていない`);
+      if (st !== null && full.opened[seat] && cnDrawStateOf(full, seat as Seat, full.hands[seat]) !== st) bad.push(`席 ${seat}：流局の状態が手牌と合わない`);
+      if (d.pig[seat] !== 0 && (st !== 'pig' || d.pig[seat] !== -PIG_PENALTY)) bad.push(`席 ${seat}：花豬の罰が違う`);
+    });
+    if (d.chajiao.reduce((a, b) => a + b, 0) !== 0) bad.push('查叫の点の動きの合計が 0 でない');
   }
   if ((full.phase === 'ended' || full.phase === 'gameover') !== (full.settlement !== null)) bad.push('局の終わりと点の動きの有る無しが食い違う');
   // 局の進め方：対局が終わったら理由がある・局の番号は延長の最後（西 4 局）を超えない・親は局の番号から決まる

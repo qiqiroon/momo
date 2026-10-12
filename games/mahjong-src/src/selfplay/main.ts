@@ -34,17 +34,19 @@ for (const f of r.failures.slice(0, 5)) {
 }
 if (r.failures.length) process.exitCode = 1;
 
-// 四川（段階9）：いまは 1 局ずつ（アガリは手順2・カンは手順4・局の進め方は手順6）
+// 四川（段階9）：いまは 1 局ずつ（アガリは手順2・カンは手順4・流局は手順5・局の進め方は手順6）
 const c0 = Date.now();
 const sc = runSelfplay(games, `${prefix}-sichuan`, rulesOfCnSet('sichuan'));
 const q = sc.paths.que;
 console.log(`
 四川：${sc.games} 局・見張った出来事 ${sc.events}・失敗 ${sc.failures.length}（${Date.now() - c0} ms）`);
-console.log(`終わり方：アガリ ${sc.endings.cnWin}・流局 ${sc.endings.exhaust}・途中で止まった ${sc.endings.unfinished}・鳴き ${sc.paths.calls} 回（うちチー ${sc.paths.chi}）`);
+// 中国式は流局も結果の形が cnWin（誰もアガらずに山が尽きた局は wins が空）
+console.log(`終わり方：アガった人がいた ${sc.endings.cnWin - sc.paths.cn.winners[0]}・誰もアガらずに流局 ${sc.endings.exhaust + sc.paths.cn.winners[0]}・途中で止まった ${sc.endings.unfinished}・鳴き ${sc.paths.calls} 回（うちチー ${sc.paths.chi}）`);
 const cw = sc.paths.cn;
 console.log(`アガリ：ツモ ${cw.tsumo}・ロン ${cw.ron}（同じ牌で2人以上 ${cw.multi} 回）・上限で切った ${cw.capped}・見逃しの縛りが立った局 ${cw.missed}`);
 console.log(`血戦到底：1 局でアガった人数 ${cw.winners.map((n, i) => `${i}人 ${n}`).slice(1).join('・')}・アガった人がいて山が尽きた局 ${cw.exhaustedAfterWin}`);
 console.log(`刮风下雨：${Object.entries(cw.kanIncome).map(([k, n]) => `${k} ${n}`).join('・') || 'なし'}（返した ${cw.kanReturned}）・槍槓で無効になったカン ${cw.robbed}`);
+console.log(`流局の精算：${cw.draw.hands} 局（テンパイ ${cw.draw.ready} 人・ノーテン ${cw.draw.noten} 人・花豬 ${cw.draw.pig} 人）・查叫が動いた局 ${cw.draw.chajiao}・カンの収入を返した局 ${cw.draw.kanReturned}`);
 console.log(`番：${Object.entries(cw.fans).map(([k, n]) => `${k} ${n}`).join('・') || 'なし'}`);
 console.log(`缺一門：伏せた ${q.held} 回（手に無い色を宣言 ${q.voidSuit}）・宣言のあと捨てる色から切った ${q.fromQue}・ほかの色を切った ${q.other}`);
 for (const f of sc.failures.slice(0, 5)) {

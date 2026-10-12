@@ -2919,3 +2919,22 @@ body.in-game .site-header .subtitle {
   margin: 0 0 4px;
   font-weight: 700;
 }
+
+/* 中国式の流局の精算（段階9の手順5）：表の見出し（カンの点の表と同じ見せ方・上の表と少し離す）と、テンパイの人の最大点（小さく）・花豬の罰の注意 */
+.cn-draw-list caption {
+  padding-top: 8px;
+}
+
+.cn-draw-max {
+  color: var(--text-sub);
+  font-size: 12px;
+}
+
+.exhaust-list tr.is-pig .exhaust-state {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.cn-pig-note {
+  margin: 4px 0 0;
+}

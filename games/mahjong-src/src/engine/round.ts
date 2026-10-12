@@ -3,7 +3,7 @@
 
 import { HIDDEN, SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
 import { furitenOf } from './furiten';
-import { callProblem, cnRonBlocked, cnScoreRon, cnScoreTsumo, dealerByDice, kanProblem, kyushuOk, liveWallLeft, queDiscardProblem, queHoldProblem, queOn, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
+import { callProblem, cnDrawStateOf, cnRonBlocked, cnScoreRon, cnScoreTsumo, dealerByDice, kanProblem, kyushuOk, liveWallLeft, queDiscardProblem, queHoldProblem, queOn, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
 import { doraIndicatorPos, uraIndicatorPos } from './dora';
 import { waitKinds } from './agari';
 import { nextStep } from './game';
@@ -268,6 +268,8 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
 /** 流局したときに言えること。テンパイならテンパイと言える。ノーテンと言えるのはノーテンのとき、
  *  またはテンパイでもリーチしておらず、ルールが「テンパイでもノーテンと言える」のとき */
 function declareOptions(view: GameState, seat: Seat): Action[] {
+  // 中国式：手牌を必ず開けるので、言えることは開けた手牌で決まる 1 つだけ
+  if (view.rules?.family === 'cn') return [{ type: cnDrawStateOf(view, seat, view.hands[seat]) === 'ready' ? 'tenpai' : 'noten' }];
   const tenpai = tenpaiForDeclare(view, seat, view.hands[seat]);
   const out: Action[] = [];
   if (tenpai) out.push({ type: 'tenpai' });
@@ -349,7 +351,7 @@ export function act(full: GameState, seat: Seat, action: Action, src?: TileSourc
   if (full.phase === 'declare' && full.turn === seat) {
     if (!declareOptions(full, seat).some((a) => a.type === action.type)) throw new Error(`その宣言はできない（${action.type}）`);
     const tenpai = action.type === 'tenpai';
-    return [{ seq: full.nextSeq, to: 'all', ev: { type: 'declare', seat, tenpai, hand: tenpai ? full.hands[seat].slice() : null } }];
+    return [{ seq: full.nextSeq, to: 'all', ev: { type: 'declare', seat, tenpai, hand: tenpai || full.rules?.family === 'cn' ? full.hands[seat].slice() : null } }];
   }
   const at = envelopesFrom(full);
   if (full.phase === 'que') {

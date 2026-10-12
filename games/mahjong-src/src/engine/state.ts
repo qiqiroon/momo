@@ -1,7 +1,7 @@
 // 局面。出来事の列を頭から順に当てはめて作る。ここに書いてあること以外の方法で局面を変えない。
 // 列としてあり得ない出来事（持っていない牌を切る・番でない人がツモる など）は例外で止める。
 
-import { HIDDEN, mask, type Envelope, type Seat } from './events';
+import { HIDDEN, mask, type Envelope, type GameEvent, type Seat } from './events';
 import { kindCounts, TERMINAL_HONOR_KINDS, waitKinds } from './agari';
 import { decompose } from './yaku';
 import { furitenOf } from './furiten';
@@ -99,7 +99,28 @@ export type RoundResult =
   | { type: 'abort'; reason: AbortReason; seat?: Seat }
   /** 中国式のアガリ（段階9）。wins＝アガった人（アガった順。同じ牌のロンは切った人の下家から順＝ルールの multiWin）。
    *  血戦到底（アガった人が抜けて続く）は、局の終わりにその局の全部のアガリを入れる。exhausted＝山が尽きて終わった（アガった人がいなくてカンの収入だけのときも＝wins は空） */
-  | { type: 'cnWin'; wins: CnWin[]; exhausted?: boolean };
+  | { type: 'cnWin'; wins: CnWin[]; exhausted?: boolean; draw?: CnDraw };
+
+/** 流局のときのアガっていない人の状態（MIL §11-1）：ready＝テンパイ／noten＝ノーテン／pig＝花豬（捨てる色の牌が 1 枚でも残っている＝利用者 Q4=A。
+ *  ルールの huazhu が「なし」なら、捨てる色の牌が残っている人はノーテン） */
+export type CnDrawState = 'ready' | 'noten' | 'pig';
+
+/** 中国式の流局の精算（MIL §8-5・§11）。点の動きは席ごと（受け取りが＋） */
+export interface CnDraw {
+  /** 席ごとの状態（アガって抜けた人は null） */
+  states: (CnDrawState | null)[];
+  /** テンパイの人の「理論上の最大点」（ルールの chajiaoPts。テンパイでない人は null） */
+  maxPoints: (number | null)[];
+  /** 查叫：ノーテンの人がテンパイの人それぞれへ最大点を払う（§11-3。ルールの chajiao） */
+  chajiao: number[];
+  /** 花豬の罰：48 点を払い、誰も受け取らない（§11-2・利用者 Q1=A＝持ち点の合計がその分減る） */
+  pig: number[];
+  /** 返したカンの収入：テンパイでない人（ノーテン・花豬＝利用者 Q2=A）がこの局のカンの収入を全部返す（§8-5） */
+  kanReturn: number[];
+}
+
+/** 花豬の罰（MIL §11-2） */
+export const PIG_PENALTY = 48;
 
 /** 中国式のアガリ 1 人分。from＝切った人（ツモは null）。pays＝席ごとの点の動き（受け取りが＋・合計 0） */
 export interface CnWin {
@@ -232,6 +253,8 @@ export interface GameState {
   cnKans: CnKan[];
   /** 槍槓で無効になったカンの数（血戦到底で局が続くとき、嶺上牌を引かないカン） */
   robbedKans: number;
+  /** 花豬の罰で卓から消えた点の合計（対局をまたいで足していく。見張り役が「持ち点の合計＋これ＝持ち点 4 人分」を確かめる） */
+  cnBurned: number;
 }
 
 /** 刮风下雨のカンの収入 1 回分。pays＝席ごとの点の動き（合計 0） */
@@ -241,6 +264,8 @@ export interface CnKan {
   pays: number[];
   /** 返した（直後の打牌で放銃した＝MIL §8-4・流局でノーテン＝§8-5） */
   returned?: boolean;
+  /** 返したのが流局のとき（テンパイでなかった＝§8-5）。画面で理由を書き分ける */
+  atDraw?: boolean;
 }
 
 /** 血戦到底のルールか（中国式で afterWin が「抜けて続く」） */
@@ -368,6 +393,7 @@ export const initialState = (): GameState => ({
   cnWins: [],
   cnKans: [],
   robbedKans: 0,
+  cnBurned: 0,
 });
 
 /** 王牌（ツモらずに残す山の尻）の枚数。日本式は 14 枚で固定（136 枚と同じく変えられない決まり）。中国式は段階9で決める */
@@ -399,7 +425,7 @@ export function apply(state: GameState, env: Envelope): GameState {
   switch (ev.type) {
     case 'gameStart': {
       const p = startPoints(ev.rules);
-      return { ...s, rules: ev.rules, scores: [p, p, p, p], honba: 0, kyotaku: 0 };
+      return { ...s, rules: ev.rules, scores: [p, p, p, p], honba: 0, kyotaku: 0, cnBurned: 0 };
     }
     case 'dealerDice': {
       if (!s.rules) throw new Error('対局が始まる前に親決めをした');
@@ -767,8 +793,9 @@ export function apply(state: GameState, env: Envelope): GameState {
     }
     case 'exhaust': {
       if (s.phase !== 'draw' || s.rinshanDue || liveWallLeft(s) > 0) throw new Error('山が残っているのに流局した');
-      // 中国式の流局（查叫・花豬）は段階9の手順5。それまでは宣言なしで点を動かさずに終える
-      // 中国式：アガった人かカンの収入があれば、それを入れた結果にする（点はもう動いている）
+      // 中国式の流局の精算（查叫・花豬・カンの収入を返す）があるルールなら、アガっていない人が親から順に手牌を開けて宣言する
+      if (cnDrawSettles(s.rules)) return { ...s, phase: 'declare', turn: s.cnOut[s.dealer] ? nextActive(s, s.dealer) : s.dealer, drawn: [null, null, null, null] };
+      // 精算の無いルール：アガった人かカンの収入があれば、それを入れた結果にする（点はもう動いている）
       if (s.rules?.family === 'cn' && (s.cnWins.length > 0 || s.cnKans.length > 0)) return cnFinish({ ...s, drawn: [null, null, null, null] }, true);
       if (s.rules?.family === 'cn') return finish({ ...s, drawn: [null, null, null, null] }, { type: 'exhaust', tenpai: [false, false, false, false], payments: [0, 0, 0, 0] }, [0, 0, 0, 0]);
       // 親から順に宣言する
@@ -786,6 +813,7 @@ export function apply(state: GameState, env: Envelope): GameState {
     }
     case 'declare': {
       if (s.phase !== 'declare' || ev.seat !== s.turn) throw new Error('宣言する時・席ではない');
+      if (s.rules?.family === 'cn') return cnDeclare(s, ev);
       const known = s.hands[ev.seat];
       const visible = !known.includes(HIDDEN);
       if (ev.tenpai) {
@@ -920,11 +948,108 @@ function cnLeave(s: GameState, wins: readonly CnWin[], last: Seat): GameState {
   return { ...next, phase: 'draw', turn: nextActive(next, last) };
 }
 
-/** 血戦到底の局の終わり：この局のアガリを全部結果に入れる（点はアガったときに足してある＝ここでは足さない） */
-function cnFinish(s: GameState, exhausted: boolean): GameState {
+/** 血戦到底の局の終わり：この局のアガリを全部結果に入れる（点はアガったときに足してある＝ここでは足さない）。
+ *  draw＝流局の精算（点は cnSettleDraw で足してある。点の動きには查叫と花豬の罰も入れる） */
+function cnFinish(s: GameState, exhausted: boolean, draw?: CnDraw): GameState {
   const kans = [0, 1, 2, 3].map((i) => s.cnKans.reduce((a, k) => a + (k.returned ? 0 : k.pays[i]), 0));
-  const settlement = sumPays(s.cnWins).map((n, i) => n + kans[i]);
-  return { ...s, phase: 'ended', claim: null, result: { type: 'cnWin', wins: s.cnWins, ...(exhausted ? { exhausted } : {}) }, settlement };
+  const settlement = sumPays(s.cnWins).map((n, i) => n + kans[i] + (draw ? draw.chajiao[i] + draw.pig[i] : 0));
+  return { ...s, phase: 'ended', claim: null, result: { type: 'cnWin', wins: s.cnWins, ...(exhausted ? { exhausted } : {}), ...(draw ? { draw } : {}) }, settlement };
+}
+
+/** 中国式の流局で精算するルールか（查叫・花豬・カンの収入〔ノーテンなら返す＝§8-5〕のどれかがある） */
+export function cnDrawSettles(rules: Rules | null): boolean {
+  if (rules?.family !== 'cn') return false;
+  const v = rules.values;
+  return v.chajiao === 'on' || (v.huazhu === 'on' && queOn(rules)) || v.kanPay === 'on';
+}
+
+/**
+ * 中国式の流局の宣言：手牌を必ず開ける（状態は開けた手牌から決まる＝どの端末でも同じ）。tenpai はテンパイか（開けた手牌と合わなければ止める）。
+ * アガっていない人が全員言い終わったら精算する
+ */
+function cnDeclare(s: GameState, ev: Extract<GameEvent, { type: 'declare' }>): GameState {
+  if (s.cnOut[ev.seat]) throw new Error('アガって抜けた人が流局の宣言をした');
+  if (!ev.hand) throw new Error('中国式の流局で手牌を開けていない');
+  const known = s.hands[ev.seat];
+  if (!known.includes(HIDDEN) && !sameTiles(known, ev.hand)) throw new Error('開けた手牌が持っている牌と違う');
+  if (known.length !== ev.hand.length) throw new Error('開けた手牌の枚数が違う');
+  const hands = s.hands.map((h) => h.slice());
+  hands[ev.seat] = ev.hand.slice();
+  const opened = s.opened.slice();
+  opened[ev.seat] = true;
+  const next: GameState = { ...s, hands, opened };
+  if ((cnDrawStateOf(next, ev.seat, ev.hand) === 'ready') !== ev.tenpai) throw new Error('開けた手牌と宣言（テンパイ・ノーテン）が合わない');
+  const declared = s.declared.slice();
+  declared[ev.seat] = ev.tenpai;
+  const done = SEATS_.every((p) => s.cnOut[p] || declared[p] !== null);
+  if (!done) return { ...next, declared, turn: nextActive(s, ev.seat) };
+  return cnSettleDraw({ ...next, declared });
+}
+
+/** 流局のときの状態（開けた手牌から決まる）。捨てる色の牌が残っていれば花豬（huazhu が「なし」ならノーテン） */
+export function cnDrawStateOf(s: GameState, seat: Seat, hand: readonly TileId[]): CnDrawState {
+  if (queLeft(s, seat, hand)) return s.rules?.family === 'cn' && s.rules.values.huazhu === 'on' ? 'pig' : 'noten';
+  return cnMaxPoints(s, seat, hand) !== null ? 'ready' : 'noten';
+}
+
+/**
+ * 查叫の「理論上の最大点」（MIL §11-3・ルールの chajiaoPts）：待ちの牌ごとにアガったときの点を出し、一番高いもの。テンパイでなければ null。
+ * ron＝ロンの基本点／tsumo＝ツモで各人が払う点（基本点＋1）。山が尽きたあとの判定なので、海底・杠上开花などの場面の番は数えない。
+ * 自分の手と面子で 4 枚使っている牌は待ちに数えない（5 枚目は無い）
+ */
+export function cnMaxPoints(s: GameState, seat: Seat, hand: readonly TileId[]): number | null {
+  if (!s.rules || s.rules.family !== 'cn' || queLeft(s, seat, hand)) return null;
+  const counts = kindCounts(hand);
+  const used = kindCounts([...hand, ...meldTiles(s, seat)]);
+  const melds = s.melds[seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: meldSize(m) }));
+  const q = queOn(s.rules) ? (s.que[seat] ?? s.queHeldSuit[seat]) : null;
+  const last = s.rules.values.honors === 'on' ? 34 : 27;
+  let best: number | null = null;
+  for (let k = 0; k < last; k++) {
+    if (used[k] >= 4 || (q !== null && k < 27 && Math.floor(k / 9) === q)) continue;
+    const concealed = counts.slice();
+    concealed[k]++;
+    const score = sichuanScore({ concealed, melds, haidi: false }, s.rules);
+    if (!score) continue;
+    const pts = s.rules.values.chajiaoPts === 'tsumo' ? score.points + 1 : score.points;
+    if (best === null || pts > best) best = pts;
+  }
+  return best;
+}
+
+/**
+ * 中国式の流局の精算（MIL §8-5・§11）。アガっていない人の状態ごとに：
+ *  ① テンパイでない人（ノーテン・花豬）は、この局のカンの収入を全部返す（ルールの kanPay）
+ *  ② 查叫：ノーテンの人がテンパイの人それぞれへ最大点を払う（ルールの chajiao。全員同じ状態なら誰も払わない＝§11-4）
+ *  ③ 花豬：48 点を払い、誰も受け取らない（ルールの huazhu。全員花豬でも払う＝利用者 Q3=A）
+ */
+function cnSettleDraw(s0: GameState): GameState {
+  if (s0.rules?.family !== 'cn') throw new Error('中国式でないのに流局の精算をした');
+  const v = s0.rules.values;
+  const states: (CnDrawState | null)[] = SEATS_.map((p) => (s0.cnOut[p] ? null : cnDrawStateOf(s0, p, s0.hands[p])));
+  const maxPoints = SEATS_.map((p) => (states[p] === 'ready' ? cnMaxPoints(s0, p, s0.hands[p]) : null));
+  let s = s0;
+  const before = s.scores.slice();
+  s0.cnKans.forEach((k, i) => {
+    if (states[k.seat] === 'noten' || states[k.seat] === 'pig') s = cnReturnKan(s, i, true);
+  });
+  const kanReturn = s.scores.map((x, i) => x - before[i]);
+  const chajiao = [0, 0, 0, 0];
+  if (v.chajiao === 'on') {
+    for (const n of SEATS_) {
+      if (states[n] !== 'noten') continue;
+      for (const r of SEATS_) {
+        if (states[r] !== 'ready') continue;
+        chajiao[n] -= maxPoints[r]!;
+        chajiao[r] += maxPoints[r]!;
+      }
+    }
+  }
+  const pig = states.map((x) => (x === 'pig' && v.huazhu === 'on' ? -PIG_PENALTY : 0));
+  const burned = -pig.reduce((a, b) => a + b, 0);
+  const scores = s.scores.map((x, i) => x + chajiao[i] + pig[i]);
+  const draw: CnDraw = { states, maxPoints, chajiao, pig, kanReturn };
+  return cnFinish({ ...s, scores, cnBurned: s.cnBurned + burned }, true, draw);
 }
 
 /**
@@ -944,12 +1069,12 @@ function cnKanIncome(s: GameState, seat: Seat, kind: CnKan['kind'], fresh: boole
   return { ...s, scores: s.scores.map((x, i) => x + pays[i]), cnKans: [...s.cnKans, { seat, kind, pays }] };
 }
 
-/** カンの収入を返す（記録に returned を付け、持ち点から戻す） */
-function cnReturnKan(s: GameState, i: number): GameState {
+/** カンの収入を返す（記録に returned を付け、持ち点から戻す）。atDraw＝流局でテンパイでなかったから */
+function cnReturnKan(s: GameState, i: number, atDraw = false): GameState {
   const k = s.cnKans[i];
   if (!k || k.returned) return s;
   const cnKans = s.cnKans.slice();
-  cnKans[i] = { ...k, returned: true };
+  cnKans[i] = { ...k, returned: true, ...(atDraw ? { atDraw } : {}) };
   return { ...s, cnKans, scores: s.scores.map((x, j) => x - k.pays[j]) };
 }
 

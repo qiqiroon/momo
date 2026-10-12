@@ -12,7 +12,7 @@ import { nextStep } from '../engine/game';
 import type { Action } from '../engine/round';
 import type { ScoreResult } from '../engine/score';
 import type { CnScore } from '../engine/sichuan';
-import { liveWallLeft, queOn, suitOfKind, type GameState, type OpenMeld } from '../engine/state';
+import { liveWallLeft, PIG_PENALTY, queOn, suitOfKind, type GameState, type OpenMeld } from '../engine/state';
 import { isRed, kindOf, type TileId } from '../engine/tiles';
 import { relFrom, useSeat } from './seatContext';
 import { translate, type Lang, type MessageKey } from '../i18n/strings';
@@ -289,12 +289,51 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
             {view.cnKans.map((k, i) => (
               <tr key={i} className={k.returned ? 'returned' : ''}>
                 <th>{t('cnKanLine', { name: nameOf(k.seat), kind: t(`cnKan_${k.kind}` as MessageKey) })}</th>
-                <td>{k.returned ? t('cnKanReturned') : signed(k.pays[k.seat])}</td>
+                <td>{k.returned ? t(k.atDraw ? 'cnKanReturnedDraw' : 'cnKanReturned') : signed(k.pays[k.seat])}</td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+      {/* 中国式の流局の精算（段階9の手順5）：各人の状態と查叫・花豬の点。テンパイの人と花豬の人は手牌も（アガった人は上に出ている） */}
+      {r.type === 'cnWin' && r.draw && (
+        <table className="exhaust-list cn-draw-list">
+          <caption>{t('cnDrawTitle')}</caption>
+          <tbody>
+            {[0, 1, 2, 3].map((rel) => {
+              const seat = seatAt(rel);
+              const d = r.draw!;
+              const st = d.states[seat];
+              const max = d.maxPoints[seat];
+              return (
+                <Fragment key={rel}>
+                  <tr className={st === 'ready' ? 'is-tenpai' : st === 'pig' ? 'is-pig' : ''}>
+                    <th>
+                      <b>{windOf(seat)}</b> {nameOf(seat)}
+                    </th>
+                    <td className="exhaust-state">{t(`cnDraw_${st ?? 'out'}` as MessageKey)}</td>
+                    <td className="cn-draw-max">{max !== null ? t('cnDrawMax', { n: max }) : ''}</td>
+                    <td className="exhaust-pay">{st === null ? '' : signed(d.chajiao[seat] + d.pig[seat])}</td>
+                  </tr>
+                  {(st === 'ready' || st === 'pig') && (
+                    <tr className="exhaust-hand-row">
+                      <td colSpan={4}>
+                        <div className="exhaust-hand">
+                          {sortTiles(view.hands[seat]).map((id) => (
+                            <Tile key={id} id={id} rules={view.rules} />
+                          ))}
+                          {meldsOf(seat)}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      {r.type === 'cnWin' && r.draw?.states.includes('pig') && <p className="hint cn-pig-note">{t('cnPigNote', { n: PIG_PENALTY })}</p>}
       {r.type === 'exhaust' &&
         r.nagashi?.map((seat) => (
           <p key={seat} className="result-title">

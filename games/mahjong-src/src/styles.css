@@ -202,6 +202,31 @@ body.in-game .site-header .subtitle {
   min-height: 0;
 }
 
+/* 狭い携帯（幅 380px 未満）の対局中：見出しの並びはそのまま、中を少しずつ詰めて 1 行に収める（10-12・Q8=A）。
+   収まらないとページが横に広がり、広い画面と受け取られて「画面切替」「中断」まで出てさらに広がっていた（320px で 499px まで） */
+@media (max-width: 379px) {
+  body.in-game .site-header {
+    gap: 4px;
+  }
+
+  body.in-game .site-header h1 {
+    font-size: 1.1rem;
+  }
+
+  body.in-game .header-right {
+    gap: 4px;
+  }
+
+  body.in-game .header-right .icon-btn {
+    width: 30px;
+  }
+
+  body.in-game .lang-select {
+    padding: 4px 2px;
+    font-size: 11px;
+  }
+}
+
 /* ---- 始める画面 ---- */
 
 .title {
@@ -721,6 +746,15 @@ body.in-game .site-header .subtitle {
     gap: 7px;
     font-size: 12px;
     padding: 6px 4px 5px;
+  }
+}
+
+/* さらに狭い携帯（幅 380px 未満）：右寄せの帯は、入りきらないと左端の「中断」が画面の外へ出る（320px で 20px）。
+   見出しと同じ幅で、字とすき間をもう少し詰める（10-12・Q8=A の続き） */
+@media (max-width: 379px) {
+  .lanes-info {
+    gap: 4px;
+    font-size: 11px;
   }
 }
 

@@ -12,7 +12,9 @@ import { decompose } from './yaku';
 import type { Rules } from './rules';
 import type { KindId } from './tiles';
 
-export type CnFanId = 'gen' | 'pengpeng' | 'jingou' | 'qingyise' | 'qidui' | 'haidi' | 'gangkai' | 'gangpao' | 'qianggang';
+/** 番の一覧（画面の言葉の抜けを検査で見張る） */
+export const CN_FAN_IDS = ['gen', 'pengpeng', 'jingou', 'qingyise', 'qidui', 'haidi', 'gangkai', 'gangpao', 'qianggang'] as const;
+export type CnFanId = (typeof CN_FAN_IDS)[number];
 
 export interface CnScore {
   /** 付いた番（同じ番は 1 行。根は数を fan に入れる） */

@@ -234,20 +234,6 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         <>
       {r.type === 'exhaust' && <p className="result-title">{t('resultExhaust')}</p>}
       {r.type === 'cnWin' && r.exhausted && <p className="result-title">{t('cnExhausted')}</p>}
-      {/* 刮风下雨：この局のカンの点（カンした人が受け取った合計。返したものは印） */}
-      {r.type === 'cnWin' && view.cnKans.length > 0 && (
-        <table className="yaku-list cn-kan-list">
-          <caption>{t('cnKanTitle')}</caption>
-          <tbody>
-            {view.cnKans.map((k, i) => (
-              <tr key={i} className={k.returned ? 'returned' : ''}>
-                <th>{t('cnKanLine', { name: nameOf(k.seat), kind: t(`cnKan_${k.kind}` as MessageKey) })}</th>
-                <td>{k.returned ? t('cnKanReturned') : signed(k.pays[k.seat])}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
       {r.type === 'tripleRon' && <p className="result-title">{t('resultTripleRon')}</p>}
       {r.type === 'abort' && <p className="result-title">{t(`resultAbort_${r.reason}`, { name: r.seat === undefined ? '' : nameOf(r.seat) })}</p>}
       {r.type === 'abort' && r.reason === 'kyushu' && r.seat !== undefined && (
@@ -295,6 +281,20 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
             <CnScoreView score={w.score} tsumo={w.from === null} rules={view.rules} t={t} />
           </Fragment>
         ))}
+      {/* 刮风下雨：この局のカンの点（カンした人が受け取った合計。返したものは印）。アガリのあと・点の動きの前 */}
+      {r.type === 'cnWin' && view.cnKans.length > 0 && (
+        <table className="yaku-list cn-kan-list">
+          <caption>{t('cnKanTitle')}</caption>
+          <tbody>
+            {view.cnKans.map((k, i) => (
+              <tr key={i} className={k.returned ? 'returned' : ''}>
+                <th>{t('cnKanLine', { name: nameOf(k.seat), kind: t(`cnKan_${k.kind}` as MessageKey) })}</th>
+                <td>{k.returned ? t('cnKanReturned') : signed(k.pays[k.seat])}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {r.type === 'exhaust' &&
         r.nagashi?.map((seat) => (
           <p key={seat} className="result-title">

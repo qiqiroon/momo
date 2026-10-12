@@ -4,7 +4,8 @@ import { mask, type Envelope, type GameEvent, type Seat } from './events';
 import { act, advance, callOptions, legalActions, startRound, type Action } from './round';
 import { rulesOfCnSet } from './ruleSets';
 import { apply, cnRonBlocked, initialState, kanProblem, liveWallLeft, startPoints, type GameState } from './state';
-import { sichuanScore } from './sichuan';
+import { CN_FAN_IDS, sichuanScore } from './sichuan';
+import { dictFor } from '../i18n/strings';
 import { kindOf, tileSetFor, type TileId } from './tiles';
 
 const SICHUAN = rulesOfCnSet('sichuan');
@@ -521,5 +522,14 @@ describe('カン（段階9の手順4・MIL §8・§10）', () => {
     // 捨てる色（筒子）の牌を 4 枚持たせると暗槓の候補に出ない
     t.s = { ...t.s, hands: t.s.hands.map((h, i) => (i === 1 ? [...h.filter((x) => kindOf(x) !== 0), 36, 37, 38, 39] : h)), drawn: t.s.drawn.map((x, i) => (i === 1 ? 39 : x)) };
     expect(kanProblem(t.s, 1, 'ankan', [36, 37, 38, 39])).toContain('捨てる色');
+  });
+});
+describe('四川の画面の言葉', () => {
+  it('番の名前・カンの種類が日英中の辞書に全部ある（抜けると結果の枠で画面が止まる＝10-12 に一度起きた）', () => {
+    for (const lang of ['ja', 'en', 'zh'] as const) {
+      const d = dictFor(lang) as Record<string, string>;
+      for (const id of CN_FAN_IDS) expect(d[`cnFan_${id}`], `${lang} cnFan_${id}`).toBeTruthy();
+      for (const k of ['minkan', 'ankan', 'kakan']) expect(d[`cnKan_${k}`], `${lang} cnKan_${k}`).toBeTruthy();
+    }
   });
 });

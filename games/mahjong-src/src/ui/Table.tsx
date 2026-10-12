@@ -654,7 +654,7 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: Ga
 
   return (
     <div className={`my-hand${myTurn ? ' my-turn' : ''}`}>
-      <div className="hand-actions">
+      <div className={`hand-actions${queOpts.length > 0 || queWaiting ? ' que-actions' : ''}`}>
         {queOpts.length > 0 && (
           <>
             {voidSuits.map((s) => (

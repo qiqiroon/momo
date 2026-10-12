@@ -8,6 +8,7 @@ import { apply, initialState, viewFor } from '../engine/state';
 import { finalResult } from '../engine/final';
 import { playOne } from '../selfplay/run';
 import { GENERAL_RULES } from '../engine/rules';
+import { rulesOfCnSet } from '../engine/ruleSets';
 import { Table } from './Table';
 
 /** 鳴いていない手のツモアガリで終わる局を種を替えながら探す（検査用の打ち手は 1 割ほどアガる。門前清自摸和が必ず付く形） */
@@ -320,5 +321,51 @@ describe('あと 1 枚で付く役の表示（訂正26100917）', () => {
     const view = riichiView();
     render(<Table narrow={false} view={view} legal={[]} lang="ja" replay onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
     expect(document.querySelector('.yaku-hints')).toBeNull();
+  });
+});
+
+describe('四川：捨てる色の牌を伏せる（段階9の手順1）', () => {
+  /** 席 0（親）は筒子を 1 枚も持たない 14 枚（萬子 7・索子 7）。捨てる色を決める番 */
+  function queView() {
+    let s = initialState();
+    let seq = 0;
+    const push = (ev: GameEvent, to: Envelope['to'] = 'all') => (s = apply(s, { seq: seq++, to, ev }));
+    const kinds = (list: number[]) => list.map((kd, i) => kd * 4 + 3 - list.slice(0, i).filter((x) => x === kd).length);
+    push({ type: 'gameStart', rules: rulesOfCnSet('sichuan') });
+    push({ type: 'roundStart', roundIndex: 0, dealer: 0 });
+    push({ type: 'deal', seat: 0, tiles: kinds([0, 1, 2, 3, 4, 5, 6, 18, 19, 20, 21, 22, 23]) }, [0]);
+    push({ type: 'deal', seat: 1, tiles: kinds([9, 10, 11, 12, 13, 14, 15, 16, 17, 7, 8, 24, 25]) }, [1]);
+    push({ type: 'deal', seat: 2, tiles: kinds([9, 10, 11, 12, 13, 14, 15, 16, 17, 7, 8, 24, 25]) }, [2]);
+    push({ type: 'deal', seat: 3, tiles: kinds([9, 10, 11, 12, 13, 14, 15, 16, 17, 7, 8, 24, 25]) }, [3]);
+    push({ type: 'draw', seat: 0, tile: kinds([26])[0] }, [0]);
+    return s;
+  }
+
+  it('押した牌の色を捨てる色にして伏せる。手に無い色はボタンで選んでから伏せる牌を押す', () => {
+    const view = queView();
+    const chosen: Action[] = [];
+    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onNext={() => {}} />);
+    expect(document.querySelector('.que-hint')).toHaveTextContent('捨てる色の牌を 1 枚伏せてください');
+    const tiles = () => [...document.querySelectorAll<HTMLButtonElement>('.hand-tile')];
+    // 索子（背番号 18×4 以上）を押す＝索子を捨てる色にして伏せる
+    const sou = tiles().find((b) => b.querySelector('img')?.getAttribute('src')?.endsWith('1s.svg'))!;
+    fireEvent.pointerUp(sou, { pointerType: 'mouse' });
+    expect(chosen[0]).toMatchObject({ type: 'que', suit: 2 });
+    // 筒子は手に無い＝ボタンが出る。押してから萬子を押すと、萬子を伏せて筒子を捨てる色にする
+    fireEvent.click(screen.getByRole('button', { name: '筒子を捨てる色にする（手に無い色）' }));
+    expect(document.querySelector('.que-hint')).toHaveTextContent('伏せる牌を選んでください');
+    const man = tiles().find((b) => b.querySelector('img')?.getAttribute('src')?.endsWith('1m.svg'))!;
+    fireEvent.pointerUp(man, { pointerType: 'mouse' });
+    expect(chosen[1]).toMatchObject({ type: 'que', suit: 1 });
+    expect(Math.floor((chosen[1] as Extract<Action, { type: 'que' }>).tile / 36)).toBe(0);
+  });
+
+  it('伏せた牌に「伏」の札、名札に「缺？」。ほかの人を待つあいだは一言', () => {
+    let view = queView();
+    for (const e of act(view, 0, { type: 'que', tile: 18 * 4 + 3, suit: 2 })) view = apply(view, e);
+    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={() => {}} onNext={() => {}} />);
+    expect(document.querySelectorAll('.que-held-tag')).toHaveLength(1);
+    expect(document.querySelector('.que-mark.pending')).toHaveTextContent('缺？');
+    expect(document.querySelector('.que-hint')).toHaveTextContent('ほかの人が捨てる色を決めています');
   });
 });

@@ -914,6 +914,13 @@ body.in-game .site-header .subtitle {
   line-height: 1.3;
 }
 
+/* 缺一門：伏せる場面の案内は長いので、手牌の幅いっぱいに広げて折り返す */
+.seat-hand.rel-0 .hand-actions.que-actions {
+  left: 0;
+  white-space: normal;
+  flex-wrap: wrap;
+}
+
 /* 缺一門（四川）：名札の「缺萬」など。伏せただけでまだ切っていない人は「缺？」（点線の枠） */
 .que-mark {
   display: inline-block;

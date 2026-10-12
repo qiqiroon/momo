@@ -24,8 +24,13 @@ class FakeNet {
   problems: unknown[] = [];
   /** 検算した回数 */
   verified = 0;
-  /** 返事の待ちの検査：最後に捨て牌が届いた時刻（人ごと）と、返事を出すまでの長さ */
-  lastDiscardAt = new Map<string, number>();
+  /** 返事の待ちの検査：ホストが捨て牌を送った時刻（通し番号ごと）と、そこから返事を送るまでの長さ。
+   *  ★以前は捨て牌が「届いた」時刻（人ごとの最後の 1 つ）から測っていたため、全部の検査を並べて回すとたまに赤になった（10-12）。
+   *  原因＝同じ返事の番に見送るを何通か出すことがあり、混んでタイマーが遅れた古い 1 通が、次の捨て牌のあとに出る
+   *  （ホストは先の 1 通で進んでいて、古い 1 通は捨てる）。それを「最後の捨て牌」から測ると短く出た。
+   *  そこで送った瞬間どうしで測り、返事の相手は「返事の通し番号より前で一番新しい捨て牌」にする
+   *  （捨て牌は届くより前に送られ、待ちはタイマーなので混んでも早まらない＝必ず決めた長さ以上） */
+  discardSentAt: { seq: number; at: number }[] = [];
   replyGaps: { id: string; gap: number; type: string }[] = [];
 
   add(id: string, host: boolean, o: { human: boolean; cpu?: typeof benchCpu; store?: LockerStore }) {
@@ -64,9 +69,11 @@ class FakeNet {
   private push(from: string, to: 'all' | 'host', msg: Record<string, unknown>) {
     if (!this.tables.some((x) => x.id === from)) return;
     this.sent.push({ from, type: String(msg.type), ev: (msg.env as Envelope | undefined)?.ev?.type, at: Date.now() });
+    if (msg.type === 'mt-ev' && (msg.env as Envelope).ev.type === 'discard') this.discardSentAt.push({ seq: (msg.env as Envelope).seq, at: Date.now() });
     if (msg.type === 'mt-act') {
-      const ev = (msg.envs as Envelope[])[0]?.ev;
-      const at = this.lastDiscardAt.get(from);
+      const env = (msg.envs as Envelope[])[0];
+      const ev = env?.ev;
+      const at = env && this.discardSentAt.filter((d) => d.seq < env.seq).at(-1)?.at;
       if (ev && (ev.type === 'pass' || ev.type === 'call' || ev.type === 'ron') && at !== undefined) this.replyGaps.push({ id: from, gap: Date.now() - at, type: ev.type });
     }
     const s = JSON.stringify(msg);
@@ -86,7 +93,6 @@ class FakeNet {
         if (x.id === m.from) continue;
         if (m.to === 'host' && !x.host) continue;
         this.seen.get(x.id)!.push(m.msg);
-        if (m.msg.type === 'mt-ev' && (m.msg.env as Envelope).ev.type === 'discard') this.lastDiscardAt.set(x.id, Date.now());
         x.t.receive(structuredClone(m.msg));
       }
     }

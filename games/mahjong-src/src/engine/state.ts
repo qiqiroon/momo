@@ -893,6 +893,11 @@ export function callProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan
   // 缺一門で伏せておいた牌は、最初の打牌で切るまで使えない
   const held = s.queHeld[seat];
   if (held !== null && held !== HIDDEN && tiles.includes(held)) return '伏せておいた牌（缺一門）は鳴きに使えない';
+  // 捨てる色の牌は鳴けない（鳴くとその局はアガれなくなる＝利用者 2026-10-12 Q1=B。原典に条文なし）。伏せた色は本人の端末でだけ分かる
+  if (queOn(s.rules)) {
+    const q = s.que[seat] ?? s.queHeldSuit[seat];
+    if (q !== null && q !== HIDDEN && suitOf(c.tile) === q) return '捨てる色の牌は鳴けない（缺一門）';
+  }
   if (meld === 'kan' && s.kans >= MAX_KANS) return 'カンは 1 局 4 回まで';
   const need = meld === 'kan' ? 3 : 2;
   if (tiles.length !== need) return `${meld === 'kan' ? 'カン' : '鳴く'}には手牌から ${need} 枚出す`;

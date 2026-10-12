@@ -227,6 +227,37 @@ describe('缺一門：最初の打牌で宣言し、捨てる色から切る', (
   });
 });
 
+describe('缺一門：捨てる色の牌は鳴けない（利用者 2026-10-12 Q1=B）', () => {
+  /** 席 2 が 9s を 2 枚持つ。伏せる色 suit2 を選び、親が 9s を切ったところ */
+  function after9s(suit2: number, hold2: string) {
+    const d = dealer();
+    const t = new Table();
+    t.push({ type: 'gameStart', rules: SICHUAN });
+    t.push({ type: 'roundStart', roundIndex: 0, dealer: 0 });
+    const hs = [H0, H1, '5m5m6m6p6p6p7p7p7p5s6s9s9s', H3];
+    hs.forEach((h, seat) => t.push({ type: 'deal', seat: seat as Seat, tiles: d(h) }, [seat as Seat]));
+    t.push({ type: 'draw', seat: 0, tile: d('8m')[0] }, [0]);
+    t.s = { ...t.s, wall: [] };
+    t.do(0, { type: 'que', tile: tileOf(t.s, 0, '9s'), suit: 2 });
+    t.do(1, { type: 'que', tile: tileOf(t.s, 1, '1s'), suit: 1 });
+    t.do(2, { type: 'que', tile: tileOf(t.s, 2, hold2), suit: suit2 });
+    t.do(3, { type: 'que', tile: tileOf(t.s, 3, '6s'), suit: 2 });
+    t.do(0, { type: 'discard', tile: tileOf(t.s, 0, '9s') });
+    return t;
+  }
+
+  it('捨てる色（伏せた色）の牌はポンできない。ほかの色にした人ならポンできる', () => {
+    expect(callOptions(after9s(2, '5s').s, 2).some((a) => a.type === 'pon')).toBe(false);
+    expect(callOptions(after9s(1, '6p').s, 2).some((a) => a.type === 'pon')).toBe(true);
+  });
+
+  it('ほかの人の端末に届いた鳴きでも、全体の局面で止める', () => {
+    const t = after9s(2, '5s');
+    const nines = t.s.hands[2].filter((x) => kindOf(x) === 26);
+    expect(() => t.push({ type: 'call', seat: 2, meld: 'pon', tiles: nines })).toThrow('捨てる色の牌は鳴けない');
+  });
+});
+
 describe('四川の流局（手順1の仮）', () => {
   it('山が尽きたら宣言なしで点を動かさずに終える（查叫・花豬は手順5）', () => {
     const t = new Table();

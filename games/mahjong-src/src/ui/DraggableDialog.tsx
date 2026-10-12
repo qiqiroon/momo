@@ -2,6 +2,8 @@
 // - 枠のどこでもつかめる（ボタンの上から動かしてもよい。少し動かしてから離したときはボタンを押したことにしない）
 // - 動かせる範囲：枠の一部（KEEP_PX 四方）が画面に残っていれば、それ以外は画面の外に出してよい
 // - つかんだあとの動きは画面全体で拾う（勢いよく動かして指が枠の外へ先に出ても置いていかれない）
+// - 枠の一番上に「つかむ帯」を出す（2026-10-12 利用者指示）。中身を指で縦に送れる枠（結果の枠）は、指で縦になぞると中身が送られて枠が上下に動かない。
+//   帯の上だけは指でなぞっても中身を送らないので、携帯でも帯をつかめば上下に動かせる
 // 位置は枠ごとに持つ＝枠が閉じて次に開いたら真ん中に戻る。
 
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
@@ -85,6 +87,7 @@ export function DraggableDialog({ className, children }: Props) {
       onPointerDown={onPointerDown}
       onClickCapture={onClickCapture}
     >
+      <div className="drag-handle" aria-hidden="true" />
       {children}
     </div>
   );

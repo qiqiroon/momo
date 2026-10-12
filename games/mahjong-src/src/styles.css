@@ -389,8 +389,9 @@ body.in-game .site-header .subtitle {
   align-items: center;
   gap: 14px;
   padding: 20px 24px;
-  /* 少し透かして、後ろの卓が見えるように（2026-10-08 利用者指示で 0.9 → 0.75） */
-  background: rgba(10, 10, 10, 0.75);
+  /* 後ろの卓はほぼ見えないくらい濃く（2026-10-12 利用者指示で 0.75 → 0.96。流局の表の字が後ろの牌に重なって読みにくかった）。
+     卓を見たいときは枠を動かして画面の外へ出す（2026-10-08 は 0.9 → 0.75 で透かしていた） */
+  background: rgba(10, 10, 10, 0.96);
   border: 1px solid var(--orange);
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
@@ -434,6 +435,28 @@ body.in-game .site-header .subtitle {
 
 .draggable.dragging {
   cursor: grabbing;
+}
+
+/* つかむ帯（2026-10-12 利用者指示）：枠の上の余白に重ねる（中身の並びは変えない）。帯の上は指でなぞっても中身を送らない＝携帯でも上下に動かせる */
+.draggable > .drag-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  touch-action: none;
+}
+
+.draggable > .drag-handle::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 7px;
+  width: 40px;
+  height: 4px;
+  margin-left: -20px;
+  border-radius: 2px;
+  background: var(--orange);
 }
 
 .result-title {

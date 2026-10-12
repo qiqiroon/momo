@@ -36,6 +36,12 @@ const GEAR =
 const online = new OnlineSession(matchmakingTransport);
 
 /** ページの住所の #same=… を読む（無ければ null） */
+/** 日本式の対局か（牌譜のリンク・同じ山で勝負のリンクは日本式のルールしか運べない＝中国式は段階9 で対応するまで出さない） */
+const jpGame = (src: KifuSource): boolean => {
+  const first = src.events[0]?.ev;
+  return !(first?.type === 'gameStart' && first.rules.family === 'cn');
+};
+
 function readSameLink(): { sw: SameWall | null } | null {
   const m = /^#same=(.+)$/.exec(location.hash);
   return m ? { sw: decodeSameLink(m[1]) } : null;
@@ -72,7 +78,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   /** 牌譜ファイル（読み込んだもの）を牌譜の元にする */
   const srcOfKifu = (k: Kifu): KifuSource => ({ seed: k.seed, startedAt: k.startedAt, players: k.players.map((p) => ({ name: p.name, kind: p.kind })), set: k.rules.set, events: k.events, mode: k.mode, ...(k.cpu ? { cpu: strengthOf(k.cpu) } : {}) });
   /** 同じ山で勝負のリンク（CPU と対局の牌譜か、山の並びを持つ牌譜＝オンライン対局など） */
-  const sameLinkOf = (src: KifuSource | null) => (src && (src.walls?.length || (src.mode !== 'online' && src.seed)) ? () => `${location.origin}${location.pathname}#same=${encodeSameLink(sameWallOf(src))}` : null);
+  const sameLinkOf = (src: KifuSource | null) => (src && jpGame(src) && (src.walls?.length || (src.mode !== 'online' && src.seed)) ? () => `${location.origin}${location.pathname}#same=${encodeSameLink(sameWallOf(src))}` : null);
   /** トップ画面で覚えている最後の対局（トップへ戻るたびに読み直す） */
   const [last, setLast] = useState<KifuSource | null>(() => loadLastGame());
   /** 保存・読み込みの結果の一言 */
@@ -154,7 +160,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
       ? {
           onSaveFile: () => saveFile(src),
           onSaveDrive: () => void saveDrive(src),
-          makeKifuLink: async () => `${location.origin}${location.pathname}#kifu=${await encodeKifuLink(src)}`,
+          makeKifuLink: jpGame(src) ? async () => `${location.origin}${location.pathname}#kifu=${await encodeKifuLink(src)}` : undefined,
           makeSameLink: sameLinkOf(src),
           saveNote: note,
         }
@@ -319,7 +325,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             onTop={toTop}
             onSaveFile={() => saveFile(source)}
             onSaveDrive={() => void saveDrive(source)}
-            makeKifuLink={async () => `${location.origin}${location.pathname}#kifu=${await encodeKifuLink(source)}`}
+            makeKifuLink={jpGame(source) ? async () => `${location.origin}${location.pathname}#kifu=${await encodeKifuLink(source)}` : undefined}
             makeSameLink={sameLinkOf(source)}
             compare={sameFrom}
             saveNote={note}
@@ -415,7 +421,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
               onSaveFile={() => last && saveFile(last)}
               onSaveDrive={() => last && void saveDrive(last)}
               makeSameLink={sameLinkOf(last)}
-              makeLink={async () => {
+              makeLink={last && !jpGame(last) ? null : async () => {
                 if (!last) throw new Error(t('noLastGame'));
                 return `${location.origin}${location.pathname}#kifu=${await encodeKifuLink(last)}`;
               }}

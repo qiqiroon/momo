@@ -173,7 +173,8 @@ interface ReplayHubProps {
   onSaveFile: () => void;
   onSaveDrive: () => void;
   /** 最後に打った・開いた対局のリンク（#kifu=…）を作る（作れなければ投げる） */
-  makeLink: () => Promise<string>;
+  /** 牌譜のリンク（中国式の対局はまだ作れない＝null で押せない） */
+  makeLink: (() => Promise<string>) | null;
   /** 最後に打った・開いた対局の「同じ山で勝負」のリンク（#same=…）。CPU と対局でなければ null */
   makeSameLink: (() => string) | null;
 }
@@ -277,7 +278,7 @@ export function ReplayHub({ t, hasLast, note, onBack, onPlayLast, onPlayFile, li
               <span className="choice-label">{t('srcDrive')}</span>
               <span className="choice-desc">{t('saveDriveDesc')}</span>
             </button>
-            <LinkCopy t={t} label={t('srcLink')} desc={t('kifuLinkDesc')} disabled={!hasLast} make={makeLink} done="kifuLinkCopied" />
+            <LinkCopy t={t} label={t('srcLink')} desc={t('kifuLinkDesc')} disabled={!hasLast || !makeLink} make={() => makeLink!()} done="kifuLinkCopied" />
             <LinkCopy t={t} label={t('srcSame')} desc={t('sameLinkDesc')} disabled={!hasLast || !makeSameLink} make={() => makeSameLink!()} done="sameCopied" warn="sameWarn" />
             {!hasLast && <p className="choice-note">{t('noLastGame')}</p>}
           </div>

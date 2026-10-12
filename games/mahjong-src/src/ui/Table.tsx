@@ -630,7 +630,9 @@ function CnScoreView({ score, tsumo, rules, t }: { score: CnScore; tsumo: boolea
  * 鳴いた面子 1 組。鳴いた牌は横に曲げ、曲げる位置で誰から鳴いたかを示す（上家＝左・対面＝真ん中・下家＝右）。
  * 大明槓は 4 枚（下家からは右端）。加槓は鳴いた牌の隣に足した牌も曲げる。暗槓は両端を伏せる
  */
-function MeldView({ meld, seat, rules }: { meld: OpenMeld; seat: number; rules: Rules | null }) {
+function MeldView({ meld: given, seat, rules }: { meld: OpenMeld; seat: number; rules: Rules | null }) {
+  // 槍槓で無効になった加槓は、足した牌を除いたポンの形で見せる（足した牌はアガった人のアガリ牌）
+  const meld: OpenMeld = given.robbed ? { ...given, type: 'pon', tiles: given.tiles.filter((x) => x !== given.added), added: undefined } : given;
   if (meld.type === 'ankan') {
     // 赤5があれば表に見える真ん中へ
     const tiles = meld.tiles.slice().sort((a, b) => Number(rules !== null && isRed(b, rules)) - Number(rules !== null && isRed(a, rules)));

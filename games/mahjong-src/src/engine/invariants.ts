@@ -13,7 +13,7 @@ import { isWinningHand, kindCounts, waitKinds } from './agari';
 import { sichuanScore } from './sichuan';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { finalResult } from './final';
-import { apply, initialState, isKanMeld, MAX_KANS, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
+import { apply, initialState, isKanMeld, MAX_KANS, meldSize, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
 import { kindOf, tileSetFor } from './tiles';
 
 export class Watcher {
@@ -204,7 +204,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     if (r.wins.length === 0 && !r.exhausted) bad.push('中国式のアガリにアガった人がいない');
     for (const w of r.wins) {
       const tiles = w.from === null ? full.hands[w.seat] : [...full.hands[w.seat], w.winTile];
-      const melds = full.melds[w.seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: (isKanMeld(m) ? 4 : 3) as 3 | 4 }));
+      const melds = full.melds[w.seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: meldSize(m) }));
       const has = (id: string) => w.score.fans.some((f) => f.id === id);
       const again = sichuanScore({ concealed: kindCounts(tiles), melds, haidi: has('haidi'), gangkai: has('gangkai'), gangpao: has('gangpao'), qianggang: has('qianggang') }, full.rules);
       if (!again || JSON.stringify(again) !== JSON.stringify(w.score)) bad.push(`席 ${w.seat}：中国式のアガリの点が手牌から出し直した点と合わない`);

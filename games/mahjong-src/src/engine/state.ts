@@ -66,6 +66,18 @@ export interface OpenMeld {
   called: TileId | null;
   from: Seat;
   added?: TileId;
+  /** 槍槓されて無効になった加槓（MIL §10-8）。牌の置き場は加槓のまま（足した牌はアガった人のアガリ牌として数える）、
+   *  得点ではポン（3 枚）として数え、画面でもポンの形で見せる（利用者 2026-10-12 Q1=A） */
+  robbed?: boolean;
+}
+
+/** 得点で数える面子の枚数（槍槓で無効になった加槓はポンの 3 枚） */
+export const meldSize = (m: OpenMeld): 3 | 4 => (isKanMeld(m) && !m.robbed ? 4 : 3);
+
+/** 槍槓された加槓に「無効」の印を付ける（足した牌が tile の面子） */
+function markRobbed(s: GameState, seat: Seat, tile: TileId): GameState {
+  const melds = s.melds.map((ms, i) => (i === seat ? ms.map((m) => (m.type === 'kakan' && m.added === tile ? { ...m, robbed: true } : m)) : ms));
+  return { ...s, melds };
 }
 
 export const isKanMeld = (m: OpenMeld): boolean => m.type === 'minkan' || m.type === 'kakan' || m.type === 'ankan';
@@ -852,8 +864,10 @@ function settleClaim(s0: GameState): GameState {
     if (v?.triple === 'atama') wins = rons.slice(0, 1);
   }
   const robbed = c.kind === 'discard' ? {} : { robbed: c.kind };
+  // 槍槓された加槓は無効の印（見た目はポンの形）
+  const marked = c.kind === 'kakan' ? markRobbed(s, c.from, c.tile) : s;
   const result: RoundResult = { type: 'ron', from: c.from, winTile: c.tile, wins, ...robbed };
-  return finish({ ...s, claim: null }, result, ronSettlement(s, c.from, wins));
+  return finish({ ...marked, claim: null }, result, ronSettlement(s, c.from, wins));
 }
 
 /**
@@ -884,7 +898,7 @@ function settleCnRon(s: GameState, c: Claim): GameState {
     if (i >= 0) s = cnReturnKan(s, i);
   }
   // 抢杠（§10-8）：加槓の牌でロンされたカンは無効＝嶺上牌は引かない
-  if (c.kind === 'kakan') s = { ...s, robbedKans: s.robbedKans + 1 };
+  if (c.kind === 'kakan') s = { ...markRobbed(s, c.from, c.tile), robbedKans: s.robbedKans + 1 };
   // 血戦到底：次の番は、切った人から見て一番遠いアガった人の下家（間の人は飛ばされる）
   if (bloodBattle(s.rules)) return cnLeave({ ...s, claim: null }, wins, wins[wins.length - 1].seat);
   return finish({ ...s, claim: null }, { type: 'cnWin', wins }, sumPays(wins));
@@ -1433,7 +1447,7 @@ function queLeft(s: GameState, seat: Seat, tiles: readonly TileId[]): boolean {
 /** 中国式のアガリの点（形と番だけ。全員に見えるものから出す＝どの端末でも同じ）。アガリの形でなければ null */
 function cnScoreOf(s: GameState, seat: Seat, tiles: readonly TileId[], how: 'tsumo' | 'ron'): CnScore | null {
   if (!s.rules || s.rules.family !== 'cn') return null;
-  const melds = s.melds[seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: (isKanMeld(m) ? 4 : 3) as 3 | 4 }));
+  const melds = s.melds[seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: meldSize(m) }));
   const kind = s.claim?.kind ?? 'discard';
   return sichuanScore(
     {

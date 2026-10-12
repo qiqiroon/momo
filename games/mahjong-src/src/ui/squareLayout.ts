@@ -32,8 +32,9 @@ export function meldUnits(type: string): number {
 }
 
 /** 手牌の列の長さ（基本の大きさの牌で何枚ぶんか）。鳴いた面子も足す */
-export function handRowUnits(tiles: number, drawnGap: boolean, melds: readonly { type: string }[] = []): number {
-  return tiles + (drawnGap ? DRAWN_GAP : 0) + melds.reduce((n, m) => n + meldUnits(m.type) + MELD_GAP, 0);
+export function handRowUnits(tiles: number, drawnGap: boolean, melds: readonly { type: string; robbed?: boolean }[] = []): number {
+  // 槍槓で無効になった加槓はポンの形で見せる
+  return tiles + (drawnGap ? DRAWN_GAP : 0) + melds.reduce((n, m) => n + meldUnits(m.robbed ? 'pon' : m.type) + MELD_GAP, 0);
 }
 
 /** 手牌の列の牌の幅：基本の大きさを超えず、置ける幅に収まる */

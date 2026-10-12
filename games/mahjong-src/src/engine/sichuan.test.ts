@@ -3,7 +3,7 @@
 import { mask, type Envelope, type GameEvent, type Seat } from './events';
 import { act, advance, callOptions, legalActions, startRound, type Action } from './round';
 import { rulesOfCnSet } from './ruleSets';
-import { apply, cnRonBlocked, initialState, kanProblem, liveWallLeft, startPoints, type GameState } from './state';
+import { apply, cnRonBlocked, cnScoreTsumo, initialState, kanProblem, liveWallLeft, meldSize, startPoints, type GameState } from './state';
 import { CN_FAN_IDS, sichuanScore } from './sichuan';
 import { dictFor } from '../i18n/strings';
 import { kindOf, tileSetFor, type TileId } from './tiles';
@@ -531,5 +531,26 @@ describe('四川の画面の言葉', () => {
       for (const id of CN_FAN_IDS) expect(d[`cnFan_${id}`], `${lang} cnFan_${id}`).toBeTruthy();
       for (const k of ['minkan', 'ankan', 'kakan']) expect(d[`cnKan_${k}`], `${lang} cnKan_${k}`).toBeTruthy();
     }
+  });
+});
+describe('槍槓で無効になった加槓（利用者 2026-10-12 Q1=A）', () => {
+  /** 席 1 に 5m の加槓（robbed の有無を選ぶ）と、残り 11 枚でアガる手を持たせ、5s をツモったところ */
+  function withKakan(robbed: boolean) {
+    const t = new Table();
+    t.push({ type: 'gameStart', rules: SICHUAN });
+    t.push({ type: 'roundStart', roundIndex: 0, dealer: 0 });
+    const meld = { type: 'kakan' as const, tiles: [16, 17, 18, 19], called: 19, from: 0 as Seat, added: 16, ...(robbed ? { robbed: true } : {}) };
+    // 手牌 10 枚：123m 789m 234s 5s（＋ツモの 5s で雀頭）
+    t.s = { ...t.s, phase: 'discard', turn: 1, hands: t.s.hands.map((h, i) => (i === 1 ? [0, 4, 8, 24, 28, 32, 76, 80, 84, 88, 89] : h)), drawn: [null, 89, null, null], melds: t.s.melds.map((m, i) => (i === 1 ? [meld] : m)), que: [0, 1, 0, 0], kans: 1, rinshanTaken: robbed ? 0 : 1, robbedKans: robbed ? 1 : 0 };
+    return t;
+  }
+
+  it('得点ではポン（3 枚）として数える＝5m 4 枚の根は付かない。無効でなければ根が付く', () => {
+    const ok = cnScoreTsumo(withKakan(false).s, 1, withKakan(false).s.hands[1]);
+    const robbed = cnScoreTsumo(withKakan(true).s, 1, withKakan(true).s.hands[1]);
+    expect(ok?.fans.map((f) => f.id)).toContain('gen');
+    expect(robbed).not.toBeNull();
+    expect(robbed?.fans.map((f) => f.id)).not.toContain('gen');
+    expect(meldSize({ type: 'kakan', tiles: [16, 17, 18, 19], called: 19, from: 0, added: 16, robbed: true })).toBe(3);
   });
 });

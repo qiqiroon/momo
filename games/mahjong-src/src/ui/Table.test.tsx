@@ -419,3 +419,19 @@ describe('血戦到底：局の途中の画面（段階9の手順3）', () => {
     expect(document.querySelector('.cn-win-note')).toBeNull();
   });
 });
+describe('槍槓で無効になった加槓の見た目（利用者 2026-10-12 Q1=A）', () => {
+  it('足した牌を除いたポンの形（3 枚）で見せる。無効でなければ加槓の形（4 枚）', () => {
+    for (const robbed of [true, false]) {
+      let s = initialState();
+      s = apply(s, { seq: 0, to: 'all', ev: { type: 'gameStart', rules: rulesOfCnSet('sichuan') } });
+      s = apply(s, { seq: 1, to: 'all', ev: { type: 'roundStart', roundIndex: 0, dealer: 0 } });
+      const meld = { type: 'kakan' as const, tiles: [16, 17, 18, 19], called: 19, from: 0 as const, added: 16, ...(robbed ? { robbed: true } : {}) };
+      const view = { ...s, phase: 'draw' as const, melds: s.melds.map((m, i) => (i === 1 ? [meld] : m)) };
+      const { unmount } = render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} />);
+      const shown = document.querySelector('.seat-hand.rel-1 .meld')!;
+      expect(shown.className).toContain(robbed ? 'meld-pon' : 'meld-kakan');
+      expect(shown.querySelectorAll('.tile')).toHaveLength(robbed ? 3 : 4);
+      unmount();
+    }
+  });
+});

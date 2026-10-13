@@ -2,7 +2,7 @@ import { loadStrength, strengthOf } from './cpu/strength';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { Envelope } from './engine/events';
 import { HUMAN, useTable } from './game/useTable';
-import { decodeRuleLink, labelOf, rulesOfCnSet, type RuleChoice } from './engine/ruleSets';
+import { cnLabelOf, cnValuesOf, decodeRuleLink, labelOf, type RuleChoice } from './engine/ruleSets';
 import { decodeSameLink, encodeSameLink, sameWallOf, type SameWall } from './kifu/same';
 import { loadRuleChoice, saveRuleChoice } from './ui/RuleSettings';
 import { SeatContext, type SeatInfo } from './ui/seatContext';
@@ -246,8 +246,11 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
     setNote('');
     setSameFrom(null);
     const c = loadRuleChoice();
-    // 中国式のセット（段階9・いまは四川だけ）はセットの値のまま
-    if (c.cn) start(rulesOfCnSet(c.cn), c.cn, undefined, loadStrength());
+    // 中国式：基にしたセットと個別に変えた値（どのセットとも違えばカスタム）
+    if (c.cn) {
+      const values = cnValuesOf(c.cnValues, c.cn);
+      start({ family: 'cn', values }, cnLabelOf(values, c.cn), undefined, loadStrength());
+    }
     else start({ family: 'jp', values: c.values }, labelOf(c.values, c.base), undefined, loadStrength());
   };
 

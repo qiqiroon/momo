@@ -249,17 +249,28 @@ describe('モード選択と、そこから入る画面', () => {
     expect(on()).toHaveTextContent('一般ルール');
     fireEvent.click(screen.getByRole('button', { name: /天鳳/ }));
     expect(on()).toHaveTextContent('天鳳');
-    // 四川（段階9）：選べる。中国式の個別設定はまだ無いので、項目の代わりに一言を出す
+    // 四川（段階9）：選べる。中国式の個別設定（2026-10-13 第16）：変えるとカスタム、矛盾する選択肢は押せない
     fireEvent.click(screen.getByRole('button', { name: '四川麻将' }));
     expect(on()).toHaveTextContent('四川麻将');
-    expect(document.querySelector('.rs-cn-soon')).not.toBeNull();
-    expect(document.querySelector('.rule-rows')).toBeNull();
+    expect(document.querySelector('.rule-rows')).not.toBeNull();
     expect(JSON.parse(localStorage.getItem('momo-mahjong.rules')!).cn).toBe('sichuan');
+    fireEvent.click(screen.getByRole('button', { name: /^▶ 点数/ }));
+    const pay = [...document.querySelectorAll('.set-row')].find((r) => r.textContent?.startsWith('点の払い方'))! as HTMLElement;
+    // 香港式の払いは、点数の数え方が香港の番でないと押せない（理由も出す）
+    expect(within(pay).getByRole('button', { name: /香港式/ })).toBeDisabled();
+    expect(pay.textContent).toContain('点数の数え方が「四川の番（倍々）」のため選べません');
+    const tobi = () => [...document.querySelectorAll('.set-row')].find((r) => r.textContent?.startsWith('飛び'))! as HTMLElement;
+    fireEvent.click(screen.getByRole('button', { name: /^▶ 対局の形/ }));
+    if (!tobi()) fireEvent.click([...document.querySelectorAll('.group.fold.detail')][0]);
+    fireEvent.click(within(tobi()).getByRole('button', { name: 'あり' }));
+    expect(document.querySelector('.custom-chip.on')).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem('momo-mahjong.rules')!).cnValues.tobi).toBe('on');
     // 香港（段階9 香港の手順1）・国標（国標の手順1）：選べる
-    fireEvent.click(screen.getByRole('button', { name: /香港/ }));
+    const sets = () => document.querySelector('.sets') as HTMLElement;
+    fireEvent.click(within(sets()).getByRole('button', { name: /香港/ }));
     expect(on()).toHaveTextContent('香港麻雀');
     expect(JSON.parse(localStorage.getItem('momo-mahjong.rules')!).cn).toBe('hk');
-    fireEvent.click(screen.getByRole('button', { name: /国標/ }));
+    fireEvent.click(within(sets()).getByRole('button', { name: /国標/ }));
     expect(on()).toHaveTextContent('国標');
     expect(JSON.parse(localStorage.getItem('momo-mahjong.rules')!).cn).toBe('mcr');
     // 日本式のセットに戻ると、中国式の選択は外れる

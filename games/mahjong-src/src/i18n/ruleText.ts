@@ -2,8 +2,9 @@
 // ここは英語・中国語の訳だけ。項目の名前・選択肢・注記・まとまりの名前。訳は Claude（2026-10-10）。
 // 猫語は画面の言葉と同じく鳴き声にする（strings.ts の決まり）。
 
-import { JP_RULE_ITEMS } from '../engine/ruleSets';
-import { JP_ITEMS } from '../engine/ruleTable';
+import { CN_RULE_ITEMS, JP_RULE_ITEMS } from '../engine/ruleSets';
+import { CN_ITEMS, JP_ITEMS } from '../engine/ruleTable';
+import { CN_GROUPS, CN_NAMES, CN_NOTES, CN_OPTS } from './cnRuleText';
 import type { BaseLang } from './strings';
 
 type Tr = { en: string; zh: string };
@@ -159,29 +160,31 @@ const GROUPS: Record<string, Tr> = {
   ローカル役: { en: 'Local yaku', zh: '地方役' },
 };
 
-const item = (k: string) => JP_RULE_ITEMS.find((x) => x.k === k);
+/** 日本式か中国式か（同じ項目名があるので、言葉はどちらの表から引くかを渡す） */
+export type RuleFamily = 'jp' | 'cn';
+const item = (k: string, fam: RuleFamily = 'jp') => (fam === 'cn' ? CN_RULE_ITEMS : JP_RULE_ITEMS).find((x) => x.k === k);
 
-export function ruleName(k: string, lang: BaseLang): string {
-  if (lang === 'ja') return item(k)?.name ?? k;
-  return NAMES[k]?.[lang] ?? item(k)?.name ?? k;
+export function ruleName(k: string, lang: BaseLang, fam: RuleFamily = 'jp'): string {
+  if (lang === 'ja') return item(k, fam)?.name ?? k;
+  return (fam === 'cn' ? CN_NAMES : NAMES)[k]?.[lang] ?? item(k, fam)?.name ?? k;
 }
 
-export function optLabel(k: string, v: string, lang: BaseLang): string {
-  const ja = item(k)?.opts.find((o) => o[0] === v)?.[1] ?? v;
+export function optLabel(k: string, v: string, lang: BaseLang, fam: RuleFamily = 'jp'): string {
+  const ja = item(k, fam)?.opts.find((o) => o[0] === v)?.[1] ?? v;
   if (lang === 'ja') return ja;
   // 数だけの選択肢（25000・10-20 など）はそのまま
   if (/^[\d\-–]+$/.test(ja)) return ja;
-  return OPTS[k]?.[v]?.[lang] ?? ON_OFF[v]?.[lang] ?? ja;
+  return (fam === 'cn' ? CN_OPTS : OPTS)[k]?.[v]?.[lang] ?? ON_OFF[v]?.[lang] ?? ja;
 }
 
-export function ruleNote(k: string, lang: BaseLang): string {
-  const ja = item(k)?.note ?? '';
+export function ruleNote(k: string, lang: BaseLang, fam: RuleFamily = 'jp'): string {
+  const ja = item(k, fam)?.note ?? '';
   if (!ja || lang === 'ja') return ja;
-  return NOTES[k]?.[lang] ?? ja;
+  return (fam === 'cn' ? CN_NOTES : NOTES)[k]?.[lang] ?? ja;
 }
 
 export function groupName(g: string, lang: BaseLang): string {
-  return lang === 'ja' ? g : (GROUPS[g]?.[lang] ?? g);
+  return lang === 'ja' ? g : (GROUPS[g]?.[lang] ?? CN_GROUPS[g]?.[lang] ?? g);
 }
 
 /** 訳が抜けていないか（検査用）：英・中の名前が無い項目、選択肢の訳が無いもの */
@@ -193,5 +196,12 @@ export function missingTranslations(): string[] {
     if (it.note && !NOTES[it.k]) out.push(`注記 ${it.k}`);
   }
   for (const g of JP_ITEMS.filter((x) => x.group).map((x) => x.group!)) if (!GROUPS[g]) out.push(`まとまり ${g}`);
+  // 中国式
+  for (const it of CN_RULE_ITEMS) {
+    if (!CN_NAMES[it.k]) out.push(`中国式の名前 ${it.k}`);
+    for (const [v, ja] of it.opts) if (!/^[\d\-–]+$/.test(ja) && !CN_OPTS[it.k]?.[v] && !ON_OFF[v]) out.push(`中国式の選択肢 ${it.k}=${v}`);
+    if (it.note && !CN_NOTES[it.k]) out.push(`中国式の注記 ${it.k}`);
+  }
+  for (const g of CN_ITEMS.filter((x) => x.group).map((x) => x.group!)) if (!GROUPS[g] && !CN_GROUPS[g]) out.push(`中国式のまとまり ${g}`);
   return out;
 }

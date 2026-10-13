@@ -58,9 +58,31 @@ export function blockedBy(values: Readonly<Record<JpRuleKey, string>>, k: JpRule
 export interface RuleChoice {
   base: SetId;
   values: Record<JpRuleKey, string>;
-  /** 中国式のセットを選んだとき（段階9。いまは CPU と対局の四川だけ・個別設定はまだ無い）。日本式の値は前のまま持っておく */
+  /** 中国式のセットを選んだとき（基にしたセット）。日本式の値は前のまま持っておく */
   cn?: CnSetId;
+  /** 中国式の全項目の値（個別に変えた値を含む＝2026-10-13 第16）。無ければ cn のセットの値 */
+  cnValues?: Record<CnRuleKey, string>;
 }
+
+/**
+ * 中国式の値を確かめて取り出す：選択肢にある値だけを使い、無い項目はセットの値。
+ * 同時に成り立ってはいけない組み合わせになっていたら、セットの値に戻す（古い控え・手で書き換えたリンクを読まない）
+ */
+export function cnValuesOf(raw: unknown, set: CnSetId): Record<CnRuleKey, string> {
+  const base = rulesOfCnSet(set).values as Record<CnRuleKey, string>;
+  const values = { ...base };
+  if (raw && typeof raw === 'object') {
+    const src = raw as Record<string, unknown>;
+    for (const it of CN_RULE_ITEMS) {
+      const v = src[it.k];
+      if (typeof v === 'string' && it.opts.some((o) => o[0] === v)) values[it.k] = v;
+    }
+  }
+  return cnConsistent(values) ? values : { ...base };
+}
+
+/** 選んだルールの中国式の値（cn が無ければ null） */
+export const cnChoiceValues = (c: RuleChoice): Record<CnRuleKey, string> | null => (c.cn ? cnValuesOf(c.cnValues, c.cn) : null);
 
 /** 一般ルールを選んだ状態 */
 export function generalChoice(): RuleChoice {

@@ -121,6 +121,9 @@ export interface CnDraw {
   kanReturn: number[];
 }
 
+/** 国標の底分（98 第十条一(三)） */
+export const MCR_BASE = 8;
+
 /** 花豬の罰（MIL §11-2） */
 export const PIG_PENALTY = 48;
 
@@ -1820,8 +1823,10 @@ export function cnRonBlocked(s: GameState, seat: Seat, score: CnScore): boolean 
  */
 function cnTsumoPays(s: GameState, seat: Seat, score: CnScore): number[] {
   const out = [0, 0, 0, 0];
-  const hk = s.rules?.family === 'cn' && s.rules.values.pay === 'hk';
-  const each = hk ? score.points / 2 : score.points + 1;
+  const pay = s.rules?.family === 'cn' ? s.rules.values.pay : null;
+  const hk = pay === 'hk';
+  // 国標：3 人が（底分 8＋点）ずつ（98 第十条一(三)）
+  const each = hk ? score.points / 2 : pay === 'mcr' ? MCR_BASE + score.points : score.points + 1;
   // 香港の包牌：包の人が 3 人分を 1 人で払う
   const bao = hk ? s.pao[seat] : null;
   if (bao) {
@@ -1843,7 +1848,18 @@ function cnTsumoPays(s: GameState, seat: Seat, score: CnScore): number[] {
  */
 function cnRonPays(s: GameState, c: Claim, seat: Seat, score: CnScore): number[] {
   const out = [0, 0, 0, 0];
-  const hk = s.rules?.family === 'cn' && s.rules.values.pay === 'hk';
+  const pay = s.rules?.family === 'cn' ? s.rules.values.pay : null;
+  const hk = pay === 'hk';
+  // 国標：放銃者が（底分 8＋点）、ほかの 2 人が底分 8 ずつ（98 第十条一(三)。抢杠和はカンした人が放銃者）
+  if (pay === 'mcr') {
+    for (const p of SEATS_) {
+      if (p === seat) continue;
+      const n = p === c.from ? MCR_BASE + score.points : MCR_BASE;
+      out[p] -= n;
+      out[seat] += n;
+    }
+    return out;
+  }
   const amount = hk && c.kind !== 'discard' ? (score.points / 2) * 3 : score.points;
   out[c.from] -= amount;
   out[seat] += amount;

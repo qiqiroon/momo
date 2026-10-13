@@ -674,8 +674,11 @@ function CnScoreView({ score, seat, pays, tsumo, rob, rules, t }: { score: CnSco
   const hk = rules?.family === 'cn' && rules.values.scoring === 'hk';
   const payers = pays.flatMap((p, i) => (i !== seat && p < 0 ? [-p] : []));
   const limit = hk && 'limit' in score && !!score.limit;
+  const mcr = rules?.family === 'cn' && rules.values.pay === 'mcr';
   const pay =
-    payers.length > 1 && payers.every((p) => p === payers[0])
+    mcr && !tsumo && payers.length === 3
+      ? t('cnPayMcrRon', { n: Math.max(...payers), b: Math.min(...payers) })
+      : payers.length > 1 && payers.every((p) => p === payers[0])
       ? t('cnPayTsumo', { n: payers[0] })
       : payers.length === 1
         ? t(rob && hk ? 'cnPayRob' : tsumo ? 'cnPayOne' : 'cnPayRon', { n: payers[0] })
@@ -697,7 +700,7 @@ function CnScoreView({ score, seat, pays, tsumo, rob, rules, t }: { score: CnSco
         {limit ? t('cnLimit') : score.capped ? t('cnCapped', { cap }) : ''}
       </p>
       <p className="score-pay">{pay}</p>
-      <p className="score-total">{hk ? t('cnGain', { n: pays[seat] }) : t('cnPoints', { n: score.points })}</p>
+      <p className="score-total">{hk || mcr ? t('cnGain', { n: pays[seat] }) : t('cnPoints', { n: score.points })}</p>
     </div>
   );
 }

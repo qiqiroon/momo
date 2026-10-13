@@ -16,7 +16,7 @@ import { sichuanScore } from './sichuan';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { finalResult } from './final';
 import { cnRoundsTotal } from './game';
-import { apply, cnDrawStateOf, initialState, isKanMeld, MAX_KANS, meldSize, PIG_PENALTY, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
+import { apply, cnDrawStateOf, initialState, isKanMeld, MAX_KANS, MCR_BASE, meldSize, PIG_PENALTY, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
 import { isFlower, kindOf, tileSetFor } from './tiles';
 
 export class Watcher {
@@ -258,6 +258,12 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       if (full.rules.family === 'cn' && w.score.fan < Number(full.rules.values.minFan)) bad.push(`席 ${w.seat}：最低の番に届かないのにアガった`);
       if (w.from === w.seat) bad.push('切った人が自分の牌でロンした');
       if (w.pays.reduce((a, b) => a + b, 0) !== 0) bad.push(`席 ${w.seat}：アガリの点の動きの合計が 0 でない`);
+      // 国標の払い：ツモ＝3 人が（8＋点）ずつ／ロン＝放銃者が（8＋点）・ほかの 2 人が 8 ずつ
+      if (full.rules.family === 'cn' && full.rules.values.pay === 'mcr') {
+        const want = [0, 1, 2, 3].map((p) => (p === w.seat ? 0 : w.from === null || p === w.from ? -(MCR_BASE + w.score.points) : -MCR_BASE));
+        want[w.seat] = -want.reduce((a, b) => a + b, 0);
+        if (JSON.stringify(want) !== JSON.stringify(w.pays)) bad.push(`席 ${w.seat}：国標の払いの額が違う（${w.pays.join(',')}）`);
+      }
       // 香港の払い：ツモ＝3 人が半分ずつ（包牌なら包の人が 3 人分）／ロン＝放銃者が全額／搶槓＝カンした人がツモの 3 人分
       if (full.rules.family === 'cn' && full.rules.values.pay === 'hk') {
         const half = w.score.points / 2;

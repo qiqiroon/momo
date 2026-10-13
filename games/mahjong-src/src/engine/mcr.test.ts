@@ -264,3 +264,42 @@ describe('国標の番の名前', () => {
     }
   });
 });
+
+describe('国標の起和と払い（手順3）', () => {
+  /** 席 0（親）に手牌を配り、1 巡回ったことにして draw を引かせた局面（花牌は flowers 枚表にしてある） */
+  function deal(hand: string, draw: string, flowers = 0): GameState {
+    const used = new Map<number, number>();
+    const ids = (code: string) => {
+      const out: number[] = [];
+      for (const [, nums, suit] of code.matchAll(/(\d+)([mpsz])/g)) for (const d of nums) {
+        const k = B[suit as 'm'] + Number(d) - 1;
+        const n = used.get(k) ?? 0;
+        used.set(k, n + 1);
+        out.push(k * 4 + n);
+      }
+      return out;
+    };
+    let s = apply(initialState(), { seq: 0, to: 'all', ev: { type: 'gameStart', rules: MCR } });
+    s = apply(s, { seq: s.nextSeq, to: 'all', ev: { type: 'roundStart', roundIndex: 0, dealer: 0 } });
+    const mine = ids(hand);
+    const d = ids(draw)[0];
+    const rest: number[] = [];
+    for (let t = 0; t < 136; t++) if (!mine.includes(t) && t !== d) rest.push(t);
+    const hands = [mine, rest.slice(0, 13), rest.slice(13, 26), rest.slice(26, 39)];
+    return { ...s, phase: 'discard', turn: 0, hands: hands.map((h, i) => (i === 0 ? [...h, d] : h)), drawn: [d, null, null, null], discards: [[143], [143], [143], [143]], flowers: [Array.from({ length: flowers }, (_, i) => 136 + i), [], [], []], wallLeft: 60 };
+  }
+  it('8 点に届かない手はツモれない（不求人 4 点だけ）。花牌は起和に数えないので、花牌を足しても届かない', () => {
+    expect(legalActions(deal('123m567p789s23s1z1z', '4s'), 0).some((a) => a.type === 'tsumo')).toBe(false);
+    expect(legalActions(deal('123m567p789s23s1z1z', '4s', 5), 0).some((a) => a.type === 'tsumo')).toBe(false);
+  });
+  it('ツモ：3 人が（底分 8＋点）ずつ。点には花牌も入る', () => {
+    // 花龙 8＋不求人 4＝12 点・花牌 2 枚＝14 → 3 人が 22 ずつ
+    const s = deal('123m456p789s23s1z1z', '4s', 2);
+    const after = act(s, 0, { type: 'tsumo' }).reduce(apply, s);
+    expect(after.result?.type).toBe('cnWin');
+    if (after.result?.type === 'cnWin') {
+      expect(after.result.wins[0].score.points).toBe(14);
+      expect(after.result.wins[0].pays).toEqual([66, -22, -22, -22]);
+    }
+  });
+});

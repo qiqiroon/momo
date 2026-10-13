@@ -11,6 +11,7 @@ import type { Rules } from './rules';
 import { scoreWin, type ScoreResult } from './score';
 import { sichuanScore, type CnScore } from './sichuan';
 import { hongkongScore } from './hongkong';
+import { mcrScore } from './mcr';
 import type { Meld } from './yaku';
 import { isFlower, kindOf, tileSetFor, type TileId } from './tiles';
 
@@ -842,7 +843,8 @@ export function apply(state: GameState, env: Envelope): GameState {
       if (s.rules?.family === 'cn') {
         if (ev.ura.length !== 0) throw new Error('中国式に裏ドラは無い');
         const visible = !known.includes(HIDDEN);
-        const score = visible ? cnScoreTsumo(s, ev.seat, ev.hand) : cnScoreOf(s, ev.seat, ev.hand, 'tsumo');
+        // 引いた牌が伏せてある端末でも、出来事のアガリ牌で番を出す（香港・国標の番はアガリ牌を見る）
+        const score = visible ? cnScoreTsumo(s, ev.seat, ev.hand) : cnScoreOf(s, ev.seat, ev.hand, 'tsumo', ev.winTile);
         if (!score) throw new Error('アガリの形でない（または捨てる色が残っている）のにツモアガリした');
         hands[ev.seat] = ev.hand.slice();
         const opened = s.opened.slice();
@@ -1695,14 +1697,14 @@ function queLeft(s: GameState, seat: Seat, tiles: readonly TileId[]): boolean {
  * 中国式のアガリの点（形と番だけ。全員に見えるものから出す＝どの端末でも同じ）。アガリの形でなければ null。
  * 番の数え方はルールの scoring（四川＝sichuan.ts／香港＝hongkong.ts）。番がルールの minFan に届かなければアガれない（香港の三番起糊）
  */
-function cnScoreOf(s: GameState, seat: Seat, tiles: readonly TileId[], how: 'tsumo' | 'ron'): CnScore | null {
+function cnScoreOf(s: GameState, seat: Seat, tiles: readonly TileId[], how: 'tsumo' | 'ron', given?: TileId): CnScore | null {
   if (!s.rules || s.rules.family !== 'cn') return null;
   const v = s.rules.values;
   const kind = s.claim?.kind ?? 'discard';
   const last = liveWallLeft(s) === 0;
   let score: CnScore | null;
   if (v.scoring === 'hk') {
-    const winTile = how === 'tsumo' ? s.drawn[seat] : (s.claim?.tile ?? null);
+    const winTile = given ?? (how === 'tsumo' ? s.drawn[seat] : (s.claim?.tile ?? null));
     const quiet = s.melds.every((m) => m.length === 0);
     score = hongkongScore(
       {
@@ -1728,6 +1730,28 @@ function cnScoreOf(s: GameState, seat: Seat, tiles: readonly TileId[], how: 'tsu
       },
       s.rules,
     );
+  } else if (v.scoring === 'mcr') {
+    const winTile = given ?? (how === 'tsumo' ? s.drawn[seat] : (s.claim?.tile ?? null));
+    const wk = winTile === null || winTile === HIDDEN ? -1 : kindOf(winTile);
+    score = mcrScore({
+      concealed: kindCounts(tiles),
+      melds: s.melds[seat].map((m) => ({
+        kind: Math.min(...m.tiles.map(kindOf)),
+        type: m.type === 'chi' ? 'chi' : m.type === 'pon' || m.robbed ? 'pon' : 'kan',
+        concealed: m.type === 'ankan',
+      })),
+      winTile: wk,
+      tsumo: how === 'tsumo',
+      seatWind: 27 + ((seat - s.dealer + 4) % 4),
+      roundWind: 27 + (Math.floor(Math.max(0, s.roundIndex) / 4) % 4),
+      flowers: s.flowers[seat].length,
+      lastDraw: how === 'tsumo' && last,
+      lastClaim: how === 'ron' && last && kind === 'discard',
+      gangkai: how === 'tsumo' && s.rinshanDraw,
+      qianggang: how === 'ron' && kind === 'kakan',
+      juezhang: wk >= 0 && shownElsewhere(s, wk, winTile!) >= 3,
+      qidui: v.qidui === 'on',
+    });
   } else {
     const melds = s.melds[seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: meldSize(m) }));
     score = sichuanScore(
@@ -1745,6 +1769,19 @@ function cnScoreOf(s: GameState, seat: Seat, tiles: readonly TileId[], how: 'tsu
   }
   if (score && score.fan < Number(v.minFan)) return null;
   return score;
+}
+
+/** その種類の牌が、アガリ牌のほかに場（河〈鳴かれた牌は面子の側で数える〉・全員の鳴いた面子）に何枚見えているか（国標の和绝张） */
+function shownElsewhere(s: GameState, k: number, winTile: TileId): number {
+  let n = 0;
+  s.discards.forEach((d, seat) => {
+    const away = new Set(s.calledAway[seat]);
+    d.forEach((t, i) => {
+      if (!away.has(i) && t !== winTile && t !== HIDDEN && kindOf(t) === k) n++;
+    });
+  });
+  for (const ms of s.melds) for (const m of ms) for (const t of m.tiles) if (t !== winTile && kindOf(t) === k) n++;
+  return n;
 }
 
 /** 中国式のツモアガリ（ツモって切る前の局面）。アガれなければ null。捨てる色が残っていればアガれない（手牌が見える局面で確かめる） */

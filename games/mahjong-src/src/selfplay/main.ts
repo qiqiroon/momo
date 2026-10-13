@@ -102,12 +102,14 @@ for (const f of hg.failures.slice(0, 5)) {
 }
 if (hk.games === 0 || hk.failures.length || hg.games === 0 || hg.failures.length || hg.maxHands > 24) process.exitCode = 1;
 
-// 国標（段階9）：1 局ずつと完走。花牌の補花（配り終えたあと・局の途中・補充がまた花牌・最後の 1 枚が花牌）。番の数え方ができるまではアガリが出ない（手順2 から）
+// 国標（段階9）：1 局ずつと完走。花牌の補花（配り終えたあと・局の途中・補充がまた花牌・最後の 1 枚が花牌）
 const m0 = Date.now();
 const mc = runSelfplay(games, `${prefix}-mcr`, rulesOfCnSet('mcr'));
 console.log(`
 国標：${mc.games} 局・見張った出来事 ${mc.events}・失敗 ${mc.failures.length}（${Date.now() - m0} ms）`);
 console.log(`終わり方：${Object.entries(mc.endings).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join('・')}・鳴き ${mc.paths.calls} 回（うちチー ${mc.paths.chi}）`);
+console.log(`アガリ：ツモ ${mc.paths.cn.tsumo}・ロン ${mc.paths.cn.ron}`);
+console.log(`番：${Object.entries(mc.paths.cn.fans).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join('・') || 'なし'}`);
 for (const f of mc.failures.slice(0, 5)) {
   console.log(`  失敗：種 ${f.seed}・通し番号 ${f.seq}`);
   for (const reason of f.reasons) console.log(`    ${reason}`);

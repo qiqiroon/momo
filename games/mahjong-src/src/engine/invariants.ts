@@ -11,6 +11,7 @@
 import { HIDDEN, SEATS, mask, type Envelope, type Seat } from './events';
 import { isWinningHand, kindCounts, waitKinds } from './agari';
 import { hkPoints, hongkongScore } from './hongkong';
+import { mcrScore } from './mcr';
 import { sichuanScore } from './sichuan';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { finalResult } from './final';
@@ -211,7 +212,24 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       const has = (id: string) => w.score.fans.some((f) => f.id === id);
       const hk = full.rules.family === 'cn' && full.rules.values.scoring === 'hk';
       // 手牌と面子から番を出し直す（場面の印は付いた番から読む）
-      const again = hk
+      const mcr = full.rules.family === 'cn' && full.rules.values.scoring === 'mcr';
+      const again = mcr
+        ? mcrScore({
+            concealed: kindCounts(tiles),
+            melds: full.melds[w.seat].map((m) => ({ kind: Math.min(...m.tiles.map(kindOf)), type: m.type === 'chi' ? 'chi' : m.type === 'pon' || m.robbed ? 'pon' : 'kan', concealed: m.type === 'ankan' })),
+            winTile: kindOf(w.winTile),
+            tsumo: w.from === null,
+            seatWind: 27 + ((w.seat - full.dealer + 4) % 4),
+            roundWind: 27 + (Math.floor(Math.max(0, full.roundIndex) / 4) % 4),
+            flowers: full.flowers[w.seat].length,
+            lastDraw: has('miaoshou'),
+            lastClaim: has('haidilaoyue'),
+            gangkai: has('gangkaiG'),
+            qianggang: has('qiangganghe'),
+            juezhang: has('hejuezhang'),
+            qidui: full.rules.family === 'cn' && full.rules.values.qidui === 'on',
+          })
+        : hk
         ? hongkongScore(
             {
               concealed: kindCounts(tiles),
@@ -235,7 +253,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       const sOf = (t: number) => (kindOf(t) < 27 ? Math.floor(kindOf(t) / 9) : -1);
       if (q !== null && [...tiles, ...full.melds[w.seat].flatMap((m) => m.tiles)].some((t) => sOf(t) === q)) bad.push(`席 ${w.seat}：捨てる色が残ったままアガった（缺一門）`);
       const cap = full.rules.family === 'cn' && full.rules.values.cap !== 'none' ? Number(full.rules.values.cap) : Infinity;
-      const points = hk ? hkPoints(w.score.fan, full.rules).points : 2 ** Math.min(w.score.fan, cap);
+      const points = mcr ? w.score.fan + full.flowers[w.seat].length : hk ? hkPoints(w.score.fan, full.rules).points : 2 ** Math.min(w.score.fan, cap);
       if (w.score.points !== points) bad.push(`席 ${w.seat}：点が番から出した値と違う`);
       if (full.rules.family === 'cn' && w.score.fan < Number(full.rules.values.minFan)) bad.push(`席 ${w.seat}：最低の番に届かないのにアガった`);
       if (w.from === w.seat) bad.push('切った人が自分の牌でロンした');

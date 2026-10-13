@@ -12,6 +12,7 @@ import { decompose } from './yaku';
 import type { Rules } from './rules';
 import type { KindId } from './tiles';
 import type { HkFanId } from './hongkong';
+import type { McrFanId } from './mcr';
 
 /** 番の一覧（画面の言葉の抜けを検査で見張る） */
 export const CN_FAN_IDS = ['gen', 'pengpeng', 'jingou', 'qingyise', 'qidui', 'haidi', 'gangkai', 'gangpao', 'qianggang'] as const;
@@ -19,7 +20,7 @@ export type CnFanId = (typeof CN_FAN_IDS)[number];
 
 export interface CnScore {
   /** 付いた番（同じ番は 1 行。根は数を fan に入れる）。香港の番（hongkong.ts）も同じ形 */
-  fans: { id: CnFanId | HkFanId; fan: number }[];
+  fans: { id: CnFanId | HkFanId | McrFanId; fan: number }[];
   /** 番の合計（上限で切る前） */
   fan: number;
   /** 上限で切ったか */

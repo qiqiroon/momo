@@ -146,7 +146,7 @@ export const CN_ITEMS: readonly RuleItem[] = [
   {"k":"tieCn","name":"同点のときの順位","opts":[["seat","起家に近い人が上"],["same","同じ順位（標準分は分け合う）"]],"v":[null,"same",null],"note":"国標は 1 対局の同点の条文が無く、大会の規程（騰訊 TMT 2016「比赛分相同，则均分标准分」）に合わせた。原典の比べ方（比賽分の合計など）は大会全体の順位のためのもの"},
   {"k":"dealer","name":"親の決め方","opts":[["firstWin","最初にアガった人が次の親"],["rotate","連荘なし（順に回る）"],["renchan","親がアガれば連荘"]],"v":["firstWin","rotate","renchan"]},
   {"k":"tobi","name":"飛び（0点未満で終了）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off"]},
-  {"k":"tochu","name":"途中流局（九種九牌など）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off"]},
+  {"k":"tochu","name":"途中流局（九種九牌など）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off"],"note":"「あり」＝九種九牌（本人が選ぶ）・四風連打・四開槓（日本式の一般ルールと同じ決まり）。親は流局と同じ扱い"},
   {"group":"牌"},
   {"k":"honors","name":"字牌（東南西北白發中）","opts":[["on","あり"],["off","なし"]],"v":["off","on","on"]},
   {"k":"flower","name":"花牌（春夏秋冬梅蘭菊竹）","opts":[["on","あり"],["off","なし"]],"v":["off","on","off"]},

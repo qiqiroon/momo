@@ -104,7 +104,7 @@ export type RoundResult =
   | { type: 'abort'; reason: AbortReason; seat?: Seat }
   /** 中国式のアガリ（段階9）。wins＝アガった人（アガった順。同じ牌のロンは切った人の下家から順＝ルールの multiWin）。
    *  血戦到底（アガった人が抜けて続く）は、局の終わりにその局の全部のアガリを入れる。exhausted＝山が尽きて終わった（アガった人がいなくてカンの収入だけのときも＝wins は空） */
-  | { type: 'cnWin'; wins: CnWin[]; exhausted?: boolean; draw?: CnDraw };
+  | { type: 'cnWin'; wins: CnWin[]; exhausted?: boolean; draw?: CnDraw; abort?: AbortReason };
 
 /** 流局のときのアガっていない人の状態（MIL §11-1）：ready＝テンパイ／noten＝ノーテン／pig＝花豬（捨てる色の牌が 1 枚でも残っている＝利用者 Q4=A。
  *  ルールの huazhu が「なし」なら、捨てる色の牌が残っている人はノーテン） */
@@ -713,7 +713,7 @@ export function apply(state: GameState, env: Envelope): GameState {
       hands[ev.seat] = ev.hand.slice();
       const opened = s.opened.slice();
       opened[ev.seat] = true;
-      return finish({ ...s, hands, opened }, { type: 'abort', reason: 'kyushu', seat: ev.seat }, [0, 0, 0, 0]);
+      return abortRound({ ...s, hands, opened }, 'kyushu', ev.seat);
     }
     case 'kan': {
       if (s.phase !== 'discard' || ev.seat !== s.turn) throw new Error('カンできる時ではない');
@@ -966,7 +966,7 @@ function settleClaim(s0: GameState): GameState {
     if (!call) {
       // 打牌が通った（誰もロンも鳴きもしない）ところで、途中流局を確かめる
       const reason = abortAfterPass(s, c);
-      if (reason) return finish({ ...s, claim: null }, { type: 'abort', reason }, [0, 0, 0, 0]);
+      if (reason) return abortRound({ ...s, claim: null }, reason);
       return { ...s, phase: 'draw', turn: nextActive(s, c.from), claim: null };
     }
     return applyCall(s, c, call);
@@ -1448,24 +1448,48 @@ export function riichiAnkanKeepsWait(before: readonly TileId[], k: number, cond:
  * 四風連打＝鳴きが無いまま 4 人の最初の打牌が同じ風牌／四家立直＝4 人目のリーチの宣言牌が通った（成立時点が「通ったとき」のルール）／
  * 四開槓＝2 人以上で合わせて 4 回カンして、そのあとの打牌が通った（1 人で 4 回なら続ける＝四槓子の見込み）
  */
+/**
+ * 途中流局で局を終える。中国式でアガった人（血戦到底）かカンの収入があれば、それを入れた結果に途中流局の印を付ける
+ * （点はもう動いている。流局の精算はしない）。それ以外は日本式と同じ途中流局の結果
+ */
+function abortRound(s: GameState, reason: AbortReason, seat?: Seat): GameState {
+  if (s.rules?.family === 'cn' && (s.cnWins.length > 0 || s.cnKans.length > 0)) {
+    const done = cnFinish({ ...s, drawn: [null, null, null, null] }, false);
+    return done.result?.type === 'cnWin' ? { ...done, result: { ...done.result, abort: reason } } : done;
+  }
+  return finish(s, { type: 'abort', reason, ...(seat !== undefined ? { seat } : {}) }, [0, 0, 0, 0]);
+}
+
+/**
+ * 途中流局の種類ごとの有無。日本式は項目ごと。中国式はルールの tochu が「あり」なら九種九牌（本人が選ぶ）・四風連打・四開槓
+ * （日本式の一般ルールと同じ決まり。リーチが無いので四家立直は無い＝2026-10-13 第16 Q7=A）
+ */
+export function abortRules(rules: Rules | null): { kyushu: boolean; kyushuMust: boolean; sufon: boolean; sukan: boolean; suricchi: boolean } {
+  if (rules?.family === 'jp') {
+    const v = rules.values;
+    return { kyushu: v.kyushu === 'on', kyushuMust: v.kyushuHow === 'must', sufon: v.sufon === 'on', sukan: v.sukan === 'on', suricchi: v.suricchi === 'on' };
+  }
+  const on = rules?.family === 'cn' && rules.values.tochu === 'on';
+  return { kyushu: on, kyushuMust: false, sufon: on, sukan: on, suricchi: false };
+}
+
 function abortAfterPass(s: GameState, c: Claim): AbortReason | null {
+  const a = abortRules(s.rules);
   const v = s.rules?.family === 'jp' ? s.rules.values : null;
-  if (!v) return null;
-  if (v.sufon === 'on' && !s.anyCall && s.discards.every((d) => d.length === 1)) {
+  if (a.sufon && !s.anyCall && s.discards.every((d) => d.length === 1)) {
     const k = kindOf(s.discards[0][0]);
     if (k >= 27 && k <= 30 && s.discards.every((d) => kindOf(d[0]) === k)) return 'sufon';
   }
-  if (v.suricchi === 'on' && v.suricchiWhen === 'pass' && s.riichi.every((r) => r !== 'none') && s.riichiAt[c.from] === s.discards[c.from].length - 1) {
+  if (v && a.suricchi && v.suricchiWhen === 'pass' && s.riichi.every((r) => r !== 'none') && s.riichiAt[c.from] === s.discards[c.from].length - 1) {
     return 'suricchi';
   }
-  if (v.sukan === 'on' && s.kans >= MAX_KANS && s.melds.filter((ms) => ms.some(isKanMeld)).length >= 2) return 'sukan';
+  if (a.sukan && s.kans >= MAX_KANS && s.melds.filter((ms) => ms.some(isKanMeld)).length >= 2) return 'sukan';
   return null;
 }
 
 /** 九種九牌で流せるか：ルールが「あり」、自分の最初のツモで、それまでに誰も鳴いていない、么九牌が 9 種類以上 */
 export function kyushuOk(s: GameState, seat: Seat): boolean {
-  const v = s.rules?.family === 'jp' ? s.rules.values : null;
-  if (!v || v.kyushu !== 'on') return false;
+  if (!abortRules(s.rules).kyushu) return false;
   if (s.phase !== 'discard' || s.turn !== seat || s.discards[seat].length > 0 || s.anyCall || s.rinshanDraw) return false;
   const hand = s.hands[seat];
   if (hand.includes(HIDDEN) || hand.length !== 14) return false;

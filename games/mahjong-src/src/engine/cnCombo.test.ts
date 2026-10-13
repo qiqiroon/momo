@@ -89,5 +89,28 @@ describe('国標式の払い＋血戦到底（抜けて続く）', () => {
     const r = runGames(4, 'mcr-leave', cn('mcr', { afterWin: 'leave' }));
     expect(r.games).toBe(4);
     expect(r.failures).toEqual([]);
+  }, 60000);
+});
+
+describe('途中流局（中国式・Q7=A＝九種九牌・四風連打・四開槓）', () => {
+  it('★「あり」なら自動対局で九種九牌と四開槓が起き、失敗 0 で次の局へ進む（国標・四川＋血戦到底）', async () => {
+    const { runSelfplay, runGames } = await import('../selfplay/run');
+    const r = runSelfplay(600, 'cn-tochu', cn('mcr', { tochu: 'on' }));
+    expect(r.failures).toEqual([]);
+    expect(Object.keys(r.paths.aborts).sort(), JSON.stringify(r.paths.aborts)).toEqual(expect.arrayContaining(['kyushu', 'sukan']));
+    const g = runGames(3, 'cn-tochu-g', cn('sichuan', { tochu: 'on', honors: 'on' }));
+    expect(g.failures).toEqual([]);
+  }, 60000);
+
+  it('「なし」なら途中流局は起きない', async () => {
+    const { runSelfplay } = await import('../selfplay/run');
+    const r = runSelfplay(300, 'cn-tochu', cn('mcr', {}));
+    expect(r.endings.abort).toBe(0);
+  }, 60000);
+
+  it('途中流局の種類：中国式の「あり」は九種九牌（本人が選ぶ）・四風連打・四開槓。四家立直は無い', async () => {
+    const { abortRules } = await import('./state');
+    expect(abortRules(cn('mcr', { tochu: 'on' }))).toEqual({ kyushu: true, kyushuMust: false, sufon: true, sukan: true, suricchi: false });
+    expect(abortRules(cn('mcr', {}))).toEqual({ kyushu: false, kyushuMust: false, sufon: false, sukan: false, suricchi: false });
   });
 });

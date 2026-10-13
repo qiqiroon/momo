@@ -1,6 +1,6 @@
 // ルールの値。項目の名前は見本 mock/settings.html の項目名をそのまま使う（段階6でセット選びをつなぐときに付け替えが要らないように）。
 // 正本はルール設定 v0.03（作業側の games/mahjong/docs/）。値はコードの中で直接書かず、ここから読む。
-// 日本式 72 項目・中国式 36 項目。
+// 日本式 72 項目・中国式 37 項目。
 
 export const JP_RULE_KEYS = [
   'length',
@@ -78,6 +78,7 @@ export const JP_RULE_KEYS = [
 ] as const;
 export const CN_RULE_KEYS = [
   'length',
+  'handCap',
   'start',
   'rank',
   'tieCn',

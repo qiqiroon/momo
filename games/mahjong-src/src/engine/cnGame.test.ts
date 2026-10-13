@@ -120,3 +120,14 @@ describe('終局の順位', () => {
     expect(ranks(over([4, 4, -8, 0], 1, r))).toEqual([[1, 1, 4], [0, 1, 4], [3, 3, 0], [2, 4, -8]]);
   });
 });
+
+describe('局数の上限（香港＝24 局・利用者 Q4=A）', () => {
+  const HKR = rulesOfCnSet('hk');
+  it('24 局目を打ち終えたら、4 圏の途中でも終わる（23 局目までは続く）', () => {
+    expect(nextStep({ ...ended(cnWin(tsumo(0)), { dealer: 0, roundIndex: 9, rules: HKR }), handCount: 23 })).toEqual({ type: 'round', roundIndex: 9, dealer: 0, honba: 0 });
+    expect(nextStep({ ...ended(cnWin(tsumo(0)), { dealer: 0, roundIndex: 9, rules: HKR }), handCount: 24 })).toEqual({ type: 'end', reason: 'cap' });
+  });
+  it('上限「なし」（四川）なら局の数では終わらない', () => {
+    expect(nextStep({ ...ended(cnWin(tsumo(1)), { roundIndex: 9 }), handCount: 30 }).type).toBe('round');
+  });
+});

@@ -16,13 +16,13 @@ export function returnPoints(s: GameState): number | null {
   return s.rules?.family === 'jp' && s.rules.values.kaeshi === 'none' ? null : RETURN_POINTS;
 }
 
-export type GameEndReason = 'last' | 'tobi' | 'yame' | 'extension';
+export type GameEndReason = 'last' | 'tobi' | 'yame' | 'extension' | 'cap';
 
 /** 局が終わったあとに起きること */
 export type NextStep =
   /** 次の局（連荘なら同じ局の番号で本場が 1 つ増える） */
   | { type: 'round'; roundIndex: number; dealer: Seat; honba: number }
-  /** 対局の終わり。last＝予定の最後の局が終わった／tobi＝飛び／yame＝アガリやめ・テンパイやめ／extension＝延長の終わり（西入で返し点を超えた・西 4 局まで） */
+  /** 対局の終わり。last＝予定の最後の局が終わった／tobi＝飛び／yame＝アガリやめ・テンパイやめ／extension＝延長の終わり（西入で返し点を超えた・西 4 局まで）／cap＝局数の上限（中国式の handCap） */
   | { type: 'end'; reason: GameEndReason }
   /** オーラスでトップの親が、やめるか続けるかを選ぶ（ルールが「本人が選ぶ」のとき） */
   | { type: 'yame'; seat: Seat };
@@ -69,13 +69,15 @@ export function cnNextDealer(s: GameState): Seat {
   return wins.some((w) => w.seat === s.dealer) ? s.dealer : next;
 }
 
-/** 中国式の局が終わったあとに起きること（飛び→終わり・予定の局を打ち終えた→終わり・それ以外→次の局） */
+/** 中国式の局が終わったあとに起きること（飛び→終わり・予定の局を打ち終えた→終わり・局数の上限→終わり・それ以外→次の局） */
 function cnNextStep(s: GameState): NextStep {
   const v = cn(s)!;
   if (v.tobi === 'on' && s.scores.some((p) => p < 0)) return { type: 'end', reason: 'tobi' };
   const dealer = cnNextDealer(s);
   const roundIndex = v.dealer === 'firstWin' || dealer !== s.dealer ? s.roundIndex + 1 : s.roundIndex;
   if (roundIndex >= cnRoundsTotal(s)) return { type: 'end', reason: 'last' };
+  // 局数の上限（香港＝24 局。上限の局を打ち終えたら、4 圏の途中でも終わり）
+  if (v.handCap !== 'none' && s.handCount >= Number(v.handCap)) return { type: 'end', reason: 'cap' };
   return { type: 'round', roundIndex, dealer, honba: 0 };
 }
 

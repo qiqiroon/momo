@@ -95,9 +95,9 @@ for (const f of hk.failures.slice(0, 5)) {
   for (const reason of f.reasons) console.log(`    ${reason}`);
 }
 const hg = runGames(gameCount, `${prefix}-hk-game`, rulesOfCnSet('hk'));
-console.log(`香港の完走：${hg.games} 対局・${hg.hands} 局（最多 ${hg.maxHands} 局）・失敗 ${hg.failures.length}・親：続いた ${hg.paths.renchan}・下家へ ${hg.paths.rotated}`);
+console.log(`香港の完走：${hg.games} 対局・${hg.hands} 局（最多 ${hg.maxHands} 局＝上限 24）・失敗 ${hg.failures.length}・${Object.entries(hg.ends).map(([k, n]) => `${k} ${n}`).join('・')}・親：続いた ${hg.paths.renchan}・下家へ ${hg.paths.rotated}`);
 for (const f of hg.failures.slice(0, 5)) {
   console.log(`  失敗：種 ${f.seed}・通し番号 ${f.seq}`);
   for (const reason of f.reasons) console.log(`    ${reason}`);
 }
-if (hk.games === 0 || hk.failures.length || hg.games === 0 || hg.failures.length) process.exitCode = 1;
+if (hk.games === 0 || hk.failures.length || hg.games === 0 || hg.failures.length || hg.maxHands > 24) process.exitCode = 1;

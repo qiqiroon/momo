@@ -140,6 +140,7 @@ export const ORDER_CN = [
 export const CN_ITEMS: readonly RuleItem[] = [
   {"group":"対局の形"},
   {"k":"length","name":"長さ","opts":[["1","1圏"],["4","4圏"]],"v":[null,"4","4"]},
+  {"k":"handCap","name":"局数の上限","opts":[["none","なし"],["24","24局"]],"v":[null,null,"24"],"note":"香港は「4圏または24局」（連荘が続いても24局で終わる）。四川・国標は条文なし（どちらも16局ちょうどで終わる）"},
   {"k":"start","name":"持ち点","opts":[["0","0点から"],["500","500点"]],"v":[null,"500",null]},
   {"k":"rank","name":"順位の付け方","opts":[["points","点の多い順"],["mcr","国標の標準分"]],"v":[null,"mcr",null]},
   {"k":"tieCn","name":"同点のときの順位","opts":[["mcrSeat","国標の決め方→決まらなければ起家に近い人"],["seat","起家に近い人が上"],["same","同じ順位"]],"v":[null,"mcrSeat",null]},
@@ -180,8 +181,8 @@ export const CN_ITEMS: readonly RuleItem[] = [
   {"k":"baopai","name":"責任払い（十二章包・大三元包）","opts":[["on","あり"],["off","なし"]],"v":["off","off","on"]},
 ];
 export const SUPP_CN: Record<string, Record<string, string>> = {
-  "sichuan": {"length":"4","start":"0","rank":"points","tieCn":"mcrSeat","chajiaoPts":"ron","kuikae":"ok"},
-  "mcr": {"kuikae":"ok"},
+  "sichuan": {"length":"4","start":"0","rank":"points","tieCn":"mcrSeat","chajiaoPts":"ron","kuikae":"ok","handCap":"none"},
+  "mcr": {"kuikae":"ok","handCap":"none"},
   "hk": {"start":"0","rank":"points","tieCn":"mcrSeat","multiDealer":"dealIn"},
 };
 export const CN_FIXED = "<b>中国式に無いもの</b>：赤5・リーチ・ドラ（日本式だけの仕組み）／誤ったアガリ・反則の罰（ゲームが受け付けないので起きない）";

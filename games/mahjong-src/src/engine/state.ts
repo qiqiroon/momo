@@ -2,7 +2,7 @@
 // 列としてあり得ない出来事（持っていない牌を切る・番でない人がツモる など）は例外で止める。
 
 import { HIDDEN, mask, type Envelope, type GameEvent, type Seat } from './events';
-import { kindCounts, TERMINAL_HONOR_KINDS, waitKinds } from './agari';
+import { isThirteenOrphans, kindCounts, TERMINAL_HONOR_KINDS, waitKinds } from './agari';
 import { decompose } from './yaku';
 import { furitenOf } from './furiten';
 import { nextStep, type GameEndReason } from './game';
@@ -130,6 +130,8 @@ export interface CnWin {
   winTile: TileId;
   score: CnScore;
   pays: number[];
+  /** 搶槓（加槓・暗槓の牌へのロン）。香港はカンした人がツモの 3 人分を払う */
+  rob?: true;
 }
 
 export type AbortReason = 'kyushu' | 'sufon' | 'suricchi' | 'sukan';
@@ -248,6 +250,8 @@ export interface GameState {
   /** 中国式の見逃し（ルールの miss が nextDraw）：ロンできたのに見送った人の、そのときの基本点（次に自分が引くまで、それより高くなければロンできない）。
    *  手牌が見える本人の端末と全体の局面でだけ立つ */
   cnMissed: (number | null)[];
+  /** 中国式の見逃し（ルールの miss が sameTile＝香港の「同巡內不能食跟張牌」）：ロンできたのに見送った牌の種類。次に自分が引くまで、同じ種類ではロンできない */
+  cnMissedKinds: number[][];
   /** 血戦到底：アガって抜けた席（局の終わりまで打たない・手牌は開けたまま） */
   cnOut: boolean[];
   /** 血戦到底：この局のアガリ（アガった順。点はアガったときに持ち点へ足してある） */
@@ -394,6 +398,7 @@ export const initialState = (): GameState => ({
   queHeldSuit: [null, null, null, null],
   que: [null, null, null, null],
   cnMissed: [null, null, null, null],
+  cnMissedKinds: [[], [], [], []],
   cnOut: [false, false, false, false],
   cnWins: [],
   cnKans: [],
@@ -494,6 +499,7 @@ export function apply(state: GameState, env: Envelope): GameState {
         queHeldSuit: [null, null, null, null],
         que: [null, null, null, null],
         cnMissed: [null, null, null, null],
+        cnMissedKinds: [[], [], [], []],
         cnOut: [false, false, false, false],
         cnWins: [],
         cnKans: [],
@@ -547,9 +553,11 @@ export function apply(state: GameState, env: Envelope): GameState {
       // 中国式の見逃しの縛りは、自分が引いたところで解ける
       const cnMissed = s.cnMissed.slice();
       cnMissed[ev.seat] = null;
+      const cnMissedKinds = s.cnMissedKinds.map((x, i) => (i === ev.seat ? [] : x));
       return {
         ...s,
         cnMissed,
+        cnMissedKinds,
         // 缺一門のルールでは、親の 14 枚目で配り終えたところで 4 人が捨てる色を決める
         phase: s.phase === 'deal' && queOn(s.rules) ? 'que' : 'discard',
         hands,
@@ -685,7 +693,10 @@ export function apply(state: GameState, env: Envelope): GameState {
         deferDora: kanDora && ev.kan === 'kakan' && v?.kandoraWhen === 'split',
       };
       // 加槓は槍槓、暗槓は（ルールが許せば）国士無双のロンを待つ。中国式は加槓で、ルールの chankan が「あり」のときだけ待つ
-      const waitRob = cnv ? ev.kan === 'kakan' && cnv.chankan === 'on' : ev.kan === 'kakan' || v?.kokushiAnkan === 'on';
+      // 中国式の暗槓は、ルールの kokushi13（十三么の暗槓ロン）が「あり」で字牌のあるルールだけ待つ（香港の清章規則）
+      const waitRob = cnv
+        ? (ev.kan === 'kakan' && cnv.chankan === 'on') || (ev.kan === 'ankan' && cnv.kokushi13 === 'on' && cnv.honors === 'on')
+        : ev.kan === 'kakan' || v?.kokushiAnkan === 'on';
       if (waitRob) {
         const replies: Claim['replies'] = s.cnOut.map((o) => (o ? 'self' : null));
         replies[ev.seat] = 'self';
@@ -710,7 +721,7 @@ export function apply(state: GameState, env: Envelope): GameState {
       }
       const replies = c.replies.slice();
       replies[ev.seat] = 'pass';
-      return settleClaim({ ...s, missedTurn, missedRiichi, cnMissed: cnMissAfter(s, ev.seat), claim: { ...c, replies } });
+      return settleClaim({ ...s, missedTurn, missedRiichi, ...cnMissAfter(s, ev.seat), claim: { ...c, replies } });
     }
     case 'call': {
       const c = s.claim;
@@ -726,7 +737,7 @@ export function apply(state: GameState, env: Envelope): GameState {
       const replies = c.replies.slice();
       replies[ev.seat] = 'call';
       const calls = [...c.calls, { seat: ev.seat, meld: ev.meld, tiles: ev.tiles.slice() }];
-      return settleClaim({ ...s, missedTurn, missedRiichi, cnMissed: cnMissAfter(s, ev.seat), claim: { ...c, replies, calls } });
+      return settleClaim({ ...s, missedTurn, missedRiichi, ...cnMissAfter(s, ev.seat), claim: { ...c, replies, calls } });
     }
     case 'ron': {
       const c = s.claim;
@@ -906,18 +917,26 @@ function settleClaim(s0: GameState): GameState {
 }
 
 /**
- * 中国式の見逃し：ロンできた牌を見送った（鳴いた）ら、そのときの基本点を覚える（ルールの miss が nextDraw のとき）。
+ * 中国式の見逃し：ロンできた牌を見送った（鳴いた）ら覚える。
+ * ルールの miss が nextDraw（四川）＝そのときの基本点／sameTile（香港）＝その牌の種類。
  * 手牌が見える局面でだけ分かる（本人の端末と全体の局面）
  */
-function cnMissAfter(s: GameState, seat: Seat): (number | null)[] {
-  const out = s.cnMissed.slice();
+function cnMissAfter(s: GameState, seat: Seat): Pick<GameState, 'cnMissed' | 'cnMissedKinds'> {
+  const out = { cnMissed: s.cnMissed, cnMissedKinds: s.cnMissedKinds };
   const c = s.claim;
-  if (!c || s.rules?.family !== 'cn' || s.rules.values.miss !== 'nextDraw') return out;
+  const miss = s.rules?.family === 'cn' ? s.rules.values.miss : 'none';
+  if (!c || (miss !== 'nextDraw' && miss !== 'sameTile')) return out;
   const hand = s.hands[seat];
   if (hand.includes(HIDDEN)) return out;
   const score = cnScoreRon(s, seat, hand, c.tile);
-  if (score) out[seat] = Math.max(out[seat] ?? 0, score.points);
-  return out;
+  if (!score) return out;
+  if (miss === 'nextDraw') {
+    const cnMissed = s.cnMissed.slice();
+    cnMissed[seat] = Math.max(cnMissed[seat] ?? 0, score.points);
+    return { ...out, cnMissed };
+  }
+  const k = kindOf(c.tile);
+  return { ...out, cnMissedKinds: s.cnMissedKinds.map((x, i) => (i === seat && !x.includes(k) ? [...x, k] : x)) };
 }
 
 /** 中国式のロンの決着：同じ牌で何人でもアガる（ルールの multiWin が all）／頭ハネ（atama＝切った人の下家に近い 1 人） */
@@ -926,7 +945,7 @@ function settleCnRon(s: GameState, c: Claim): GameState {
   const rons = (c.cnRons ?? []).slice().sort((a, b) => order(a.seat) - order(b.seat));
   const v = s.rules?.family === 'cn' ? s.rules.values : null;
   const winners = v?.multiWin === 'atama' ? rons.slice(0, 1) : rons;
-  const wins: CnWin[] = winners.map((r) => ({ seat: r.seat, from: c.from, winTile: c.tile, score: r.score, pays: cnRonPays(s, c, r.seat, r.score) }));
+  const wins: CnWin[] = winners.map((r) => ({ seat: r.seat, from: c.from, winTile: c.tile, score: r.score, pays: cnRonPays(s, c, r.seat, r.score), ...(c.kind !== 'discard' ? { rob: true as const } : {}) }));
   // 杠上炮（MIL §8-4）：カンした人が直後の打牌で放銃したら、そのカン（最後のカン）の収入を返す
   if (c.kind === 'discard' && c.afterKan) {
     const i = s.cnKans.map((k) => k.seat).lastIndexOf(c.from);
@@ -1656,18 +1675,25 @@ export function cnScoreTsumo(s: GameState, seat: Seat, hand: readonly TileId[]):
 /** 中国式のロン（切られた牌に返事をしている局面）。hand は 13 枚。ルールがツモだけならロンできない。見逃しの縛りは cnRonBlocked */
 export function cnScoreRon(s: GameState, seat: Seat, hand: readonly TileId[], tile: TileId): CnScore | null {
   if (!s.rules || s.rules.family !== 'cn' || s.rules.values.ron !== 'ok') return null;
-  // 加槓の牌へのロン（抢杠）はルールの chankan が「あり」のときだけ。暗槓の牌へのロン（十三么）は国標・香港の手順で
-  if (s.claim && s.claim.kind === 'ankan') return null;
+  // 加槓の牌へのロン（抢杠）はルールの chankan が「あり」のときだけ。暗槓の牌へのロンは十三么九だけ（ルールの kokushi13）
+  if (s.claim?.kind === 'ankan' && s.rules.values.kokushi13 !== 'on') return null;
   if (s.claim?.kind === 'kakan' && s.rules.values.chankan !== 'on') return null;
   const tiles = [...hand, tile];
   if (queLeft(s, seat, tiles)) return null;
-  return cnScoreOf(s, seat, tiles, 'ron');
+  const score = cnScoreOf(s, seat, tiles, 'ron');
+  if (score && s.claim?.kind === 'ankan' && !isThirteenOrphans(kindCounts(tiles))) return null;
+  return score;
 }
 
-/** 見逃しの縛り（ルールの miss が nextDraw）：見送ったときより点が上がらなければロンできない（MIL §3-4） */
+/**
+ * 見逃しの縛り：nextDraw（四川）＝見送ったときより点が上がらなければロンできない（MIL §3-4）／
+ * sameTile（香港）＝見送った牌と同じ種類ではロンできない（食糊 6「同巡內不能食跟張牌」）。どちらも自分が引けば解ける
+ */
 export function cnRonBlocked(s: GameState, seat: Seat, score: CnScore): boolean {
   const missed = s.cnMissed[seat];
-  return missed !== null && score.points <= missed;
+  if (missed !== null && score.points <= missed) return true;
+  const tile = s.claim?.tile;
+  return tile !== undefined && tile !== HIDDEN && s.cnMissedKinds[seat].includes(kindOf(tile));
 }
 
 /**

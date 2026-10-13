@@ -4,7 +4,7 @@ import type { Envelope, GameEvent, Seat } from './events';
 import { act, legalActions, type Action } from './round';
 import { rulesOfCnSet } from './ruleSets';
 import type { Rules } from './rules';
-import { apply, callProblem, initialState, paoFromCall, type GameState, type OpenMeld } from './state';
+import { apply, callProblem, initialState, paoFromCall, type Claim, type GameState, type OpenMeld } from './state';
 import { kindOf, tileSetFor, type TileId } from './tiles';
 
 const HK = rulesOfCnSet('hk');
@@ -352,5 +352,61 @@ describe('香港の包牌（手順4・得分授受法 2・3）', () => {
     const t: GameState = { ...s, discards: s.discards.map(() => [999]), pao: [{ seat: 2, yaku: 'twelve' }, null, null, null] };
     const after = run(t, 0, legalActions(t, 0).find((a) => a.type === 'tsumo')!);
     expect(after.result?.type === 'cnWin' && after.result.wins[0].pays).toEqual([48, 0, -48, 0]);
+  });
+});
+
+describe('香港の細かい決まり（手順5）', () => {
+  const later = (s: GameState) => ({ ...s, discards: s.discards.map(() => [999]) }) as GameState;
+  const claimOf = (s: GameState, from: Seat, tile: TileId): GameState => ({
+    ...s,
+    phase: 'claim',
+    turn: from,
+    drawn: [null, null, null, null],
+    claim: { kind: 'discard', from, tile, replies: [0, 1, 2, 3].map((x) => (x === from ? 'self' : null)) as Claim['replies'], rons: [], calls: [] },
+  });
+  it('同巡の跟張：ロンできた牌を見送ったら、自分が引くまで同じ種類ではロンできない（ほかの待ちはロンできる）', () => {
+    // 席 1：555z 234m 789p と 6z6z・7z7z のシャンポン（6z・7z 待ち。どちらでロンしても三元牌 2 組＋門前清＝3 番）
+    const { s } = setup(['111m4p5p6p7s8s9s3z3z9m9m1p', '555z2m3m4m7p8p9p6z6z7z7z', '1p2p3p4m5m6m7m3p4p5p3z4z9s', '1s1s6s7s8s9s9p8p7p4z4z4z1z'], '5m');
+    const base = later(s);
+    const z6a = BASE.z * 4 + 5 * 4 + 1;
+    const z6b = BASE.z * 4 + 5 * 4 + 0;
+    const z7 = BASE.z * 4 + 6 * 4 + 1;
+    const c1 = claimOf(base, 3, z6a);
+    expect(legalActions(c1, 1).some((a) => a.type === 'ron')).toBe(true);
+    const passed = run(c1, 1, { type: 'pass' });
+    expect(passed.cnMissedKinds[1]).toEqual([BASE.z + 5]);
+    // 同じ巡で親が 6z を切った：ロンできない／7z ならロンできる
+    expect(legalActions(claimOf(passed, 0, z6b), 1).some((a) => a.type === 'ron')).toBe(false);
+    expect(legalActions(claimOf(passed, 0, z7), 1).some((a) => a.type === 'ron')).toBe(true);
+    // 自分が引けば解ける
+    const drew = apply({ ...passed, phase: 'draw', turn: 1, claim: null, wall: null }, { seq: passed.nextSeq, to: [1], ev: { type: 'draw', seat: 1, tile: BASE.m * 4 + 8 * 4 } });
+    expect(drew.cnMissedKinds[1]).toEqual([]);
+  });
+
+  it('十三么九だけは暗槓の牌でロンできる（搶槓。カンした人がツモの 3 人分＝256×3＝768 点を払う）', () => {
+    const { s } = setup(['1m1m1m1m2m3m4m5m6m7m8m2p3p', '9m1p9p1s9s1z2z3z4z5z6z7z7z', '2s3s4s5s6s7s8s2p3p4p5p6p7p', '5m6m7m8m5p6p7p8p5s6s7s8s9m'], '4p');
+    const ones = s.hands[0].filter((t) => kindOf(t) === BASE.m);
+    let t = run(later(s), 0, { type: 'kan', kan: 'ankan', tiles: ones });
+    expect(t.phase).toBe('claim');
+    expect(t.claim?.kind).toBe('ankan');
+    // 十三么九の席 1 はロンできる。ほかの形の席はできない
+    expect(legalActions(t, 1).some((a) => a.type === 'ron')).toBe(true);
+    expect(legalActions(t, 2).some((a) => a.type === 'ron')).toBe(false);
+    t = run(t, 1, { type: 'ron' });
+    for (const seat of [2, 3] as Seat[]) if (t.phase === 'claim' && t.claim?.replies[seat] === null) t = run(t, seat, { type: 'pass' });
+    expect(t.result?.type).toBe('cnWin');
+    if (t.result?.type === 'cnWin') {
+      expect(t.result.wins[0].score.fans.map((f) => f.id)).toContain('shisanyao');
+      expect(t.result.wins[0].rob).toBe(true);
+      expect(t.result.wins[0].pays).toEqual([-768, 768, 0, 0]);
+    }
+  });
+
+  it('暗槓のロンを待つのは、ルールの「十三么の暗槓ロン」が「あり」のときだけ（四川は待たない）', () => {
+    const off: Rules = HK.family === 'cn' ? { family: 'cn', values: { ...HK.values, kokushi13: 'off' } } : HK;
+    const { s } = setup(['1m1m1m1m2m3m4m5m6m7m8m2p3p', '9m1p9p1s9s1z2z3z4z5z6z7z7z', '2s3s4s5s6s7s8s2p3p4p5p6p7p', '5m6m7m8m5p6p7p8p5s6s7s8s9m'], '4p', off);
+    const ones = s.hands[0].filter((t) => kindOf(t) === BASE.m);
+    const t = run(later(s), 0, { type: 'kan', kan: 'ankan', tiles: ones });
+    expect(t.phase).toBe('draw');
   });
 });

@@ -22,7 +22,7 @@ import type { Seat } from '../engine/events';
 import { legalActions, type Action } from '../engine/round';
 import type { GameState } from '../engine/state';
 import { isRed, kindOf, type KindId, type TileId } from '../engine/tiles';
-import { chooseQue, connection, FLUSH_MIN, flushPlan, valuedWaits, setFlushMin, freeCalls, handCounts, hasOpenYakuhai, inPlan, isQueTile, pick, shantenAfterCall, yakuhaiKinds } from './common';
+import { chooseHuan3, chooseQue, connection, FLUSH_MIN, flushPlan, valuedWaits, setFlushMin, freeCalls, handCounts, hasOpenYakuhai, inPlan, isQueTile, pick, shantenAfterCall, yakuhaiKinds } from './common';
 import { dangerOf, threats } from './defense';
 import { acceptance, shanten, visibleCounts } from './shanten';
 import { twoStepAcceptance } from './simulate';
@@ -141,6 +141,7 @@ export function makeThinker(opts: ThinkOptions) {
     const legal = legalActions(view, seat);
     if (legal.length === 0) throw new Error(`席 ${seat} はいま選べることが無い`);
     if (view.phase === 'que') return chooseQue(view, seat, legal);
+    if (view.phase === 'huan3') return chooseHuan3(view, seat, legal);
     const win = pick(legal, 'tsumo') ?? pick(legal, 'ron') ?? pick(legal, 'tenpai');
     if (win) return win;
     const stop = legal.find((a) => a.type === 'yame' && a.stop);

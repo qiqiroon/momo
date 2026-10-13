@@ -110,6 +110,11 @@ export function playOne(
           if (n.type === 'round') hands++;
           failure = feed(nextHand(s, seed));
         }
+      } else if (s.phase === 'huan3') {
+        // 換三張：まだ出していない人が出す。4 人が同時に選ぶので、順番は種と通し番号で毎回変える
+        const waiting = ([0, 1, 2, 3] as Seat[]).filter((x) => s.huan3Out[x] === null);
+        const seat = waiting[(seedNumber + s.nextSeq) % waiting.length];
+        failure = feed(act(s, seat, who(seat)(w.views[seat], seat)));
       } else if (s.phase === 'que') {
         // 缺一門：まだ伏せていない人が伏せる。4 人が同時に選ぶので、順番は種と通し番号で毎回変える
         const waiting = ([0, 1, 2, 3] as Seat[]).filter((x) => s.queHeld[x] === null);

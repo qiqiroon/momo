@@ -7,7 +7,7 @@ import { kindCounts } from '../engine/agari';
 import type { Seat } from '../engine/events';
 import { legalActions, type Action } from '../engine/round';
 import type { GameState } from '../engine/state';
-import { chooseQue } from './common';
+import { chooseHuan3, chooseQue } from './common';
 import { isSuit, kindOf, type TileId } from '../engine/tiles';
 
 /** その牌が手の中でどれだけ他とつながっているか（同じ種類・隣・1つ飛び） */
@@ -26,6 +26,7 @@ function connection(tile: TileId, counts: readonly number[]): number {
 export function benchCpu(view: GameState, seat: Seat): Action {
   const legal = legalActions(view, seat);
   if (view.phase === 'que') return chooseQue(view, seat, legal);
+  if (view.phase === 'huan3') return chooseHuan3(view, seat, legal);
   const win = legal.find((a) => a.type === 'tsumo' || a.type === 'ron' || a.type === 'tenpai');
   if (win) return win;
   // 途中流局の道を検査に乗せるため：九種九牌で流せるなら流す

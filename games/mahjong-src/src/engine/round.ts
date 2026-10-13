@@ -3,7 +3,7 @@
 
 import { HIDDEN, SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
 import { furitenOf } from './furiten';
-import { callProblem, cnDrawStateOf, cnRonBlocked, cnScoreRon, cnScoreTsumo, dealerByDice, kanProblem, kyushuOk, liveWallLeft, queDiscardProblem, queHoldProblem, queOn, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
+import { callProblem, cnDrawStateOf, cnRonBlocked, huan3DirOf, huan3From, huan3Problem, cnScoreRon, cnScoreTsumo, dealerByDice, kanProblem, kyushuOk, liveWallLeft, queDiscardProblem, queHoldProblem, queOn, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
 import { doraIndicatorPos, uraIndicatorPos } from './dora';
 import { waitKinds } from './agari';
 import { nextStep } from './game';
@@ -130,7 +130,9 @@ export type Action =
   /** オーラスでトップの親が、やめる（stop）か続けるか */
   | { type: 'yame'; stop: boolean }
   /** 缺一門：捨てる色の牌を 1 枚伏せる（suit＝捨てる色。手に 1 枚も無い色なら、伏せる牌と違う色でもよい） */
-  | { type: 'que'; tile: TileId; suit: number };
+  | { type: 'que'; tile: TileId; suit: number }
+  /** 換三張：同じ色の 3 枚を伏せて出す */
+  | { type: 'huan3'; tiles: TileId[] };
 
 /**
  * 局が終わった局面から、次の局（配牌まで）か対局の終わりの出来事を作る（進行役だけが呼ぶ）。
@@ -237,6 +239,7 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
   }
   if (view.phase === 'declare' && view.turn === seat) return declareOptions(view, seat);
   if (view.phase === 'que') return queOptions(view, seat);
+  if (view.phase === 'huan3') return huan3Options(view, seat);
   if (view.phase === 'claim') {
     if (view.claim?.replies[seat] !== null) return [];
     return [...(canRon(view, seat) ? [{ type: 'ron' } as Action] : []), ...callOptions(view, seat), { type: 'pass' }];
@@ -275,6 +278,25 @@ function declareOptions(view: GameState, seat: Seat): Action[] {
   if (tenpai) out.push({ type: 'tenpai' });
   const mayHide = view.riichi[seat] === 'none' && view.rules?.family === 'jp' && view.rules.values.tenpaiHide === 'ok';
   if (!tenpai || mayHide) out.push({ type: 'noten' });
+  return out;
+}
+
+/** 換三張で出せる 3 枚の組（本人の局面で決まる）。同じ色の 3 枚の組み合わせ。同じ見分けの牌の並びは 1 つにまとめる */
+function huan3Options(view: GameState, seat: Seat): Action[] {
+  if (view.huan3Out[seat] !== null) return [];
+  const hand = view.hands[seat];
+  if (hand.includes(HIDDEN)) return [];
+  const out: Action[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < hand.length; i++)
+    for (let j = i + 1; j < hand.length; j++)
+      for (let k = j + 1; k < hand.length; k++) {
+        const tiles = [hand[i], hand[j], hand[k]];
+        const key = tiles.map((t) => faceOf(view, t)).sort().join(',');
+        if (seen.has(key) || huan3Problem(view, seat, tiles)) continue;
+        seen.add(key);
+        out.push({ type: 'huan3', tiles });
+      }
   return out;
 }
 
@@ -380,6 +402,21 @@ export function act(full: GameState, seat: Seat, action: Action, src?: TileSourc
     return [{ seq: full.nextSeq, to: 'all', ev: { type: 'declare', seat, tenpai, hand: tenpai || full.rules?.family === 'cn' ? full.hands[seat].slice() : null } }];
   }
   const at = envelopesFrom(full);
+  if (full.phase === 'huan3') {
+    if (action.type !== 'huan3') throw new Error(`いまは換三張の 3 枚を出すだけ（${action.type}）`);
+    const problem = huan3Problem(full, seat, action.tiles);
+    if (problem) throw new Error(problem);
+    const pass = at([seat], { type: 'huan3Pass', seat, tiles: action.tiles.slice() });
+    const outs = full.huan3Out.map((x, i) => (i === seat ? action.tiles : x));
+    if (outs.some((x) => x === null)) return [pass];
+    // 4 人とも出した：サイコロで向きを決め、各人へ受け取る 3 枚を渡す。目は山の頭の 8 枚（配り終えた位置）から決まる＝牌譜・同じ山で同じ目
+    const rng = createRng(`huan3:${[0, 1, 2, 3, 4, 5, 6, 7].map((p) => tileAt(p)).join('.')}`);
+    const dice: [number, number] = [1 + Math.floor(rng() * 6), 1 + Math.floor(rng() * 6)];
+    const dir = huan3DirOf(dice);
+    const swap = at('all', { type: 'huan3Swap', dice, dir });
+    const takes = SEATS.map((p) => at([p], { type: 'huan3Take', seat: p, tiles: outs[huan3From(p, dir)]!.slice() }));
+    return [pass, swap, ...takes];
+  }
   if (full.phase === 'que') {
     if (action.type !== 'que') throw new Error(`いまは捨てる色の牌を伏せるだけ（${action.type}）`);
     const problem = queHoldProblem(full, seat, action.tile, action.suit);

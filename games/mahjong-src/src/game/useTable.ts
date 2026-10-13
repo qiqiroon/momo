@@ -184,6 +184,21 @@ export function useTable() {
       const id = setTimeout(() => dispatch({ type: 'push', envs }), cpuRon ? CPU_DELAY : 0);
       return () => clearTimeout(id);
     }
+    // 換三張：CPU は自分の見える局面で 3 枚を出す（3 人まとめて）。人間は選んで押すのを待つ（4 人目が出したところで交換の出来事が続く）
+    if (full.phase === 'huan3') {
+      let next = full;
+      const envs: Envelope[] = [];
+      for (const seat of [1, 2, 3] as Seat[]) {
+        if (next.huan3Out[seat] !== null || next.phase !== 'huan3') continue;
+        const cpuView = [...s.log, ...envs].reduce((st, e) => apply(st, mask(e, seat)), initialState());
+        const out = act(next, seat, cpu(cpuView, seat), srcOf(s, next));
+        for (const e of out) next = apply(next, e);
+        envs.push(...out);
+      }
+      if (envs.length === 0) return undefined;
+      const id = setTimeout(() => dispatch({ type: 'push', envs }), CPU_DELAY);
+      return () => clearTimeout(id);
+    }
     // 缺一門：CPU は自分の見える局面で捨てる色の牌を伏せる（3 人まとめて）。人間は選んで押すのを待つ
     if (full.phase === 'que') {
       let next = full;

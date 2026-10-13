@@ -212,6 +212,32 @@ export function chooseQue(view: GameState, seat: Seat, legal: readonly Action[])
   return best.a;
 }
 
+/**
+ * 換三張で出す 3 枚（2026-10-13 第16）：出したあとの手の向聴数が一番下がらない組。同じなら、その色の残りが少ない（缺一門で捨てやすい）・
+ * 出す 3 枚のつながりが弱い組。どの打ち手も同じ（強さの差は付けない）
+ */
+export function chooseHuan3(view: GameState, seat: Seat, legal: readonly Action[]): Action {
+  const all = kindCounts(view.hands[seat]);
+  const open = meldCount(view, seat);
+  let best: Action | null = null;
+  let bestKey: number[] | null = null;
+  const memo = new Map<string, number>();
+  for (const a of legal) {
+    if (a.type !== 'huan3') continue;
+    const left = all.slice();
+    for (const t of a.tiles) left[kindOf(t)]--;
+    const id = left.join(',');
+    let sh = memo.get(id);
+    if (sh === undefined) memo.set(id, (sh = shanten(left, open)));
+    const k0 = kindOf(a.tiles[0]);
+    const suit = k0 < 27 ? Math.floor(k0 / 9) : 3;
+    const rest = suit < 3 ? left.slice(suit * 9, suit * 9 + 9).reduce((m, n) => m + n, 0) : 0;
+    const key = [sh, rest, a.tiles.reduce((m, t) => m + connection(t, all), 0)];
+    if (!bestKey || lexLess(key, bestKey)) [best, bestKey] = [a, key];
+  }
+  return best ?? legal[0];
+}
+
 /** 前から順に比べて a が小さいか */
 function lexLess(a: readonly number[], b: readonly number[]): boolean {
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i];

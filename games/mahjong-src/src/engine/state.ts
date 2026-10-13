@@ -1,7 +1,7 @@
 // 局面。出来事の列を頭から順に当てはめて作る。ここに書いてあること以外の方法で局面を変えない。
 // 列としてあり得ない出来事（持っていない牌を切る・番でない人がツモる など）は例外で止める。
 
-import { HIDDEN, mask, type Envelope, type GameEvent, type Seat } from './events';
+import { HIDDEN, mask, type Envelope, type GameEvent, type Huan3Dir, type Seat } from './events';
 import { isThirteenOrphans, kindCounts, TERMINAL_HONOR_KINDS, waitKinds } from './agari';
 import { decompose } from './yaku';
 import { furitenOf } from './furiten';
@@ -19,7 +19,7 @@ import { isFlower, kindOf, tileSetFor, type KindId, type TileId } from './tiles'
  *  claim＝切られた牌（または加槓・暗槓の牌）にほかの 3 人が返事をしている（見送る・ロン・鳴く）／
  *  declare＝流局してテンパイ・ノーテンを宣言している（番の人が宣言する）／ended＝局が終わった／
  *  que＝缺一門（中国式・四川）：親が 14 枚目を引いたあと、4 人が捨てる色の牌を 1 枚伏せて置く（4 人そろうまで親は切れない） */
-export type Phase = 'idle' | 'deal' | 'draw' | 'que' | 'discard' | 'claim' | 'declare' | 'ended' | 'gameover';
+export type Phase = 'idle' | 'deal' | 'draw' | 'huan3' | 'que' | 'discard' | 'claim' | 'declare' | 'ended' | 'gameover';
 
 /** ロンでアガった 1 人分。score は開けた手牌・ドラ表示牌など全員に見えるものだけから出す */
 export interface RonWin {
@@ -260,6 +260,10 @@ export interface GameState {
   queHeldSuit: (number | null)[];
   /** 缺一門：最初の打牌で宣言した捨てる色（全員に見える。宣言する前は null） */
   que: (number | null)[];
+  /** 換三張：席ごとの出した 3 枚（出す前は null。ほかの人の分は HIDDEN 3 つ）と、受け取ったか・渡す向き */
+  huan3Out: (readonly TileId[] | null)[];
+  huan3Taken: boolean[];
+  huan3Dir: Huan3Dir | null;
   /** 中国式の見逃し（ルールの miss が nextDraw）：ロンできたのに見送った人の、そのときの基本点（次に自分が引くまで、それより高くなければロンできない）。
    *  手牌が見える本人の端末と全体の局面でだけ立つ */
   cnMissed: (number | null)[];
@@ -310,7 +314,33 @@ export const baoOn = (rules: Rules | null): boolean => rules?.family === 'cn' &&
 export const chajiaoOn = (rules: Rules | null): boolean => rules?.family === 'cn' && rules.values.chajiao === 'on' && rules.values.scoring === 'sichuan';
 
 /** 缺一門で、まだ誰も捨てる色を決めておらず、誰も切っていない（親の 14 枚目の前後） */
-const queNotStarted = (s: GameState): boolean => s.que.every((x) => x === null) && s.queHeld.every((x) => x === null) && s.discards.every((d) => d.length === 0);
+const queNotStarted = (s: GameState): boolean =>
+  s.que.every((x) => x === null) && s.queHeld.every((x) => x === null) && s.huan3Out.every((x) => x === null) && s.discards.every((d) => d.length === 0);
+
+/** 換三張のルールか（中国式で huan3 が「あり」） */
+export const huan3On = (rules: Rules | null): boolean => rules?.family === 'cn' && rules.values.huan3 === 'on';
+
+/** 親の 14 枚目で配り終えたあとの段取り：換三張→缺一門→親の打牌 */
+const openingPhase = (rules: Rules | null): Phase => (huan3On(rules) ? 'huan3' : queOn(rules) ? 'que' : 'discard');
+
+/** 換三張の向き（サイコロ 2 つの合計を 3 で割った余り：0 対面・1 下家・2 上家＝MOMO の決め方） */
+export const huan3DirOf = (dice: readonly [number, number]): Huan3Dir => (['across', 'next', 'prev'] as const)[(dice[0] + dice[1]) % 3];
+/** 席 seat が受け取る 3 枚を出した人 */
+export const huan3From = (seat: Seat, dir: Huan3Dir): Seat => ((seat + (dir === 'next' ? 3 : dir === 'prev' ? 1 : 2)) % 4) as Seat;
+
+/** 換三張で出す 3 枚がおかしければ理由を返す（手牌が見える局面でだけ確かめる）。3 枚とも同じ色（字牌は字牌どうし）・花牌は出せない */
+export function huan3Problem(s: GameState, seat: Seat, tiles: readonly TileId[]): string | null {
+  if (!huan3On(s.rules)) return 'このルールに換三張は無い';
+  if (s.phase !== 'huan3') return '換三張の時ではない';
+  if (s.huan3Out[seat] !== null) return '換三張の牌はもう出した';
+  if (tiles.length !== 3) return '換三張は 3 枚';
+  const hand = s.hands[seat];
+  if (hand.includes(HIDDEN) || tiles.includes(HIDDEN)) return null;
+  if (new Set(tiles).size !== 3 || tiles.some((t) => !hand.includes(t))) return '持っていない牌を出した';
+  if (tiles.some((t) => isFlower(kindOf(t)))) return '花牌は出せない';
+  if (new Set(tiles.map(suitOf)).size !== 1) return '3 枚とも同じ色（字牌は字牌どうし）';
+  return null;
+}
 
 /** 缺一門のルールか（中国式で queyimen が「あり」） */
 export const queOn = (rules: Rules | null): boolean => rules?.family === 'cn' && rules.values.queyimen === 'on';
@@ -424,6 +454,9 @@ export const initialState = (): GameState => ({
   result: null,
   queHeld: [null, null, null, null],
   queHeldSuit: [null, null, null, null],
+  huan3Out: [null, null, null, null],
+  huan3Taken: [false, false, false, false],
+  huan3Dir: null,
   que: [null, null, null, null],
   cnMissed: [null, null, null, null],
   cnMissedKinds: [[], [], [], []],
@@ -530,6 +563,9 @@ export function apply(state: GameState, env: Envelope): GameState {
         result: null,
         queHeld: [null, null, null, null],
         queHeldSuit: [null, null, null, null],
+  huan3Out: [null, null, null, null],
+  huan3Taken: [false, false, false, false],
+  huan3Dir: null,
         que: [null, null, null, null],
         cnMissed: [null, null, null, null],
         cnMissedKinds: [[], [], [], []],
@@ -549,6 +585,46 @@ export function apply(state: GameState, env: Envelope): GameState {
       queHeldSuit[ev.seat] = ev.suit;
       // 4 人とも伏せたら、親が最初の 1 枚（伏せた牌）を切る
       return { ...s, queHeld, queHeldSuit, phase: queHeld.every((t) => t !== null) ? 'discard' : 'que' };
+    }
+    case 'huan3Pass': {
+      const problem = huan3Problem(s, ev.seat, ev.tiles);
+      if (problem) throw new Error(problem);
+      const hands = s.hands.map((h) => h.slice());
+      const hand = hands[ev.seat];
+      // 自分の手牌なら出した牌そのもの、伏せて見ている他人の手牌なら伏せた牌を 3 枚減らす
+      for (const t of ev.tiles) {
+        let i = hand.indexOf(t);
+        if (i < 0) i = hand.indexOf(HIDDEN);
+        if (i < 0) throw new Error('持っていない牌を換三張に出した');
+        hand.splice(i, 1);
+      }
+      const huan3Out = s.huan3Out.slice();
+      huan3Out[ev.seat] = ev.tiles.slice();
+      return { ...s, hands, huan3Out };
+    }
+    case 'huan3Swap': {
+      if (s.phase !== 'huan3' || s.huan3Out.some((x) => x === null)) throw new Error('4 人が出す前に換三張の向きを決めた');
+      if (s.huan3Dir !== null) throw new Error('換三張の向きはもう決めた');
+      if (ev.dice.some((d) => !Number.isInteger(d) || d < 1 || d > 6) || huan3DirOf(ev.dice) !== ev.dir) throw new Error('換三張のサイコロと向きが合わない');
+      return { ...s, huan3Dir: ev.dir };
+    }
+    case 'huan3Take': {
+      if (s.phase !== 'huan3' || s.huan3Dir === null) throw new Error('向きを決める前に換三張の牌を受け取った');
+      if (s.huan3Taken[ev.seat]) throw new Error('換三張の牌はもう受け取った');
+      if (ev.tiles.length !== 3) throw new Error('換三張で受け取るのは 3 枚');
+      // 出した人の 3 枚が見える局面（全体・出した本人）なら、同じ牌か確かめる
+      const given = s.huan3Out[huan3From(ev.seat, s.huan3Dir)]!;
+      if (!given.includes(HIDDEN) && !ev.tiles.includes(HIDDEN) && !sameTiles(given, ev.tiles)) throw new Error('換三張で受け取った牌が出された牌と違う');
+      const hands = s.hands.map((h) => h.slice());
+      hands[ev.seat].push(...ev.tiles);
+      // 親が引いた 14 枚目を出していたら、引いた牌の印は受け取った牌へ移す（天和などの「引いた牌」を手の中に残す）
+      const drawn = s.drawn.slice();
+      const out = s.huan3Out[ev.seat]!;
+      if (drawn[ev.seat] !== null && drawn[ev.seat] !== HIDDEN && out.includes(drawn[ev.seat]!)) drawn[ev.seat] = ev.tiles[0];
+      const huan3Taken = s.huan3Taken.slice();
+      huan3Taken[ev.seat] = true;
+      const done = huan3Taken.every(Boolean);
+      return { ...s, hands, drawn, huan3Taken, phase: done ? (queOn(s.rules) ? 'que' : 'discard') : 'huan3' };
     }
     case 'wallSeed': {
       if (ev.seed === null || !s.rules) return s;
@@ -604,7 +680,7 @@ export function apply(state: GameState, env: Envelope): GameState {
         cnFollowKinds,
         // 缺一門のルールでは、親の 14 枚目で配り終えたところで 4 人が捨てる色を決める
         // （14 枚目が花牌なら、表にして引いた補充のところで決める＝花牌あり＋缺一門の組み合わせ・2026-10-13 第16）
-        phase: queOn(s.rules) && (s.phase === 'deal' || (flowerRep && queNotStarted(s))) ? 'que' : 'discard',
+        phase: s.phase === 'deal' || (flowerRep && queNotStarted(s)) ? openingPhase(s.rules) : 'discard',
         hands,
         drawn,
         wallLeft: s.wallLeft - 1,
@@ -621,7 +697,7 @@ export function apply(state: GameState, env: Envelope): GameState {
       if (ev.tile === HIDDEN || !isFlower(kindOf(ev.tile))) throw new Error('花牌でない牌を表にした');
       const deal = s.phase === 'deal';
       // 捨てる色を決める段取り（que）に入った直後に、親の 14 枚目が花牌だったときも表にできる（まだ誰も決めていないときだけ）
-      const queStart = s.phase === 'que' && ev.seat === s.turn && queNotStarted(s);
+      const queStart = (s.phase === 'que' || s.phase === 'huan3') && ev.seat === s.turn && queNotStarted(s);
       if (!deal && !queStart && !(s.phase === 'discard' && ev.seat === s.turn)) throw new Error('花牌を表にする時・席ではない');
       const hands = s.hands.map((h) => h.slice());
       const hand = hands[ev.seat];

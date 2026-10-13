@@ -168,7 +168,7 @@ export const CN_ITEMS: readonly RuleItem[] = [
   {"k":"kokushi13","name":"十三么（国士無双）の暗槓ロン","opts":[["on","あり"],["off","なし"]],"v":["off","off","on"],"dep":["honors","on"]},
   {"k":"miss","name":"見逃したあとのロンの縛り","opts":[["none","なし"],["nextDraw","次に自分が引くまでロンできない"],["sameTile","同じ巡目は同じ牌でロンできない"]],"v":["nextDraw","none","sameTile"]},
   {"k":"multiDealer","name":"同時アガリのときの次の親","opts":[["dealIn","放銃者が次の親"],["dealerWin","親が含まれれば連荘"]],"v":["dealIn","dealIn",null],"dep":["multiWin","all"]},
-  {"k":"huan3","name":"開局時の3枚交換（換三張）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off"],"note":"どの条文にも無い＝MOMO の設定"},
+  {"k":"huan3","name":"開局時の3枚交換（換三張）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off"],"note":"どの条文にも無い＝MOMO の設定（アプリでなじみのある遊び方）。「あり」＝配り終えたら各自が同じ色の 3 枚（字牌は字牌どうし）を伏せて出し、サイコロで向き（下家へ・上家へ・対面へ）を決めて交換。缺一門はそのあと"},
   {"group":"点数"},
   {"k":"scoring","name":"点数の数え方","opts":[["mcr","国標（81種の番・足し算）"],["sichuan","四川の番（倍々）"],["hk","香港の番（倍々）"]],"v":["sichuan","mcr","hk"]},
   {"k":"cap","name":"点数の上限","opts":[["3","3番"],["10","10番"],["none","なし"]],"v":["3","none","10"],"dep":["scoring","mcr","not"]},

@@ -4,12 +4,13 @@
 import type { Seat } from '../engine/events';
 import { legalActions, type Action } from '../engine/round';
 import type { GameState } from '../engine/state';
-import { chooseQue } from './common';
+import { chooseHuan3, chooseQue } from './common';
 
 export function tsumogiriCpu(view: GameState, seat: Seat): Action {
   const legal = legalActions(view, seat);
   if (legal.length === 0) throw new Error(`席 ${seat} はいま選べることが無い`);
   if (view.phase === 'que') return chooseQue(view, seat, legal);
+  if (view.phase === 'huan3') return chooseHuan3(view, seat, legal);
   const win = legal.find((a) => a.type === 'tsumo' || a.type === 'ron' || a.type === 'tenpai');
   if (win) return win;
   const noten = legal.find((a) => a.type === 'noten');

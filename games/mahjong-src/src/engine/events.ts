@@ -14,6 +14,9 @@ export const SEATS: readonly Seat[] = [0, 1, 2, 3];
 /** 中身の分からない牌。他の人の手牌・まだ引いていない山の牌 */
 export const HIDDEN = -1;
 
+/** 換三張で渡す向き（next 下家へ／prev 上家へ／across 対面へ） */
+export type Huan3Dir = 'next' | 'prev' | 'across';
+
 /** 'all'＝全員／配列＝その席だけ（空の配列＝誰の画面にも出さない。山の種など、全部を持つ端末だけが知る） */
 export type Visibility = 'all' | readonly Seat[];
 
@@ -40,6 +43,12 @@ export type GameEvent =
   /** 缺一門（中国式・四川）：捨てる色の牌を 1 枚伏せて置く。本人だけに見える（ほかの人には「伏せた」ことだけ）。
    *  suit＝捨てる色（ふつうは伏せた牌の色。手牌にその色が 1 枚も無い色なら、伏せた牌と違う色でもよい＝MIL §5） */
   | { type: 'queHold'; seat: Seat; tile: TileId; suit: number }
+  /** 換三張（中国式・ルールの huan3＝MOMO の設定）：同じ色の牌 3 枚を伏せて出す。本人だけに見える（ほかの人には「出した」ことだけ） */
+  | { type: 'huan3Pass'; seat: Seat; tiles: readonly TileId[] }
+  /** 換三張：4 人とも出したら、サイコロ 2 つで渡す向きを決める。全員に見える。dir＝next 下家へ／prev 上家へ／across 対面へ */
+  | { type: 'huan3Swap'; dice: [number, number]; dir: Huan3Dir }
+  /** 換三張：受け取る 3 枚。本人だけに見える */
+  | { type: 'huan3Take'; seat: Seat; tiles: readonly TileId[] }
   /** ツモアガリ。全員に見える。手牌（14 枚）とアガリ牌（ツモった牌）を開ける。
    *  ura＝めくった裏ドラ表示牌（リーチでアガったときだけ。ドラ表示牌の真下を同じ枚数） */
   | { type: 'tsumo'; seat: Seat; hand: readonly TileId[]; winTile: TileId; ura: readonly TileId[] }
@@ -89,6 +98,9 @@ export function mask(env: Envelope, viewer: Seat): Envelope {
       return { ...env, ev: { ...ev, tile: HIDDEN } };
     case 'queHold':
       return { ...env, ev: { ...ev, tile: HIDDEN, suit: HIDDEN } };
+    case 'huan3Pass':
+    case 'huan3Take':
+      return { ...env, ev: { ...ev, tiles: ev.tiles.map(() => HIDDEN) } };
     default:
       return env;
   }

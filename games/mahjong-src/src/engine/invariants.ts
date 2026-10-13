@@ -16,8 +16,8 @@ import { sichuanScore } from './sichuan';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { finalResult } from './final';
 import { cnRoundsTotal } from './game';
-import { apply, cnDrawStateOf, initialState, isKanMeld, MAX_KANS, MCR_BASE, cnMeldOf, PIG_PENALTY, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
-import { isFlower, kindOf, tileSetFor } from './tiles';
+import { apply, cnDrawStateOf, initialState, isKanMeld, MAX_KANS, MCR_BASE, cnMeldOf, huan3From, PIG_PENALTY, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
+import { isFlower, kindOf, tileSetFor, type TileId } from './tiles';
 
 export class Watcher {
   full: GameState = initialState();
@@ -43,6 +43,17 @@ export class Watcher {
   }
 }
 
+/** 換三張で出したが、まだ受け取られていない牌（向きが決まる前は出した全部） */
+function huan3Pending(s: GameState): TileId[] {
+  return ([0, 1, 2, 3] as Seat[]).flatMap((from) => {
+    const out = s.huan3Out[from];
+    if (!out) return [];
+    if (s.huan3Dir === null) return [...out];
+    const to = ([0, 1, 2, 3] as Seat[]).find((p) => huan3From(p, s.huan3Dir!) === from)!;
+    return s.huan3Taken[to] ? [] : [...out];
+  });
+}
+
 export function checkState(full: GameState, views: readonly GameState[]): string[] {
   const bad: string[] = [];
   if (!full.rules || full.roundIndex < 0) return bad;
@@ -55,8 +66,10 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   const inMelds = full.melds.reduce((n, ms) => n + ms.reduce((m, x) => m + x.tiles.length, 0), 0);
   // 中国式の花牌：表にして脇に置いた分
   const inFlowers = full.flowers.reduce((n, f) => n + f.length, 0);
-  if (inHands + inRivers + inMelds + inFlowers + full.wallLeft !== set.length) {
-    bad.push(`牌の数が合わない：手牌 ${inHands}＋河 ${inRivers}＋鳴き ${inMelds}＋花 ${inFlowers}＋山 ${full.wallLeft} ≠ ${set.length}`);
+  // 換三張：出したが、まだ受け取られていない 3 枚
+  const inExchange = huan3Pending(full);
+  if (inHands + inRivers + inMelds + inFlowers + inExchange.length + full.wallLeft !== set.length) {
+    bad.push(`牌の数が合わない：手牌 ${inHands}＋河 ${inRivers}＋鳴き ${inMelds}＋花 ${inFlowers}＋換三張 ${inExchange.length}＋山 ${full.wallLeft} ≠ ${set.length}`);
   }
 
   // 手牌の枚数：ツモったあと（切る前）は番の人 14 枚・ほかは 13 枚、ツモる前は全員 13 枚
@@ -382,7 +395,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     const backTaken = full.rinshanTaken + full.flowerTaken;
     const back = full.rules.family === 'jp' ? full.wall.slice(n - 14, n - 14 + full.rinshanTaken) : full.wall.slice(n - backTaken);
     const used = [...full.wall.slice(0, n - full.wallLeft - backTaken), ...back];
-    const handSet = new Set([...full.hands.flat(), ...full.discards.flat(), ...full.melds.flatMap((ms) => ms.flatMap((m) => m.tiles)), ...full.flowers.flat()]);
+    const handSet = new Set([...full.hands.flat(), ...full.discards.flat(), ...full.melds.flatMap((ms) => ms.flatMap((m) => m.tiles)), ...full.flowers.flat(), ...huan3Pending(full)]);
     if (used.length !== handSet.size || used.some((t) => !handSet.has(t))) {
       bad.push('配った牌が山の先頭から順に取られていない');
     }

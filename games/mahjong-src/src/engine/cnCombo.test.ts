@@ -114,3 +114,49 @@ describe('途中流局（中国式・Q7=A＝九種九牌・四風連打・四開
     expect(abortRules(cn('mcr', {}))).toEqual({ kyushu: false, kyushuMust: false, sufon: false, sukan: false, suricchi: false });
   });
 });
+
+describe('換三張（中国式・Q8=A＝同じ色 3 枚・向きはサイコロ・字牌は字牌どうし）', () => {
+  it('★「あり」なら自動対局で交換が起き、失敗 0（四川・国標〔字牌・花牌あり〕）', async () => {
+    const { runSelfplay } = await import('../selfplay/run');
+    for (const r of [cn('sichuan', { huan3: 'on' }), cn('mcr', { huan3: 'on' }), cn('hk', { huan3: 'on', queyimen: 'on' })]) {
+      const res = runSelfplay(40, 'cn-huan3', r);
+      expect(res.failures).toEqual([]);
+      expect(res.games).toBe(40);
+    }
+  }, 60000);
+});
+
+describe('換三張の出来事（1 局を開いて確かめる）', () => {
+  it('4 人が同じ色 3 枚を出し、サイコロの向きで出した人の 3 枚をそのまま受け取る。ほかの人には伏せて見える。そのあと缺一門', async () => {
+    const { playOne } = await import('../selfplay/run');
+    const { benchCpu } = await import('../cpu/bench');
+    const { huan3From } = await import('./state');
+    const { mask } = await import('./events');
+    const r = playOne('huan3-open', cn('sichuan', { huan3: 'on' }), benchCpu, false);
+    const evs = r.log.map((e) => e.ev);
+    const passes = evs.filter((e) => e.type === 'huan3Pass');
+    const swap = evs.find((e) => e.type === 'huan3Swap');
+    const takes = evs.filter((e) => e.type === 'huan3Take');
+    expect(passes.length).toBe(4);
+    expect(takes.length).toBe(4);
+    if (!swap || swap.type !== 'huan3Swap') throw new Error('向きが決まっていない');
+    for (const p of passes) {
+      if (p.type !== 'huan3Pass') continue;
+      // 3 枚とも同じ色
+      expect(new Set(p.tiles.map((t) => Math.floor(Math.floor(t / 4) / 9))).size).toBe(1);
+    }
+    for (const t of takes) {
+      if (t.type !== 'huan3Take') continue;
+      const from = passes.find((p) => p.type === 'huan3Pass' && p.seat === huan3From(t.seat, swap.dir));
+      expect(from && from.type === 'huan3Pass' ? [...from.tiles] : null).toEqual([...t.tiles]);
+    }
+    // ほかの人の出した牌・受け取った牌は伏せて見える
+    const env = r.log.find((e) => e.ev.type === 'huan3Pass' && e.ev.seat === 0)!;
+    const seen = mask(env, 1).ev;
+    expect(seen.type === 'huan3Pass' && seen.tiles.every((t) => t === -1)).toBe(true);
+    // 交換のあとで缺一門（伏せる）
+    const lastTake = r.log.map((e) => e.ev.type).lastIndexOf('huan3Take');
+    const firstQue = r.log.findIndex((e) => e.ev.type === 'queHold');
+    expect(firstQue).toBeGreaterThan(lastTake);
+  });
+});

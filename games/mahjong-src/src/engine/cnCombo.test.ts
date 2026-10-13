@@ -160,3 +160,33 @@ describe('換三張の出来事（1 局を開いて確かめる）', () => {
     expect(firstQue).toBeGreaterThan(lastTake);
   });
 });
+
+describe('血流成河（中国式・Q9=A＝抜けずに続ける・アガったあとは引いた牌を切るだけ・カンしない）', () => {
+  it('★自動対局：同じ人が 2 回以上アガる局があり、失敗 0（四川・国標・香港の数え方）', async () => {
+    const { runSelfplay, playOne } = await import('../selfplay/run');
+    const { benchCpu } = await import('../cpu/bench');
+    for (const r of [cn('sichuan', { afterWin: 'again' }), cn('mcr', { afterWin: 'again' }), cn('hk', { afterWin: 'again' })]) {
+      const res = runSelfplay(60, 'cn-flow', r);
+      expect(res.failures).toEqual([]);
+    }
+    let repeat = 0;
+    for (let i = 0; i < 40 && repeat === 0; i++) {
+      const g = playOne(`flow-${i}`, cn('sichuan', { afterWin: 'again' }), benchCpu, false);
+      expect(g.failure).toBeNull();
+      const wins = g.result?.type === 'cnWin' ? g.result.wins.map((w) => w.seat) : [];
+      if (wins.length !== new Set(wins).size) repeat++;
+      // 一度アガった人は、そのあと引いた牌を切るだけ
+      let locked = new Set<number>();
+      let lastDraw: Record<number, number> = {};
+      for (const e of g.log) {
+        if (e.ev.type === 'draw') lastDraw[e.ev.seat] = e.ev.tile;
+        if (e.ev.type === 'discard' && locked.has(e.ev.seat)) expect(e.ev.tsumogiri).toBe(true);
+        if (e.ev.type === 'call' || e.ev.type === 'kan') expect(locked.has(e.ev.seat)).toBe(false);
+        if (e.ev.type === 'tsumo') locked.add(e.ev.seat);
+        if (e.ev.type === 'ron') locked.add(e.ev.seat);
+      }
+      void lastDraw;
+    }
+    expect(repeat).toBeGreaterThan(0);
+  }, 120000);
+});

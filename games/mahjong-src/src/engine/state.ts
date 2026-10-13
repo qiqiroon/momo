@@ -274,6 +274,10 @@ export interface GameState {
   cnFollowKinds: number[][];
   /** 血戦到底：アガって抜けた席（局の終わりまで打たない・手牌は開けたまま） */
   cnOut: boolean[];
+  /** 血流成河（ルールの afterWin が again）：一度アガった人。抜けずに続けるが手を変えられない（引いた牌を切る・ツモ・ロンだけ） */
+  cnLocked: boolean[];
+  /** 血流成河：ツモでアガった牌（手の脇に出す。手は 13 枚に戻る） */
+  cnShown: TileId[][];
   /** 血戦到底：この局のアガリ（アガった順。点はアガったときに持ち点へ足してある） */
   cnWins: CnWin[];
   /** 刮风下雨：この局のカンの収入（カンした順。点はカンしたときに持ち点へ足してある。返したものは returned） */
@@ -294,6 +298,9 @@ export interface CnKan {
   /** 返したのが流局のとき（テンパイでなかった＝§8-5）。画面で理由を書き分ける */
   atDraw?: boolean;
 }
+
+/** 血流成河のルールか（中国式で afterWin が「何度でもアガれる」＝2026-10-13 第16 Q9=A） */
+export const bloodFlow = (rules: Rules | null): boolean => rules?.family === 'cn' && rules.values.afterWin === 'again';
 
 /** 血戦到底のルールか（中国式で afterWin が「抜けて続く」） */
 export const bloodBattle = (rules: Rules | null): boolean => rules?.family === 'cn' && rules.values.afterWin === 'leave';
@@ -462,6 +469,8 @@ export const initialState = (): GameState => ({
   cnMissedKinds: [[], [], [], []],
   cnFollowKinds: [[], [], [], []],
   cnOut: [false, false, false, false],
+  cnLocked: [false, false, false, false],
+  cnShown: [[], [], [], []],
   cnWins: [],
   cnKans: [],
   robbedKans: 0,
@@ -571,6 +580,8 @@ export function apply(state: GameState, env: Envelope): GameState {
         cnMissedKinds: [[], [], [], []],
         cnFollowKinds: [[], [], [], []],
         cnOut: [false, false, false, false],
+  cnLocked: [false, false, false, false],
+  cnShown: [[], [], [], []],
         cnWins: [],
         cnKans: [],
         robbedKans: 0,
@@ -722,6 +733,8 @@ export function apply(state: GameState, env: Envelope): GameState {
       if (i < 0) i = hand.indexOf(HIDDEN);
       if (i < 0) throw new Error(`持っていない牌を切った（席 ${ev.seat}・背番号 ${ev.tile}）`);
       if (s.kuikaeBan.includes(kindOf(ev.tile))) throw new Error('喰い替えになる牌を切った（このルールでは禁止）');
+      // 血流成河で一度アガった人は手を変えられない＝引いた牌を切るだけ
+      if (s.cnLocked[ev.seat] && (!ev.tsumogiri || (s.drawn[ev.seat] !== HIDDEN && s.drawn[ev.seat] !== ev.tile))) throw new Error('血流成河でアガったあとは引いた牌を切るだけ');
       if (s.rules?.family === 'jp' && s.rules.values.kyushuHow === 'must' && kyushuOk(s, ev.seat)) throw new Error('九種九牌は必ず流すルールなのに切った');
       // 缺一門：最初の打牌で捨てる色を宣言する（伏せた牌を切る）。そのあとは捨てる色が残るうちはその色だけ
       const quePr = queDiscardProblem(s, ev.seat, ev.tile);
@@ -944,6 +957,13 @@ export function apply(state: GameState, env: Envelope): GameState {
         opened[ev.seat] = true;
         const win: CnWin = { seat: ev.seat, from: null, winTile: ev.winTile, score, pays: cnTsumoPays(s, ev.seat, score) };
         if (bloodBattle(s.rules)) return cnLeave({ ...s, hands, opened }, [win], ev.seat);
+        if (bloodFlow(s.rules)) {
+          // 血流成河：アガリ牌を手の脇に出して 13 枚に戻し、抜けずに続ける
+          const i = hands[ev.seat].indexOf(ev.winTile);
+          hands[ev.seat].splice(i, 1);
+          const cnShown = s.cnShown.map((x, p) => (p === ev.seat ? [...x, ev.winTile] : x));
+          return cnFlow({ ...s, hands, opened, cnShown }, [win], ev.seat);
+        }
         return finish({ ...s, hands, opened }, { type: 'cnWin', wins: [win] }, win.pays);
       }
       // 裏ドラはリーチしている人だけ、ドラ表示牌と同じ枚数をめくる
@@ -960,7 +980,7 @@ export function apply(state: GameState, env: Envelope): GameState {
     case 'exhaust': {
       if (s.phase !== 'draw' || s.rinshanDue || liveWallLeft(s) > 0) throw new Error('山が残っているのに流局した');
       // 中国式の流局の精算（查叫・花豬・カンの収入を返す）があるルールなら、アガっていない人が親から順に手牌を開けて宣言する
-      if (cnDrawSettles(s.rules)) return { ...s, phase: 'declare', turn: s.cnOut[s.dealer] ? nextActive(s, s.dealer) : s.dealer, drawn: [null, null, null, null] };
+      if (cnDrawSettles(s.rules) && SEATS_.some((p) => !cnSettled(s, p))) return { ...s, phase: 'declare', turn: cnSettled(s, s.dealer) ? nextDeclarer(s, s.dealer) : s.dealer, drawn: [null, null, null, null] };
       // 精算の無いルール：アガった人かカンの収入があれば、それを入れた結果にする（点はもう動いている）
       if (s.rules?.family === 'cn' && (s.cnWins.length > 0 || s.cnKans.length > 0)) return cnFinish({ ...s, drawn: [null, null, null, null] }, true);
       if (s.rules?.family === 'cn') return finish({ ...s, drawn: [null, null, null, null] }, { type: 'exhaust', tenpai: [false, false, false, false], payments: [0, 0, 0, 0] }, [0, 0, 0, 0]);
@@ -1103,6 +1123,7 @@ function settleCnRon(s: GameState, c: Claim): GameState {
   if (c.kind === 'kakan') s = { ...markRobbed(s, c.from, c.tile), robbedKans: s.robbedKans + 1 };
   // 血戦到底：次の番は、切った人から見て一番遠いアガった人の下家（間の人は飛ばされる）
   if (bloodBattle(s.rules)) return cnLeave({ ...s, claim: null }, wins, wins[wins.length - 1].seat);
+  if (bloodFlow(s.rules)) return cnFlow({ ...s, claim: null }, wins, wins[wins.length - 1].seat);
   return finish({ ...s, claim: null }, { type: 'cnWin', wins }, sumPays(wins));
 }
 
@@ -1120,6 +1141,33 @@ function cnLeave(s: GameState, wins: readonly CnWin[], last: Seat): GameState {
   const next: GameState = { ...s, scores, cnOut, drawn, cnWins: [...s.cnWins, ...wins], claim: null, rinshanDraw: false };
   if (cnOut.filter((o) => !o).length <= 1) return cnFinish(next, false);
   return { ...next, phase: 'draw', turn: nextActive(next, last) };
+}
+
+/**
+ * 血流成河：アガった人は点を受け取り、抜けずに続ける（手は変えられない＝cnLocked）。点はその場で持ち点に足す。
+ * 局は山が尽きるまで続く。次の番は血戦到底と同じ（ツモはアガった人・ロンは切った人から一番遠いアガった人）の次の人
+ */
+function cnFlow(s: GameState, wins: readonly CnWin[], last: Seat): GameState {
+  const pays = sumPays(wins);
+  const scores = s.scores.map((p, i) => p + pays[i]);
+  const cnLocked = s.cnLocked.slice();
+  for (const w of wins) cnLocked[w.seat] = true;
+  const drawn = s.drawn.slice();
+  for (const w of wins) drawn[w.seat] = null;
+  const next: GameState = { ...s, scores, cnLocked, drawn, cnWins: [...s.cnWins, ...wins], claim: null, rinshanDraw: false, kanChain: 0 };
+  return { ...next, phase: 'draw', turn: nextActive(next, last) };
+}
+
+/** 流局の宣言・精算に加わらない人（血戦到底で抜けた人・血流成河で一度アガった人） */
+const cnSettled = (s: GameState, p: Seat): boolean => s.cnOut[p] || s.cnLocked[p];
+/** 流局の宣言で、seat の次に宣言する人（加わらない人を飛ばす） */
+function nextDeclarer(s: GameState, seat: Seat): Seat {
+  let x = seat;
+  for (let i = 0; i < 4; i++) {
+    x = ((x + 1) % 4) as Seat;
+    if (!cnSettled(s, x)) return x;
+  }
+  return x;
 }
 
 /** 血戦到底の局の終わり：この局のアガリを全部結果に入れる（点はアガったときに足してある＝ここでは足さない）。
@@ -1142,7 +1190,7 @@ export function cnDrawSettles(rules: Rules | null): boolean {
  * アガっていない人が全員言い終わったら精算する
  */
 function cnDeclare(s: GameState, ev: Extract<GameEvent, { type: 'declare' }>): GameState {
-  if (s.cnOut[ev.seat]) throw new Error('アガって抜けた人が流局の宣言をした');
+  if (cnSettled(s, ev.seat)) throw new Error('アガった人が流局の宣言をした');
   if (!ev.hand) throw new Error('中国式の流局で手牌を開けていない');
   const known = s.hands[ev.seat];
   if (!known.includes(HIDDEN) && !sameTiles(known, ev.hand)) throw new Error('開けた手牌が持っている牌と違う');
@@ -1155,8 +1203,8 @@ function cnDeclare(s: GameState, ev: Extract<GameEvent, { type: 'declare' }>): G
   if ((cnDrawStateOf(next, ev.seat, ev.hand) === 'ready') !== ev.tenpai) throw new Error('開けた手牌と宣言（テンパイ・ノーテン）が合わない');
   const declared = s.declared.slice();
   declared[ev.seat] = ev.tenpai;
-  const done = SEATS_.every((p) => s.cnOut[p] || declared[p] !== null);
-  if (!done) return { ...next, declared, turn: nextActive(s, ev.seat) };
+  const done = SEATS_.every((p) => cnSettled(s, p) || declared[p] !== null);
+  if (!done) return { ...next, declared, turn: nextDeclarer(s, ev.seat) };
   return cnSettleDraw({ ...next, declared });
 }
 
@@ -1200,7 +1248,7 @@ export function cnMaxPoints(s: GameState, seat: Seat, hand: readonly TileId[]): 
 function cnSettleDraw(s0: GameState): GameState {
   if (s0.rules?.family !== 'cn') throw new Error('中国式でないのに流局の精算をした');
   const v = s0.rules.values;
-  const states: (CnDrawState | null)[] = SEATS_.map((p) => (s0.cnOut[p] ? null : cnDrawStateOf(s0, p, s0.hands[p])));
+  const states: (CnDrawState | null)[] = SEATS_.map((p) => (cnSettled(s0, p) ? null : cnDrawStateOf(s0, p, s0.hands[p])));
   const maxPoints = SEATS_.map((p) => (states[p] === 'ready' ? cnMaxPoints(s0, p, s0.hands[p]) : null));
   let s = s0;
   const before = s.scores.slice();
@@ -1392,6 +1440,7 @@ export function callProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan
   if (c.kind !== 'discard') return 'カンの牌は鳴けない（ロンだけ）';
   if (seat === c.from) return '自分の切った牌は鳴けない';
   if (s.riichi[seat] !== 'none') return 'リーチのあとは鳴けない';
+  if (s.cnLocked[seat]) return '血流成河でアガったあとは鳴けない';
   const cn = s.rules?.family === 'cn' ? s.rules.values : null;
   // 最後の捨て牌（河底）は鳴けない＝次のツモが無い（中国式はルールの lastTile が「できる」なら鳴ける）
   if (liveWallLeft(s) <= 0 && cn?.lastTile !== 'ok') return '山が尽きたあとの捨て牌は鳴けない';
@@ -1464,6 +1513,7 @@ function couldCall(s: GameState, seat: Seat): boolean {
  * リーチのあとの暗槓は、ルールが許し、ツモった牌を使い、待ちが変わらない（条件が「刻子としか読めない形」ならそれも）ときだけ
  */
 export function kanProblem(s: GameState, seat: Seat, kan: 'ankan' | 'kakan', tiles: readonly TileId[]): string | null {
+  if (s.cnLocked[seat]) return '血流成河でアガったあとはカンできない';
   if (s.rules?.family === 'jp' && s.kans >= MAX_KANS) return 'カンは 1 局 4 回まで';
   // 中国式：伏せた牌（缺一門）は使えない・捨てる色の牌はカンできない（鳴きと同じ＝利用者 2026-10-12 Q1=B の考え方）
   if (s.rules?.family === 'cn') {

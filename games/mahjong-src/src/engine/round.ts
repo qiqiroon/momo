@@ -255,6 +255,11 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
     out.push({ type: 'kyushu' });
     if (view.rules?.family === 'jp' && view.rules.values.kyushuHow === 'must') return out;
   }
+  // 血流成河で一度アガった人は、引いた牌を切るだけ（ツモアガリはできる）
+  if (view.cnLocked[seat]) {
+    if (drawn !== null) out.push({ type: 'discard', tile: drawn });
+    return out;
+  }
   // リーチのあとはツモった牌を切るだけ（待ちが変わらない暗槓はできる）
   if (view.riichi[seat] !== 'none') {
     if (drawn !== null) out.push({ type: 'discard', tile: drawn });

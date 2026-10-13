@@ -161,7 +161,7 @@ export const CN_ITEMS: readonly RuleItem[] = [
   {"k":"haitei","name":"最後の1枚でのアガリ（海底）","opts":[["both","ツモ・ロンとも"],["tsumo","ツモのみ"]],"v":["both","both","tsumo"],"dep":["scoring","hk"]},
   {"k":"tenhou","name":"天和・地和","opts":[["on","あり"],["off","なし"]],"v":["off","off","on"],"dep":["scoring","hk"]},
   {"k":"multiWin","name":"同じ捨て牌で2人以上がアガれるとき","opts":[["all","全員アガれる"],["atama","頭ハネ（1人だけ）"]],"v":["all","atama","all"]},
-  {"k":"afterWin","name":"アガった後","opts":[["end","局を終える"],["leave","抜けて続く（血戦到底）"],["again","何度でもアガれる（血流成河）"]],"v":["leave","end","end"]},
+  {"k":"afterWin","name":"アガった後","opts":[["end","局を終える"],["leave","抜けて続く（血戦到底）"],["again","何度でもアガれる（血流成河）"]],"v":["leave","end","end"],"note":"血流成河はどの条文にも無い（アプリの遊び方）＝どのセットも使わない。アガっても抜けず、そのあとは引いた牌を切るだけ（鳴き・カンなし）。山が尽きるまで何度でもアガれる"},
   {"k":"ron","name":"ロン","opts":[["ok","あり"],["tsumo","ツモだけ"]],"v":["ok","ok","ok"]},
   {"k":"rinshan","name":"嶺上（槓のあとの補充でアガる）","opts":[["on","あり"],["off","なし"]],"v":["on","on","on"],"dep":["scoring","mcr","not"]},
   {"k":"chankan","name":"槍槓（加槓の牌でロン）","opts":[["on","あり"],["off","なし"]],"v":["on","on","on"]},

@@ -16,7 +16,7 @@ import { sichuanScore } from './sichuan';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { finalResult } from './final';
 import { cnRoundsTotal } from './game';
-import { apply, cnDrawStateOf, initialState, isKanMeld, MAX_KANS, MCR_BASE, cnMeldOf, huan3From, PIG_PENALTY, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
+import { apply, bloodBattle, bloodFlow, cnDrawStateOf, initialState, isKanMeld, MAX_KANS, MCR_BASE, cnMeldOf, huan3From, PIG_PENALTY, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
 import { isFlower, kindOf, tileSetFor, type TileId } from './tiles';
 
 export class Watcher {
@@ -68,8 +68,10 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   const inFlowers = full.flowers.reduce((n, f) => n + f.length, 0);
   // 換三張：出したが、まだ受け取られていない 3 枚
   const inExchange = huan3Pending(full);
-  if (inHands + inRivers + inMelds + inFlowers + inExchange.length + full.wallLeft !== set.length) {
-    bad.push(`牌の数が合わない：手牌 ${inHands}＋河 ${inRivers}＋鳴き ${inMelds}＋花 ${inFlowers}＋換三張 ${inExchange.length}＋山 ${full.wallLeft} ≠ ${set.length}`);
+  // 血流成河：ツモでアガって手の脇に出した牌
+  const inShown = full.cnShown.reduce((n, x) => n + x.length, 0);
+  if (inHands + inRivers + inMelds + inFlowers + inExchange.length + inShown + full.wallLeft !== set.length) {
+    bad.push(`牌の数が合わない：手牌 ${inHands}＋河 ${inRivers}＋鳴き ${inMelds}＋花 ${inFlowers}＋換三張 ${inExchange.length}＋アガリ牌 ${inShown}＋山 ${full.wallLeft} ≠ ${set.length}`);
   }
 
   // 手牌の枚数：ツモったあと（切る前）は番の人 14 枚・ほかは 13 枚、ツモる前は全員 13 枚
@@ -222,8 +224,12 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   if (full.result?.type === 'cnWin') {
     const r = full.result;
     if (r.wins.length === 0 && !r.exhausted) bad.push('中国式のアガリにアガった人がいない');
+    // アガったときの花牌の枚数。血流成河はアガったあとも花牌を引くので、アガリの番の一覧に残した枚数（花牌の行）で数える
+    const flowersAt = (w: (typeof r.wins)[number]) =>
+      bloodFlow(full.rules) ? (w.score.fans.find((f) => f.id === 'huapai')?.fan ?? 0) : full.flowers[w.seat].length;
     for (const w of r.wins) {
-      const tiles = w.from === null ? full.hands[w.seat] : [...full.hands[w.seat], w.winTile];
+      // ツモの手牌はアガリ牌込み（14 枚相当）。ただし血流成河のツモはアガリ牌を脇に出して 13 枚に戻っているので足す
+      const tiles = full.hands[w.seat].length % 3 === 2 ? full.hands[w.seat] : [...full.hands[w.seat], w.winTile];
       const has = (id: string) => w.score.fans.some((f) => f.id === id);
       const hk = full.rules.family === 'cn' && full.rules.values.scoring === 'hk';
       // 手牌と面子から番を出し直す（場面の印は付いた番から読む）
@@ -236,7 +242,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
             tsumo: w.from === null,
             seatWind: 27 + ((w.seat - full.dealer + 4) % 4),
             roundWind: 27 + (Math.floor(Math.max(0, full.roundIndex) / 4) % 4),
-            flowers: full.flowers[w.seat].length,
+            flowers: flowersAt(w),
             lastDraw: has('miaoshou'),
             lastClaim: has('haidilaoyue'),
             gangkai: has('gangkaiG'),
@@ -268,7 +274,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       const sOf = (t: number) => (kindOf(t) < 27 ? Math.floor(kindOf(t) / 9) : -1);
       if (q !== null && [...tiles, ...full.melds[w.seat].flatMap((m) => m.tiles)].some((t) => sOf(t) === q)) bad.push(`席 ${w.seat}：捨てる色が残ったままアガった（缺一門）`);
       const cap = full.rules.family === 'cn' && full.rules.values.cap !== 'none' ? Number(full.rules.values.cap) : Infinity;
-      const points = mcr ? w.score.fan + full.flowers[w.seat].length : hk ? hkPoints(w.score.fan, full.rules).points : 2 ** Math.min(w.score.fan, cap);
+      const points = mcr ? w.score.fan + flowersAt(w) : hk ? hkPoints(w.score.fan, full.rules).points : 2 ** Math.min(w.score.fan, cap);
       if (w.score.points !== points) bad.push(`席 ${w.seat}：点が番から出した値と違う`);
       if (full.rules.family === 'cn' && w.score.fan < Number(full.rules.values.minFan)) bad.push(`席 ${w.seat}：最低の番に届かないのにアガった`);
       if (w.from === w.seat) bad.push('切った人が自分の牌でロンした');
@@ -277,7 +283,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       if (full.rules.family === 'cn' && full.rules.values.pay === 'mcr') {
         // このアガリより前にアガって抜けた人（同じ捨て牌への同時ロンは除く）は払わない（血戦到底と組んだとき）
         const wi = r.wins.indexOf(w);
-        const outBefore = new Set<number>(r.wins.slice(0, wi).filter((x) => !(w.from !== null && x.from === w.from && x.winTile === w.winTile)).map((x) => x.seat));
+        const outBefore = new Set<number>(!bloodBattle(full.rules) ? [] : r.wins.slice(0, wi).filter((x) => !(w.from !== null && x.from === w.from && x.winTile === w.winTile)).map((x) => x.seat));
         const want = [0, 1, 2, 3].map((p) => (p === w.seat || outBefore.has(p) ? 0 : w.from === null || p === w.from ? -(MCR_BASE + w.score.points) : -MCR_BASE));
         want[w.seat] = -want.reduce((a, b) => a + b, 0);
         if (JSON.stringify(want) !== JSON.stringify(w.pays)) bad.push(`席 ${w.seat}：国標の払いの額が違う（${w.pays.join(',')}）`);
@@ -326,7 +332,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   if (full.result?.type === 'cnWin' && full.result.draw) {
     const d = full.result.draw;
     d.states.forEach((st, seat) => {
-      if ((st === null) !== full.cnOut[seat]) bad.push(`席 ${seat}：流局の状態の有る無しがアガったかと食い違う`);
+      if ((st === null) !== (full.cnOut[seat] || full.cnLocked[seat])) bad.push(`席 ${seat}：流局の状態の有る無しがアガったかと食い違う`);
       if (st !== null && !full.opened[seat]) bad.push(`席 ${seat}：流局の精算なのに手牌を開けていない`);
       if (st !== null && full.opened[seat] && cnDrawStateOf(full, seat as Seat, full.hands[seat]) !== st) bad.push(`席 ${seat}：流局の状態が手牌と合わない`);
       if (d.pig[seat] !== 0 && (st !== 'pig' || d.pig[seat] !== -PIG_PENALTY)) bad.push(`席 ${seat}：花豬の罰が違う`);
@@ -395,7 +401,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     const backTaken = full.rinshanTaken + full.flowerTaken;
     const back = full.rules.family === 'jp' ? full.wall.slice(n - 14, n - 14 + full.rinshanTaken) : full.wall.slice(n - backTaken);
     const used = [...full.wall.slice(0, n - full.wallLeft - backTaken), ...back];
-    const handSet = new Set([...full.hands.flat(), ...full.discards.flat(), ...full.melds.flatMap((ms) => ms.flatMap((m) => m.tiles)), ...full.flowers.flat(), ...huan3Pending(full)]);
+    const handSet = new Set([...full.hands.flat(), ...full.discards.flat(), ...full.melds.flatMap((ms) => ms.flatMap((m) => m.tiles)), ...full.flowers.flat(), ...huan3Pending(full), ...full.cnShown.flat()]);
     if (used.length !== handSet.size || used.some((t) => !handSet.has(t))) {
       bad.push('配った牌が山の先頭から順に取られていない');
     }
@@ -446,7 +452,14 @@ export function checkState(full: GameState, views: readonly GameState[]): string
         if (vh.some((t, i) => t !== h[i])) bad.push(`席 ${viewer}：自分の手牌が全体と違う`);
       } else if (full.opened[seat]) {
         // ツモアガリした人・ロンと言った人・流局でテンパイと言った人の手牌は全員に開けている
-        if (vh.some((t, i) => t !== h[i])) bad.push(`席 ${viewer}：開けた席 ${seat} の手牌が全体と違う`);
+        // 血流成河で一度アガった人は、そのあと引いた 1 枚だけが伏せて見える（手は開けたまま・引いた牌は本人だけ）
+        const d = full.drawn[seat];
+        if (full.cnLocked[seat] && d !== null && vh.includes(HIDDEN)) {
+          const rest = h.slice();
+          rest.splice(rest.indexOf(d), 1);
+          const known = vh.filter((t) => t !== HIDDEN);
+          if (vh.filter((t) => t === HIDDEN).length !== 1 || known.slice().sort().join() !== rest.slice().sort().join()) bad.push(`席 ${viewer}：開けた席 ${seat} の手牌が全体と違う`);
+        } else if (vh.some((t, i) => t !== h[i])) bad.push(`席 ${viewer}：開けた席 ${seat} の手牌が全体と違う`);
       } else if (vh.some((t) => t !== HIDDEN)) {
         bad.push(`席 ${viewer}：席 ${seat} の手牌が見えている`);
       }

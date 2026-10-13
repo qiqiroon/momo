@@ -238,11 +238,12 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       if (full.rules.family === 'cn' && w.score.fan < Number(full.rules.values.minFan)) bad.push(`席 ${w.seat}：最低の番に届かないのにアガった`);
       if (w.from === w.seat) bad.push('切った人が自分の牌でロンした');
       if (w.pays.reduce((a, b) => a + b, 0) !== 0) bad.push(`席 ${w.seat}：アガリの点の動きの合計が 0 でない`);
-      // 香港の払い：ツモ＝3 人が半分ずつ／ロン＝放銃者が全額／搶槓＝カンした人がツモの 3 人分（包牌は手順4）
+      // 香港の払い：ツモ＝3 人が半分ずつ（包牌なら包の人が 3 人分）／ロン＝放銃者が全額／搶槓＝カンした人がツモの 3 人分
       if (full.rules.family === 'cn' && full.rules.values.pay === 'hk') {
         const half = w.score.points / 2;
         const rob = has('qianggangHk');
-        const want = [0, 1, 2, 3].map((p) => (p === w.seat ? 0 : w.from === null ? -half : p === w.from ? (rob ? -3 * half : -w.score.points) : 0));
+        const bao = w.from === null ? full.pao[w.seat] : null;
+        const want = [0, 1, 2, 3].map((p) => (p === w.seat ? 0 : bao ? (p === bao.seat ? -3 * half : 0) : w.from === null ? -half : p === w.from ? (rob ? -3 * half : -w.score.points) : 0));
         want[w.seat] = -want.reduce((a, b) => a + b, 0);
         if (JSON.stringify(want) !== JSON.stringify(w.pays)) bad.push(`席 ${w.seat}：香港の払いの額が違う（${w.pays.join(',')}）`);
       }

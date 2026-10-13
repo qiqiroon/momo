@@ -4,7 +4,7 @@ import type { Envelope, GameEvent, Seat } from './events';
 import { act, legalActions, type Action } from './round';
 import { rulesOfCnSet } from './ruleSets';
 import type { Rules } from './rules';
-import { apply, callProblem, initialState, type GameState } from './state';
+import { apply, callProblem, initialState, paoFromCall, type GameState, type OpenMeld } from './state';
 import { kindOf, tileSetFor, type TileId } from './tiles';
 
 const HK = rulesOfCnSet('hk');
@@ -306,5 +306,51 @@ describe('香港の払い（手順3・得分授受法）', () => {
       expect(t.result.wins[0].score.points).toBe(64);
       expect(t.result.wins[0].pays).toEqual([-96, 96, 0, 0]);
     }
+  });
+});
+
+describe('香港の包牌（手順4・得分授受法 2・3）', () => {
+  const st = apply(initialState(), { seq: 0, to: 'all', ev: { type: 'gameStart', rules: HK } });
+  const m = (type: OpenMeld['type'], code: string): OpenMeld => {
+    const kind = k(code);
+    const tiles = type === 'chi' ? [0, 1, 2].map((i) => (kind + i) * 4) : [kind * 4, kind * 4 + 1, kind * 4 + 2];
+    return { type, tiles, called: tiles[0], from: 0 };
+  };
+  it('十二章包：4 組目の面子を鳴かせた人。3 組目までは包なし', () => {
+    expect(paoFromCall(st, [m('pon', '1m'), m('chi', '2p'), m('pon', '9s')], 3)).toBeNull();
+    expect(paoFromCall(st, [m('pon', '1m'), m('chi', '2p'), m('pon', '9s'), m('chi', '4s')], 3)).toEqual({ seat: 3, yaku: 'twelve' });
+  });
+  it('大三元包：3 組目の三元牌を鳴かせた人（2 組目までは包なし）', () => {
+    expect(paoFromCall(st, [m('pon', '5z'), m('pon', '6z')], 2)).toBeNull();
+    expect(paoFromCall(st, [m('pon', '5z'), m('pon', '6z'), m('pon', '7z')], 2)).toEqual({ seat: 2, yaku: 'dragons' });
+  });
+  it('包後不包先：大三元包のあとに十二章包が成立したら、後の十二章包だけ（鳴いた局面で）', () => {
+    const { s } = setup([H0, H1, H2, H3], '9s');
+    const mine = s.hands[1].filter((t) => kindOf(t) === BASE.z + 1); // 2z を 2 枚
+    const other = s.hands[1].filter((t) => kindOf(t) === BASE.m + 2 || kindOf(t) === BASE.m + 3);
+    const t0: GameState = {
+      ...s,
+      discards: s.discards.map(() => [999]),
+      hands: s.hands.map((h, i) => (i === 1 ? [...mine, ...other] : h)),
+      melds: [[], [m('pon', '5z'), m('pon', '6z'), m('pon', '7z')], [], []],
+      pao: [null, { seat: 3, yaku: 'dragons' }, null, null],
+      phase: 'claim',
+      turn: 0,
+      drawn: [null, null, null, null],
+      claim: { kind: 'discard', from: 0, tile: BASE.z * 4 + 4 + 1, replies: ['self', null, 'pass', 'pass'], rons: [], calls: [] },
+    };
+    const t = run(t0, 1, { type: 'pon', tiles: mine });
+    expect(t.melds[1]).toHaveLength(4);
+    expect(t.pao[1]).toEqual({ seat: 0, yaku: 'twelve' });
+  });
+  it('包牌の無いルール（四川）では包なし', () => {
+    const sc = apply(initialState(), { seq: 0, to: 'all', ev: { type: 'gameStart', rules: rulesOfCnSet('sichuan') } });
+    expect(paoFromCall(sc, [m('pon', '1m'), m('pon', '2p'), m('pon', '9s'), m('pon', '4s')], 3)).toBeNull();
+  });
+  it('包牌が成立した人のツモは、包の人が 3 人分を 1 人で払う。ロンは放銃者が払う（包は関わらない）', () => {
+    const { s } = setup(['555z456m789m1p1p5s5s', '2m3m4m7p8p9p2s3s4s2z2z6z6z', '1p2p3p4m5m6m7m3p4p5p3z3z7z', '1s2s6s7s8s9s9p8p7p4z4z6z7z'], '5s');
+    const t: GameState = { ...s, discards: s.discards.map(() => [999]), pao: [{ seat: 2, yaku: 'twelve' }, null, null, null] };
+    const after = run(t, 0, legalActions(t, 0).find((a) => a.type === 'tsumo')!);
+    expect(after.result?.type === 'cnWin' && after.result.wins[0].pays).toEqual([48, 0, -48, 0]);
   });
 });

@@ -328,7 +328,8 @@ export function queHoldProblem(s: GameState, seat: Seat, tile: TileId, suit: num
 /** 責任払い（包）。seat＝包の人／yaku＝その役 */
 export interface Pao {
   seat: Seat;
-  yaku: 'daisangen' | 'daisuushii' | 'suukantsu';
+  /** 日本式＝包の役満。香港＝twelve（十二章包）・dragons（大三元包） */
+  yaku: 'daisangen' | 'daisuushii' | 'suukantsu' | 'twelve' | 'dragons';
 }
 
 /** 本場 1 本の点（ロンは 300 点・ツモは 1 人 100 点。変えられない決まり） */
@@ -1404,7 +1405,8 @@ function applyCall(s: GameState, c: Claim, call: CallOffer): GameState {
   melds[call.seat].push({ type: call.meld === 'kan' ? 'minkan' : call.meld, tiles, called: c.tile, from: c.from });
   const pao = s.pao.slice();
   const p = paoFromCall(s, melds[call.seat], c.from);
-  if (p && !pao[call.seat]) pao[call.seat] = p;
+  // 日本式は最初に決まった包が残る。香港は後から成立したほうだけ（包後不包先＝原典 得分授受法 3）
+  if (p && (!pao[call.seat] || s.rules?.family === 'cn')) pao[call.seat] = p;
   const calledAway = s.calledAway.map((x) => x.slice());
   calledAway[c.from].push(s.discards[c.from].length - 1);
   const v = s.rules?.family === 'jp' ? s.rules.values : null;
@@ -1436,7 +1438,18 @@ function applyCall(s: GameState, c: Claim, call: CallOffer): GameState {
  * 鳴いたことで包が決まるか。ルールの pao：2＝大三元・大四喜／3＝それに四槓子。
  * 大三元＝三元牌の 3 つ目の刻子・槓子を鳴かせた人／大四喜＝風牌の 4 つ目／四槓子＝4 つ目のカンを大明槓させた人
  */
-function paoFromCall(s: GameState, melds: readonly OpenMeld[], from: Seat): Pao | null {
+export function paoFromCall(s: GameState, melds: readonly OpenMeld[], from: Seat): Pao | null {
+  // 香港の包牌（ルールの baopai）：大三元包＝3 組目の三元牌の刻子・槓子を鳴かせた人／十二章包＝4 組目の面子を鳴かせた人
+  // （4 組目・3 組目が暗槓なら包なし＝暗槓は鳴きでないのでここを通らない。原典 得分授受法 2）
+  const cv = s.rules?.family === 'cn' ? s.rules.values : null;
+  if (cv) {
+    if (cv.baopai !== 'on') return null;
+    const last = melds[melds.length - 1];
+    const dragon = (m: OpenMeld) => m.type !== 'chi' && kindOf(m.tiles[0]) >= 31;
+    if (dragon(last) && melds.filter(dragon).length === 3) return { seat: from, yaku: 'dragons' };
+    if (melds.length === 4) return { seat: from, yaku: 'twelve' };
+    return null;
+  }
   const v = s.rules?.family === 'jp' ? s.rules.values : null;
   if (!v || (v.pao !== '2' && v.pao !== '3')) return null;
   const last = melds[melds.length - 1];
@@ -1659,12 +1672,19 @@ export function cnRonBlocked(s: GameState, seat: Seat, score: CnScore): boolean 
 
 /**
  * 中国式のツモの払い（ルールの pay）。
- * 四川：まだアガっていない人がそれぞれ（基本点＋1）／香港：3 人が出銃の点の半分ずつ（得分授受法）
+ * 四川：まだアガっていない人がそれぞれ（基本点＋1）／香港：3 人が出銃の点の半分ずつ（得分授受法）。香港の包牌が成立していれば包の人が 3 人分
  */
 function cnTsumoPays(s: GameState, seat: Seat, score: CnScore): number[] {
   const out = [0, 0, 0, 0];
   const hk = s.rules?.family === 'cn' && s.rules.values.pay === 'hk';
   const each = hk ? score.points / 2 : score.points + 1;
+  // 香港の包牌：包の人が 3 人分を 1 人で払う
+  const bao = hk ? s.pao[seat] : null;
+  if (bao) {
+    out[bao.seat] -= each * 3;
+    out[seat] += each * 3;
+    return out;
+  }
   for (const p of SEATS_) {
     if (p === seat || s.cnOut[p]) continue;
     out[p] -= each;

@@ -21,7 +21,7 @@ export type { RuleChoice };
 const STORE_KEY = 'momo-mahjong.rules';
 
 /** いま遊べる中国式のセット（段階9：四川から。香港・国標はそれぞれの手順で足す） */
-export const CN_PLAYABLE: readonly CnSetId[] = ['sichuan'];
+export const CN_PLAYABLE: readonly CnSetId[] = ['sichuan', 'hk'];
 
 /** 前に選んだルール（端末に覚える）。無ければ一般ルール */
 export function loadRuleChoice(): RuleChoice {

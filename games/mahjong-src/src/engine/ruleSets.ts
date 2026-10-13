@@ -137,7 +137,7 @@ export function decodeRuleValues(code: string): Record<JpRuleKey, string> | null
 
 export type CnSetId = (typeof ORDER_CN)[number];
 
-/** 中国式のセットのルール（全 35 項目。条文が無ければ MOMO が補った値）。段階9 で画面につなぐ */
+/** 中国式のセットのルール（全 36 項目。条文が無ければ MOMO が補った値）。段階9 で画面につなぐ */
 export function rulesOfCnSet(set: CnSetId): Rules {
   const values = {} as Record<CnRuleKey, string>;
   for (const k of CN_RULE_KEYS) {

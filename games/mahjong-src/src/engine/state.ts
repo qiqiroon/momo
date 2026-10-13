@@ -1250,8 +1250,7 @@ export function callProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan
     if (all[0] >= 27 || Math.floor(all[2] / 9) !== suit || all[1] !== all[0] + 1 || all[2] !== all[0] + 2) return 'チーは同じ色の続いた 3 枚';
   }
   // 喰い替え禁止のルールで、鳴いたあと切れる牌が 1 枚も無いなら鳴けない
-  const v = s.rules?.family === 'jp' ? s.rules.values : null;
-  if (v?.kuikae === 'ng' && !hand.includes(HIDDEN)) {
+  if (kuikaeNg(s.rules) && !hand.includes(HIDDEN)) {
     const ban = kuikaeKinds(meld, c.tile, tiles);
     const rest = hand.filter((t) => !tiles.includes(t));
     if (rest.every((t) => ban.includes(kindOf(t)))) return '鳴いたあと切れる牌が無い（喰い替え禁止）';
@@ -1370,6 +1369,9 @@ export function tenpaiForDeclare(s: GameState, seat: Seat, hand: readonly TileId
  * 喰い替え禁止のとき、鳴いた直後に切れない牌の種類。ポン＝その牌（現物）。チー＝鳴いた牌と、両面の反対側（筋）。
  * 例）3萬4萬で 2萬をチー → 2萬と 5萬は切れない。2萬4萬で 3萬をチー → 3萬だけ
  */
+/** 喰い替え禁止のルールか（日本式の kuikae・中国式の kuikae＝香港の「食換」。2026-10-13 利用者 Q2=A で中国式にも項目を足した） */
+export const kuikaeNg = (rules: Rules | null): boolean => rules?.values.kuikae === 'ng';
+
 export function kuikaeKinds(meld: 'chi' | 'pon', called: TileId, tiles: readonly TileId[]): number[] {
   const k = kindOf(called);
   if (meld === 'pon') return [k];
@@ -1405,7 +1407,7 @@ function applyCall(s: GameState, c: Claim, call: CallOffer): GameState {
   const base: GameState = kan ? cnKanIncome(s, call.seat, 'minkan', false, c.from) : s;
   return {
     ...base,
-    kuikaeBan: !kan && call.meld !== 'kan' && v?.kuikae === 'ng' ? kuikaeKinds(call.meld, c.tile, call.tiles) : [],
+    kuikaeBan: !kan && call.meld !== 'kan' && kuikaeNg(s.rules) ? kuikaeKinds(call.meld, c.tile, call.tiles) : [],
     phase: kan ? 'draw' : 'discard',
     rinshanDue: kan,
     kans: s.kans + (kan ? 1 : 0),

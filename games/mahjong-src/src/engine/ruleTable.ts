@@ -153,6 +153,7 @@ export const CN_ITEMS: readonly RuleItem[] = [
   {"group":"鳴き・アガリ"},
   {"k":"chi","name":"チー","opts":[["on","あり"],["off","なし"]],"v":["off","on","on"]},
   {"k":"lastTile","name":"最後の1枚での鳴き・槓","opts":[["ok","できる"],["ng","禁止"]],"v":["ok","ng","ok"]},
+  {"k":"kuikae","name":"喰い替え（食換）","opts":[["ok","許す"],["ng","禁止"]],"v":[null,null,"ng"],"note":"香港は「食換」が反則（ポン・チーの直後に、その面子と同じ牌・つながる牌を切る）＝禁止。四川・国標は条文なし"},
   {"k":"queyimen","name":"1色を捨てきらないとアガれない（缺一門）","opts":[["on","あり"],["off","なし"]],"v":["on","off","off"]},
   {"k":"minFan","name":"アガリに必要な最低の番","opts":[["0","なし"],["3","3番"],["8","8番"]],"v":["0","8","3"]},
   {"k":"qidui","name":"七対子","opts":[["on","あり"],["off","なし"]],"v":["on","on","off"]},
@@ -179,7 +180,8 @@ export const CN_ITEMS: readonly RuleItem[] = [
   {"k":"baopai","name":"責任払い（十二章包・大三元包）","opts":[["on","あり"],["off","なし"]],"v":["off","off","on"]},
 ];
 export const SUPP_CN: Record<string, Record<string, string>> = {
-  "sichuan": {"length":"4","start":"0","rank":"points","tieCn":"mcrSeat","chajiaoPts":"ron"},
+  "sichuan": {"length":"4","start":"0","rank":"points","tieCn":"mcrSeat","chajiaoPts":"ron","kuikae":"ok"},
+  "mcr": {"kuikae":"ok"},
   "hk": {"start":"0","rank":"points","tieCn":"mcrSeat","multiDealer":"dealIn"},
 };
 export const CN_FIXED = "<b>中国式に無いもの</b>：赤5・リーチ・ドラ（日本式だけの仕組み）／誤ったアガリ・反則の罰（ゲームが受け付けないので起きない）";

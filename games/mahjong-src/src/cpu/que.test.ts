@@ -5,7 +5,7 @@ import { act, legalActions } from '../engine/round';
 import { rulesOfCnSet } from '../engine/ruleSets';
 import { apply, initialState, type GameState, type OpenMeld } from '../engine/state';
 import { kindOf, type TileId } from '../engine/tiles';
-import { chooseQue, handCounts, queSuitOf, shantenAfterDiscard } from './common';
+import { chooseQue, FLUSH_MIN, flushPlan, handCounts, queSuitOf, setFlushMin, shantenAfterDiscard } from './common';
 import { dangerOf, threats } from './defense';
 import { easyCpu } from './easy';
 import { APOCALYPSE, HARD, makeThinker } from './thinker';
@@ -184,3 +184,46 @@ describe('四川の守り（リーチが無い）', () => {
     expect(dangerOf(s, 0, 18 + 4, visible)).toBeGreaterThan(2); // 5s＝何も分からない
   });
 });
+
+describe('香港の混一色の狙い（段階9 香港の手順7）', () => {
+  const HKR = rulesOfCnSet('hk');
+  /** 席 0 の手牌だけを決めた局面（ほかは空） */
+  function view(code: string, melds: OpenMeld[] = []): GameState {
+    let s = apply(initialState(), { seq: 0, to: 'all', ev: { type: 'gameStart', rules: HKR } });
+    s = apply(s, { seq: s.nextSeq, to: 'all', ev: { type: 'roundStart', roundIndex: 0, dealer: 0 } });
+    const used = new Map<number, number>();
+    const z = (c: string) => c.replace(/(\d+)z/g, (_, n: string) => n.split('').map((d) => `${d}z`).join(''));
+    const hand = tilesHk(z(code), used);
+    return { ...s, hands: [hand, [], [], []], melds: [melds, [], [], []] };
+  }
+  it('1 色＋字牌が目安の枚数以上なら、その色を狙い、ほかの 2 色を手に無いものとして測る（Easy 10・Hard 9・Apocalypse 8）', () => {
+    // 萬子 6 枚＋字牌 3 枚＝9 枚
+    const v = view('123m456m555z19p19s1s');
+    setFlushMin(FLUSH_MIN.hard);
+    expect(flushPlan(v, 0)).toBe(0);
+    expect(handCounts(v, 0).slice(9, 27).every((n) => n === 0)).toBe(true);
+    setFlushMin(FLUSH_MIN.easy);
+    expect(flushPlan(v, 0)).toBeNull();
+    setFlushMin(FLUSH_MIN.hard);
+  });
+  it('面子が 2 色にまたがれば狙わない。四川（缺一門）では狙わない', () => {
+    const m = (kind: number, type: OpenMeld['type'] = 'pon'): OpenMeld => ({ type, tiles: [kind * 4, kind * 4 + 1, kind * 4 + 2], called: kind * 4, from: 1 });
+    expect(flushPlan(view('123m456m555z1s', [m(9 + 4), m(18 + 4)]), 0)).toBeNull();
+    const sc = { ...view('123m456m789m555z1s'), rules: rulesOfCnSet('sichuan') };
+    expect(flushPlan(sc, 0)).toBeNull();
+  });
+});
+
+function tilesHk(code: string, used: Map<number, number>): TileId[] {
+  const BASEZ = { m: 0, p: 9, s: 18, z: 27 } as const;
+  const out: TileId[] = [];
+  for (const [, nums, suit] of code.matchAll(/(\d+)([mpsz])/g)) {
+    for (const d of nums) {
+      const kind = BASEZ[suit as 'm'] + Number(d) - 1;
+      const n = used.get(kind) ?? 0;
+      used.set(kind, n + 1);
+      out.push(kind * 4 + 3 - n);
+    }
+  }
+  return out;
+}

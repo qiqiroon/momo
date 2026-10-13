@@ -7,11 +7,13 @@
 //   - 守り（リーチされたら、アガリから遠い手は降りる＝通る牌から切る）
 //   - 待ちの残りが 0 枚ならリーチしない／暗槓・加槓をする
 //   - 缺一門（四川）：捨てる色の牌は手に無いものとして測る（Easy と同じ・common.ts の handCounts）
+//   - 香港（3 番起糊）：手が 1 色＋字牌に寄っていれば混一色を狙う（ほかの色を手に無いものとして測り、その色と字牌で鳴く＝common.ts の flushPlan）
 //   - 中国式で最低の番が要らない（四川）：役を気にせず近づく鳴き・手が崩れない大明槓（freeCalls）。守りはテンパイしていそうな人（defense.ts）
 // Apocalypse がさらに足すもの（opts で切り替える）：
 //   - 受け入れを「場に見えている枚数」で数え直す（visibleWaits）
 //   - 危なさの見分けを細かく（壁・リーチ後に通った牌）（fineDanger）
 //   - 点数の状況で押し引きを変える（オーラスのラス目は押す・トップ目は降りやすい）（placement）
+//   - 香港の混一色を早めに狙う（目安 8 枚＝Hard は 9）
 //   - 迷う場面だけ先読み：同じ近さの候補を「2 歩先の受け入れ」で比べる（simulate.ts）
 
 import { doraOf } from '../engine/dora';
@@ -20,12 +22,14 @@ import type { Seat } from '../engine/events';
 import { legalActions, type Action } from '../engine/round';
 import type { GameState } from '../engine/state';
 import { isRed, kindOf, type KindId, type TileId } from '../engine/tiles';
-import { chooseQue, connection, freeCalls, handCounts, hasOpenYakuhai, isQueTile, pick, shantenAfterCall, yakuhaiKinds } from './common';
+import { chooseQue, connection, FLUSH_MIN, flushPlan, setFlushMin, freeCalls, handCounts, hasOpenYakuhai, inPlan, isQueTile, pick, shantenAfterCall, yakuhaiKinds } from './common';
 import { dangerOf, threats } from './defense';
 import { acceptance, shanten, visibleCounts } from './shanten';
 import { twoStepAcceptance } from './simulate';
 
 export interface ThinkOptions {
+  /** 香港の混一色を狙うと決める目安（common.ts の FLUSH_MIN） */
+  flushMin: number;
   visibleWaits: boolean;
   fineDanger: boolean;
   placement: boolean;
@@ -33,8 +37,8 @@ export interface ThinkOptions {
   simulate: boolean;
 }
 
-export const HARD: ThinkOptions = { visibleWaits: false, fineDanger: false, placement: false, simulate: false };
-export const APOCALYPSE: ThinkOptions = { visibleWaits: true, fineDanger: true, placement: true, simulate: true };
+export const HARD: ThinkOptions = { flushMin: FLUSH_MIN.hard, visibleWaits: false, fineDanger: false, placement: false, simulate: false };
+export const APOCALYPSE: ThinkOptions = { flushMin: FLUSH_MIN.apocalypse, visibleWaits: true, fineDanger: true, placement: true, simulate: true };
 
 const isTerminalOrHonor = (k: KindId) => k >= 27 || k % 9 === 0 || k % 9 === 8;
 
@@ -126,6 +130,7 @@ function shouldPush(view: GameState, seat: Seat, best: DiscardPlan, opts: ThinkO
 
 export function makeThinker(opts: ThinkOptions) {
   return function thinkerCpu(view: GameState, seat: Seat): Action {
+    setFlushMin(opts.flushMin);
     const legal = legalActions(view, seat);
     if (legal.length === 0) throw new Error(`席 ${seat} はいま選べることが無い`);
     if (view.phase === 'que') return chooseQue(view, seat, legal);
@@ -172,6 +177,7 @@ export function makeThinker(opts: ThinkOptions) {
     const yakuhai = yakuhaiKinds(view, seat);
     const opened = hasOpenYakuhai(view, seat);
     const kuitan = view.rules?.family === 'jp' && view.rules.values.kuitan === 'on';
+    const plan = flushPlan(view, seat);
     let best: Action | null = null;
     let bestSh = 99;
     for (const a of legal) {
@@ -181,6 +187,8 @@ export function makeThinker(opts: ThinkOptions) {
       let ok = false;
       if (yakuPon) ok = after <= now;
       else if (opened) ok = after < now;
+      // 香港で混一色を狙っている：狙う色か字牌の鳴きで近づくなら鳴く（3 番が付く）
+      else if (plan !== null && inPlan(c.tile, plan)) ok = after < now;
       else if (kuitan && after < now && after <= 2 && tanyaoAfter(view, seat, a.tiles, c.tile)) ok = true;
       if (ok && after < bestSh) [best, bestSh] = [a, after];
     }

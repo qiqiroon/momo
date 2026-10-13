@@ -19,11 +19,53 @@ export function queSuitOf(view: GameState, seat: Seat): number | null {
 
 const suitOfKind = (k: KindId) => (k < 27 ? Math.floor(k / 9) : -1);
 
-/** 手を測るための種類ごとの枚数：捨てる色の牌は数えない */
+// ---- 香港の 3 番（段階9 香港の手順7） ----
+// 3 番に届かないとアガれない。いちばん作りやすい 3 番は混一色（1 色＋字牌）なので、手の牌が 1 色＋字牌に寄っていれば
+// ほかの 2 色を「手に無いもの」として測る（缺一門と同じ仕組み）＝ほかの色から先に切り、その色と字牌で鳴く。
+/**
+ * 混一色を狙うと決める目安：狙う色と字牌が手牌と面子で何枚以上あるか。強さの段で違う（早く決めるほど強い）：
+ * Easy 10・Hard 9・Apocalypse 8（2026-10-13 香港で打ち比べ。同じ目安だと Easy と Hard は互角だった）。
+ * 打ち手が考え始めるときに setFlushMin で決める（考えている間だけ使う。打ち手はどれも同期で 1 手ずつ）
+ */
+export const FLUSH_MIN = { easy: 10, hard: 9, apocalypse: 8 } as const;
+let flushMin: number = FLUSH_MIN.hard;
+export function setFlushMin(n: number): void {
+  flushMin = n;
+}
+
+/** 混一色の狙い（狙う色 0〜2）。最低の番が 3 以上の中国式で、字牌のあるルールだけ。面子が 2 色にまたがれば狙えない */
+export function flushPlan(view: GameState, seat: Seat): number | null {
+  const v = view.rules?.family === 'cn' ? view.rules.values : null;
+  if (!v || Number(v.minFan) < 3 || v.honors !== 'on' || queOn(view.rules)) return null;
+  const tiles = [...view.hands[seat], ...view.melds[seat].flatMap((m) => m.tiles)];
+  const bySuit = [0, 0, 0];
+  let honors = 0;
+  for (const t of tiles) {
+    const k = kindOf(t);
+    if (k >= 27) honors++;
+    else if (k >= 0) bySuit[suitOfKind(k)]++;
+  }
+  const meldSuits = new Set(view.melds[seat].map((m) => suitOfKind(kindOf(m.tiles[0]))).filter((x) => x >= 0));
+  if (meldSuits.size > 1) return null;
+  const best = meldSuits.size === 1 ? [...meldSuits][0] : bySuit.indexOf(Math.max(...bySuit));
+  return bySuit[best] + honors >= flushMin ? best : null;
+}
+
+/** 混一色の狙いの牌か（狙う色か字牌） */
+export const inPlan = (tile: TileId, plan: number): boolean => kindOf(tile) >= 27 || suitOfKind(kindOf(tile)) === plan;
+
+/** 手を測るときに無いものとする色（缺一門の捨てる色・混一色で狙わない 2 色） */
+export function deadSuits(view: GameState, seat: Seat): number[] {
+  const q = queSuitOf(view, seat);
+  if (q !== null) return [q];
+  const f = flushPlan(view, seat);
+  return f === null ? [] : [0, 1, 2].filter((x) => x !== f);
+}
+
+/** 手を測るための種類ごとの枚数：捨てる色（缺一門）・狙わない色（混一色）の牌は数えない */
 export function handCounts(view: GameState, seat: Seat, tiles: readonly TileId[] = view.hands[seat]): number[] {
   const counts = kindCounts(tiles);
-  const q = queSuitOf(view, seat);
-  if (q !== null) for (let k = q * 9; k < q * 9 + 9; k++) counts[k] = 0;
+  for (const d of deadSuits(view, seat)) for (let k = d * 9; k < d * 9 + 9; k++) counts[k] = 0;
   return counts;
 }
 
@@ -32,10 +74,9 @@ export function freeCalls(view: GameState): boolean {
   return view.rules?.family === 'cn' && view.rules.values.minFan === '0';
 }
 
-/** 捨てる色の牌か（手を測る枚数に入っていない牌＝切っても手は変わらない） */
+/** 手を測る枚数に入っていない牌か（捨てる色・狙わない色＝切っても手は変わらない） */
 export function isQueTile(view: GameState, seat: Seat, tile: TileId): boolean {
-  const q = queSuitOf(view, seat);
-  return q !== null && suitOfKind(kindOf(tile)) === q;
+  return deadSuits(view, seat).includes(suitOfKind(kindOf(tile)));
 }
 
 /** 役牌の種類：三元牌と、場風・自風（鳴いて刻子にすれば役が付く） */

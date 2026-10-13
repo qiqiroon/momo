@@ -20,11 +20,21 @@ export function threats(view: GameState, seat: Seat): Seat[] {
   return others.filter((s) => view.riichi[s] !== 'none');
 }
 
-/** 中国式：テンパイしていそうか（手牌は見えないので、鳴きと巡目の目安） */
+/**
+ * 中国式：テンパイしていそうか（手牌は見えないので、鳴きと巡目の目安）。
+ * 最低の番が要るルール（香港の 3 番）は、番の見えない手はなかなかアガれない＝巡目では数えず、
+ * 3 組以上鳴いた人と、2 組鳴いて面子が 1 色＋字牌に寄っている人（混一色が見えている）だけ（2026-10-13 香港の手順7：
+ * 四川の目安のままだと Hard が降りすぎて Easy に負けた＝平均順位 3.075 対 1.925）
+ */
 function looksReady(view: GameState, s: Seat): boolean {
-  const melds = view.melds[s].length;
+  const melds = view.melds[s];
   const turns = view.discards[s].length;
-  return melds >= 2 || turns >= 10 || (melds >= 1 && turns >= 7);
+  if (view.rules?.family === 'cn' && Number(view.rules.values.minFan) > 0) {
+    if (melds.length >= 3) return true;
+    const suits = new Set(melds.map((m) => kindOf(m.tiles[0])).filter((k) => k < 27).map((k) => Math.floor(k / 9)));
+    return melds.length >= 2 && suits.size <= 1;
+  }
+  return melds.length >= 2 || turns >= 10 || (melds.length >= 1 && turns >= 7);
 }
 
 /** その人に対して通る種類（現物）。fine なら、リーチのあとに他の人が切って通った牌も入れる */

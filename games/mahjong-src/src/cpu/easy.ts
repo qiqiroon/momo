@@ -11,10 +11,11 @@ import type { Seat } from '../engine/events';
 import { legalActions, type Action } from '../engine/round';
 import type { GameState } from '../engine/state';
 import { kindOf } from '../engine/tiles';
-import { chooseQue, connection, freeCalls, handCounts, hasOpenYakuhai, pick, shantenAfterCall, shantenAfterDiscard, yakuhaiKinds } from './common';
+import { chooseQue, connection, FLUSH_MIN, flushPlan, setFlushMin, freeCalls, handCounts, inPlan, hasOpenYakuhai, pick, shantenAfterCall, shantenAfterDiscard, yakuhaiKinds } from './common';
 import { shanten } from './shanten';
 
 export function easyCpu(view: GameState, seat: Seat): Action {
+  setFlushMin(FLUSH_MIN.easy);
   const legal = legalActions(view, seat);
   if (legal.length === 0) throw new Error(`席 ${seat} はいま選べることが無い`);
   if (view.phase === 'que') return chooseQue(view, seat, legal);
@@ -38,10 +39,13 @@ function claimReply(view: GameState, seat: Seat, legal: readonly Action[]): Acti
   const now = shanten(handCounts(view, seat), view.melds[seat].length);
   // 役を気にせず鳴けるルール（四川）では、近づくならどれでも鳴く
   const free = freeCalls(view);
+  // 香港で混一色を狙っているなら、狙う色か字牌の鳴きもする
+  const plan = flushPlan(view, seat);
+  const planCall = plan !== null && inPlan(c.tile, plan);
   for (const a of legal) {
     if (a.type !== 'pon' && a.type !== 'chi') continue;
     const yakuPon = a.type === 'pon' && yakuhai.has(kindOf(c.tile));
-    if (!yakuPon && !opened && !free) continue;
+    if (!yakuPon && !opened && !free && !planCall) continue;
     if (shantenAfterCall(view, seat, a.tiles) < now) return a;
   }
   return pass;

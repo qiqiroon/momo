@@ -13,7 +13,7 @@ import { sichuanScore, type CnScore } from './sichuan';
 import { hongkongScore } from './hongkong';
 import { mcrScore } from './mcr';
 import type { Meld } from './yaku';
-import { isFlower, kindOf, tileSetFor, type TileId } from './tiles';
+import { isFlower, kindOf, tileSetFor, type KindId, type TileId } from './tiles';
 
 /** 局の進み具合。deal＝配っている途中／draw＝番の人がツモる前（カンのあとは嶺上牌を引く前）／discard＝番の人が切る（またはアガる・カンする）前／
  *  claim＝切られた牌（または加槓・暗槓の牌）にほかの 3 人が返事をしている（見送る・ロン・鳴く）／
@@ -75,6 +75,9 @@ export interface OpenMeld {
 
 /** 得点で数える面子の枚数（槍槓で無効になった加槓はポンの 3 枚） */
 export const meldSize = (m: OpenMeld): 3 | 4 => (isKanMeld(m) && !m.robbed ? 4 : 3);
+
+/** 四川の番で数える面子の形（チーは一番小さい牌と chi の印。牌の並びの先頭は鳴いた牌のことがあるので一番小さい牌を取る） */
+export const cnMeldOf = (m: OpenMeld) => ({ kind: Math.min(...m.tiles.map(kindOf)) as KindId, size: meldSize(m), chi: m.type === 'chi' });
 
 /** 槍槓された加槓に「無効」の印を付ける（足した牌が tile の面子） */
 function markRobbed(s: GameState, seat: Seat, tile: TileId): GameState {
@@ -300,6 +303,14 @@ export function nextActive(s: GameState, seat: Seat): Seat {
   }
   return x;
 }
+
+/** 包牌が効くか（baopai が「あり」で、払い方が香港式＝包の払いは香港式の中にしかない。押せない項目に残った値は効かない・ルール設定 v0.06 §6） */
+export const baoOn = (rules: Rules | null): boolean => rules?.family === 'cn' && rules.values.baopai === 'on' && rules.values.pay === 'hk';
+/** 查叫が効くか（chajiao が「あり」で、点数の数え方が四川の番＝2026-10-13 第16 Q4=A） */
+export const chajiaoOn = (rules: Rules | null): boolean => rules?.family === 'cn' && rules.values.chajiao === 'on' && rules.values.scoring === 'sichuan';
+
+/** 缺一門で、まだ誰も捨てる色を決めておらず、誰も切っていない（親の 14 枚目の前後） */
+const queNotStarted = (s: GameState): boolean => s.que.every((x) => x === null) && s.queHeld.every((x) => x === null) && s.discards.every((d) => d.length === 0);
 
 /** 缺一門のルールか（中国式で queyimen が「あり」） */
 export const queOn = (rules: Rules | null): boolean => rules?.family === 'cn' && rules.values.queyimen === 'on';
@@ -592,7 +603,8 @@ export function apply(state: GameState, env: Envelope): GameState {
         cnMissedKinds,
         cnFollowKinds,
         // 缺一門のルールでは、親の 14 枚目で配り終えたところで 4 人が捨てる色を決める
-        phase: s.phase === 'deal' && queOn(s.rules) ? 'que' : 'discard',
+        // （14 枚目が花牌なら、表にして引いた補充のところで決める＝花牌あり＋缺一門の組み合わせ・2026-10-13 第16）
+        phase: queOn(s.rules) && (s.phase === 'deal' || (flowerRep && queNotStarted(s))) ? 'que' : 'discard',
         hands,
         drawn,
         wallLeft: s.wallLeft - 1,
@@ -608,7 +620,9 @@ export function apply(state: GameState, env: Envelope): GameState {
       if (s.flowerDue) throw new Error('花牌の補充を引く前に、また花牌を表にした');
       if (ev.tile === HIDDEN || !isFlower(kindOf(ev.tile))) throw new Error('花牌でない牌を表にした');
       const deal = s.phase === 'deal';
-      if (!deal && !(s.phase === 'discard' && ev.seat === s.turn)) throw new Error('花牌を表にする時・席ではない');
+      // 捨てる色を決める段取り（que）に入った直後に、親の 14 枚目が花牌だったときも表にできる（まだ誰も決めていないときだけ）
+      const queStart = s.phase === 'que' && ev.seat === s.turn && queNotStarted(s);
+      if (!deal && !queStart && !(s.phase === 'discard' && ev.seat === s.turn)) throw new Error('花牌を表にする時・席ではない');
       const hands = s.hands.map((h) => h.slice());
       const hand = hands[ev.seat];
       let i = hand.indexOf(ev.tile);
@@ -679,7 +693,7 @@ export function apply(state: GameState, env: Envelope): GameState {
       replies[ev.seat] = 'self';
       const claim: Claim = { kind: 'discard', from: ev.seat, tile: ev.tile, replies, rons: [], calls: [], afterKan: s.rinshanDraw };
       // 香港の跟張：自分が切った牌の種類（自分が引くまで覚える）
-      const cnFollowKinds = s.rules?.family === 'cn' && s.rules.values.baopai === 'on' ? addFollow(s.cnFollowKinds, ev.seat, kindOf(ev.tile)) : s.cnFollowKinds;
+      const cnFollowKinds = baoOn(s.rules) ? addFollow(s.cnFollowKinds, ev.seat, kindOf(ev.tile)) : s.cnFollowKinds;
       const after: GameState = { ...s, phase: 'claim', hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn, claim, rinshanDraw: false, kanChain: 0, kuikaeBan: [], que, queHeld, queHeldSuit, cnFollowKinds };
       // 四家立直：ルールが「4 人目が宣言したとき」なら、宣言牌への返事を待たずに流局
       const v = s.rules?.family === 'jp' ? s.rules.values : null;
@@ -1044,7 +1058,7 @@ function cnFinish(s: GameState, exhausted: boolean, draw?: CnDraw): GameState {
 export function cnDrawSettles(rules: Rules | null): boolean {
   if (rules?.family !== 'cn') return false;
   const v = rules.values;
-  return v.chajiao === 'on' || (v.huazhu === 'on' && queOn(rules)) || v.kanPay === 'on';
+  return chajiaoOn(rules) || (v.huazhu === 'on' && queOn(rules)) || v.kanPay === 'on';
 }
 
 /**
@@ -1077,25 +1091,25 @@ export function cnDrawStateOf(s: GameState, seat: Seat, hand: readonly TileId[])
 }
 
 /**
- * 查叫の「理論上の最大点」（MIL §11-3・ルールの chajiaoPts）：待ちの牌ごとにアガったときの点を出し、一番高いもの。テンパイでなければ null。
- * ron＝ロンの基本点／tsumo＝ツモで各人が払う点（基本点＋1）。山が尽きたあとの判定なので、海底・杠上开花などの場面の番は数えない。
- * 自分の手と面子で 4 枚使っている牌は待ちに数えない（5 枚目は無い）
+ * 流局のテンパイと查叫の「理論上の最大点」（MIL §11-3・ルールの chajiaoPts）：待ちの牌ごとに、ふつうのアガリと同じ判定（点数の数え方・最低の番）で
+ * アガれるかを見て、一番高い点。テンパイでなければ null。ron＝ロンの基本点／tsumo＝ツモで各人が払う点（四川の番＝基本点＋1）。
+ * 山が尽きたあとの判定なので、海底・杠上开花・和绝张などの場面の番は数えない。自分の手と面子で 4 枚使っている牌は待ちに数えない（5 枚目は無い）
  */
 export function cnMaxPoints(s: GameState, seat: Seat, hand: readonly TileId[]): number | null {
   if (!s.rules || s.rules.family !== 'cn' || queLeft(s, seat, hand)) return null;
-  const counts = kindCounts(hand);
   const used = kindCounts([...hand, ...meldTiles(s, seat)]);
-  const melds = s.melds[seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: meldSize(m) }));
-  const q = queOn(s.rules) ? (s.que[seat] ?? s.queHeldSuit[seat]) : null;
   const last = s.rules.values.honors === 'on' ? 34 : 27;
+  const tsumo = s.rules.values.chajiaoPts === 'tsumo';
+  const quiet: GameState = { ...s, claim: null, rinshanDraw: false };
   let best: number | null = null;
   for (let k = 0; k < last; k++) {
-    if (used[k] >= 4 || (q !== null && k < 27 && Math.floor(k / 9) === q)) continue;
-    const concealed = counts.slice();
-    concealed[k]++;
-    const score = sichuanScore({ concealed, melds, haidi: false }, s.rules);
+    if (used[k] >= 4) continue;
+    const tile = (k * 4) as TileId;
+    const tiles = [...hand, tile];
+    if (queLeft(s, seat, tiles)) continue;
+    const score = cnScoreOf(quiet, seat, tiles, tsumo ? 'tsumo' : 'ron', tile, true);
     if (!score) continue;
-    const pts = s.rules.values.chajiaoPts === 'tsumo' ? score.points + 1 : score.points;
+    const pts = tsumo && s.rules.values.scoring === 'sichuan' ? score.points + 1 : score.points;
     if (best === null || pts > best) best = pts;
   }
   return best;
@@ -1119,7 +1133,7 @@ function cnSettleDraw(s0: GameState): GameState {
   });
   const kanReturn = s.scores.map((x, i) => x - before[i]);
   const chajiao = [0, 0, 0, 0];
-  if (v.chajiao === 'on') {
+  if (chajiaoOn(s0.rules)) {
     for (const n of SEATS_) {
       if (states[n] !== 'noten') continue;
       for (const r of SEATS_) {
@@ -1345,7 +1359,7 @@ export function callProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan
 /** 香港の鳴牌禁例：見送った牌・自分が切った牌と同じ種類（跟張）を、自分が引く前に鳴いて包牌が生じるなら鳴けない */
 function followProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan', tiles: readonly TileId[]): string | null {
   const c = s.claim;
-  if (!c || s.rules?.family !== 'cn' || s.rules.values.baopai !== 'on' || !s.cnFollowKinds[seat].includes(kindOf(c.tile))) return null;
+  if (!c || !baoOn(s.rules) || !s.cnFollowKinds[seat].includes(kindOf(c.tile))) return null;
   const after: OpenMeld[] = [...s.melds[seat], { type: meld === 'kan' ? 'minkan' : meld, tiles: [...tiles, c.tile], called: c.tile, from: c.from }];
   return paoFromCall(s, after, c.from) ? '包牌が生じる跟張は鳴けない（鳴牌禁例）' : null;
 }
@@ -1358,14 +1372,13 @@ function addFollow(list: readonly number[][], seat: Seat, k: number): number[][]
 /** 切られた牌をポン・チーできたか（包牌の有無・跟張の縛りは見ない）。香港の包牌のルールで、手牌が見える局面だけ */
 function couldCall(s: GameState, seat: Seat): boolean {
   const c = s.claim;
-  const cn = s.rules?.family === 'cn' ? s.rules.values : null;
-  if (!c || c.kind !== 'discard' || cn?.baopai !== 'on') return false;
+  if (!c || c.kind !== 'discard' || !baoOn(s.rules)) return false;
   const hand = s.hands[seat];
   if (hand.includes(HIDDEN)) return false;
   const k = kindOf(c.tile);
   const n = (x: number) => hand.filter((t) => kindOf(t) === x).length;
   if (n(k) >= 2) return true;
-  if (cn.chi !== 'on' || seat !== nextSeat(c.from) || k >= 27) return false;
+  if (s.rules?.family !== 'cn' || s.rules.values.chi !== 'on' || seat !== nextSeat(c.from) || k >= 27) return false;
   const p = k % 9;
   return (p >= 2 && n(k - 2) > 0 && n(k - 1) > 0) || (p >= 1 && p <= 7 && n(k - 1) > 0 && n(k + 1) > 0) || (p <= 6 && n(k + 1) > 0 && n(k + 2) > 0);
 }
@@ -1548,7 +1561,7 @@ export function paoFromCall(s: GameState, melds: readonly OpenMeld[], from: Seat
   // （4 組目・3 組目が暗槓なら包なし＝暗槓は鳴きでないのでここを通らない。原典 得分授受法 2）
   const cv = s.rules?.family === 'cn' ? s.rules.values : null;
   if (cv) {
-    if (cv.baopai !== 'on') return null;
+    if (!baoOn(s.rules)) return null;
     const last = melds[melds.length - 1];
     const dragon = (m: OpenMeld) => m.type !== 'chi' && kindOf(m.tiles[0]) >= 31;
     if (dragon(last) && melds.filter(dragon).length === 3) return { seat: from, yaku: 'dragons' };
@@ -1700,11 +1713,12 @@ function queLeft(s: GameState, seat: Seat, tiles: readonly TileId[]): boolean {
  * 中国式のアガリの点（形と番だけ。全員に見えるものから出す＝どの端末でも同じ）。アガリの形でなければ null。
  * 番の数え方はルールの scoring（四川＝sichuan.ts／香港＝hongkong.ts）。番がルールの minFan に届かなければアガれない（香港の三番起糊）
  */
-function cnScoreOf(s: GameState, seat: Seat, tiles: readonly TileId[], how: 'tsumo' | 'ron', given?: TileId): CnScore | null {
+function cnScoreOf(s: GameState, seat: Seat, tiles: readonly TileId[], how: 'tsumo' | 'ron', given?: TileId, noScene = false): CnScore | null {
   if (!s.rules || s.rules.family !== 'cn') return null;
   const v = s.rules.values;
   const kind = s.claim?.kind ?? 'discard';
-  const last = liveWallLeft(s) === 0;
+  // noScene＝場面の番（海底・和绝张など）を数えない（流局のテンパイの判定）
+  const last = !noScene && liveWallLeft(s) === 0;
   let score: CnScore | null;
   if (v.scoring === 'hk') {
     const winTile = given ?? (how === 'tsumo' ? s.drawn[seat] : (s.claim?.tile ?? null));
@@ -1752,11 +1766,11 @@ function cnScoreOf(s: GameState, seat: Seat, tiles: readonly TileId[], how: 'tsu
       lastClaim: how === 'ron' && last && kind === 'discard',
       gangkai: how === 'tsumo' && s.rinshanDraw,
       qianggang: how === 'ron' && kind === 'kakan',
-      juezhang: wk >= 0 && shownElsewhere(s, wk, winTile!) >= 3,
+      juezhang: !noScene && wk >= 0 && shownElsewhere(s, wk, winTile!) >= 3,
       qidui: v.qidui === 'on',
     });
   } else {
-    const melds = s.melds[seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: meldSize(m) }));
+    const melds = s.melds[seat].map(cnMeldOf);
     score = sichuanScore(
       {
         concealed: kindCounts(tiles),
@@ -1860,10 +1874,11 @@ function cnRonPays(s: GameState, c: Claim, seat: Seat, score: CnScore): number[]
   const out = [0, 0, 0, 0];
   const pay = s.rules?.family === 'cn' ? s.rules.values.pay : null;
   const hk = pay === 'hk';
-  // 国標：放銃者が（底分 8＋点）、ほかの 2 人が底分 8 ずつ（98 第十条一(三)。抢杠和はカンした人が放銃者）
+  // 国標：放銃者が（底分 8＋点）、ほかの 2 人が底分 8 ずつ（98 第十条一(三)。抢杠和はカンした人が放銃者）。
+  // アガって抜けた人（血戦到底と組んだとき）は払わない＝ツモと同じ
   if (pay === 'mcr') {
     for (const p of SEATS_) {
-      if (p === seat) continue;
+      if (p === seat || s.cnOut[p]) continue;
       const n = p === c.from ? MCR_BASE + score.points : MCR_BASE;
       out[p] -= n;
       out[seat] += n;

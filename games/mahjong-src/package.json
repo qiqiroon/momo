@@ -17,7 +17,8 @@
     "ci": "npm run typecheck && npm run test && npm run build",
     "lockbench": "vite-node src/online/bench.ts",
     "onlineplay": "vitest run src/online/table.test.ts --mode full",
-    "ruletable": "node scripts/gen-rule-table.cjs"
+    "ruletable": "node scripts/gen-rule-table.cjs",
+    "combo": "vite-node src/selfplay/comboMain.ts"
   },
   "dependencies": {
     "react": "^19.0.0",

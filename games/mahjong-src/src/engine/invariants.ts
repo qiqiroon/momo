@@ -16,7 +16,7 @@ import { sichuanScore } from './sichuan';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { finalResult } from './final';
 import { cnRoundsTotal } from './game';
-import { apply, cnDrawStateOf, initialState, isKanMeld, MAX_KANS, MCR_BASE, meldSize, PIG_PENALTY, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
+import { apply, cnDrawStateOf, initialState, isKanMeld, MAX_KANS, MCR_BASE, cnMeldOf, PIG_PENALTY, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
 import { isFlower, kindOf, tileSetFor } from './tiles';
 
 export class Watcher {
@@ -191,7 +191,9 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       if (full.que[seat] === null && full.discards[seat].length > 0) bad.push(`席 ${seat}：捨てる色を宣言せずに切った`);
       if (full.que[seat] !== null && full.discards[seat].length === 0) bad.push(`席 ${seat}：切らずに捨てる色を宣言した`);
     });
-    if ((full.phase === 'discard' || full.phase === 'claim' || full.phase === 'draw') && full.queHeld.some((t, seat) => t === null && full.que[seat] === null)) {
+    // 親の 14 枚目が花牌で、表にして補充を引く前（draw・flowerDue）は、まだ決める前の段取りの途中
+    const flowerBeforeQue = full.phase === 'draw' && full.flowerDue && full.discards.every((d) => d.length === 0);
+    if ((full.phase === 'discard' || full.phase === 'claim' || full.phase === 'draw') && !flowerBeforeQue && full.queHeld.some((t, seat) => t === null && full.que[seat] === null)) {
       bad.push('捨てる色を決めていない人がいるのに打牌に進んだ');
     }
     const c = full.claim;
@@ -247,7 +249,7 @@ export function checkState(full: GameState, views: readonly GameState[]): string
             },
             full.rules,
           )
-        : sichuanScore({ concealed: kindCounts(tiles), melds: full.melds[w.seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: meldSize(m) })), haidi: has('haidi'), gangkai: has('gangkai'), gangpao: has('gangpao'), qianggang: has('qianggang') }, full.rules);
+        : sichuanScore({ concealed: kindCounts(tiles), melds: full.melds[w.seat].map(cnMeldOf), haidi: has('haidi'), gangkai: has('gangkai'), gangpao: has('gangpao'), qianggang: has('qianggang') }, full.rules);
       if (!again || JSON.stringify(again) !== JSON.stringify(w.score)) bad.push(`席 ${w.seat}：中国式のアガリの点が手牌から出し直した点と合わない`);
       const q = full.que[w.seat] ?? full.queHeldSuit[w.seat];
       const sOf = (t: number) => (kindOf(t) < 27 ? Math.floor(kindOf(t) / 9) : -1);
@@ -258,9 +260,12 @@ export function checkState(full: GameState, views: readonly GameState[]): string
       if (full.rules.family === 'cn' && w.score.fan < Number(full.rules.values.minFan)) bad.push(`席 ${w.seat}：最低の番に届かないのにアガった`);
       if (w.from === w.seat) bad.push('切った人が自分の牌でロンした');
       if (w.pays.reduce((a, b) => a + b, 0) !== 0) bad.push(`席 ${w.seat}：アガリの点の動きの合計が 0 でない`);
-      // 国標の払い：ツモ＝3 人が（8＋点）ずつ／ロン＝放銃者が（8＋点）・ほかの 2 人が 8 ずつ
+      // 国標の払い：ツモ＝まだ抜けていない人が（8＋点）ずつ／ロン＝放銃者が（8＋点）・ほかのまだ抜けていない人が 8 ずつ
       if (full.rules.family === 'cn' && full.rules.values.pay === 'mcr') {
-        const want = [0, 1, 2, 3].map((p) => (p === w.seat ? 0 : w.from === null || p === w.from ? -(MCR_BASE + w.score.points) : -MCR_BASE));
+        // このアガリより前にアガって抜けた人（同じ捨て牌への同時ロンは除く）は払わない（血戦到底と組んだとき）
+        const wi = r.wins.indexOf(w);
+        const outBefore = new Set<number>(r.wins.slice(0, wi).filter((x) => !(w.from !== null && x.from === w.from && x.winTile === w.winTile)).map((x) => x.seat));
+        const want = [0, 1, 2, 3].map((p) => (p === w.seat || outBefore.has(p) ? 0 : w.from === null || p === w.from ? -(MCR_BASE + w.score.points) : -MCR_BASE));
         want[w.seat] = -want.reduce((a, b) => a + b, 0);
         if (JSON.stringify(want) !== JSON.stringify(w.pays)) bad.push(`席 ${w.seat}：国標の払いの額が違う（${w.pays.join(',')}）`);
       }

@@ -174,7 +174,7 @@ export const CN_ITEMS: readonly RuleItem[] = [
   {"k":"cap","name":"点数の上限","opts":[["3","3番"],["10","10番"],["none","なし"]],"v":["3","none","10"],"dep":["scoring","mcr","not"]},
   {"k":"pay","name":"点の払い方","opts":[["sichuan","四川式"],["mcr","国標式（底分8を全員）"],["hk","香港式（ツモは半額×3人）"]],"v":["sichuan","mcr","hk"]},
   {"k":"kanPay","name":"カンのその場精算（刮風下雨）","opts":[["on","あり"],["off","なし"]],"v":["on","off","off"]},
-  {"k":"chajiao","name":"流局時、テンパイしていない人が払う（查叫）","opts":[["on","あり"],["off","なし"]],"v":["on","off","off"]},
+  {"k":"chajiao","name":"流局時、テンパイしていない人が払う（查叫）","opts":[["on","あり"],["off","なし"]],"v":["on","off","off"],"dep":["scoring","sichuan"]},
   {"k":"huazhu","name":"流局時、3色とも残した人の罰（花豬）","opts":[["on","あり"],["off","なし"]],"v":["on","off","off"],"dep":["queyimen","on"]},
   {"k":"gangshangpao","name":"杠上炮（槓の直後の捨て牌でロン＝1番）","opts":[["on","あり"],["off","なし"]],"v":["on","off","off"],"dep":["scoring","sichuan"]},
   {"k":"chajiaoPts","name":"查叫で払う「理論上の最大点」","opts":[["ron","待ちで一番高いロンの点（上限8点）"],["tsumo","待ちで一番高いツモの点（上限8点）"]],"v":[null,"ron","ron"],"dep":["chajiao","on"]},

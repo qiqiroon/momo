@@ -33,8 +33,8 @@ export interface CnScore {
 export interface CnWinContext {
   /** 手の中の牌（アガリ牌を含む・鳴いた面子は含まない）の種類ごとの枚数（長さ 34 以上） */
   concealed: readonly number[];
-  /** 鳴いた面子（ポン＝3 枚・カン＝4 枚。暗槓も入れる）の種類と枚数 */
-  melds: readonly { kind: KindId; size: 3 | 4 }[];
+  /** 鳴いた面子（ポン＝3 枚・カン＝4 枚。暗槓も入れる）の種類と枚数。chi＝チー（kind は一番小さい牌・個別設定でチーありのとき） */
+  melds: readonly { kind: KindId; size: 3 | 4; chi?: boolean }[];
   /** 最後の 1 枚のツモ・最後の捨て牌でのロン（海底） */
   haidi: boolean;
   /** 嶺上牌でツモ（杠上开花）・カンした人の直後の打牌でロン（杠上炮）・加槓の牌でロン（抢杠） */
@@ -61,7 +61,10 @@ export function sichuanScore(ctx: CnWinContext, rules: Rules): CnScore | null {
   const v = rules.values;
   const c = ctx.concealed.slice(0, 34);
   const all = c.slice();
-  for (const m of ctx.melds) all[m.kind] += m.size;
+  for (const m of ctx.melds) {
+    if (m.chi) for (let i = 0; i < 3; i++) all[m.kind + i]++;
+    else all[m.kind] += m.size;
+  }
   // 手の中の牌と面子（カンも 3 枚に数える）で 14 枚
   if (c.reduce((a, b) => a + b, 0) + 3 * ctx.melds.length !== 14) return null;
   // 共通に付く番：根（同じ牌 4 枚）・清一色・海底
@@ -78,7 +81,7 @@ export function sichuanScore(ctx: CnWinContext, rules: Rules): CnScore | null {
   const candidates: CnScore['fans'][] = [];
   for (const d of decompose(c)) {
     const fans = common.slice();
-    if (d.sets.every((x) => x.type === 'tri')) fans.push({ id: 'pengpeng', fan: 1 });
+    if (d.sets.every((x) => x.type === 'tri') && !ctx.melds.some((m) => m.chi)) fans.push({ id: 'pengpeng', fan: 1 });
     // 金钩钓：4 組とも鳴いて、手の中は雀頭だけ（単騎待ちでアガった）
     if (ctx.melds.length === 4) fans.push({ id: 'jingou', fan: 1 });
     candidates.push(fans);

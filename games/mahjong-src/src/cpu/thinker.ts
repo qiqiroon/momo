@@ -6,19 +6,19 @@
 //   - 点数（ドラ・赤・役牌の対子を手放さない／喰いタンで役を作って鳴く）
 //   - 守り（リーチされたら、アガリから遠い手は降りる＝通る牌から切る）
 //   - 待ちの残りが 0 枚ならリーチしない／暗槓・加槓をする
+//   - 缺一門（四川）：捨てる色の牌は手に無いものとして測る（Easy と同じ・common.ts の handCounts）
 // Apocalypse がさらに足すもの（opts で切り替える）：
 //   - 受け入れを「場に見えている枚数」で数え直す（visibleWaits）
 //   - 危なさの見分けを細かく（壁・リーチ後に通った牌）（fineDanger）
 //   - 点数の状況で押し引きを変える（オーラスのラス目は押す・トップ目は降りやすい）（placement）
 //   - 迷う場面だけ先読み：同じ近さの候補を「2 歩先の受け入れ」で比べる（simulate.ts）
 
-import { kindCounts } from '../engine/agari';
 import { doraOf } from '../engine/dora';
 import type { Seat } from '../engine/events';
 import { legalActions, type Action } from '../engine/round';
 import type { GameState } from '../engine/state';
 import { isRed, kindOf, type KindId, type TileId } from '../engine/tiles';
-import { chooseQue, connection, hasOpenYakuhai, pick, shantenAfterCall, yakuhaiKinds } from './common';
+import { chooseQue, connection, handCounts, hasOpenYakuhai, isQueTile, pick, shantenAfterCall, yakuhaiKinds } from './common';
 import { dangerOf, threats } from './defense';
 import { acceptance, shanten, visibleCounts } from './shanten';
 import { twoStepAcceptance } from './simulate';
@@ -61,7 +61,7 @@ function valueLossOf(view: GameState, seat: Seat, tile: TileId, counts: readonly
 
 /** 切る候補を全部見立てる（同じ種類は 1 回だけ計算する） */
 export function discardPlans(view: GameState, seat: Seat, legal: readonly Action[], opts: ThinkOptions): DiscardPlan[] {
-  const counts = kindCounts(view.hands[seat]);
+  const counts = handCounts(view, seat);
   const open = view.melds[seat].length;
   const visible = visibleCounts(view, seat);
   const byKind = new Map<KindId, { shanten: number; waits: number }>();
@@ -71,9 +71,11 @@ export function discardPlans(view: GameState, seat: Seat, legal: readonly Action
     const k = kindOf(a.tile);
     let m = byKind.get(k);
     if (!m) {
-      counts[k]--;
+      // 缺一門の捨てる色の牌は数えていない＝切っても手は変わらない
+      const que = isQueTile(view, seat, a.tile);
+      if (!que) counts[k]--;
       const acc = acceptance(counts, open, opts.visibleWaits ? visible : counts);
-      counts[k]++;
+      if (!que) counts[k]++;
       m = { shanten: acc.shanten, waits: acc.tiles };
       byKind.set(k, m);
     }
@@ -143,7 +145,7 @@ export function makeThinker(opts: ThinkOptions) {
   function claimReply(view: GameState, seat: Seat, legal: readonly Action[]): Action {
     const pass = pick(legal, 'pass')!;
     const c = view.claim!;
-    const counts = kindCounts(view.hands[seat]);
+    const counts = handCounts(view, seat);
     const now = shanten(counts, view.melds[seat].length);
     // リーチされていて、テンパイから遠いなら鳴かない（降りる手で鳴くと切れる牌が減る）
     if (threats(view, seat).length > 0 && now >= 2) return pass;
@@ -200,12 +202,12 @@ function chooseDiscard(view: GameState, seat: Seat, legal: readonly Action[], op
       return true;
     }).slice(0, 4);
     if (top.length >= 2) {
-      const counts = kindCounts(view.hands[seat]);
+      const counts = handCounts(view, seat);
       const visible = visibleCounts(view, seat);
       const open = view.melds[seat].length;
       const scores = top.map((p) => {
         const c = counts.slice();
-        c[kindOf(p.tile)]--;
+        if (!isQueTile(view, seat, p.tile)) c[kindOf(p.tile)]--;
         return twoStepAcceptance(c, open, visible);
       });
       let bi = 0;
@@ -232,7 +234,9 @@ function chooseDiscard(view: GameState, seat: Seat, legal: readonly Action[], op
 }
 
 function kanKeepsShanten(view: GameState, seat: Seat, tiles: readonly TileId[], kan: 'ankan' | 'kakan'): boolean {
-  const counts = kindCounts(view.hands[seat]);
+  // 缺一門の捨てる色の牌はカンしない（手に残すと花豬になる・捨て終えるのが遅れる）
+  if (tiles.some((t) => isQueTile(view, seat, t))) return false;
+  const counts = handCounts(view, seat);
   const open = view.melds[seat].length;
   // 今の手から 1 枚切ったときの一番近い形
   let before = 99;

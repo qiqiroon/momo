@@ -4,14 +4,14 @@
 // - アガれるならアガる。テンパイになったらリーチする（門前なら役は必ず付く）
 // - 切る牌：切ったあと一番アガリに近い牌。同じなら一番孤立している牌（つながりの少ない牌）
 // - 鳴き：役牌の対子だけポンする。役牌を鳴いたあとは、近づくチー・ポンもする（役が付いている）。カンはしない
+// - 缺一門（四川）：捨てる色の牌は手に無いものとして測る（common.ts の handCounts）。捨てる色は色ごとに測って決める（chooseQue）
 // - 九種九牌は流す。流局ではテンパイと言う。オーラスでトップの親はやめる
 
-import { kindCounts } from '../engine/agari';
 import type { Seat } from '../engine/events';
 import { legalActions, type Action } from '../engine/round';
 import type { GameState } from '../engine/state';
 import { kindOf } from '../engine/tiles';
-import { chooseQue, connection, hasOpenYakuhai, pick, shantenAfterCall, shantenAfterDiscard, yakuhaiKinds } from './common';
+import { chooseQue, connection, handCounts, hasOpenYakuhai, pick, shantenAfterCall, shantenAfterDiscard, yakuhaiKinds } from './common';
 import { shanten } from './shanten';
 
 export function easyCpu(view: GameState, seat: Seat): Action {
@@ -35,7 +35,7 @@ function claimReply(view: GameState, seat: Seat, legal: readonly Action[]): Acti
   const c = view.claim!;
   const yakuhai = yakuhaiKinds(view, seat);
   const opened = hasOpenYakuhai(view, seat);
-  const now = shanten(kindCounts(view.hands[seat]), view.melds[seat].length);
+  const now = shanten(handCounts(view, seat), view.melds[seat].length);
   for (const a of legal) {
     if (a.type !== 'pon' && a.type !== 'chi') continue;
     const yakuPon = a.type === 'pon' && yakuhai.has(kindOf(c.tile));
@@ -47,7 +47,7 @@ function claimReply(view: GameState, seat: Seat, legal: readonly Action[]): Acti
 
 function discard(view: GameState, seat: Seat, legal: readonly Action[]): Action {
   const after = shantenAfterDiscard(view, seat);
-  const counts = kindCounts(view.hands[seat]);
+  const counts = handCounts(view, seat);
   let best: Action | null = null;
   let bestKey: [number, number] = [99, 99];
   for (const a of legal) {

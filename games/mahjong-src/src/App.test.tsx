@@ -72,8 +72,21 @@ describe('始める画面', () => {
 });
 
 describe('卓の画面（段階1）', () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+  // 山の種を固定する。種が毎回ちがうと、CPU が鳴く・アガる山（およそ 4%）に当たったときだけ
+  // 「CPU 3 人が打って自分の番に戻る」が成り立たず、走らせるたびに結果が変わる（2026-10-13）。
+  // 1 は鳴きもアガリも起きない種（種を変えたら、その山で上の決まりが成り立つか確かめ直す）
+  const SEED_WORD = 1;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(crypto, 'getRandomValues').mockImplementation(<T extends ArrayBufferView>(a: T) => {
+      if (a instanceof Uint32Array) a.fill(SEED_WORD);
+      return a;
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
 
   /** 時計を少しずつ進める（1 回の待ちごとに画面の更新を挟む＝本物と同じ順で進む） */
   const run = (ms: number) => {

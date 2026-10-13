@@ -99,3 +99,170 @@ describe('香港の鳴き', () => {
     expect(can).toContain(BASE.m + 1);
   });
 });
+
+// ---- 番（手順2）：原典の番種一覧表ごとに手を作って確かめる ----
+import { HK_FAN_IDS, hkPoints, hongkongScore, type HkWinContext } from './hongkong';
+import { dictFor } from '../i18n/strings';
+
+/** 種類ごとの枚数（1m〜9m・1p・1s・1z〜7z） */
+function counts(code: string): number[] {
+  const c = new Array<number>(34).fill(0);
+  for (const [, nums, suit] of code.matchAll(/(\d+)([mpsz])/g)) for (const d of nums) c[BASE[suit as 'm'] + Number(d) - 1]++;
+  return c;
+}
+const k = (code: string) => counts(code).findIndex((n) => n > 0);
+/** 手の中の 14 枚（または鳴きの分を引いた枚数）とアガリ方から、番を出す。席は南家（自風＝南）・場風＝東 */
+function score(hand: string, win: string, o: Partial<HkWinContext> = {}, rules: Rules = HK) {
+  const ctx: HkWinContext = { concealed: counts(hand), melds: [], winTile: k(win), tsumo: true, seatWind: 28, roundWind: 27, haidi: false, gangkai: false, kanChain: 0, qianggang: false, tianhu: false, dihu: false, ...o };
+  return hongkongScore(ctx, rules);
+}
+const ids = (r: ReturnType<typeof score>) => (r ? Object.fromEntries(r.fans.map((f) => [f.id, f.fan])) : null);
+const pon = (code: string) => ({ kind: k(code), type: 'pon' as const, concealed: false });
+const chi = (code: string) => ({ kind: k(code), type: 'chi' as const, concealed: false });
+const kan = (code: string, concealed = false) => ({ kind: k(code), type: 'kan' as const, concealed });
+
+describe('香港の番（1 番）', () => {
+  it('平糊・門前清・自摸（順子 4 組の門前ツモ）＝3 番 32 点', () => {
+    const r = score('123m456m789p234s55s', '5s');
+    expect(ids(r)).toEqual({ pinghu: 1, menqing: 1, zimo: 1 });
+    expect(r!.fan).toBe(3);
+    expect(r!.points).toBe(32);
+  });
+  it('三元牌は刻子 1 組ごと・風牌は自風（南）と場風（東）。両方の刻子なら 2', () => {
+    expect(ids(score('555z666z123m456p11s', '1s', { tsumo: false }))).toMatchObject({ dragon: 2, menqing: 1 });
+    expect(ids(score('111z222z123m456p11s', '1s', { tsumo: false }))).toMatchObject({ wind: 2 });
+    // 場風と自風が同じ（東場の東家）なら 1 組で 2
+    expect(ids(score('111z123m456p789s11s', '1s', { tsumo: false, seatWind: 27 }))).toMatchObject({ wind: 2 });
+  });
+  it('平糊はチーした順子も数える（門前清は付かない）', () => {
+    const r = score('456m789p234s55s', '5s', { tsumo: false, melds: [chi('1m')] });
+    expect(ids(r)).toEqual({ pinghu: 1 });
+    expect(r!.points).toBe(0);
+  });
+  it('門前清は鳴いた面子が無いときだけ（暗槓も明章に数える）', () => {
+    expect(ids(score('123m456p789s11s', '1s', { melds: [kan('9m', true)] }))).not.toHaveProperty('menqing');
+  });
+  it('花么：么九牌と字牌だけ＝對對糊も付く', () => {
+    // 門前の単騎ロンだと暗刻 4 つ＝坎坎糊になるので、1 組ポンした手で見る
+    expect(ids(score('999p111s555z77z', '7z', { tsumo: false, melds: [pon('1m')] }))).toMatchObject({ huayao: 1, duidui: 3 });
+  });
+  it('搶槓・槓上自摸・海底撈月', () => {
+    expect(ids(score('123m456m789p234s55s', '5s', { tsumo: false, qianggang: true }))).toMatchObject({ qianggangHk: 1 });
+    expect(ids(score('123m456m789p234s55s', '5s', { gangkai: true, kanChain: 1 }))).toMatchObject({ gangkaiHk: 1 });
+    expect(ids(score('123m456m789p234s55s', '5s', { haidi: true }))).toMatchObject({ haidiHk: 1 });
+  });
+});
+
+describe('香港の番（3・5・7 番）', () => {
+  it('混一色 3・對對糊 3・清一色 7', () => {
+    expect(ids(score('123m456m789m111z22z', '2z', { tsumo: false }))).toMatchObject({ hunyise: 3 });
+    expect(ids(score('111m555p999s222s33m', '2s', { tsumo: false }))).toMatchObject({ duidui: 3 }); // シャンポンのロン（単騎だと坎坎糊）
+    expect(ids(score('123m456m789m234m55m', '5m', { tsumo: false }))).toMatchObject({ qingyiseHk: 7 });
+  });
+  it('小三元は 3 番＋三元牌 2 組＝5 番。大三元は 5 番＋三元牌 3 組＝8 番', () => {
+    const small = score('555z666z77z123m456m', '6m', { tsumo: false });
+    expect(ids(small)).toMatchObject({ xiaosanyuan: 3, dragon: 2 });
+    const big = score('555z666z777z123m44m', '4m', { tsumo: false });
+    expect(ids(big)).toMatchObject({ dasanyuan: 5, dragon: 3 });
+  });
+  it('読み方が 2 つあれば番の高いほう（111222333m は 3 暗刻にも 3 順子にも読める）', () => {
+    // 順子に読むと平糊、刻子に読むと對對糊（3 番）＝高いほう
+    // （門前の単騎だと坎坎糊になるので 5p をポンした手）
+    const r = score('111m222m333m77p', '7p', { tsumo: false, melds: [pon('5p')] });
+    expect(ids(r)).toMatchObject({ duidui: 3 });
+    expect(ids(r)).not.toHaveProperty('pinghu');
+  });
+});
+
+describe('香港の例牌（10 番）', () => {
+  const limit = (r: ReturnType<typeof score>, id: string) => {
+    expect(r?.fans.map((f) => f.id)).toContain(id);
+    expect(r?.fan).toBe(10);
+    expect(r?.points).toBe(512);
+  };
+  it('全番子・小四喜・大四喜・清么九・十八羅漢・十三么九', () => {
+    limit(score('111z222z555z666z77z', '7z', { tsumo: false }), 'ziyise');
+    limit(score('111z222z333z44z123m', '3m', { tsumo: false }), 'xiaosixi');
+    limit(score('111z222z333z444z11m', '1m', { tsumo: false }), 'dasixi');
+    limit(score('111m999m111p999p11s', '1s', { tsumo: false }), 'qingyaojiu');
+    limit(score('11s', '1s', { melds: [kan('1m'), kan('2m'), kan('3p'), kan('4s')] }), 'shibaluohan');
+    limit(score('19m19p19s12345677z', '7z', { tsumo: false }), 'shisanyao');
+  });
+  it('坎坎糊：暗刻 4 つ。ツモはどれでも・ロンは単騎だけ（シャンポンのロンは對對糊）', () => {
+    limit(score('111m333m555p777s99s', '9s', { tsumo: true }), 'kankan');
+    limit(score('111m333m555p777s99s', '9s', { tsumo: false }), 'kankan');
+    const shanpon = score('111m333m555p777s99s', '7s', { tsumo: false });
+    expect(shanpon?.fans.map((f) => f.id)).not.toContain('kankan');
+    expect(ids(shanpon)).toMatchObject({ duidui: 3 });
+    // カンが入れば坎坎糊にならない
+    expect(score('111m333m555p99s', '9s', { melds: [kan('7s', true)] })?.fans.map((f) => f.id)).not.toContain('kankan');
+  });
+  it('九子連環：ツモはどの形でも。ロンは 9 面待ち（13 枚が 1112345678999）のときだけ', () => {
+    limit(score('11123455678999m', '5m'), 'jiulian');
+    limit(score('11123455678999m', '5m', { tsumo: false }), 'jiulian');
+    // 13 枚が 1122345678999（9 面待ちでない）で 1m をロン → 九子連環にならない（清一色）。同じ形のツモは九子連環
+    const notNine = score('11122345678999m', '1m', { tsumo: false });
+    expect(notNine?.fans.map((f) => f.id)).not.toContain('jiulian');
+    expect(ids(notNine)).toMatchObject({ qingyiseHk: 7 });
+    limit(score('11122345678999m', '1m'), 'jiulian');
+  });
+  it('天糊・地糊・槓上槓自摸（ルールの天和・地和が「あり」のとき）', () => {
+    limit(score('123m456m789p234s55s', '5s', { tianhu: true }), 'tianhu');
+    limit(score('123m456m789p234s55s', '5s', { tsumo: false, dihu: true }), 'dihu');
+    limit(score('123m456m789p234s55s', '5s', { gangkai: true, kanChain: 2 }), 'ganggang');
+    const off: Rules = HK.family === 'cn' ? { family: 'cn', values: { ...HK.values, tenhou: 'off' } } : HK;
+    expect(score('123m456m789p234s55s', '5s', { tianhu: true }, off)?.fans.map((f) => f.id)).not.toContain('tianhu');
+  });
+});
+
+describe('香港の点（分數換算表）', () => {
+  it('3 番 32・4 番 64・5 番 96・6 番 128・7 番 192・8 番 256・9 番 384・10 番 512。上限 10 番', () => {
+    expect([3, 4, 5, 6, 7, 8, 9, 10].map((f) => hkPoints(f, HK).points)).toEqual([32, 64, 96, 128, 192, 256, 384, 512]);
+    expect(hkPoints(13, HK)).toEqual({ points: 512, capped: true });
+    expect(hkPoints(2, HK).points).toBe(0);
+  });
+  it('清一色＋對對糊＋門前清＋自摸＝12 番は 10 番で切る', () => {
+    const r = score('111m333m555m777m99m', '9m');
+    // 暗刻 4 つのツモは坎坎糊（例牌）になる＝10 番
+    expect(r?.fan).toBe(10);
+    const open = score('333m555m777m99m', '9m', { melds: [pon('1m')] });
+    expect(open?.fan).toBe(7 + 3 + 1);
+    expect(open?.capped).toBe(true);
+    expect(open?.points).toBe(512);
+  });
+});
+
+describe('香港の番の名前', () => {
+  it('どの番も日英中の名前がある（無いと結果の枠で止まる）', () => {
+    for (const lang of ['ja', 'en', 'zh'] as const) {
+      const d = dictFor(lang) as Record<string, string>;
+      for (const id of HK_FAN_IDS) expect(d[`cnFan_${id}`], `${lang} cnFan_${id}`).toBeTruthy();
+    }
+  });
+});
+
+describe('香港のアガリ（局面から）', () => {
+  // 席 0（親）の配牌 13 枚＋ツモ。席 1〜3 は牌がぶつからない手
+  const O1 = '1s2s6s7s8s9s9p8p7p4z4z6z7z';
+  const O2 = '1p2p3p4m5m6m7m3p4p5p3z3z7z';
+  const O3 = '2m3m4m7p8p9p2s3s4s2z2z6z6z';
+  it('天糊：親が配牌のままツモ＝例牌 10 番', () => {
+    // 123m456m789m・555s・1p 単騎に 1p を引く
+    const { s } = setup(['123m456m789m1p555s', O3, O2, O1], '1p');
+    const tsumo = legalActions(s, 0).find((a) => a.type === 'tsumo');
+    expect(tsumo).toBeTruthy();
+    const after = run(s, 0, tsumo!);
+    expect(after.result?.type).toBe('cnWin');
+    if (after.result?.type === 'cnWin') expect(after.result.wins[0].score.fans.map((f) => f.id)).toContain('tianhu');
+  });
+
+  it('3 番に届かないとツモれない（門前清＋自摸の 2 番）。三元牌の刻子が 1 つあれば 3 番でツモれる', () => {
+    // 1 巡回ったことにする（天糊にしない）
+    const later = (hand: string, draw: string) => {
+      const { s } = setup([hand, O3, O2, O1], draw);
+      return { ...s, discards: s.discards.map(() => [999]) } as GameState;
+    };
+    expect(legalActions(later('111m456m789m1p1p5s5s', '5s'), 0).some((a) => a.type === 'tsumo')).toBe(false);
+    expect(legalActions(later('555z456m789m1p1p5s5s', '5s'), 0).some((a) => a.type === 'tsumo')).toBe(true);
+  });
+});

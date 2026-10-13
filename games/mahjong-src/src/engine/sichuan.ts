@@ -6,24 +6,25 @@
 //   杠上开花 1（嶺上牌でツモ＝ルールの rinshan）・杠上炮 1（カンした人の直後の打牌でロン＝gangshangpao）・抢杠 1（加槓の牌でロン＝chankan）。
 // 点（§9）：基本点＝2 の番数乗（0 番 1 点・上限はルールの cap＝四川は 3 番 8 点）。
 //   ロン＝放銃者が基本点を払う／ツモ＝まだアガっていない各人が（基本点＋1）を払う（ルールの pay が sichuan のとき）。
-// 番の数え方が「四川の番」でないルール（国標・香港）は、それぞれの手順で足す（いまは null＝アガれない）。
+// 番の数え方が「四川の番」でないルール：香港＝hongkong.ts（段階9 香港の手順2）。国標は国標の手順で足す（いまは null＝アガれない）。
 
 import { decompose } from './yaku';
 import type { Rules } from './rules';
 import type { KindId } from './tiles';
+import type { HkFanId } from './hongkong';
 
 /** 番の一覧（画面の言葉の抜けを検査で見張る） */
 export const CN_FAN_IDS = ['gen', 'pengpeng', 'jingou', 'qingyise', 'qidui', 'haidi', 'gangkai', 'gangpao', 'qianggang'] as const;
 export type CnFanId = (typeof CN_FAN_IDS)[number];
 
 export interface CnScore {
-  /** 付いた番（同じ番は 1 行。根は数を fan に入れる） */
-  fans: { id: CnFanId; fan: number }[];
+  /** 付いた番（同じ番は 1 行。根は数を fan に入れる）。香港の番（hongkong.ts）も同じ形 */
+  fans: { id: CnFanId | HkFanId; fan: number }[];
   /** 番の合計（上限で切る前） */
   fan: number;
   /** 上限で切ったか */
   capped: boolean;
-  /** 基本点＝2 の（上限で切ったあとの）番数乗 */
+  /** 基本点＝2 の（上限で切ったあとの）番数乗。香港は出銃（ロン）の点（換算表） */
   points: number;
 }
 

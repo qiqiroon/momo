@@ -10,6 +10,7 @@
 
 import { HIDDEN, SEATS, mask, type Envelope, type Seat } from './events';
 import { isWinningHand, kindCounts, waitKinds } from './agari';
+import { hkPoints, hongkongScore } from './hongkong';
 import { sichuanScore } from './sichuan';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { finalResult } from './final';
@@ -205,15 +206,36 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     if (r.wins.length === 0 && !r.exhausted) bad.push('中国式のアガリにアガった人がいない');
     for (const w of r.wins) {
       const tiles = w.from === null ? full.hands[w.seat] : [...full.hands[w.seat], w.winTile];
-      const melds = full.melds[w.seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: meldSize(m) }));
       const has = (id: string) => w.score.fans.some((f) => f.id === id);
-      const again = sichuanScore({ concealed: kindCounts(tiles), melds, haidi: has('haidi'), gangkai: has('gangkai'), gangpao: has('gangpao'), qianggang: has('qianggang') }, full.rules);
+      const hk = full.rules.family === 'cn' && full.rules.values.scoring === 'hk';
+      // 手牌と面子から番を出し直す（場面の印は付いた番から読む）
+      const again = hk
+        ? hongkongScore(
+            {
+              concealed: kindCounts(tiles),
+              melds: full.melds[w.seat].map((m) => ({ kind: Math.min(...m.tiles.map(kindOf)), type: m.type === 'chi' ? 'chi' : m.type === 'pon' || m.robbed ? 'pon' : 'kan', concealed: m.type === 'ankan' })),
+              winTile: kindOf(w.winTile),
+              tsumo: w.from === null,
+              seatWind: 27 + ((w.seat - full.dealer + 4) % 4),
+              roundWind: 27 + (Math.floor(Math.max(0, full.roundIndex) / 4) % 4),
+              haidi: has('haidiHk'),
+              gangkai: has('gangkaiHk') || has('ganggang'),
+              kanChain: has('ganggang') ? 2 : 1,
+              qianggang: has('qianggangHk'),
+              tianhu: has('tianhu'),
+              dihu: has('dihu'),
+            },
+            full.rules,
+          )
+        : sichuanScore({ concealed: kindCounts(tiles), melds: full.melds[w.seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: meldSize(m) })), haidi: has('haidi'), gangkai: has('gangkai'), gangpao: has('gangpao'), qianggang: has('qianggang') }, full.rules);
       if (!again || JSON.stringify(again) !== JSON.stringify(w.score)) bad.push(`席 ${w.seat}：中国式のアガリの点が手牌から出し直した点と合わない`);
       const q = full.que[w.seat] ?? full.queHeldSuit[w.seat];
       const sOf = (t: number) => (kindOf(t) < 27 ? Math.floor(kindOf(t) / 9) : -1);
       if (q !== null && [...tiles, ...full.melds[w.seat].flatMap((m) => m.tiles)].some((t) => sOf(t) === q)) bad.push(`席 ${w.seat}：捨てる色が残ったままアガった（缺一門）`);
       const cap = full.rules.family === 'cn' && full.rules.values.cap !== 'none' ? Number(full.rules.values.cap) : Infinity;
-      if (w.score.points !== 2 ** Math.min(w.score.fan, cap)) bad.push(`席 ${w.seat}：基本点が番から出した値と違う`);
+      const points = hk ? hkPoints(w.score.fan, full.rules).points : 2 ** Math.min(w.score.fan, cap);
+      if (w.score.points !== points) bad.push(`席 ${w.seat}：点が番から出した値と違う`);
+      if (full.rules.family === 'cn' && w.score.fan < Number(full.rules.values.minFan)) bad.push(`席 ${w.seat}：最低の番に届かないのにアガった`);
       if (w.from === w.seat) bad.push('切った人が自分の牌でロンした');
       if (w.pays.reduce((a, b) => a + b, 0) !== 0) bad.push(`席 ${w.seat}：アガリの点の動きの合計が 0 でない`);
     }

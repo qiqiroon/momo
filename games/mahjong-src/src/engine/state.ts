@@ -10,6 +10,7 @@ import { createRng, shuffle } from './rng';
 import type { Rules } from './rules';
 import { scoreWin, type ScoreResult } from './score';
 import { sichuanScore, type CnScore } from './sichuan';
+import { hongkongScore } from './hongkong';
 import type { Meld } from './yaku';
 import { kindOf, tileSetFor, type TileId } from './tiles';
 
@@ -209,6 +210,8 @@ export interface GameState {
   rinshanDue: boolean;
   /** いま手にあるツモ牌が嶺上牌（嶺上開花の判定） */
   rinshanDraw: boolean;
+  /** 番の人が打牌せずに続けてカンした回数（香港の槓上槓自摸＝2 回以上カンして嶺上牌でツモ）。打牌で 0 */
+  kanChain: number;
   /** カンをしたが、まだめくっていないカンドラの数 */
   pendingDora: number;
   /** 最後のカンのカンドラを、打牌のときまでめくらない（kandoraWhen が split で、最後のカンが大明槓・加槓） */
@@ -371,6 +374,7 @@ export const initialState = (): GameState => ({
   rinshanTaken: 0,
   rinshanDue: false,
   rinshanDraw: false,
+  kanChain: 0,
   pendingDora: 0,
   deferDora: false,
   kuikaeBan: [],
@@ -474,6 +478,7 @@ export function apply(state: GameState, env: Envelope): GameState {
         rinshanTaken: 0,
         rinshanDue: false,
         rinshanDraw: false,
+        kanChain: 0,
         pendingDora: 0,
         deferDora: false,
         kuikaeBan: [],
@@ -610,7 +615,7 @@ export function apply(state: GameState, env: Envelope): GameState {
       const replies: Claim['replies'] = s.cnOut.map((o) => (o ? 'self' : null));
       replies[ev.seat] = 'self';
       const claim: Claim = { kind: 'discard', from: ev.seat, tile: ev.tile, replies, rons: [], calls: [], afterKan: s.rinshanDraw };
-      const after: GameState = { ...s, phase: 'claim', hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn, claim, rinshanDraw: false, kuikaeBan: [], que, queHeld, queHeldSuit };
+      const after: GameState = { ...s, phase: 'claim', hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn, claim, rinshanDraw: false, kanChain: 0, kuikaeBan: [], que, queHeld, queHeldSuit };
       // 四家立直：ルールが「4 人目が宣言したとき」なら、宣言牌への返事を待たずに流局
       const v = s.rules?.family === 'jp' ? s.rules.values : null;
       if (ev.riichi && v?.suricchi === 'on' && v.suricchiWhen === 'declare' && riichi.every((r) => r !== 'none')) {
@@ -671,6 +676,7 @@ export function apply(state: GameState, env: Envelope): GameState {
         melds,
         drawn,
         kans: s.kans + 1,
+        kanChain: s.rinshanDraw ? s.kanChain + 1 : 1,
         rinshanDraw: false,
         ippatsu: clearIppatsu ? [false, false, false, false] : s.ippatsu,
         anyCall: s.anyCall || ev.kan === 'kakan' || v?.tenhouAnkan === 'lost',
@@ -1410,6 +1416,7 @@ function applyCall(s: GameState, c: Claim, call: CallOffer): GameState {
     kuikaeBan: !kan && call.meld !== 'kan' && kuikaeNg(s.rules) ? kuikaeKinds(call.meld, c.tile, call.tiles) : [],
     phase: kan ? 'draw' : 'discard',
     rinshanDue: kan,
+    kanChain: kan ? 1 : 0,
     kans: s.kans + (kan ? 1 : 0),
     pendingDora: s.pendingDora + (kanDora ? 1 : 0),
     deferDora: kanDora && v?.kandoraWhen === 'split',
@@ -1571,23 +1578,60 @@ function queLeft(s: GameState, seat: Seat, tiles: readonly TileId[]): boolean {
   return [...tiles, ...meldTiles(s, seat)].some((t) => suitOf(t) === q);
 }
 
-/** 中国式のアガリの点（形と番だけ。全員に見えるものから出す＝どの端末でも同じ）。アガリの形でなければ null */
+/**
+ * 中国式のアガリの点（形と番だけ。全員に見えるものから出す＝どの端末でも同じ）。アガリの形でなければ null。
+ * 番の数え方はルールの scoring（四川＝sichuan.ts／香港＝hongkong.ts）。番がルールの minFan に届かなければアガれない（香港の三番起糊）
+ */
 function cnScoreOf(s: GameState, seat: Seat, tiles: readonly TileId[], how: 'tsumo' | 'ron'): CnScore | null {
   if (!s.rules || s.rules.family !== 'cn') return null;
-  const melds = s.melds[seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: meldSize(m) }));
+  const v = s.rules.values;
   const kind = s.claim?.kind ?? 'discard';
-  return sichuanScore(
-    {
-      concealed: kindCounts(tiles),
-      melds,
-      // 海底：最後の 1 枚のツモ・最後の捨て牌でのロン（加槓の牌へのロンは捨て牌でない）
-      haidi: liveWallLeft(s) === 0 && (how === 'tsumo' || kind === 'discard'),
-      gangkai: how === 'tsumo' && s.rinshanDraw,
-      gangpao: how === 'ron' && kind === 'discard' && !!s.claim?.afterKan,
-      qianggang: how === 'ron' && kind === 'kakan',
-    },
-    s.rules,
-  );
+  const last = liveWallLeft(s) === 0;
+  let score: CnScore | null;
+  if (v.scoring === 'hk') {
+    const winTile = how === 'tsumo' ? s.drawn[seat] : (s.claim?.tile ?? null);
+    const quiet = s.melds.every((m) => m.length === 0);
+    score = hongkongScore(
+      {
+        concealed: kindCounts(tiles),
+        melds: s.melds[seat].map((m) => ({
+          kind: Math.min(...m.tiles.map(kindOf)),
+          // 槍槓で無効になった加槓はポンに数える
+          type: m.type === 'chi' ? 'chi' : m.type === 'pon' || m.robbed ? 'pon' : 'kan',
+          concealed: m.type === 'ankan',
+        })),
+        winTile: winTile === null || winTile === HIDDEN ? -1 : kindOf(winTile),
+        tsumo: how === 'tsumo',
+        seatWind: 27 + ((seat - s.dealer + 4) % 4),
+        roundWind: 27 + (Math.floor(Math.max(0, s.roundIndex) / 4) % 4),
+        // 海底：最後の 1 枚のツモ（ルールの haitei が both なら最後の捨て牌へのロンも）
+        haidi: last && (how === 'tsumo' || (v.haitei === 'both' && kind === 'discard')),
+        gangkai: how === 'tsumo' && s.rinshanDraw,
+        kanChain: s.kanChain,
+        qianggang: how === 'ron' && (kind === 'kakan' || kind === 'ankan'),
+        // 天糊：親が配牌のままツモ（暗槓のあとは数えない）／地糊：子が配牌の 13 枚のまま、親の最初の捨て牌でロン（親が暗槓していたら数えない）
+        tianhu: how === 'tsumo' && seat === s.dealer && quiet && s.discards.every((d) => d.length === 0),
+        dihu: how === 'ron' && seat !== s.dealer && kind === 'discard' && s.claim?.from === s.dealer && quiet && s.discards.every((d, i) => d.length === (i === s.dealer ? 1 : 0)),
+      },
+      s.rules,
+    );
+  } else {
+    const melds = s.melds[seat].map((m) => ({ kind: kindOf(m.tiles[0]), size: meldSize(m) }));
+    score = sichuanScore(
+      {
+        concealed: kindCounts(tiles),
+        melds,
+        // 海底：最後の 1 枚のツモ・最後の捨て牌でのロン（加槓の牌へのロンは捨て牌でない）
+        haidi: last && (how === 'tsumo' || kind === 'discard'),
+        gangkai: how === 'tsumo' && s.rinshanDraw,
+        gangpao: how === 'ron' && kind === 'discard' && !!s.claim?.afterKan,
+        qianggang: how === 'ron' && kind === 'kakan',
+      },
+      s.rules,
+    );
+  }
+  if (score && score.fan < Number(v.minFan)) return null;
+  return score;
 }
 
 /** 中国式のツモアガリ（ツモって切る前の局面）。アガれなければ null。捨てる色が残っていればアガれない（手牌が見える局面で確かめる） */

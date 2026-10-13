@@ -82,12 +82,14 @@ for (const f of sg.failures.slice(0, 5)) {
 }
 if (sg.games === 0 || sg.failures.length || sg.hands !== sg.games * 16 || sg.paths.maxHonba !== 0) process.exitCode = 1;
 
-// 香港（段階9）：1 局ずつと完走。番の数え方ができるまではアガリが出ない（手順2 から）
+// 香港（段階9）：1 局ずつと完走
 const h0 = Date.now();
 const hk = runSelfplay(games, `${prefix}-hk`, rulesOfCnSet('hk'));
 console.log(`
 香港：${hk.games} 局・見張った出来事 ${hk.events}・失敗 ${hk.failures.length}（${Date.now() - h0} ms）`);
 console.log(`終わり方：${Object.entries(hk.endings).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join('・')}・鳴き ${hk.paths.calls} 回（うちチー ${hk.paths.chi}）・喰い替えで切れない牌を持って切った回数 ${hk.paths.kuikaeBanned}`);
+console.log(`アガリ：ツモ ${hk.paths.cn.tsumo}・ロン ${hk.paths.cn.ron}（同じ牌で2人以上 ${hk.paths.cn.multi} 回）・上限で切った ${hk.paths.cn.capped}`);
+console.log(`番：${Object.entries(hk.paths.cn.fans).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join('・') || 'なし'}`);
 for (const f of hk.failures.slice(0, 5)) {
   console.log(`  失敗：種 ${f.seed}・通し番号 ${f.seq}`);
   for (const reason of f.reasons) console.log(`    ${reason}`);

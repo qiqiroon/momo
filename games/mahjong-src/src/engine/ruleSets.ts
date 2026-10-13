@@ -4,7 +4,7 @@
 //  - 押せない理由は「別の項目の値と矛盾する」ことだけ
 // 表そのものは ruleTable.ts（見本から写したもの）。
 
-import { CN_ITEMS, FAMILY, JP_ITEMS, ORDER, ORDER_CN, SUPP, SUPP_CN, TIERS, type RuleItem } from './ruleTable';
+import { CN_FORBID, CN_ITEMS, FAMILY, JP_ITEMS, ORDER, ORDER_CN, SUPP, SUPP_CN, TIERS, type RuleItem } from './ruleTable';
 import { CN_RULE_KEYS, JP_RULE_KEYS, type CnRuleKey, type JpRuleKey, type Rules } from './rules';
 
 export type SetId = (typeof ORDER)[number];
@@ -136,19 +136,64 @@ export function decodeRuleValues(code: string): Record<JpRuleKey, string> | null
 }
 
 export type CnSetId = (typeof ORDER_CN)[number];
+export const CN_SETS: readonly CnSetId[] = ORDER_CN;
 
-/** 中国式のセットのルール（全 37 項目。条文が無ければ MOMO が補った値）。段階9 で画面につなぐ */
+/** 中国式の設定項目（見出しの行を除く） */
+export const CN_RULE_ITEMS: readonly (RuleItem & { k: CnRuleKey; name: string; opts: NonNullable<RuleItem['opts']>; v: NonNullable<RuleItem['v']> })[] =
+  CN_ITEMS.filter((x): x is RuleItem & { k: CnRuleKey; name: string; opts: NonNullable<RuleItem['opts']>; v: NonNullable<RuleItem['v']> } => !!x.k);
+
+/** 中国式のセットの、その項目の値（条文が無ければ MOMO が補った値） */
+export function cnPresetValue(set: CnSetId, k: CnRuleKey): string {
+  const it = CN_RULE_ITEMS.find((x) => x.k === k);
+  if (!it) throw new Error(`知らない項目: ${k}`);
+  const v = it.v[ORDER_CN.indexOf(set)] ?? SUPP_CN[set]?.[k] ?? null;
+  if (v === null) throw new Error(`値が決まっていない: ${set} の ${k}`);
+  return v;
+}
+
+/** 中国式の、その値が「条文なし→MOMO が補った値」か */
+export function cnIsSupplied(set: CnSetId, k: CnRuleKey): boolean {
+  const it = CN_RULE_ITEMS.find((x) => x.k === k);
+  return !!it && it.v[ORDER_CN.indexOf(set)] === null && SUPP_CN[set]?.[k] !== undefined;
+}
+
+/** 中国式のセットのルール（全 37 項目。条文が無ければ MOMO が補った値） */
 export function rulesOfCnSet(set: CnSetId): Rules {
   const values = {} as Record<CnRuleKey, string>;
-  for (const k of CN_RULE_KEYS) {
-    const it = CN_ITEMS.find((x) => x.k === k);
-    if (!it?.v) throw new Error(`知らない項目: ${k}`);
-    const v = it.v[ORDER_CN.indexOf(set)] ?? SUPP_CN[set]?.[k] ?? null;
-    if (v === null) throw new Error(`値が決まっていない: ${set} の ${k}`);
-    values[k] = v;
-  }
+  for (const k of CN_RULE_KEYS) values[k] = cnPresetValue(set, k);
   return { family: 'cn', values };
 }
+
+/** 中国式の値が、どのセットと全項目一致するか（基にしたセットを先に見る）。どれとも違えば 'custom' */
+export function cnLabelOf(values: Readonly<Record<CnRuleKey, string>>, base: CnSetId): CnSetId | 'custom' {
+  const match = (set: CnSetId) => CN_RULE_KEYS.every((k) => values[k] === cnPresetValue(set, k));
+  if (match(base)) return base;
+  return CN_SETS.find(match) ?? 'custom';
+}
+
+type Cond = readonly string[];
+const condHolds = (values: Readonly<Record<string, string>>, c: Cond) => (c[2] === 'not' ? values[c[0]] !== c[1] : values[c[0]] === c[1]);
+
+/** 中国式で項目ごと押せない理由（別の項目の値と矛盾するとき）。押せるなら null */
+export function cnBlockedBy(values: Readonly<Record<CnRuleKey, string>>, k: CnRuleKey): { k: CnRuleKey; value: string } | null {
+  const dep = CN_RULE_ITEMS.find((x) => x.k === k)?.dep;
+  if (!dep || condHolds(values, dep)) return null;
+  const other = dep[0] as CnRuleKey;
+  return { k: other, value: values[other] };
+}
+
+/**
+ * 中国式で、その選択肢を押せない理由（押すと「同時に成り立ってはいけない組み合わせ」CN_FORBID がそろうとき）。
+ * 理由はそろう組み合わせの残りの項目といまの値。押せるなら null。両側から同じ一覧で判定するので、矛盾した状態には入れない
+ */
+export function cnOptionBlockedBy(values: Readonly<Record<CnRuleKey, string>>, k: CnRuleKey, v: string): { k: CnRuleKey; value: string }[] | null {
+  const next = { ...values, [k]: v };
+  const hit = CN_FORBID.find((f) => f.some((c) => c[0] === k) && f.every((c) => condHolds(next, c)));
+  return hit ? hit.filter((c) => c[0] !== k).map((c) => ({ k: c[0] as CnRuleKey, value: values[c[0] as CnRuleKey] })) : null;
+}
+
+/** 中国式の値が、同時に成り立ってはいけない組み合わせを含まないか */
+export const cnConsistent = (values: Readonly<Record<CnRuleKey, string>>): boolean => !CN_FORBID.some((f) => f.every((c) => condHolds(values, c)));
 
 /** セットの表示名（日本語・見本のまま） */
 export function setNameJa(set: string): string {

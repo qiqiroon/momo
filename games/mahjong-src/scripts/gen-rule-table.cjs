@@ -2,7 +2,7 @@
 const fs = require('fs');
 const html = fs.readFileSync('L:/momo/games/mahjong/mock/settings.html', 'utf8');
 const s = html.slice(html.indexOf('const TIERS'), html.indexOf('// ── 状態 ──'));
-const d = new Function(s + '; return {TIERS,FAMILY,ORDER,JP_ITEMS,SUPP,JP_FIXED,ORDER_CN,CN_ITEMS,SUPP_CN,CN_FIXED};')();
+const d = new Function(s + '; return {TIERS,FAMILY,ORDER,JP_ITEMS,SUPP,JP_FIXED,ORDER_CN,CN_ITEMS,SUPP_CN,CN_FIXED,CN_FORBID};')();
 const j = (x) => (Array.isArray(x) ? '[\n' + x.map((e) => '  ' + JSON.stringify(e)).join(',\n') + ',\n]' : x && typeof x === 'object' ? '{\n' + Object.entries(x).map(([k, v]) => '  ' + JSON.stringify(k) + ': ' + JSON.stringify(v)).join(',\n') + ',\n}' : JSON.stringify(x));
 const out = `// ルールセットと設定項目の表（段階6の6a）。見本 L:\\momo\\games\\mahjong\\mock\\settings.html の表を、そのまま写したもの。
 // ★手で直さない。見本を直したら写し直す（node scripts/gen-rule-table.cjs）。
@@ -35,6 +35,8 @@ export const ORDER_CN = ${j(d.ORDER_CN)} as const;
 export const CN_ITEMS: readonly RuleItem[] = ${j(d.CN_ITEMS)};
 export const SUPP_CN: Record<string, Record<string, string>> = ${j(d.SUPP_CN)};
 export const CN_FIXED = ${j(d.CN_FIXED)};
+/** 中国式で同時に成り立ってはいけない組み合わせ（条件 [項目, 値, ('not')] が全部そろうと矛盾）。選択肢は、押すとどれかがそろうなら押せない */
+export const CN_FORBID: readonly (readonly (readonly string[])[])[] = ${j(d.CN_FORBID)};
 `;
 fs.writeFileSync('L:/momo/github/momo/games/mahjong-src/src/engine/ruleTable.ts', out);
 console.log('ok', d.JP_ITEMS.filter((x) => x.k).length, d.CN_ITEMS.filter((x) => x.k).length);

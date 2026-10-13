@@ -157,13 +157,13 @@ export const CN_ITEMS: readonly RuleItem[] = [
   {"k":"kuikae","name":"喰い替え（食換）","opts":[["ok","許す"],["ng","禁止"]],"v":[null,null,"ng"],"note":"香港は「食換」が反則（ポン・チーの直後に、その面子と同じ牌・つながる牌を切る）＝禁止。四川・国標は条文なし"},
   {"k":"queyimen","name":"1色を捨てきらないとアガれない（缺一門）","opts":[["on","あり"],["off","なし"]],"v":["on","off","off"]},
   {"k":"minFan","name":"アガリに必要な最低の番","opts":[["0","なし"],["3","3番"],["8","8番"]],"v":["0","8","3"]},
-  {"k":"qidui","name":"七対子","opts":[["on","あり"],["off","なし"]],"v":["on","on","off"]},
-  {"k":"haitei","name":"最後の1枚でのアガリ（海底）","opts":[["both","ツモ・ロンとも"],["tsumo","ツモのみ"]],"v":["both","both","tsumo"]},
-  {"k":"tenhou","name":"天和・地和","opts":[["on","あり"],["off","なし"]],"v":["off","off","on"]},
+  {"k":"qidui","name":"七対子","opts":[["on","あり"],["off","なし"]],"v":["on","on","off"],"dep":["scoring","hk","not"]},
+  {"k":"haitei","name":"最後の1枚でのアガリ（海底）","opts":[["both","ツモ・ロンとも"],["tsumo","ツモのみ"]],"v":["both","both","tsumo"],"dep":["scoring","hk"]},
+  {"k":"tenhou","name":"天和・地和","opts":[["on","あり"],["off","なし"]],"v":["off","off","on"],"dep":["scoring","hk"]},
   {"k":"multiWin","name":"同じ捨て牌で2人以上がアガれるとき","opts":[["all","全員アガれる"],["atama","頭ハネ（1人だけ）"]],"v":["all","atama","all"]},
   {"k":"afterWin","name":"アガった後","opts":[["end","局を終える"],["leave","抜けて続く（血戦到底）"],["again","何度でもアガれる（血流成河）"]],"v":["leave","end","end"]},
   {"k":"ron","name":"ロン","opts":[["ok","あり"],["tsumo","ツモだけ"]],"v":["ok","ok","ok"]},
-  {"k":"rinshan","name":"嶺上（槓のあとの補充でアガる）","opts":[["on","あり"],["off","なし"]],"v":["on","on","on"]},
+  {"k":"rinshan","name":"嶺上（槓のあとの補充でアガる）","opts":[["on","あり"],["off","なし"]],"v":["on","on","on"],"dep":["scoring","mcr","not"]},
   {"k":"chankan","name":"槍槓（加槓の牌でロン）","opts":[["on","あり"],["off","なし"]],"v":["on","on","on"]},
   {"k":"kokushi13","name":"十三么（国士無双）の暗槓ロン","opts":[["on","あり"],["off","なし"]],"v":["off","off","on"],"dep":["honors","on"]},
   {"k":"miss","name":"見逃したあとのロンの縛り","opts":[["none","なし"],["nextDraw","次に自分が引くまでロンできない"],["sameTile","同じ巡目は同じ牌でロンできない"]],"v":["nextDraw","none","sameTile"]},
@@ -171,14 +171,14 @@ export const CN_ITEMS: readonly RuleItem[] = [
   {"k":"huan3","name":"開局時の3枚交換（換三張）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off"],"note":"どの条文にも無い＝MOMO の設定"},
   {"group":"点数"},
   {"k":"scoring","name":"点数の数え方","opts":[["mcr","国標（81種の番・足し算）"],["sichuan","四川の番（倍々）"],["hk","香港の番（倍々）"]],"v":["sichuan","mcr","hk"]},
-  {"k":"cap","name":"点数の上限","opts":[["3","3番"],["10","10番"],["none","なし"]],"v":["3","none","10"]},
+  {"k":"cap","name":"点数の上限","opts":[["3","3番"],["10","10番"],["none","なし"]],"v":["3","none","10"],"dep":["scoring","mcr","not"]},
   {"k":"pay","name":"点の払い方","opts":[["sichuan","四川式"],["mcr","国標式（底分8を全員）"],["hk","香港式（ツモは半額×3人）"]],"v":["sichuan","mcr","hk"]},
   {"k":"kanPay","name":"カンのその場精算（刮風下雨）","opts":[["on","あり"],["off","なし"]],"v":["on","off","off"]},
   {"k":"chajiao","name":"流局時、テンパイしていない人が払う（查叫）","opts":[["on","あり"],["off","なし"]],"v":["on","off","off"]},
   {"k":"huazhu","name":"流局時、3色とも残した人の罰（花豬）","opts":[["on","あり"],["off","なし"]],"v":["on","off","off"],"dep":["queyimen","on"]},
   {"k":"gangshangpao","name":"杠上炮（槓の直後の捨て牌でロン＝1番）","opts":[["on","あり"],["off","なし"]],"v":["on","off","off"],"dep":["scoring","sichuan"]},
   {"k":"chajiaoPts","name":"查叫で払う「理論上の最大点」","opts":[["ron","待ちで一番高いロンの点（上限8点）"],["tsumo","待ちで一番高いツモの点（上限8点）"]],"v":[null,"ron","ron"],"dep":["chajiao","on"]},
-  {"k":"baopai","name":"責任払い（十二章包・大三元包）","opts":[["on","あり"],["off","なし"]],"v":["off","off","on"]},
+  {"k":"baopai","name":"責任払い（十二章包・大三元包）","opts":[["on","あり"],["off","なし"]],"v":["off","off","on"],"dep":["pay","hk"]},
 ];
 export const SUPP_CN: Record<string, Record<string, string>> = {
   "sichuan": {"length":"4","start":"0","rank":"points","tieCn":"mcrSeat","chajiaoPts":"ron","kuikae":"ok","handCap":"none"},
@@ -186,3 +186,9 @@ export const SUPP_CN: Record<string, Record<string, string>> = {
   "hk": {"start":"0","rank":"points","tieCn":"mcrSeat","multiDealer":"dealIn"},
 };
 export const CN_FIXED = "<b>中国式に無いもの</b>：赤5・リーチ・ドラ（日本式だけの仕組み）／誤ったアガリ・反則の罰（ゲームが受け付けないので起きない）";
+/** 中国式で同時に成り立ってはいけない組み合わせ（条件 [項目, 値, ('not')] が全部そろうと矛盾）。選択肢は、押すとどれかがそろうなら押せない */
+export const CN_FORBID: readonly (readonly (readonly string[])[])[] = [
+  [["pay","hk"],["scoring","hk","not"]],
+  [["minFan","0"],["scoring","hk"]],
+  [["minFan","8"],["cap","3"],["scoring","mcr","not"]],
+];

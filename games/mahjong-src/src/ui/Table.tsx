@@ -788,11 +788,24 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: Ga
   const queable = (id: TileId) => queOpts.some((a) => a.suit === queSuitFor(id) && kindOf(a.tile) === kindOf(id));
   const queWaiting = view.phase === 'que' && view.queHeld[me] !== null;
   const heldTile = view.queHeld[me];
+  // 換三張：同じ色の 3 枚を押して選び（もう一度押すと外す）、「この 3 枚を出す」で出す
+  const huan3Opts = legal.filter((a): a is Extract<Action, { type: 'huan3' }> => a.type === 'huan3');
+  const [picked, setPicked] = useState<TileId[]>([]);
+  const groupOf = (id: TileId) => suitOfKind(kindOf(id));
+  const huan3Ok = (id: TileId) =>
+    picked.includes(id) || (picked.length < 3 && huan3Opts.some((a) => a.tiles.some((t) => kindOf(t) === kindOf(id))) && (picked.length === 0 || groupOf(picked[0]) === groupOf(id)));
+  const huan3Waiting = view.phase === 'huan3' && view.huan3Out[me] !== null;
+  // 交換が済んで、まだ誰も切っていないあいだは向きを出す
+  const huan3Done = view.huan3Dir !== null && view.discards.every((d) => d.length === 0) ? view.huan3Dir : null;
   /** いま押せる牌（リーチの牌を選んでいるときは、リーチできる牌だけ） */
-  const usable = (id: TileId) => (queOpts.length > 0 ? queable(id) : picking ? riichiable.has(id) : discardable.has(id));
+  const usable = (id: TileId) => (huan3Opts.length > 0 ? huan3Ok(id) : queOpts.length > 0 ? queable(id) : picking ? riichiable.has(id) : discardable.has(id));
 
   const press = (id: TileId) => (e: PointerEvent) => {
     if (!usable(id)) return;
+    if (huan3Opts.length > 0) {
+      setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+      return;
+    }
     if (e.pointerType === 'mouse' || raised === id) {
       setRaised(null);
       setRiichiPick(false);
@@ -808,7 +821,7 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: Ga
   };
 
   const tile = (id: TileId) => (
-    <button key={id} type="button" className={`hand-tile${raised === id ? ' raised' : ''}${id === heldTile ? ' que-held' : ''}`} disabled={!usable(id)} onPointerUp={press(id)}>
+    <button key={id} type="button" className={`hand-tile${raised === id || picked.includes(id) ? ' raised' : ''}${id === heldTile ? ' que-held' : ''}`} disabled={!usable(id)} onPointerUp={press(id)}>
       <Tile id={id} rules={view.rules} />
       {id === heldTile && <span className="que-held-tag">{translate(lang, 'queHeldTag')}</span>}
     </button>
@@ -816,7 +829,7 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: Ga
 
   return (
     <div className={`my-hand${myTurn ? ' my-turn' : ''}`}>
-      <div className={`hand-actions${queOpts.length > 0 || queWaiting ? ' que-actions' : ''}`}>
+      <div className={`hand-actions${queOpts.length > 0 || queWaiting || huan3Opts.length > 0 || huan3Waiting ? ' que-actions' : ''}`}>
         {queOpts.length > 0 && (
           <>
             {voidSuits.map((s) => (
@@ -828,6 +841,26 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: Ga
           </>
         )}
         {queWaiting && <span className="hint que-hint">{translate(lang, 'queWait')}</span>}
+        {huan3Opts.length > 0 && (
+          <>
+            <button
+              type="button"
+              className="btn-primary btn-huan3"
+              disabled={!huan3Opts.some((a) => a.tiles.length === 3 && picked.length === 3 && a.tiles.every((t) => picked.some((x) => kindOf(x) === kindOf(t))))}
+              onClick={() => {
+                const tiles = picked;
+                setPicked([]);
+                onChoose({ type: 'huan3', tiles });
+              }}
+            >
+              {translate(lang, 'huan3Pass')}
+            </button>
+            <span className="hint que-hint">{translate(lang, 'huan3Hint')}</span>
+          </>
+        )}
+        {huan3Waiting && <span className="hint que-hint">{translate(lang, 'huan3Wait')}</span>}
+        {huan3Done && <span className="hint que-hint">{translate(lang, 'huan3Done', { dir: translate(lang, `huan3Dir_${huan3Done}` as MessageKey) })}</span>}
+        {view.cnLocked[me] && view.phase !== 'ended' && view.phase !== 'gameover' && <span className="hint que-hint">{translate(lang, 'cnLockedHint')}</span>}
         {view.cnOut[me] && view.phase !== 'ended' && view.phase !== 'gameover' && <span className="hint que-hint">{translate(lang, 'cnOutHint')}</span>}
         {canTsumo && (
           <button type="button" className="btn-primary btn-tsumo" onClick={() => onChoose({ type: 'tsumo' })}>

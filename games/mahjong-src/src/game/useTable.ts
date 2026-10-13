@@ -250,7 +250,8 @@ export function useTable() {
       const replying = full.phase === 'claim' && full.claim?.replies[HUMAN] === null;
       const yame = full.phase === 'ended' && a.type === 'yame';
       const que = full.phase === 'que' && a.type === 'que' && full.queHeld[HUMAN] === null;
-      if (!replying && !yame && !que && ((full.phase !== 'discard' && full.phase !== 'declare') || full.turn !== HUMAN)) return;
+      const huan3 = full.phase === 'huan3' && a.type === 'huan3' && full.huan3Out[HUMAN] === null;
+      if (!replying && !yame && !que && !huan3 && ((full.phase !== 'discard' && full.phase !== 'declare') || full.turn !== HUMAN)) return;
       dispatch({ type: 'push', envs: act(full, HUMAN, a, srcOf(s, full)) });
     },
     [full, s],

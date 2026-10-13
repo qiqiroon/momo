@@ -11,7 +11,7 @@ import type { Seat } from '../engine/events';
 import { legalActions, type Action } from '../engine/round';
 import type { GameState } from '../engine/state';
 import { kindOf } from '../engine/tiles';
-import { chooseQue, connection, FLUSH_MIN, flushPlan, setFlushMin, freeCalls, handCounts, inPlan, hasOpenYakuhai, pick, shantenAfterCall, shantenAfterDiscard, yakuhaiKinds } from './common';
+import { chooseQue, connection, FLUSH_MIN, flushPlan, valuedWaits, setFlushMin, freeCalls, handCounts, inPlan, hasOpenYakuhai, pick, shantenAfterCall, shantenAfterDiscard, yakuhaiKinds } from './common';
 import { shanten } from './shanten';
 
 export function easyCpu(view: GameState, seat: Seat): Action {
@@ -58,7 +58,14 @@ function discard(view: GameState, seat: Seat, legal: readonly Action[]): Action 
   let bestKey: [number, number] = [99, 99];
   for (const a of legal) {
     if (a.type !== 'discard') continue;
-    const key: [number, number] = [after(a.tile), connection(a.tile, counts)];
+    let sh = after(a.tile);
+    // 最低の番が要るルール：届く待ちの無いテンパイは 1 歩手前と見る
+    if (sh === 0) {
+      const rest = view.hands[seat].slice();
+      rest.splice(rest.indexOf(a.tile), 1);
+      if (valuedWaits(view, seat, rest) === 0) sh = 1;
+    }
+    const key: [number, number] = [sh, connection(a.tile, counts)];
     if (key[0] < bestKey[0] || (key[0] === bestKey[0] && key[1] < bestKey[1])) [best, bestKey] = [a, key];
   }
   if (!best || best.type !== 'discard') return legal[legal.length - 1];

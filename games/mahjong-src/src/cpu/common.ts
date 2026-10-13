@@ -3,9 +3,9 @@
 import { kindCounts } from '../engine/agari';
 import type { Seat } from '../engine/events';
 import type { Action } from '../engine/round';
-import { queOn, type GameState } from '../engine/state';
+import { cnScoreIfWin, queOn, type GameState } from '../engine/state';
 import { isSuit, kindOf, type KindId, type TileId } from '../engine/tiles';
-import { acceptance, shanten } from './shanten';
+import { acceptance, shanten, visibleCounts } from './shanten';
 
 // ---- 缺一門（段階9 手順7） ----
 // 捨てる色の牌はアガリに使えない＝手の良し悪しを測るときは「手に無いもの」として数える。
@@ -67,6 +67,29 @@ export function handCounts(view: GameState, seat: Seat, tiles: readonly TileId[]
   const counts = kindCounts(tiles);
   for (const d of deadSuits(view, seat)) for (let k = d * 9; k < d * 9 + 9; k++) counts[k] = 0;
   return counts;
+}
+
+/** 最低の番が要る中国式か（香港 3 番・国標 8 点）。テンパイでも点が届かない待ちはアガれない */
+export function needsFan(view: GameState): boolean {
+  return view.rules?.family === 'cn' && Number(view.rules.values.minFan) > 0;
+}
+
+/**
+ * テンパイの手（13 枚）で、アガれば最低の番に届く待ちの残り枚数（見えている牌を引く）。最低の番が要らないルールなら null（数えない）。
+ * 0 なら「テンパイでもアガれない」＝CPU は 1 歩手前と見る（段階9 国標の手順6）
+ */
+export function valuedWaits(view: GameState, seat: Seat, hand13: readonly TileId[]): number | null {
+  if (!needsFan(view)) return null;
+  const visible = visibleCounts(view, seat);
+  const counts = kindCounts(hand13);
+  let n = 0;
+  for (let k = 0; k < 34; k++) {
+    const left = 4 - Math.max(visible[k], counts[k]);
+    if (left <= 0) continue;
+    // ロンでもツモでも、どちらかで届けば数える（香港はツモなら自摸・門前清で 3 番に届く手が多い）
+    if (cnScoreIfWin(view, seat, hand13, k * 4) || cnScoreIfWin(view, seat, hand13, k * 4, 'tsumo')) n += left;
+  }
+  return n;
 }
 
 /** 役を気にせず鳴けるルールか（中国式で最低の番が「なし」＝四川。日本式は役が要る） */

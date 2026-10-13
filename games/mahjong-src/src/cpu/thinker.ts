@@ -22,7 +22,7 @@ import type { Seat } from '../engine/events';
 import { legalActions, type Action } from '../engine/round';
 import type { GameState } from '../engine/state';
 import { isRed, kindOf, type KindId, type TileId } from '../engine/tiles';
-import { chooseQue, connection, FLUSH_MIN, flushPlan, setFlushMin, freeCalls, handCounts, hasOpenYakuhai, inPlan, isQueTile, pick, shantenAfterCall, yakuhaiKinds } from './common';
+import { chooseQue, connection, FLUSH_MIN, flushPlan, valuedWaits, setFlushMin, freeCalls, handCounts, hasOpenYakuhai, inPlan, isQueTile, pick, shantenAfterCall, yakuhaiKinds } from './common';
 import { dangerOf, threats } from './defense';
 import { acceptance, shanten, visibleCounts } from './shanten';
 import { twoStepAcceptance } from './simulate';
@@ -83,6 +83,13 @@ export function discardPlans(view: GameState, seat: Seat, legal: readonly Action
       const acc = acceptance(counts, open, opts.visibleWaits ? visible : counts);
       if (!que) counts[k]++;
       m = { shanten: acc.shanten, waits: acc.tiles };
+      // 最低の番が要るルール：テンパイでも届く待ちが無ければ 1 歩手前と見る・待ちはアガれる牌だけ数える
+      if (acc.shanten === 0) {
+        const rest = view.hands[seat].slice();
+        rest.splice(rest.indexOf(a.tile), 1);
+        const valued = valuedWaits(view, seat, rest);
+        if (valued !== null) m = valued > 0 ? { shanten: 0, waits: valued } : { shanten: 1, waits: acc.tiles };
+      }
       byKind.set(k, m);
     }
     plans.push({

@@ -5,7 +5,7 @@ import { act, legalActions } from '../engine/round';
 import { rulesOfCnSet } from '../engine/ruleSets';
 import { apply, initialState, type GameState, type OpenMeld } from '../engine/state';
 import { kindOf, type TileId } from '../engine/tiles';
-import { chooseQue, FLUSH_MIN, flushPlan, handCounts, queSuitOf, setFlushMin, shantenAfterDiscard } from './common';
+import { chooseQue, FLUSH_MIN, flushPlan, handCounts, queSuitOf, setFlushMin, shantenAfterDiscard, valuedWaits } from './common';
 import { dangerOf, threats } from './defense';
 import { easyCpu } from './easy';
 import { APOCALYPSE, HARD, makeThinker } from './thinker';
@@ -227,3 +227,22 @@ function tilesHk(code: string, used: Map<number, number>): TileId[] {
   }
   return out;
 }
+
+describe('最低の番に届く待ちだけを数える（段階9 国標の手順6）', () => {
+  function mcrView(code: string): GameState {
+    let s = apply(initialState(), { seq: 0, to: 'all', ev: { type: 'gameStart', rules: rulesOfCnSet('mcr') } });
+    s = apply(s, { seq: s.nextSeq, to: 'all', ev: { type: 'roundStart', roundIndex: 0, dealer: 0 } });
+    const hand = tilesHk(code, new Map());
+    return { ...s, hands: [hand, [], [], []], discards: [[143], [143], [143], [143]] };
+  }
+  it('国標：8 点に届かないテンパイは 0（不求人 4 点どまり）。花龙が付くテンパイは数える', () => {
+    const low = mcrView('123m567p789s23s11z');
+    expect(valuedWaits(low, 0, low.hands[0])).toBe(0);
+    const ok = mcrView('123m456p789s23s11z');
+    expect(valuedWaits(ok, 0, ok.hands[0])).toBeGreaterThan(0);
+  });
+  it('最低の番が要らないルール（四川）では数えない（null）', () => {
+    const s = { ...mcrView('123m456m789m23m11m'), rules: rulesOfCnSet('sichuan') };
+    expect(valuedWaits(s, 0, s.hands[0])).toBeNull();
+  });
+});

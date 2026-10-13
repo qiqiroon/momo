@@ -16,6 +16,9 @@ const NO_SUJI = [6, 9, 10, 12, 12, 12, 10, 9, 6];
  */
 export function threats(view: GameState, seat: Seat): Seat[] {
   const others = ([0, 1, 2, 3] as Seat[]).filter((s) => s !== seat);
+  // 国標の払い（ロンでもほかの 2 人が底分 8 を払う）では、振り込んで損をする分が小さい＝降りると損をする（2026-10-13 打ち比べ：
+  // 守りのある Hard は Easy に 2.606 対 2.394 で負け、守りを外すと 2.419 対 2.581 で勝った）
+  if (view.rules?.family === 'cn' && view.rules.values.pay === 'mcr') return [];
   if (view.rules?.family === 'cn') return others.filter((s) => !view.cnOut[s] && looksReady(view, s));
   return others.filter((s) => view.riichi[s] !== 'none');
 }

@@ -1787,6 +1787,16 @@ function shownElsewhere(s: GameState, k: number, winTile: TileId): number {
   return n;
 }
 
+/**
+ * 中国式：13 枚の手 hand に tile の種類の牌が来たらアガれるか（最低の番に届くか）とその点。how＝ツモかロンか（場面の番は数えない）。
+ * CPU が「待ちの牌のうち、アガれる牌」を数えるのに使う（香港の 3 番・国標の 8 点）
+ */
+export function cnScoreIfWin(s: GameState, seat: Seat, hand: readonly TileId[], tile: TileId, how: 'tsumo' | 'ron' = 'ron'): CnScore | null {
+  const tiles = [...hand, tile];
+  if (queLeft(s, seat, tiles)) return null;
+  return cnScoreOf({ ...s, claim: null, rinshanDraw: false }, seat, tiles, how, tile);
+}
+
 /** 中国式のツモアガリ（ツモって切る前の局面）。アガれなければ null。捨てる色が残っていればアガれない（手牌が見える局面で確かめる） */
 export function cnScoreTsumo(s: GameState, seat: Seat, hand: readonly TileId[]): CnScore | null {
   if (queLeft(s, seat, hand)) return null;

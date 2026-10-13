@@ -12,7 +12,7 @@ import { scoreWin, type ScoreResult } from './score';
 import { sichuanScore, type CnScore } from './sichuan';
 import { hongkongScore } from './hongkong';
 import type { Meld } from './yaku';
-import { kindOf, tileSetFor, type TileId } from './tiles';
+import { isFlower, kindOf, tileSetFor, type TileId } from './tiles';
 
 /** 局の進み具合。deal＝配っている途中／draw＝番の人がツモる前（カンのあとは嶺上牌を引く前）／discard＝番の人が切る（またはアガる・カンする）前／
  *  claim＝切られた牌（または加槓・暗槓の牌）にほかの 3 人が返事をしている（見送る・ロン・鳴く）／
@@ -214,6 +214,10 @@ export interface GameState {
   rinshanDraw: boolean;
   /** 番の人が打牌せずに続けてカンした回数（香港の槓上槓自摸＝2 回以上カンして嶺上牌でツモ）。打牌で 0 */
   kanChain: number;
+  /** 表にして脇に置いた花牌（中国式・全員に見える）・花牌の補充を待っている・補充で山の尻から引いた枚数 */
+  flowers: TileId[][];
+  flowerDue: boolean;
+  flowerTaken: number;
   /** カンをしたが、まだめくっていないカンドラの数 */
   pendingDora: number;
   /** 最後のカンのカンドラを、打牌のときまでめくらない（kandoraWhen が split で、最後のカンが大明槓・加槓） */
@@ -385,6 +389,9 @@ export const initialState = (): GameState => ({
   rinshanDue: false,
   rinshanDraw: false,
   kanChain: 0,
+  flowers: [[], [], [], []],
+  flowerDue: false,
+  flowerTaken: 0,
   pendingDora: 0,
   deferDora: false,
   kuikaeBan: [],
@@ -492,6 +499,9 @@ export function apply(state: GameState, env: Envelope): GameState {
         rinshanDue: false,
         rinshanDraw: false,
         kanChain: 0,
+        flowers: [[], [], [], []],
+        flowerDue: false,
+        flowerTaken: 0,
         pendingDora: 0,
         deferDora: false,
         kuikaeBan: [],
@@ -550,6 +560,10 @@ export function apply(state: GameState, env: Envelope): GameState {
       if (s.cnOut[ev.seat]) throw new Error('アガって抜けた人がツモった');
       const rinshan = !!ev.rinshan;
       if (rinshan !== s.rinshanDue) throw new Error(rinshan ? 'カンしていないのに嶺上牌を引いた' : 'カンのあとなのに嶺上牌でなく山から引いた');
+      const flowerRep = !!ev.flower;
+      if (flowerRep !== s.flowerDue) throw new Error(flowerRep ? '花牌を表にしていないのに補充を引いた' : '花牌の補充を引かずに山から引いた');
+      // 補充を山の尻から引くか（ルールの flowerRefill が back）。前からなら、ふつうのツモと同じ場所
+      const fromBack = flowerRep && s.rules?.family === 'cn' && s.rules.values.flowerRefill === 'back';
       // 嶺上牌は王牌から引く（カンできるのは山が残っているときだけ＝引いたあとも王牌は山の尻から補われて 14 枚のまま）
       if (!rinshan && liveWallLeft(s) <= 0) throw new Error('山が尽きているのにツモった');
       if (rinshan && s.rinshanTaken >= s.kans) throw new Error('カンの数より多く嶺上牌を引いた');
@@ -557,6 +571,10 @@ export function apply(state: GameState, env: Envelope): GameState {
       if (rinshan && s.pendingDora > (s.deferDora ? 1 : 0)) throw new Error('めくるはずのカンドラをめくる前に嶺上牌を引いた');
       const hands = s.hands.map((h) => h.slice());
       hands[ev.seat].push(ev.tile);
+      // 配り終えたあとの補花の補充：手牌に入れるだけ（まだ誰もツモっていない＝番は親に戻す）
+      if (s.phase === 'deal' && flowerRep) {
+        return { ...s, hands, wallLeft: s.wallLeft - 1, flowerDue: false, flowerTaken: s.flowerTaken + (fromBack ? 1 : 0), turn: s.dealer };
+      }
       const drawn = s.drawn.slice();
       drawn[ev.seat] = ev.tile;
       // 中国式の見逃しの縛りは、自分が引いたところで解ける
@@ -577,7 +595,28 @@ export function apply(state: GameState, env: Envelope): GameState {
         rinshanDue: false,
         rinshanDraw: rinshan,
         rinshanTaken: s.rinshanTaken + (rinshan ? 1 : 0),
+        flowerDue: false,
+        flowerTaken: s.flowerTaken + (fromBack ? 1 : 0),
       };
+    }
+    case 'flower': {
+      if (!s.rules || s.rules.family !== 'cn' || s.rules.values.flower !== 'on') throw new Error('このルールに花牌は無い');
+      if (s.flowerDue) throw new Error('花牌の補充を引く前に、また花牌を表にした');
+      if (ev.tile === HIDDEN || !isFlower(kindOf(ev.tile))) throw new Error('花牌でない牌を表にした');
+      const deal = s.phase === 'deal';
+      if (!deal && !(s.phase === 'discard' && ev.seat === s.turn)) throw new Error('花牌を表にする時・席ではない');
+      const hands = s.hands.map((h) => h.slice());
+      const hand = hands[ev.seat];
+      let i = hand.indexOf(ev.tile);
+      if (i < 0) i = hand.indexOf(HIDDEN);
+      if (i < 0) throw new Error('持っていない花牌を表にした');
+      // 局の途中は、引いた牌が花牌だったときだけ（手牌が見える局面で確かめる）
+      if (!deal && s.drawn[ev.seat] !== HIDDEN && s.drawn[ev.seat] !== ev.tile) throw new Error('引いた牌でない花牌を表にした');
+      hand.splice(i, 1);
+      const flowers = s.flowers.map((f, seat) => (seat === ev.seat ? [...f, ev.tile] : f));
+      const drawn = s.drawn.slice();
+      drawn[ev.seat] = null;
+      return { ...s, hands, flowers, drawn, flowerDue: true, turn: ev.seat, phase: deal ? 'deal' : 'draw', rinshanDraw: false };
     }
     case 'discard': {
       if (s.phase !== 'discard') throw new Error('切る時ではない');

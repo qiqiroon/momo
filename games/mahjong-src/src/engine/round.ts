@@ -8,7 +8,7 @@ import { doraIndicatorPos, uraIndicatorPos } from './dora';
 import { waitKinds } from './agari';
 import { nextStep } from './game';
 import { createRng, shuffle } from './rng';
-import { isRed, kindOf, tileSetFor, type TileId } from './tiles';
+import { isFlower, isRed, kindOf, tileSetFor, type TileId } from './tiles';
 
 const HAND_SIZE = 13;
 
@@ -313,14 +313,24 @@ function revealDora(full: GameState, n: number, at: (to: Visibility, ev: GameEve
 }
 
 /** ツモる位置（山が尽きていれば null）。全員に見える数だけで決まる */
-export function drawPosition(view: GameState): { pos: number; rinshan: boolean } | null {
+export function drawPosition(view: GameState): { pos: number; rinshan: boolean; flower?: true } | null {
   const size = wallSizeOf(view);
+  // 山の尻から取った枚数（嶺上牌と、中国式の花牌の補充）
+  const back = view.rinshanTaken + view.flowerTaken;
   // 嶺上牌：日本式は王牌の頭から、中国式（王牌なし）は山の尻から順に引く
-  if (view.rinshanDue) return { pos: view.rules?.family === 'jp' ? size - DEAD_WALL + view.rinshanTaken : size - 1 - view.rinshanTaken, rinshan: true };
+  if (view.rinshanDue) return { pos: view.rules?.family === 'jp' ? size - DEAD_WALL + view.rinshanTaken : size - 1 - back, rinshan: true };
   if (liveWallLeft(view) <= 0) return null;
-  // 山の頭から順に取る。引いた嶺上牌の数だけ、王牌が山の尻から補われている（その分は数えない）
-  return { pos: size - view.wallLeft - view.rinshanTaken, rinshan: false };
+  // 花牌の補充：ルールの flowerRefill が back なら山の尻から、front なら山の頭から（ふつうのツモと同じ場所）
+  if (view.flowerDue) {
+    const fromBack = view.rules?.family === 'cn' && view.rules.values.flowerRefill === 'back';
+    return { pos: fromBack ? size - 1 - back : size - view.wallLeft - back, rinshan: false, flower: true };
+  }
+  // 山の頭から順に取る。尻から取った分だけ、山の尻が詰まっている（その分は数えない）
+  return { pos: size - view.wallLeft - back, rinshan: false };
 }
+
+/** 花牌を使うルールか（中国式のルールの flower） */
+const flowersOn = (s: GameState) => s.rules?.family === 'cn' && s.rules.values.flower === 'on';
 
 /**
  * ツモる前の局面から、次の出来事（ツモ、または山が尽きての流局）を作る。
@@ -331,13 +341,29 @@ export function advance(full: GameState, src?: TileSource): Envelope[] {
   if (full.phase !== 'draw' && full.phase !== 'deal') throw new Error('ツモる時ではない');
   const tileAt: TileSource = src ?? wallSource(full);
   const at = envelopesFrom(full);
+  // 配り終えたあとの補花：親から順に、手に花牌がある人が 1 枚ずつ表にして補充を引く（国標 第六条五(六)）
+  if (full.phase === 'deal' && flowersOn(full) && !full.flowerDue) {
+    for (let i = 0; i < 4; i++) {
+      const seat = ((full.dealer + i) % 4) as Seat;
+      const f = full.hands[seat].find((t) => t !== HIDDEN && isFlower(kindOf(t)));
+      if (f !== undefined) return [at('all', { type: 'flower', seat, tile: f })];
+    }
+  }
   const d = drawPosition(full);
+  // 山が尽きた（最後の 1 枚が花牌なら補充できない＝国標 MIL23-15 の「最後の牌を引いた人は補花できない」）
   if (d === null) return [at('all', { type: 'exhaust' })];
   if (d.rinshan) {
     const reveals = revealDora(full, full.pendingDora - (full.deferDora ? 1 : 0), at, tileAt);
-    return [...reveals, at([full.turn], { type: 'draw', seat: full.turn, tile: tileAt(d.pos), rinshan: true })];
+    const tile = tileAt(d.pos);
+    return [...reveals, at([full.turn], { type: 'draw', seat: full.turn, tile, rinshan: true }), ...flowerOf(full, tile, at)];
   }
-  return [at([full.turn], { type: 'draw', seat: full.turn, tile: tileAt(d.pos) })];
+  const tile = tileAt(d.pos);
+  return [at([full.turn], { type: 'draw', seat: full.turn, tile, ...(d.flower ? { flower: true } : {}) }), ...flowerOf(full, tile, at)];
+}
+
+/** 引いた牌が花牌なら、続けて表にする出来事（引いた人がそのまま補充を引く番になる） */
+function flowerOf(full: GameState, tile: TileId, at: (to: Visibility, ev: GameEvent) => Envelope): Envelope[] {
+  return flowersOn(full) && isFlower(kindOf(tile)) ? [at('all', { type: 'flower', seat: full.turn, tile })] : [];
 }
 
 /** 番の人が選んだことを出来事にする。選べないことなら例外 */

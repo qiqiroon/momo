@@ -101,3 +101,21 @@ for (const f of hg.failures.slice(0, 5)) {
   for (const reason of f.reasons) console.log(`    ${reason}`);
 }
 if (hk.games === 0 || hk.failures.length || hg.games === 0 || hg.failures.length || hg.maxHands > 24) process.exitCode = 1;
+
+// 国標（段階9）：1 局ずつと完走。花牌の補花（配り終えたあと・局の途中・補充がまた花牌・最後の 1 枚が花牌）。番の数え方ができるまではアガリが出ない（手順2 から）
+const m0 = Date.now();
+const mc = runSelfplay(games, `${prefix}-mcr`, rulesOfCnSet('mcr'));
+console.log(`
+国標：${mc.games} 局・見張った出来事 ${mc.events}・失敗 ${mc.failures.length}（${Date.now() - m0} ms）`);
+console.log(`終わり方：${Object.entries(mc.endings).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join('・')}・鳴き ${mc.paths.calls} 回（うちチー ${mc.paths.chi}）`);
+for (const f of mc.failures.slice(0, 5)) {
+  console.log(`  失敗：種 ${f.seed}・通し番号 ${f.seq}`);
+  for (const reason of f.reasons) console.log(`    ${reason}`);
+}
+const mg = runGames(gameCount, `${prefix}-mcr-game`, rulesOfCnSet('mcr'));
+console.log(`国標の完走：${mg.games} 対局・${mg.hands} 局（最多 ${mg.maxHands} 局）・失敗 ${mg.failures.length}・${Object.entries(mg.ends).map(([k, n]) => `${k} ${n}`).join('・')}`);
+for (const f of mg.failures.slice(0, 5)) {
+  console.log(`  失敗：種 ${f.seed}・通し番号 ${f.seq}`);
+  for (const reason of f.reasons) console.log(`    ${reason}`);
+}
+if (mc.games === 0 || mc.failures.length || mg.games === 0 || mg.failures.length || mg.hands !== mg.games * 16) process.exitCode = 1;

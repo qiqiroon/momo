@@ -241,7 +241,7 @@ describe('モード選択と、そこから入る画面', () => {
     expect(footer.querySelector('.title-foot')).toHaveTextContent('賭けには使えません');
   });
 
-  it('CPU と対局：最初は一般ルール。日本式のセットと四川・香港は選べ、国標は押しても変わらない。個別に変えるとカスタム。モード選択へ戻れる', () => {
+  it('CPU と対局：最初は一般ルール。日本式のセットと中国式の 3 セット（四川・香港・国標）を選べる。個別に変えるとカスタム。モード選択へ戻れる', () => {
     localStorage.removeItem('momo-mahjong.rules');
     render(<App startConsented />);
     fireEvent.click(screen.getByText('CPU と対局'));
@@ -255,12 +255,13 @@ describe('モード選択と、そこから入る画面', () => {
     expect(document.querySelector('.rs-cn-soon')).not.toBeNull();
     expect(document.querySelector('.rule-rows')).toBeNull();
     expect(JSON.parse(localStorage.getItem('momo-mahjong.rules')!).cn).toBe('sichuan');
-    // 香港（段階9 香港の手順1）：選べる。国標はまだ選べない（押しても変わらない）
+    // 香港（段階9 香港の手順1）・国標（国標の手順1）：選べる
     fireEvent.click(screen.getByRole('button', { name: /香港/ }));
     expect(on()).toHaveTextContent('香港麻雀');
     expect(JSON.parse(localStorage.getItem('momo-mahjong.rules')!).cn).toBe('hk');
     fireEvent.click(screen.getByRole('button', { name: /国標/ }));
-    expect(on()).toHaveTextContent('香港麻雀');
+    expect(on()).toHaveTextContent('国標');
+    expect(JSON.parse(localStorage.getItem('momo-mahjong.rules')!).cn).toBe('mcr');
     // 日本式のセットに戻ると、中国式の選択は外れる
     fireEvent.click(screen.getByRole('button', { name: /天鳳/ }));
     expect(on()).toHaveTextContent('天鳳');

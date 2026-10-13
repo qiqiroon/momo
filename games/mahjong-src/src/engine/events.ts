@@ -30,7 +30,10 @@ export type GameEvent =
   /** ドラ表示牌をめくる。全員に見える（配り終えたとき・カンのあと。めくる時機はルールの kandoraWhen） */
   | { type: 'doraReveal'; tile: TileId }
   /** ツモ。本人だけに見える。rinshan＝カンのあとの補充（王牌の嶺上牌から引く） */
-  | { type: 'draw'; seat: Seat; tile: TileId; rinshan?: boolean }
+  | { type: 'draw'; seat: Seat; tile: TileId; rinshan?: boolean; flower?: boolean }
+  /** 花牌を表にして脇に置く（中国式・ルールの flower）。全員に見える。このあと同じ席が補充の牌を引く（draw の flower）。
+   *  配り終えたあと（局面が deal）は親から順に、局の途中は引いた牌が花牌だったとき。国標 第五条二十・第六条五(六) */
+  | { type: 'flower'; seat: Seat; tile: TileId }
   /** 打牌。全員に見える。tsumogiri＝引いた牌をそのまま切った。riichi＝この牌でリーチを宣言した（横に曲げて置く）。
    *  que＝缺一門の宣言（その人の最初の打牌だけ。伏せておいた牌を切り、捨てる色 0 萬・1 筒・2 索を全員に明かす） */
   | { type: 'discard'; seat: Seat; tile: TileId; tsumogiri: boolean; riichi?: boolean; que?: number }

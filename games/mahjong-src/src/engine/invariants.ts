@@ -16,7 +16,7 @@ import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { finalResult } from './final';
 import { cnRoundsTotal } from './game';
 import { apply, cnDrawStateOf, initialState, isKanMeld, MAX_KANS, meldSize, PIG_PENALTY, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
-import { kindOf, tileSetFor } from './tiles';
+import { isFlower, kindOf, tileSetFor } from './tiles';
 
 export class Watcher {
   full: GameState = initialState();
@@ -52,8 +52,10 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   // 鳴かれた牌は河の並びに残してあるが、実物は鳴いた人の面子にある
   const inRivers = full.discards.reduce((n, d, seat) => n + d.length - full.calledAway[seat].length, 0);
   const inMelds = full.melds.reduce((n, ms) => n + ms.reduce((m, x) => m + x.tiles.length, 0), 0);
-  if (inHands + inRivers + inMelds + full.wallLeft !== set.length) {
-    bad.push(`牌の数が合わない：手牌 ${inHands}＋河 ${inRivers}＋鳴き ${inMelds}＋山 ${full.wallLeft} ≠ ${set.length}`);
+  // 中国式の花牌：表にして脇に置いた分
+  const inFlowers = full.flowers.reduce((n, f) => n + f.length, 0);
+  if (inHands + inRivers + inMelds + inFlowers + full.wallLeft !== set.length) {
+    bad.push(`牌の数が合わない：手牌 ${inHands}＋河 ${inRivers}＋鳴き ${inMelds}＋花 ${inFlowers}＋山 ${full.wallLeft} ≠ ${set.length}`);
   }
 
   // 手牌の枚数：ツモったあと（切る前）は番の人 14 枚・ほかは 13 枚、ツモる前は全員 13 枚
@@ -327,7 +329,11 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     ...full.hands.map((h, seat) => ({ where: `席 ${seat} の手牌`, tiles: h })),
     ...full.discards.map((d, seat) => ({ where: `席 ${seat} の河`, tiles: d.filter((_, i) => !full.calledAway[seat].includes(i)) })),
     ...full.melds.map((ms, seat) => ({ where: `席 ${seat} の鳴き`, tiles: ms.flatMap((m) => m.tiles) })),
+    ...full.flowers.map((f, seat) => ({ where: `席 ${seat} の花牌`, tiles: f })),
   ];
+  // 花牌は花牌の置き場にだけ（手牌に残ったまま局が進まない＝引いたらすぐ表にする。配り終えたあとの補花が済むまでと、引いた直後は除く）
+  if (full.phase !== 'deal' && full.hands.some((h, seat) => h.some((t) => t !== HIDDEN && isFlower(kindOf(t)) && t !== full.drawn[seat]))) bad.push('花牌が手牌に残っている');
+  if (full.flowers.some((f) => f.some((t) => !isFlower(kindOf(t))))) bad.push('花牌の置き場に花牌でない牌がある');
   for (const { where, tiles } of places) {
     for (const t of tiles) {
       if (t === HIDDEN) bad.push(`全体の局面に伏せた牌がある（${where}）`);
@@ -342,9 +348,11 @@ export function checkState(full: GameState, views: readonly GameState[]): string
   if (full.wall) {
     const n = full.wall.length;
     // 嶺上牌：日本式は王牌の頭から順に、中国式（王牌なし）は山の尻から順に
-    const back = full.rules.family === 'jp' ? full.wall.slice(n - 14, n - 14 + full.rinshanTaken) : full.wall.slice(n - full.rinshanTaken);
-    const used = [...full.wall.slice(0, n - full.wallLeft - full.rinshanTaken), ...back];
-    const handSet = new Set([...full.hands.flat(), ...full.discards.flat(), ...full.melds.flatMap((ms) => ms.flatMap((m) => m.tiles))]);
+    // 中国式の花牌の補充：ルールの flowerRefill が back なら山の尻から（嶺上牌と同じ並び）
+    const backTaken = full.rinshanTaken + full.flowerTaken;
+    const back = full.rules.family === 'jp' ? full.wall.slice(n - 14, n - 14 + full.rinshanTaken) : full.wall.slice(n - backTaken);
+    const used = [...full.wall.slice(0, n - full.wallLeft - backTaken), ...back];
+    const handSet = new Set([...full.hands.flat(), ...full.discards.flat(), ...full.melds.flatMap((ms) => ms.flatMap((m) => m.tiles)), ...full.flowers.flat()]);
     if (used.length !== handSet.size || used.some((t) => !handSet.has(t))) {
       bad.push('配った牌が山の先頭から順に取られていない');
     }

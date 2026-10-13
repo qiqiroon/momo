@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import doc from './ruleTable.doc.json';
-import { CN_RULE_ITEMS, CN_SETS, JP_RULE_ITEMS, JP_SETS, blockedBy, cnBlockedBy, cnConsistent, cnLabelOf, cnOptionBlockedBy, decodeRuleLink, encodeRuleLink, labelOf, rulesOfCnSet, rulesOfSet } from './ruleSets';
+import { CN_RULE_ITEMS, CN_SETS, JP_RULE_ITEMS, JP_SETS, blockedBy, cnBlockedBy, cnConsistent, cnLabelOf, cnOptionBlockedBy, decodeRuleLink, encodeRuleLink, generalChoice, labelOf, rulesOfCnSet, rulesOfSet } from './ruleSets';
 import { CN_RULE_KEYS, GENERAL_RULES, JP_RULE_KEYS, type CnRuleKey, type JpRuleKey } from './rules';
 import { runGames } from '../selfplay/run';
 
@@ -162,4 +162,27 @@ describe('中国式のルールセットと個別設定（2026-10-13 第16）', 
     expect(all).toBe(49);
     expect(seen.size).toBe(49);
   });
+
+  it('★マイルールのリンク（中国式・Q10=A）：変えた項目だけを書き、読み直すと同じルール（3 セット×項目×選択肢。矛盾する組み合わせは作らない）', () => {
+    let n = 0;
+    for (const set of CN_SETS) {
+      const base = cnValuesOf(set);
+      expect(encodeRuleLink({ ...generalChoice(), cn: set, cnValues: base })).toBe(set);
+      for (const it of CN_RULE_ITEMS)
+        for (const [v] of it.opts) {
+          const values = { ...base, [it.k]: v };
+          if (!cnConsistent(values)) continue;
+          const code = encodeRuleLink({ ...generalChoice(), cn: set, cnValues: values });
+          const back = decodeRuleLink(code);
+          expect(back?.cn, code).toBe(set);
+          expect(back?.cnValues, code).toEqual(values);
+          n++;
+        }
+    }
+    expect(n).toBeGreaterThan(100);
+    // 矛盾する組み合わせ・知らない値は読まない
+    expect(decodeRuleLink('sichuan.pay_hk')).toBeNull();
+    expect(decodeRuleLink('sichuan.tobi_maybe')).toBeNull();
+  });
 });
+

@@ -218,7 +218,7 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false, shar
       </div>
       )}
       {!readOnly && label === 'custom' && <p className="cur">{t('rsChangedFrom', { set: t(`set_${baseSet}` as MessageKey) })}</p>}
-      {share && !cn && <ShareLink t={t} choice={choice} />}
+      {share && <ShareLink t={t} choice={cn ? choice : { base: choice.base, values: choice.values }} />}
       <div className="indiv-head">{t(readOnly ? 'rsReadOnlyHead' : 'rsIndivHead')}</div>
       <div className="rule-rows">
         {groups(fam).map((g) => {

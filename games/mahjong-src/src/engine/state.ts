@@ -9,6 +9,7 @@ import { nextStep, type GameEndReason } from './game';
 import { createRng, shuffle } from './rng';
 import type { Rules } from './rules';
 import { scoreWin, type ScoreResult } from './score';
+import { CN_RULE_ITEMS, cnConsistent } from './ruleSets';
 import { sichuanScore, type CnScore } from './sichuan';
 import { hongkongScore } from './hongkong';
 import { mcrScore } from './mcr';
@@ -505,6 +506,12 @@ export function apply(state: GameState, env: Envelope): GameState {
   const ev = env.ev;
   switch (ev.type) {
     case 'gameStart': {
+      // 中国式のルールの値：どれも選択肢にあり、同時に成り立ってはいけない組み合わせでないこと（手で書き換えた牌譜・リンクを読まない）
+      if (ev.rules.family === 'cn') {
+        const v = ev.rules.values as Readonly<Record<string, string>>;
+        if (CN_RULE_ITEMS.some((it) => !it.opts.some((o) => o[0] === v[it.k]))) throw new Error('中国式のルールの値が選択肢に無い');
+        if (!cnConsistent(ev.rules.values)) throw new Error('中国式のルールが同時に成り立たない組み合わせ');
+      }
       const p = startPoints(ev.rules);
       return { ...s, rules: ev.rules, scores: [p, p, p, p], honba: 0, kyotaku: 0, cnBurned: 0 };
     }

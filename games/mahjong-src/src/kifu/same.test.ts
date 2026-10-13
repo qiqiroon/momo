@@ -32,6 +32,19 @@ describe('同じ山で勝負のリンク', () => {
     expect(decodeSameLink(old)?.strength).toBe('hard');
   });
 
+  it('中国式（2026-10-13 第16）：基にしたセットと中国式の全項目の値が、読み直すと同じになる。カスタムの牌譜は一番近いセットを基にする', () => {
+    const choice = decodeRuleLink('sichuan.tobi_on.huan3_on')!;
+    const w = { choice, seed: 'cn-same', strength: 'hard' as const };
+    expect(decodeSameLink(encodeSameLink(w))).toEqual(w);
+    // カスタムで打った牌譜（セット名が custom）からも作れる
+    const r = playOne('same-cn', { family: 'cn', values: choice.cnValues! }, benchCpu);
+    const src: KifuSource = { seed: 'same-cn', startedAt: '2026-10-14T09:00:00+09:00', players: [], set: 'custom', events: r.log };
+    const sw = sameWallOf(src);
+    expect(sw.choice.cn).toBe('sichuan');
+    expect(sw.choice.cnValues).toEqual(choice.cnValues);
+    expect(decodeSameLink(encodeSameLink(sw))?.choice.cnValues).toEqual(choice.cnValues);
+  });
+
   it('壊れたリンク・知らない版・ルールが読めないものは読まない', () => {
     expect(decodeSameLink('abc')).toBeNull();
     const bad = btoa(JSON.stringify({ v: 9, r: 'general', s: 'x' }));

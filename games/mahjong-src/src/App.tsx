@@ -370,7 +370,10 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
                 setScreen('top');
                 // 同じ山（種）とルールで CPU と対局（端末のルールの控えは変えない）
                 setSameFrom(sw?.result ?? null);
-                if (sw) start({ family: 'jp', values: sw.choice.values }, labelOf(sw.choice.values, sw.choice.base), sw.seed, sw.strength, sw.online ?? null);
+                if (sw?.choice.cn) {
+                  const values = cnValuesOf(sw.choice.cnValues, sw.choice.cn);
+                  start({ family: 'cn', values }, cnLabelOf(values, sw.choice.cn), sw.seed, sw.strength, null);
+                } else if (sw) start({ family: 'jp', values: sw.choice.values }, labelOf(sw.choice.values, sw.choice.base), sw.seed, sw.strength, sw.online ?? null);
               }}
               onCancel={() => {
                 history.replaceState(null, '', location.pathname + location.search);

@@ -190,3 +190,13 @@ describe('血流成河（中国式・Q9=A＝抜けずに続ける・アガった
     expect(repeat).toBeGreaterThan(0);
   }, 120000);
 });
+
+describe('対局の始まりで中国式のルールの値を確かめる（手で書き換えた牌譜・リンクを読まない）', () => {
+  it('選択肢に無い値・同時に成り立ってはいけない組み合わせなら止める。セットの値なら始まる', async () => {
+    const { apply } = await import('./state');
+    const start = (rules: Rules) => apply(initialState(), { seq: 0, to: 'all', ev: { type: 'gameStart', rules } });
+    expect(start(cn('hk', {})).rules?.family).toBe('cn');
+    expect(() => start(cn('sichuan', { pay: 'hk' }))).toThrow('同時に成り立たない');
+    expect(() => start(cn('sichuan', { tobi: 'maybe' }))).toThrow('選択肢に無い');
+  });
+});

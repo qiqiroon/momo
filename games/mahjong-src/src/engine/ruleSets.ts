@@ -111,6 +111,12 @@ export function ruleChoiceOf(raw: unknown): RuleChoice | null {
  * 項目の名前で書くので、あとで項目が増えたり並びが変わったりしても古いリンクを読める
  */
 export function encodeRuleLink(c: RuleChoice): string {
+  // 中国式（2026-10-13 第16 Q10=A）：同じ形で、基にしたセットは中国式のセット名（セット名で日本式か中国式かが分かる）
+  if (c.cn) {
+    const values = cnValuesOf(c.cnValues, c.cn);
+    const cnDiffs = CN_RULE_ITEMS.filter((it) => values[it.k] !== cnPresetValue(c.cn!, it.k)).map((it) => `${it.k}_${values[it.k]}`);
+    return [c.cn, ...cnDiffs].join('.');
+  }
   const diffs = JP_RULE_ITEMS.filter((it) => c.values[it.k] !== presetValue(c.base, it.k)).map((it) => `${it.k}_${c.values[it.k]}`);
   return [c.base, ...diffs].join('.');
 }
@@ -118,6 +124,22 @@ export function encodeRuleLink(c: RuleChoice): string {
 /** リンクを読む。知らないセット・知っている項目の知らない値なら null。知らない項目（あとで消した項目）は飛ばす */
 export function decodeRuleLink(code: string): RuleChoice | null {
   const [base, ...parts] = code.split('.');
+  // 中国式のセット名：中国式の値として読む。同時に成り立ってはいけない組み合わせなら読まない（日本式の値は一般ルール）
+  if ((CN_SETS as readonly string[]).includes(base)) {
+    const set = base as CnSetId;
+    const values = { ...(rulesOfCnSet(set).values as Record<CnRuleKey, string>) };
+    for (const part of parts) {
+      const i = part.indexOf('_');
+      if (i <= 0) return null;
+      const it = CN_RULE_ITEMS.find((x) => x.k === part.slice(0, i));
+      if (!it) continue;
+      const v = part.slice(i + 1);
+      if (!it.opts.some((o) => o[0] === v)) return null;
+      values[it.k] = v;
+    }
+    if (!cnConsistent(values)) return null;
+    return { ...generalChoice(), cn: set, cnValues: values };
+  }
   if (!(JP_SETS as readonly string[]).includes(base)) return null;
   const r = rulesOfSet(base as SetId);
   const values = { ...(r.values as Record<JpRuleKey, string>) };
@@ -212,6 +234,32 @@ export function cnOptionBlockedBy(values: Readonly<Record<CnRuleKey, string>>, k
   const next = { ...values, [k]: v };
   const hit = CN_FORBID.find((f) => f.some((c) => c[0] === k) && f.every((c) => condHolds(next, c)));
   return hit ? hit.filter((c) => c[0] !== k).map((c) => ({ k: c[0] as CnRuleKey, value: values[c[0] as CnRuleKey] })) : null;
+}
+
+/** 中国式の全項目の値（「項目_値.項目_値…」）。同じ山で勝負のリンクに使う（日本式の encodeRuleValues と同じ形） */
+export function encodeCnValues(values: Readonly<Record<CnRuleKey, string>>): string {
+  return CN_RULE_ITEMS.map((it) => `${it.k}_${values[it.k]}`).join('.');
+}
+
+/** 中国式の全項目の値を読む。書いていない項目はセット set の値。知っている項目の知らない値・矛盾する組み合わせなら null */
+export function decodeCnValues(code: string, set: CnSetId): Record<CnRuleKey, string> | null {
+  const values = { ...(rulesOfCnSet(set).values as Record<CnRuleKey, string>) };
+  for (const part of code.split('.')) {
+    const i = part.indexOf('_');
+    if (i <= 0) return null;
+    const it = CN_RULE_ITEMS.find((x) => x.k === part.slice(0, i));
+    if (!it) continue;
+    const v = part.slice(i + 1);
+    if (!it.opts.some((o) => o[0] === v)) return null;
+    values[it.k] = v;
+  }
+  return cnConsistent(values) ? values : null;
+}
+
+/** 中国式の値に一番近い（違う項目が一番少ない）セット。カスタムで打った牌譜から、基にしたセットを決めるのに使う */
+export function cnNearestSet(values: Readonly<Record<CnRuleKey, string>>): CnSetId {
+  const diff = (set: CnSetId) => CN_RULE_KEYS.filter((k) => values[k] !== cnPresetValue(set, k)).length;
+  return CN_SETS.reduce((a, b) => (diff(b) < diff(a) ? b : a));
 }
 
 /** 中国式の値が、同時に成り立ってはいけない組み合わせを含まないか */

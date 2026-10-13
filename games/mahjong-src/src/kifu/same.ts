@@ -13,7 +13,8 @@ import type { Seat } from '../engine/events';
 import { finalResult } from '../engine/final';
 import { apply, initialState } from '../engine/state';
 import type { KifuSource } from './kifu';
-import { decodeRuleValues, encodeRuleValues, JP_SETS, type RuleChoice, type SetId } from '../engine/ruleSets';
+import { CN_SETS, cnNearestSet, cnValuesOf, decodeCnValues, decodeRuleValues, encodeCnValues, encodeRuleValues, generalChoice, JP_SETS, type CnSetId, type RuleChoice, type SetId } from '../engine/ruleSets';
+import type { CnRuleKey } from '../engine/rules';
 
 export const SAME_LINK_VERSION = 1;
 
@@ -49,7 +50,10 @@ const fromB64url = (s: string) => new TextDecoder().decode(b64urlToBytes(s));
 const isWall = (w: readonly number[]) => w.length === 136 && new Set(w).size === 136 && w.every((x) => Number.isInteger(x) && x >= 0 && x < 136);
 
 export function encodeSameLink(w: SameWall): string {
-  const o: { v: number; b: string; a: string; s: string; c: Strength; y?: [number, number]; o?: { d: [Seat, number, number]; w: string } } = { v: SAME_LINK_VERSION, b: w.choice.base, a: encodeRuleValues(w.choice.values), s: w.seed, c: w.strength };
+  const o: { v: number; b: string; a: string; s: string; c: Strength; y?: [number, number]; o?: { d: [Seat, number, number]; w: string } } = w.choice.cn
+    ? // 中国式（2026-10-13 第16）：b は中国式のセット名、a は中国式の全項目の値
+      { v: SAME_LINK_VERSION, b: w.choice.cn, a: encodeCnValues(cnValuesOf(w.choice.cnValues, w.choice.cn)), s: w.seed, c: w.strength }
+    : { v: SAME_LINK_VERSION, b: w.choice.base, a: encodeRuleValues(w.choice.values), s: w.seed, c: w.strength };
   if (w.result) o.y = [w.result.rank, w.result.total];
   if (w.online) o.o = { d: [w.online.by, w.online.dice[0], w.online.dice[1]], w: bytesToB64url(Uint8Array.from(w.online.walls.flat())) };
   return toB64url(JSON.stringify(o));
@@ -73,12 +77,20 @@ export function decodeSameLink(code: string): SameWall | null {
   try {
     const o = JSON.parse(fromB64url(code)) as { v?: unknown; b?: unknown; a?: unknown; s?: unknown; c?: unknown; y?: unknown; o?: unknown };
     if (o.v !== SAME_LINK_VERSION || typeof o.a !== 'string' || typeof o.s !== 'string' || !o.s) return null;
-    const values = decodeRuleValues(o.a);
-    if (!values) return null;
     const online = decodeOnline(o.o);
     if (online === null) return null;
-    const base: SetId = typeof o.b === 'string' && (JP_SETS as readonly string[]).includes(o.b) ? (o.b as SetId) : 'general';
-    const choice: RuleChoice = { base, values };
+    let choice: RuleChoice;
+    if (typeof o.b === 'string' && (CN_SETS as readonly string[]).includes(o.b)) {
+      // 中国式：オンライン対局にはまだ対応していない＝山の並びは無いはず
+      const cnValues = decodeCnValues(o.a, o.b as CnSetId);
+      if (!cnValues || online) return null;
+      choice = { ...generalChoice(), cn: o.b as CnSetId, cnValues };
+    } else {
+      const values = decodeRuleValues(o.a);
+      if (!values) return null;
+      const base: SetId = typeof o.b === 'string' && (JP_SETS as readonly string[]).includes(o.b) ? (o.b as SetId) : 'general';
+      choice = { base, values };
+    }
     const y = Array.isArray(o.y) && o.y.length === 2 && o.y.every((n) => typeof n === 'number' && Number.isFinite(n)) ? { rank: o.y[0] as number, total: o.y[1] as number } : undefined;
     return { choice, seed: o.s, strength: strengthOf(o.c), ...(y ? { result: y } : {}), ...(online ? { online } : {}) };
   } catch {
@@ -103,6 +115,9 @@ export function sameWallOf(src: KifuSource): SameWall {
   for (const e of src.events) s = apply(s, e);
   const values = (s.rules?.family === 'jp' ? s.rules.values : {}) as RuleChoice['values'];
   const base = (JP_SETS as readonly string[]).includes(src.set) ? (src.set as SetId) : 'general';
+  // 中国式：基にしたセットは牌譜のセット名（カスタムなら一番近いセット）
+  const cnValues = s.rules?.family === 'cn' ? (s.rules.values as Record<CnRuleKey, string>) : null;
+  const cn = cnValues ? ((CN_SETS as readonly string[]).includes(src.set) ? (src.set as CnSetId) : cnNearestSet(cnValues)) : null;
   const mySeat = src.me ?? 0;
   const me = s.phase === 'gameover' ? finalResult(s).find((r) => r.seat === mySeat) : undefined;
   const dice = src.events[1]?.ev;
@@ -112,5 +127,5 @@ export function sameWallOf(src: KifuSource): SameWall {
       : undefined;
   // オンライン対局の種は「online」だけなので、局が多くなったときの山の種は始めた時刻で分ける
   const seed = src.mode === 'online' ? `online-${src.startedAt}` : src.seed;
-  return { choice: { base, values }, seed, strength: strengthOf(src.cpu), ...(me ? { result: { rank: me.rank, total: me.total } } : {}), ...(online ? { online } : {}) };
+  return { choice: cn ? { ...generalChoice(), cn, cnValues: { ...cnValues! } } : { base, values }, seed, strength: strengthOf(src.cpu), ...(me ? { result: { rank: me.rank, total: me.total } } : {}), ...(online ? { online } : {}) };
 }

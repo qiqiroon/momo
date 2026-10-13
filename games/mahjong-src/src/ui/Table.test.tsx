@@ -419,6 +419,31 @@ describe('血戦到底：局の途中の画面（段階9の手順3）', () => {
     expect(document.querySelector('.cn-win-note')).toBeNull();
   });
 });
+describe('血流成河：局の途中の画面（2026-10-13 第16 Q9=A）', () => {
+  it('ツモでアガった人は名札に「アガリ ×回数」、アガリ牌は面子の端に小さく。結果の枠には局の全部のアガリ', () => {
+    const rules = rulesOfCnSet('sichuan');
+    if (rules.family !== 'cn') throw new Error('中国式のはず');
+    const flow = { family: 'cn' as const, values: { ...rules.values, afterWin: 'again' } };
+    let log: Envelope[] | null = null;
+    for (let i = 0; i < 300 && !log; i++) {
+      const r = playOne(`flow-table-${i}`, flow, benchCpu);
+      if (r.result?.type === 'cnWin' && !r.failure && r.result.wins.some((w) => w.from === null)) log = r.log;
+    }
+    if (!log) throw new Error('ツモのある局が見つからない');
+    let cut = 0;
+    while (!viewFor(log.slice(0, cut), 0).cnShown.some((x) => x.length > 0)) cut++;
+    const mid = viewFor(log.slice(0, cut), 0);
+    expect(mid.phase).not.toBe('ended');
+    const { unmount } = render(<Table narrow={false} view={mid} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} />);
+    expect([...document.querySelectorAll('.cn-out-mark')].map((x) => x.textContent)).toContain('アガリ ×1');
+    expect(document.querySelectorAll('.cn-shown .mini').length).toBe(1);
+    unmount();
+    const end = viewFor(log, 0);
+    if (end.result?.type !== 'cnWin') throw new Error('中国式のアガリのはず');
+    render(<Table narrow={false} view={end} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} />);
+    expect(document.querySelectorAll('.score-total')).toHaveLength(end.result.wins.length);
+  });
+});
 describe('槍槓で無効になった加槓の見た目（利用者 2026-10-12 Q1=A）', () => {
   it('足した牌を除いたポンの形（3 枚）で見せる。無効でなければ加槓の形（4 枚）', () => {
     for (const robbed of [true, false]) {

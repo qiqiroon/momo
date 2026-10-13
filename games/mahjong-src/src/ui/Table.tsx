@@ -126,6 +126,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   const riichiMark = (seat: number) => (
     <>
       {view.cnOut[seat] && <span className="cn-out-mark">{t('cnOutMark')}</span>}
+      {/* 血流成河：アガった回数 */}
+      {view.cnLocked[seat] && <span className="cn-out-mark">{t('cnWinTimes', { n: view.cnWins.filter((w) => w.seat === seat).length })}</span>}
       {queMark(seat)}
       {view.riichi[seat] !== 'none' && <span className="riichi-mark">{t('riichi')}</span>}
       {seat === me && furiten && furiten.reasons.length > 0 && <span className="furiten-mark">{t('furiten')}</span>}
@@ -154,7 +156,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
     );
   /** 鳴いた面子の並び（最初に鳴いた面子を右端に置く＝実際の卓と同じ） */
   const meldsOf = (seat: number, className = '') =>
-    view.melds[seat].length > 0 && (
+    (view.melds[seat].length > 0 || view.cnShown[seat].length > 0) && (
       <span className={`melds ${className}`}>
         {view.melds[seat]
           .slice()
@@ -162,6 +164,14 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
           .map((m, i) => (
             <MeldView key={i} meld={m} seat={seat} rules={view.rules} />
           ))}
+        {/* 血流成河：ツモでアガって脇に出した牌 */}
+        {view.cnShown[seat].length > 0 && (
+          <span className="cn-shown">
+            {view.cnShown[seat].map((id) => (
+              <Tile key={id} id={id} rules={view.rules} className="mini" />
+            ))}
+          </span>
+        )}
       </span>
     );
 
@@ -273,6 +283,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         <>
       {r.type === 'exhaust' && <p className="result-title">{t('resultExhaust')}</p>}
       {r.type === 'cnWin' && r.exhausted && <p className="result-title">{t('cnExhausted')}</p>}
+      {/* 中国式でアガリ・カンの点が動いたあとの途中流局（それまでの点の動きは下に残す） */}
+      {r.type === 'cnWin' && r.abort && <p className="result-title">{t(`resultAbort_${r.abort}`, { name: '' })}</p>}
       {r.type === 'tripleRon' && <p className="result-title">{t('resultTripleRon')}</p>}
       {r.type === 'abort' && <p className="result-title">{t(`resultAbort_${r.reason}`, { name: r.seat === undefined ? '' : nameOf(r.seat) })}</p>}
       {r.type === 'abort' && r.reason === 'kyushu' && r.seat !== undefined && (
@@ -306,8 +318,9 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
       ))}
       {/* 中国式のアガリ（段階9）：手牌・アガリ牌・番・基本点・払い */}
       {r.type === 'cnWin' &&
-        r.wins.map((w) => (
-          <Fragment key={w.seat}>
+        // 血流成河では同じ人が何度もアガるので、アガった順で見分ける
+        r.wins.map((w, wi) => (
+          <Fragment key={wi}>
             <p className="result-title">{w.from === null ? t('resultTsumo', { name: nameOf(w.seat) }) : t('resultRon', { name: nameOf(w.seat), from: nameOf(w.from) })}</p>
             <div className="result-hand">
               {sortTiles(w.from === null ? view.hands[w.seat].filter((x) => x !== w.winTile) : view.hands[w.seat]).map((id) => (

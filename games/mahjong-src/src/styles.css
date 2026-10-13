@@ -2987,3 +2987,11 @@ body.in-game .site-header .subtitle {
   margin-bottom: 0;
   box-shadow: none;
 }
+
+/* 血流成河：ツモでアガって脇に出した牌（面子の並びの端・少し離す） */
+.cn-shown {
+  display: inline-flex;
+  gap: 1px;
+  margin-left: 6px;
+  opacity: 0.85;
+}

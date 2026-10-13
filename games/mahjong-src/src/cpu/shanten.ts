@@ -15,54 +15,46 @@ type Blocks = readonly (readonly [number, number])[];
 
 const suitMemo = new Map<number, Blocks>();
 
-/** 1 色（9 種）の枚数から、取れる（面子, 塔子）を全部出す。塔子＝対子・両面/辺張・嵌張 */
-function suitBlocks(c: number[], from: number): Blocks {
+/**
+ * 1 色（9 種）の枚数から、取れる（面子, 塔子）を全部出す。塔子＝対子・両面/辺張・嵌張。
+ * 一番小さい牌の使い方（刻子・順子・対子・塔子 2 通り・孤立）で分かれ、残りの枚数ごとに答えを覚える
+ * （残りが同じなら同じ答え＝1 色に牌が多い手でも数え直さない。2026-10-13 段階9 手順7：全部の道を並べてから比べる形は、
+ *   萬子だけの 14 枚で 1 回 90ms ほどかかっていた）
+ */
+function suitBlocks(c: readonly number[], from: number): Blocks {
+  return blocksOf(c.slice(from, from + 9));
+}
+
+function blocksOf(local: number[]): Blocks {
   let key = 0;
-  for (let i = 0; i < 9; i++) key = key * 5 + c[from + i];
+  for (let i = 0; i < 9; i++) key = key * 5 + local[i];
   const hit = suitMemo.get(key);
   if (hit) return hit;
+  let i = 0;
+  while (i < 9 && local[i] === 0) i++;
+  if (i >= 9) {
+    const none: Blocks = [[0, 0]];
+    suitMemo.set(key, none);
+    return none;
+  }
   const found: [number, number][] = [];
-  const local = c.slice(from, from + 9);
-  const walk = (i: number, m: number, t: number) => {
-    while (i < 9 && local[i] === 0) i++;
-    if (i >= 9) {
-      found.push([m, t]);
-      return;
-    }
-    if (local[i] >= 3) {
-      local[i] -= 3;
-      walk(i, m + 1, t);
-      local[i] += 3;
-    }
-    if (i <= 6 && local[i + 1] > 0 && local[i + 2] > 0) {
-      local[i]--; local[i + 1]--; local[i + 2]--;
-      walk(i, m + 1, t);
-      local[i]++; local[i + 1]++; local[i + 2]++;
-    }
-    if (local[i] >= 2) {
-      local[i] -= 2;
-      walk(i, m, t + 1);
-      local[i] += 2;
-    }
-    if (i <= 7 && local[i + 1] > 0) {
-      local[i]--; local[i + 1]--;
-      walk(i, m, t + 1);
-      local[i]++; local[i + 1]++;
-    }
-    if (i <= 6 && local[i + 2] > 0) {
-      local[i]--; local[i + 2]--;
-      walk(i, m, t + 1);
-      local[i]++; local[i + 2]++;
-    }
-    // この牌は孤立牌として使わない
-    local[i]--;
-    walk(i, m, t);
-    local[i]++;
+  const take = (dm: number, dt: number, ...idx: number[]) => {
+    for (const x of idx) local[x]--;
+    for (const [m, t] of blocksOf(local)) found.push([m + dm, t + dt]);
+    for (const x of idx) local[x]++;
   };
-  walk(0, 0, 0);
-  const pareto = found.filter(([m, t]) => !found.some(([m2, t2]) => m2 >= m && t2 >= t && (m2 > m || t2 > t)));
+  if (local[i] >= 3) take(1, 0, i, i, i);
+  if (i <= 6 && local[i + 1] > 0 && local[i + 2] > 0) take(1, 0, i, i + 1, i + 2);
+  if (local[i] >= 2) take(0, 1, i, i);
+  if (i <= 7 && local[i + 1] > 0) take(0, 1, i, i + 1);
+  if (i <= 6 && local[i + 2] > 0) take(0, 1, i, i + 2);
+  // この牌は孤立牌として使わない
+  take(0, 0, i);
   const uniq: [number, number][] = [];
-  for (const b of pareto) if (!uniq.some((u) => u[0] === b[0] && u[1] === b[1])) uniq.push(b);
+  for (const b of found) {
+    if (found.some(([m2, t2]) => m2 >= b[0] && t2 >= b[1] && (m2 > b[0] || t2 > b[1]))) continue;
+    if (!uniq.some((u) => u[0] === b[0] && u[1] === b[1])) uniq.push(b);
+  }
   suitMemo.set(key, uniq);
   return uniq;
 }

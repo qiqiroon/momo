@@ -7,6 +7,7 @@
 //   - 守り（リーチされたら、アガリから遠い手は降りる＝通る牌から切る）
 //   - 待ちの残りが 0 枚ならリーチしない／暗槓・加槓をする
 //   - 缺一門（四川）：捨てる色の牌は手に無いものとして測る（Easy と同じ・common.ts の handCounts）
+//   - 中国式で最低の番が要らない（四川）：役を気にせず近づく鳴き・手が崩れない大明槓（freeCalls）。守りはテンパイしていそうな人（defense.ts）
 // Apocalypse がさらに足すもの（opts で切り替える）：
 //   - 受け入れを「場に見えている枚数」で数え直す（visibleWaits）
 //   - 危なさの見分けを細かく（壁・リーチ後に通った牌）（fineDanger）
@@ -14,11 +15,12 @@
 //   - 迷う場面だけ先読み：同じ近さの候補を「2 歩先の受け入れ」で比べる（simulate.ts）
 
 import { doraOf } from '../engine/dora';
+import { cnRoundsTotal } from '../engine/game';
 import type { Seat } from '../engine/events';
 import { legalActions, type Action } from '../engine/round';
 import type { GameState } from '../engine/state';
 import { isRed, kindOf, type KindId, type TileId } from '../engine/tiles';
-import { chooseQue, connection, handCounts, hasOpenYakuhai, isQueTile, pick, shantenAfterCall, yakuhaiKinds } from './common';
+import { chooseQue, connection, freeCalls, handCounts, hasOpenYakuhai, isQueTile, pick, shantenAfterCall, yakuhaiKinds } from './common';
 import { dangerOf, threats } from './defense';
 import { acceptance, shanten, visibleCounts } from './shanten';
 import { twoStepAcceptance } from './simulate';
@@ -106,7 +108,8 @@ function defenseOrder(a: DiscardPlan, b: DiscardPlan): number {
 function standing(view: GameState, seat: Seat): { rank: number; allLast: boolean } {
   const me = view.scores[seat];
   const rank = 1 + view.scores.filter((p, s) => p > me || (p === me && s < seat)).length;
-  const length = view.rules?.family === 'jp' && view.rules.values.length === 'east' ? 4 : 8;
+  // 予定の局の数：日本式＝東風 4・半荘 8／中国式＝圏×4（四川は 16）
+  const length = view.rules?.family === 'cn' ? cnRoundsTotal(view) : view.rules?.values.length === 'east' ? 4 : 8;
   return { rank, allLast: view.roundIndex >= length - 1 };
 }
 
@@ -151,6 +154,21 @@ export function makeThinker(opts: ThinkOptions) {
     if (threats(view, seat).length > 0 && now >= 2) return pass;
     // 七対子に向かっている手（対子 5 つ以上）は鳴かない
     if (view.melds[seat].length === 0 && counts.filter((n) => n >= 2).length >= 5) return pass;
+    // 中国式で最低の番が要らない（四川）なら、役を気にせず近づく鳴きをする。大明槓は手が崩れなければする（刮風下雨で点が入る）
+    if (freeCalls(view)) {
+      if (threats(view, seat).length === 0) {
+        const kan = legal.find((a) => a.type === 'kan' && a.kan === 'minkan');
+        if (kan && kan.type === 'kan' && minkanKeepsShanten(view, seat, kan.tiles, now)) return kan;
+      }
+      let best: Action | null = null;
+      let bestSh = now;
+      for (const a of legal) {
+        if (a.type !== 'pon' && a.type !== 'chi') continue;
+        const after = shantenAfterCall(view, seat, a.tiles);
+        if (after < bestSh) [best, bestSh] = [a, after];
+      }
+      return best ?? pass;
+    }
     const yakuhai = yakuhaiKinds(view, seat);
     const opened = hasOpenYakuhai(view, seat);
     const kuitan = view.rules?.family === 'jp' && view.rules.values.kuitan === 'on';
@@ -231,6 +249,14 @@ function chooseDiscard(view: GameState, seat: Seat, legal: readonly Action[], op
     if (riichi) return riichi;
   }
   return choice.action;
+}
+
+/** 大明槓のあと（手牌から 3 枚出し、嶺上牌を引いてから切る＝13 枚形）でも近さが今より悪くならないか */
+function minkanKeepsShanten(view: GameState, seat: Seat, tiles: readonly TileId[], now: number): boolean {
+  if (tiles.some((t) => isQueTile(view, seat, t))) return false;
+  const counts = handCounts(view, seat);
+  for (const t of tiles) counts[kindOf(t)]--;
+  return shanten(counts, view.melds[seat].length + 1) <= now;
 }
 
 function kanKeepsShanten(view: GameState, seat: Seat, tiles: readonly TileId[], kan: 'ankan' | 'kakan'): boolean {

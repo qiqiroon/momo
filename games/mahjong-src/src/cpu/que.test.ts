@@ -3,9 +3,12 @@ import { kindCounts } from '../engine/agari';
 import type { Envelope, GameEvent, Seat } from '../engine/events';
 import { act, legalActions } from '../engine/round';
 import { rulesOfCnSet } from '../engine/ruleSets';
-import { apply, initialState, type GameState } from '../engine/state';
+import { apply, initialState, type GameState, type OpenMeld } from '../engine/state';
 import { kindOf, type TileId } from '../engine/tiles';
 import { chooseQue, handCounts, queSuitOf, shantenAfterDiscard } from './common';
+import { dangerOf, threats } from './defense';
+import { easyCpu } from './easy';
+import { APOCALYPSE, HARD, makeThinker } from './thinker';
 import { acceptance, shanten } from './shanten';
 
 const SICHUAN = rulesOfCnSet('sichuan');
@@ -34,10 +37,10 @@ function queTurn(hand: string, draw: string): GameState {
   const mine = tiles(hand, used);
   const drawn = tiles(draw, used)[0];
   push({ type: 'deal', seat: 0, tiles: mine }, [0]);
-  // ほかの席は残りの牌から 13 枚ずつ
   const rest: TileId[] = [];
   for (let k = 0; k < 27; k++) for (let i = 0; i < 4 - (used.get(k) ?? 0); i++) rest.push(k * 4 + i);
-  for (const seat of [1, 2, 3] as Seat[]) push({ type: 'deal', seat, tiles: rest.splice(0, 13) }, [seat]);
+  // 残りの牌を 1 枚ずつ順に配る（種類順にまとめて配ると 1 色に偏った手になる）
+  for (const seat of [1, 2, 3] as Seat[]) push({ type: 'deal', seat, tiles: rest.filter((_, i) => i % 3 === seat - 1).slice(0, 13) }, [seat]);
   push({ type: 'draw', seat: 0, tile: drawn }, [0]);
   expect(s.phase).toBe('que');
   return { ...s, wall: [] };
@@ -117,5 +120,67 @@ describe('捨てる色の牌は手に無いものとして測る', () => {
     // 萬子の面子を崩すと遠くなる（測り方が働いている）
     const m5 = s.hands[0].find((t) => kindOf(t) === 4)!;
     expect(after(m5)).toBeGreaterThan(now);
+  });
+});
+
+// ---- 四川の鳴きと守り（段階9 手順7・利用者 Q2=A） ----
+
+/** 4 人とも捨てる色を決めて、親が最初の打牌（伏せた牌）を切るところまで進めた局面 */
+function started(): GameState {
+  let s = queTurn('1m2m3m4m5m6m7m8m1p5p9p5s6s', '9m');
+  for (const seat of [0, 1, 2, 3] as Seat[]) {
+    const a = chooseQue(s, seat, legalActions(s, seat));
+    for (const e of act(s, seat, a)) s = apply(s, e);
+  }
+  return s;
+}
+
+describe('四川の鳴き（役が要らない）', () => {
+  it('近づくならポンする（3 段とも）。日本式の考え方（役牌・喰いタン）では見送っていた', () => {
+    const base = started();
+    const used = new Map<number, number>();
+    // 席 1：萬子と索子だけの 13 枚（捨てる色＝筒子）。2m をポンすると 1 向聴→テンパイ
+    const hand = tiles('2m2m4m5m6m7m1s2s3s7s8s9s9s', used);
+    const tile = tiles('2m', used)[0];
+    const hands = base.hands.map((h, i) => (i === 1 ? hand : h));
+    const que = base.que.slice();
+    que[1] = 1;
+    const view: GameState = { ...base, hands, que, phase: 'claim', turn: 0, claim: { kind: 'discard', from: 0, tile, replies: ['self', null, 'pass', 'pass'], rons: [], calls: [] } };
+    for (const cpu of [easyCpu, makeThinker(HARD), makeThinker(APOCALYPSE)]) {
+      const a = cpu(view, 1);
+      expect(a.type).toBe('pon');
+    }
+  });
+});
+
+describe('四川の守り（リーチが無い）', () => {
+  const meld = (): OpenMeld => ({ type: 'pon', tiles: [100, 101, 102], called: 100, from: 0 });
+  /** 席 1 が 2 つ鳴いている（テンパイしていそう）・捨てる色は筒子・5m を一度切っている */
+  function threatened(): GameState {
+    const s = started();
+    const melds = s.melds.map((m, i) => (i === 1 ? [meld(), meld()] : m));
+    const que = s.que.slice();
+    que[1] = 1;
+    const discards = s.discards.map((d, i) => (i === 1 ? [4 * 4] : d));
+    return { ...s, melds, que, discards };
+  }
+  const visible = new Array<number>(34).fill(0);
+
+  it('鳴いた面子が 2 つ以上の人を守る相手にする。抜けた人（血戦到底でアガった人）は外す', () => {
+    const s = threatened();
+    expect(threats(s, 0)).toEqual([1]);
+    const out = s.cnOut.slice();
+    out[1] = true;
+    expect(threats({ ...s, cnOut: out }, 0)).toEqual([]);
+    // 鳴いていなくても、捨て牌が 10 枚を超えたら守る相手
+    const late = { ...started(), discards: started().discards.map((d, i) => (i === 2 ? new Array(10).fill(0) : d)) };
+    expect(threats(late, 0)).toEqual([2]);
+  });
+
+  it('相手の捨てる色の牌は通る（危なさ 0）。現物はフリテンが無いので 0 にしない', () => {
+    const s = threatened();
+    expect(dangerOf(s, 0, 9 + 4, visible)).toBe(0); // 5p＝相手の捨てる色
+    expect(dangerOf(s, 0, 4, visible)).toBe(2); // 5m＝相手が一度切った牌
+    expect(dangerOf(s, 0, 18 + 4, visible)).toBeGreaterThan(2); // 5s＝何も分からない
   });
 });

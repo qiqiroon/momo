@@ -27,6 +27,11 @@ export function handCounts(view: GameState, seat: Seat, tiles: readonly TileId[]
   return counts;
 }
 
+/** 役を気にせず鳴けるルールか（中国式で最低の番が「なし」＝四川。日本式は役が要る） */
+export function freeCalls(view: GameState): boolean {
+  return view.rules?.family === 'cn' && view.rules.values.minFan === '0';
+}
+
 /** 捨てる色の牌か（手を測る枚数に入っていない牌＝切っても手は変わらない） */
 export function isQueTile(view: GameState, seat: Seat, tile: TileId): boolean {
   const q = queSuitOf(view, seat);
@@ -108,28 +113,39 @@ export function shantenAfterCall(view: GameState, seat: Seat, tiles: readonly Ti
  * 伏せても残りの手の向聴数が一番下がらない数牌（同じなら一番孤立した牌）を伏せる
  */
 export function chooseQue(view: GameState, seat: Seat, legal: readonly Action[]): Action {
-  const hand = view.hands[seat];
-  const all = kindCounts(hand);
+  const all = kindCounts(view.hands[seat]);
   const open = meldCount(view, seat);
-  let best: Action | null = null;
-  let bestKey: number[] | null = null;
-  for (const suit of [0, 1, 2]) {
-    const options = legal.filter((a): a is Extract<Action, { type: 'que' }> => a.type === 'que' && a.suit === suit);
-    if (!options.length) continue;
-    const rest = all.slice();
-    for (let k = suit * 9; k < suit * 9 + 9; k++) rest[k] = 0;
-    const inSuit = all.slice(suit * 9, suit * 9 + 9).reduce((a, b) => a + b, 0);
-    for (const a of options) {
-      const k = kindOf(a.tile);
-      // 手に無い色を捨てる色にするなら、伏せた牌は残りの手から抜ける
-      const left = rest.slice();
-      if (suitOfKind(k) !== suit) left[k]--;
-      const acc = acceptance(left, open);
-      const key = [acc.shanten, inSuit, -acc.tiles, connection(a.tile, all), a.tile];
-      if (!bestKey || lexLess(key, bestKey)) [best, bestKey] = [a, key];
-    }
+  // 候補ごとの残りの手（伏せる牌の種類と色が同じなら同じ手＝1 回だけ測る）
+  type Cand = { a: Extract<Action, { type: 'que' }>; left: number[]; key: number[] };
+  const memo = new Map<string, number>();
+  const cands: Cand[] = [];
+  for (const a of legal) {
+    if (a.type !== 'que') continue;
+    const k = kindOf(a.tile);
+    const left = all.slice();
+    for (let x = a.suit * 9; x < a.suit * 9 + 9; x++) left[x] = 0;
+    // 手に無い色を捨てる色にするなら、伏せた牌は残りの手から抜ける
+    if (suitOfKind(k) !== a.suit) left[k]--;
+    const id = `${a.suit}:${suitOfKind(k) === a.suit ? '' : k}`;
+    let sh = memo.get(id);
+    if (sh === undefined) memo.set(id, (sh = shanten(left, open)));
+    const inSuit = all.slice(a.suit * 9, a.suit * 9 + 9).reduce((m, n) => m + n, 0);
+    cands.push({ a, left, key: [sh, inSuit] });
   }
-  return best ?? legal[0];
+  if (!cands.length) return legal[0];
+  // 1・2 で一番よいものだけ、受け入れを数えて比べる（受け入れは重い＝候補を絞ってから）
+  const top = cands.filter((c) => !cands.some((o) => lexLess(o.key, c.key)));
+  const accMemo = new Map<string, number>();
+  let best = top[0];
+  let bestKey: number[] | null = null;
+  for (const c of top) {
+    const id = c.left.join(',');
+    let acc = accMemo.get(id);
+    if (acc === undefined) accMemo.set(id, (acc = acceptance(c.left, open).tiles));
+    const key = [-acc, connection(c.a.tile, all), c.a.tile];
+    if (!bestKey || lexLess(key, bestKey)) [best, bestKey] = [c, key];
+  }
+  return best.a;
 }
 
 /** 前から順に比べて a が小さいか */

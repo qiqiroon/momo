@@ -2961,3 +2961,29 @@ body.in-game .site-header .subtitle {
 .cn-pig-note {
   margin: 4px 0 0;
 }
+
+/* 花牌（中国式・段階9 国標の手順5）：正方形の卓は捨て牌と手牌の間の帯に小さく（見本 table-layout.html の flowers-strip）。
+   横 4 列は名札の行の後ろに小さく */
+.seat-flowers {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: 0 0;
+  transform: rotate(var(--a)) translate(-12.5cqw, 33.2cqw);
+  display: flex;
+  gap: 1px;
+  --tw: 2.5cqw;
+}
+.seat-flowers .tile.mini {
+  width: var(--tw);
+}
+.lane-flowers {
+  display: inline-flex;
+  gap: 1px;
+  margin-left: 4px;
+}
+.lane-flowers .tile.mini {
+  --tw: 10px;
+  margin-bottom: 0;
+  box-shadow: none;
+}

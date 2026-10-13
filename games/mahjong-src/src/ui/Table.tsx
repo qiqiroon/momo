@@ -143,6 +143,15 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
       ))}
     </div>
   );
+  /** 表にした花牌（中国式・全員に見える）。無ければ何も出さない */
+  const flowersOf = (seat: number, className: string) =>
+    view.flowers[seat].length > 0 && (
+      <span key={`f${seat}`} className={`flowers ${className}`} aria-label={t('flowersLabel', { n: view.flowers[seat].length })}>
+        {view.flowers[seat].map((id) => (
+          <Tile key={id} id={id} rules={view.rules} className="mini" />
+        ))}
+      </span>
+    );
   /** 鳴いた面子の並び（最初に鳴いた面子を右端に置く＝実際の卓と同じ） */
   const meldsOf = (seat: number, className = '') =>
     view.melds[seat].length > 0 && (
@@ -524,6 +533,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
                     </span>
                   )}
                   {seat !== me && meldsOf(seat, 'lane-melds')}
+                  {flowersOf(seat, 'lane-flowers')}
                 </div>
                 {/* 牌譜の再生：ほかの人の手牌も表向きで並べる */}
                 {replay && seat !== me && (
@@ -596,6 +606,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
             {squareRiver(seatAt(rel))}
           </div>
         ))}
+        {/* 花牌（中国式）：捨て牌と手牌の間の帯に小さく（見本 mock	able-layout.html の flowers-strip） */}
+        {[0, 1, 2, 3].map((rel) => flowersOf(seatAt(rel), `seat-flowers rel-${rel}`))}
         {[1, 2, 3].map((rel) => (
           <div key={rel} className={`seat-hand rel-${rel}`} style={cq(handWidths[rel])}>
             {dealing(view.hands[seatAt(rel)]).map((id, i) => (

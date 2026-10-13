@@ -333,7 +333,8 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     if (full.phase === 'gameover') {
       const rows = finalResult(full);
       if (rows.length !== 4 || new Set(rows.map((r) => r.seat)).size !== 4) bad.push('終局の順位表に 4 人いない');
-      if (rows.some((r) => r.total !== full.scores[r.seat])) bad.push('終局の点が持ち点と違う');
+      if (full.rules.values.rank !== 'mcr' && rows.some((r) => r.total !== full.scores[r.seat])) bad.push('終局の点が持ち点と違う');
+      if (full.rules.values.rank === 'mcr' && rows.reduce((a, r) => a + r.total, 0) !== 7) bad.push('標準分の合計が 7 でない');
     }
   } else if (full.roundIndex > 11) bad.push(`局の番号が延長の最後を超えた（${full.roundIndex}）`);
   // 親は起家から局の番号ぶん下家へ進んだ人（親決めの前の牌譜は起家＝席 0）。中国式は親が飛ぶ（最初にアガった人・同時アガリの放銃者）ので見ない

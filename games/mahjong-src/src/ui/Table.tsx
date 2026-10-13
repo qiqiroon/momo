@@ -12,7 +12,7 @@ import { nextStep } from '../engine/game';
 import type { Action } from '../engine/round';
 import type { ScoreResult } from '../engine/score';
 import type { CnScore } from '../engine/sichuan';
-import { liveWallLeft, PIG_PENALTY, queOn, suitOfKind, type GameState, type OpenMeld } from '../engine/state';
+import { liveWallLeft, PIG_PENALTY, queOn, startPoints, suitOfKind, type GameState, type OpenMeld } from '../engine/state';
 import { isRed, kindOf, type TileId } from '../engine/tiles';
 import { relFrom, useSeat } from './seatContext';
 import { translate, type Lang, type MessageKey } from '../i18n/strings';
@@ -192,6 +192,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
     }
   }, [view.phase]);
   const showFinal = view.phase === 'gameover' && finalShown;
+  /** 国標の標準分（ルールの rank が mcr）を終局の表に出す */
+  const cnStandard = view.rules?.family === 'cn' && view.rules.values.rank === 'mcr';
   const result = (view.phase === 'ended' || view.phase === 'gameover') && r && (
     <DraggableDialog className="result">
       {/* 中身だけを送る（長いときに下のボタンまで一緒に送られて切れて見えていた＝10-12 見回り） */}
@@ -208,6 +210,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
                   <th />
                   <th />
                   <th>{t('finalPoints')}</th>
+                  {cnStandard && <th>{t('finalStandard')}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -215,7 +218,9 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
                   <tr key={row.seat} className={`final-rank-${row.rank}`}>
                     <td>{t('finalRank', { n: row.rank })}</td>
                     <th>{nameOf(row.seat)}</th>
-                    <td className="final-total">{signed(row.points)}</td>
+                    {/* 0 点から始めるルールは増減（＋−）、持ち点のあるルール（国標 500）はそのまま */}
+                    <td className={cnStandard ? undefined : 'final-total'}>{startPoints(view.rules) === 0 ? signed(row.points) : row.points.toLocaleString('en-US')}</td>
+                    {cnStandard && <td className="final-total">{row.total}</td>}
                   </tr>
                 ))}
               </tbody>

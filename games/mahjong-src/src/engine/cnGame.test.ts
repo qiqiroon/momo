@@ -148,3 +148,19 @@ describe('局の名前（利用者 Q5=A）', () => {
     expect(s.repeat).toBe(0);
   });
 });
+
+describe('国標の順位（標準分）', () => {
+  const MCRR = rulesOfCnSet('mcr');
+  const over = (scores: number[], rules: Rules = MCRR): GameState => ({ ...ended(cnWin(), { rules }), phase: 'gameover', gameOver: 'last', scores, chicha: 0 });
+  it('持ち点 500 から。順位は点の多い順で、標準分は 4・2・1・0', () => {
+    expect(apply(initialState(), { seq: 0, to: 'all', ev: { type: 'gameStart', rules: MCRR } }).scores).toEqual([500, 500, 500, 500]);
+    expect(finalResult(over([480, 560, 500, 460])).map((r) => [r.seat, r.rank, r.total])).toEqual([[1, 1, 4], [2, 2, 2], [0, 3, 1], [3, 4, 0]]);
+  });
+  it('同点は起家に近い人が上（国標の決め方は 1 対局では決まらない）', () => {
+    expect(finalResult(over([500, 500, 520, 480])).map((r) => [r.seat, r.total])).toEqual([[2, 4], [0, 2], [1, 1], [3, 0]]);
+  });
+  it('同点を同じ順位にするルールなら、標準分を分け合う（2 位と 3 位なら 1.5 ずつ）', () => {
+    const r: Rules = MCRR.family === 'cn' ? { family: 'cn', values: { ...MCRR.values, tieCn: 'same' } } : MCRR;
+    expect(finalResult(over([500, 500, 520, 480], r)).map((x) => [x.seat, x.rank, x.total])).toEqual([[2, 1, 4], [0, 2, 1.5], [1, 2, 1.5], [3, 4, 0]]);
+  });
+});

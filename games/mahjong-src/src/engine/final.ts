@@ -69,16 +69,25 @@ function splitTenths(total: number, n: number): number[] {
  * 中国式の終局（段階9 手順6）：持ち点の多い順。素点・ウマ・オカは無い＝total は持ち点そのもの（千点で割らない）。
  * 同点はルールの tieCn：same＝同じ順位／mcrSeat・seat＝起家に近い人が上
  * （国標の決め方は標準分が同じとき比賽分＝持ち点で比べる。「点の多い順」では持ち点が同じなので、起家に近い人で決まる）。
- * 順位の付け方 rank の「国標の標準分」は国標の段で作る（それまでは点の多い順）
+ * 順位の付け方 rank が「国標の標準分」なら total は標準分（1 位 4・2 位 2・3 位 1・4 位 0）。並びは点の多い順のまま
+ * （国標の同点の決め方は大会全体の成績で比べる＝1 対局では決まらないので、起家に近い人が上）
  */
+export const MCR_STANDARD = [4, 2, 1, 0];
 function cnFinalResult(s: GameState): FinalRow[] {
   if (!s.rules || s.rules.family !== 'cn') throw new Error('中国式の終局');
   const fromChicha = (x: Seat) => (x - s.chicha + 4) % 4;
   const order = ([0, 1, 2, 3] as Seat[]).sort((a, b) => s.scores[b] - s.scores[a] || fromChicha(a) - fromChicha(b));
   const same = s.rules.values.tieCn === 'same';
+  const standard = s.rules.values.rank === 'mcr';
   return order.map((seat, i) => {
     const firstEqual = same ? order.findIndex((x) => s.scores[x] === s.scores[seat]) : i;
-    return { seat, rank: firstEqual + 1, points: s.scores[seat], kyotaku: 0, base: 0, uma: 0, oka: 0, total: s.scores[seat] };
+    // 国標の標準分（1 位 4・2 位 2・3 位 1・4 位 0＝EMA 3.9.2）。同じ順位を分け合うなら、その順位から人数分の標準分の平均
+    let total = s.scores[seat];
+    if (standard) {
+      const n = same ? order.filter((x) => s.scores[x] === s.scores[seat]).length : 1;
+      total = MCR_STANDARD.slice(firstEqual, firstEqual + n).reduce((a, b) => a + b, 0) / n;
+    }
+    return { seat, rank: firstEqual + 1, points: s.scores[seat], kyotaku: 0, base: 0, uma: 0, oka: 0, total };
   });
 }
 

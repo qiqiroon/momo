@@ -1,4 +1,4 @@
-// 局の進め方（日本式・段階4の 2）。局が終わった局面から、次に何が起きるかを決める。
+// 局の進め方（日本式・段階4の 2／中国式・段階9 手順6）。局が終わった局面から、次に何が起きるかを決める。
 // 全員に見えること（結果・持ち点・局の番号・本場・ルール）だけで決まる＝どの端末でも同じ答えになる。
 //
 // 局の番号 roundIndex：0〜3＝東 1〜4 局、4〜7＝南、8〜11＝西。親は起家（親決めで決まった人。親決めの前の牌譜は席 0）から順に (起家＋roundIndex) % 4。
@@ -28,16 +28,65 @@ export type NextStep =
   | { type: 'yame'; seat: Seat };
 
 const jp = (s: GameState) => (s.rules?.family === 'jp' ? s.rules.values : null);
+const cn = (s: GameState) => (s.rules?.family === 'cn' ? s.rules.values : null);
+
+// ---- 中国式（段階9 手順6・MIL §6） ----
+// 局の番号 roundIndex の数え方は親の決め方で違う：
+// - 最初にアガった人が次の親（firstWin・四川）：親が順に回らない＝局の数で数える（1 圏＝4 局。利用者 Q1=A 2026-10-13）
+// - 連荘なし（rotate・国標）／親がアガれば連荘（renchan・香港）：親が替わるたびに 1 つ進める（1 圏＝4 人が 1 回ずつ親）
+// 長さはルールの length（圏の数）。本場は使わない。
+
+/** 中国式の対局の局の番号の数（圏の数×4）。この数に届いたら終わり */
+export function cnRoundsTotal(s: GameState): number {
+  return Number(cn(s)?.length ?? 4) * 4;
+}
+
+/**
+ * 中国式の次の親。
+ * - rotate：いつも下家へ
+ * - 誰もアガらない：firstWin は親のまま（MIL §6）・renchan は下家へ（香港は流局で回る）
+ * - 最初のアガリが同時に 2 人以上（同じ捨て牌のロン）：ルールの multiDealer＝dealIn なら放銃者、dealerWin なら親が入っていれば親のまま
+ *   （入っていなければ firstWin は放銃者・renchan は下家）
+ * - それ以外：firstWin は最初にアガった人、renchan は親がアガっていれば親のまま
+ */
+export function cnNextDealer(s: GameState): Seat {
+  const v = cn(s);
+  const r = s.result;
+  if (!v || !r) throw new Error('中国式の局が終わっていない');
+  const next = ((s.dealer + 1) % 4) as Seat;
+  if (v.dealer === 'rotate') return next;
+  const wins = r.type === 'cnWin' ? r.wins : [];
+  if (!wins.length) return v.dealer === 'firstWin' ? s.dealer : next;
+  // 最初のアガリ（同じ捨て牌で同時にアガった人はアガリ牌の背番号が同じ）
+  const head = wins[0];
+  const first = head.from === null ? [head] : wins.filter((w) => w.from === head.from && w.winTile === head.winTile);
+  if (first.length > 1) {
+    if (v.multiDealer === 'dealerWin' && first.some((w) => w.seat === s.dealer)) return s.dealer;
+    if (v.multiDealer !== 'dealerWin' || v.dealer === 'firstWin') return head.from!;
+    return next;
+  }
+  if (v.dealer === 'firstWin') return head.seat;
+  return wins.some((w) => w.seat === s.dealer) ? s.dealer : next;
+}
+
+/** 中国式の局が終わったあとに起きること（飛び→終わり・予定の局を打ち終えた→終わり・それ以外→次の局） */
+function cnNextStep(s: GameState): NextStep {
+  const v = cn(s)!;
+  if (v.tobi === 'on' && s.scores.some((p) => p < 0)) return { type: 'end', reason: 'tobi' };
+  const dealer = cnNextDealer(s);
+  const roundIndex = v.dealer === 'firstWin' || dealer !== s.dealer ? s.roundIndex + 1 : s.roundIndex;
+  if (roundIndex >= cnRoundsTotal(s)) return { type: 'end', reason: 'last' };
+  return { type: 'round', roundIndex, dealer, honba: 0 };
+}
 
 /** 親が続くか（連荘）。アガリ：親がアガった人に入っている。流局：ルールの renchan（テンパイなら／アガったときだけ）。途中流局：abortRenchan */
 export function dealerStays(s: GameState): boolean {
   const r = s.result;
   const v = jp(s);
   if (!r) throw new Error('局が終わっていない');
+  if (s.rules?.family === 'cn') return cnNextDealer(s) === s.dealer;
   if (r.type === 'tsumo') return r.seat === s.dealer;
   if (r.type === 'ron') return r.wins.some((w) => w.seat === s.dealer);
-  // 中国式の親の決め方（ルールの dealer）は段階9の手順6。それまでは親がアガれば続ける
-  if (r.type === 'cnWin') return r.wins.some((w) => w.seat === s.dealer);
   if (r.type === 'exhaust') return v?.renchan !== 'agari' && r.tenpai[s.dealer];
   // 途中流局・3 人同時ロンの流局
   return v?.abortRenchan !== 'pass';
@@ -46,7 +95,7 @@ export function dealerStays(s: GameState): boolean {
 /** 次の局の本場：親が続く・流局（途中流局も）なら 1 増える。子がアガったら 0。本場「なし」のルールならいつも 0 */
 export function nextHonba(s: GameState): number {
   const v = jp(s);
-  if (v?.honba === 'off') return 0;
+  if (!v || v.honba === 'off') return 0;
   const r = s.result!;
   const won = r.type === 'tsumo' || r.type === 'ron';
   return dealerStays(s) || !won ? s.honba + 1 : 0;
@@ -82,6 +131,7 @@ const someoneReturned = (s: GameState) => s.scores.some((p) => p >= RETURN_POINT
  */
 export function nextStep(s: GameState): NextStep {
   if (s.phase !== 'ended' || !s.result) throw new Error('局が終わっていない');
+  if (s.rules?.family === 'cn') return cnNextStep(s);
   const v = jp(s);
   if (someoneBusted(s)) return { type: 'end', reason: 'tobi' };
   const stays = dealerStays(s);

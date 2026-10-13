@@ -17,6 +17,7 @@ import { isRed, kindOf, type TileId } from '../engine/tiles';
 import { relFrom, useSeat } from './seatContext';
 import { translate, type Lang, type MessageKey } from '../i18n/strings';
 import { DraggableDialog } from './DraggableDialog';
+import { lengthName, roundName } from './roundName';
 import { Tile } from './Tile';
 import { HAND_ROW, handRowUnits, handTileWidth, riverRows, riverTileWidth } from './squareLayout';
 import type { Rules } from '../engine/rules';
@@ -74,17 +75,17 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   const relOf = (seat: number): number => relFrom(me, seat);
   const seatAt = (rel: number): Seat => ((rel + me) % 4) as Seat;
   const nameOf = (seat: number) => (seat === me ? t('you') : (names?.[seat] ?? t('cpu', { n: relOf(seat) })));
-  const roundLabel = t('round', { wind: t(`roundWind${Math.floor(Math.max(0, view.roundIndex) / 4) % 3}` as MessageKey), n: (Math.max(0, view.roundIndex) % 4) + 1 });
+  const roundLabel = roundName(view, t);
   const left = Math.max(0, liveWallLeft(view));
-  /** 半荘戦か東風戦か（対局の長さ。利用者指示 10-09：どちらか分かる表示） */
-  const len = view.rules?.family === 'jp' ? view.rules.values.length : undefined;
-  const lengthLabel = len === 'half' ? t('lengthHalf') : len === 'east' ? t('lengthEast') : null;
+  /** 半荘戦か東風戦か（対局の長さ。利用者指示 10-09：どちらか分かる表示）。中国式は 4圏・1圏 */
+  const lengthLabel = lengthName(view, t);
   /** 持ち点（3 桁区切り） */
   const pointsOf = (seat: number) => <span className="points">{view.scores[seat].toLocaleString('en-US')}</span>;
   const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '±0');
   /** 最終得点の表示（千点＝1。小数は 1 桁まで） */
   const fmt = (n: number) => signed(Math.round(n * 10) / 10);
-  const sticks = <span className="sticks">{t('honbaKyotaku', { h: view.honba, k: view.kyotaku })}</span>;
+  // 本場・供託は日本式だけ（中国式に無い）
+  const sticks = view.rules?.family === 'cn' ? null : <span className="sticks">{t('honbaKyotaku', { h: view.honba, k: view.kyotaku })}</span>;
   const playing = view.phase !== 'ended';
   // 直前に切った人（その河の最後の牌に印を付ける）
   const lastDiscarder = view.phase === 'draw' ? (view.turn + 3) % 4 : view.phase === 'claim' && view.claim ? view.claim.from : -1;
@@ -199,7 +200,29 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         <>
           <p className="result-title game-over-title">{t('gameOverTitle')}</p>
           <p className="game-over-reason">{t(`gameEnd_${view.gameOver}` as MessageKey)}</p>
-          {/* 順位と最終得点（素点・ウマ・オカの内訳） */}
+{/* 中国式：順位と持ち点だけ（素点・ウマ・オカは無い） */}
+          {view.rules?.family === 'cn' ? (
+            <table className="final-list">
+              <thead>
+                <tr>
+                  <th />
+                  <th />
+                  <th>{t('finalPoints')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {finalResult(view).map((row) => (
+                  <tr key={row.seat} className={`final-rank-${row.rank}`}>
+                    <td>{t('finalRank', { n: row.rank })}</td>
+                    <th>{nameOf(row.seat)}</th>
+                    <td className="final-total">{signed(row.points)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+          <>
+                    {/* 順位と最終得点（素点・ウマ・オカの内訳） */}
           <table className="final-list">
             <thead>
               <tr>
@@ -226,6 +249,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
               ))}
             </tbody>
           </table>
+          </>
+          )}
           {compare && <SameCompare t={t} me={finalResult(view).find((row) => row.seat === 0)} sender={compare} fmt={fmt} />}
           <p className="hint no-money">{t('noMoney')}</p>
         </>

@@ -134,7 +134,7 @@ export function buildKifu(src: KifuSource, appVersion: string, now: Date = new D
     rules: { family: rules.family, set: src.set, custom: src.set === 'custom', values: { ...rules.values } },
     ...(src.cpu ? { cpu: src.cpu } : {}),
     seed: src.seed,
-    result: over && endEv?.ev.type === 'gameEnd' && rules.family === 'jp' ? { endReason: endEv.ev.reason, rows: finalResult(last) } : null,
+    result: over && endEv?.ev.type === 'gameEnd' ? { endReason: endEv.ev.reason, rows: finalResult(last) } : null,
     hands,
     events: src.events.slice(),
   };

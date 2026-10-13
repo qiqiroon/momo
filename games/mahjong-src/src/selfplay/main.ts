@@ -34,7 +34,7 @@ for (const f of r.failures.slice(0, 5)) {
 }
 if (r.failures.length) process.exitCode = 1;
 
-// 四川（段階9）：いまは 1 局ずつ（アガリは手順2・カンは手順4・流局は手順5・局の進め方は手順6）
+// 四川（段階9）：1 局ずつ（対局を終わりまで打つのは最後の「四川の完走」）
 const c0 = Date.now();
 const sc = runSelfplay(games, `${prefix}-sichuan`, rulesOfCnSet('sichuan'));
 const q = sc.paths.que;
@@ -68,3 +68,16 @@ for (const f of g.failures.slice(0, 5)) {
   for (const reason of f.reasons) console.log(`    ${reason}`);
 }
 if (g.games === 0 || g.failures.length) process.exitCode = 1;
+
+// 四川の完走（段階9 手順6）：4 圏＝16 局で終わる・親は最初にアガった人（誰もアガらなければ親のまま）・本場なし
+const sg0 = Date.now();
+const sg = runGames(gameCount, `${prefix}-sichuan-game`, rulesOfCnSet('sichuan'));
+console.log(`
+四川の完走：${sg.games} 対局・${sg.hands} 局（最多 ${sg.maxHands} 局）・見張った出来事 ${sg.events}・失敗 ${sg.failures.length}（${Date.now() - sg0} ms）`);
+console.log(`終わり方：${Object.entries(sg.ends).map(([k, n]) => `${k} ${n}`).join('・')}`);
+console.log(`親：続いた ${sg.paths.renchan}・下家へ ${sg.paths.rotated}・下家以外へ飛んだ ${sg.paths.jumped}・本場の最大 ${sg.paths.maxHonba}`);
+for (const f of sg.failures.slice(0, 5)) {
+  console.log(`  失敗：種 ${f.seed}・通し番号 ${f.seq}`);
+  for (const reason of f.reasons) console.log(`    ${reason}`);
+}
+if (sg.games === 0 || sg.failures.length || sg.hands !== sg.games * 16 || sg.paths.maxHonba !== 0) process.exitCode = 1;

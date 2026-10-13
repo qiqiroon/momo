@@ -13,6 +13,7 @@ import { isWinningHand, kindCounts, waitKinds } from './agari';
 import { sichuanScore } from './sichuan';
 import { doraIndicatorAt, uraIndicatorAt } from './dora';
 import { finalResult } from './final';
+import { cnRoundsTotal } from './game';
 import { apply, cnDrawStateOf, initialState, isKanMeld, MAX_KANS, meldSize, PIG_PENALTY, queOn, RIICHI_STICK, startPoints, type GameState } from './state';
 import { kindOf, tileSetFor } from './tiles';
 
@@ -268,9 +269,18 @@ export function checkState(full: GameState, views: readonly GameState[]): string
     const sum = Math.round(rows.reduce((a, r) => a + r.total, 0) * 10) / 10;
     if (v.kaeshi !== 'none' && (v.kyotaku === 'top' || full.kyotaku === 0) && sum !== 0) bad.push(`最終得点の合計が 0 でない（${sum}）`);
   }
-  if (full.roundIndex > 11) bad.push(`局の番号が延長の最後を超えた（${full.roundIndex}）`);
-  // 親は起家から局の番号ぶん下家へ進んだ人（親決めの前の牌譜は起家＝席 0）
-  if (full.roundIndex >= 0 && full.dealer !== (full.chicha + full.roundIndex) % 4) bad.push(`親が局の番号と合わない（局 ${full.roundIndex}・起家 ${full.chicha}・親 ${full.dealer}）`);
+  // 中国式：局の番号は予定の数（圏×4）より小さい・終局の順位表に 4 人・持ち点と最終の点が同じ
+  if (full.rules.family === 'cn') {
+    if (full.roundIndex >= cnRoundsTotal(full)) bad.push(`局の番号が予定の数を超えた（${full.roundIndex}）`);
+    if (full.honba !== 0) bad.push('中国式なのに本場がある');
+    if (full.phase === 'gameover') {
+      const rows = finalResult(full);
+      if (rows.length !== 4 || new Set(rows.map((r) => r.seat)).size !== 4) bad.push('終局の順位表に 4 人いない');
+      if (rows.some((r) => r.total !== full.scores[r.seat])) bad.push('終局の点が持ち点と違う');
+    }
+  } else if (full.roundIndex > 11) bad.push(`局の番号が延長の最後を超えた（${full.roundIndex}）`);
+  // 親は起家から局の番号ぶん下家へ進んだ人（親決めの前の牌譜は起家＝席 0）。中国式は親が飛ぶ（最初にアガった人・同時アガリの放銃者）ので見ない
+  if (full.rules.family === 'jp' && full.roundIndex >= 0 && full.dealer !== (full.chicha + full.roundIndex) % 4) bad.push(`親が局の番号と合わない（局 ${full.roundIndex}・起家 ${full.chicha}・親 ${full.dealer}）`);
   // リーチ棒を出したのはリーチした人だけ
   full.riichiStick.forEach((st, seat) => {
     if (st && full.riichi[seat] === 'none') bad.push(`席 ${seat}：リーチしていないのにリーチ棒を出した`);

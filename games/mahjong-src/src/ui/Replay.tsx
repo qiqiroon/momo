@@ -7,6 +7,7 @@ import type { Envelope } from '../engine/events';
 import { apply, initialState, type GameState } from '../engine/state';
 import { translate, type Lang, type MessageKey } from '../i18n/strings';
 import { Table } from './Table';
+import { roundName } from './roundName';
 import { LinkCopy } from './LinkCopy';
 
 /** 自動再生の速さ（将棋の感想戦と同じ並び・押すたびに次へ） */
@@ -97,11 +98,10 @@ export function Replay({ events, narrow, lang, onExit, makeSameLink }: Props) {
   // つまみと手の数は局の中だけ（局の頭〜次の局の頭の 1 つ前。最後の局は対局の終わりまで）。自動再生は局をまたいで続ける
   const handFrom = handStarts[curHand] ?? 0;
   const handTo = curHand + 1 < handStarts.length ? handStarts[curHand + 1] - 1 : last;
-  /** 局の名前（東1局・2本場なら「東1局・2本場」） */
+  /** 局の名前（東1局・2本場なら「東1局・2本場」。中国式は「第2圏 3局」） */
   const handName = (k: number) => {
     const v = states[handStarts[k]];
-    const ri = Math.max(0, v.roundIndex);
-    const name = t('round', { wind: t(`roundWind${Math.floor(ri / 4) % 3}` as MessageKey), n: (ri % 4) + 1 });
+    const name = roundName(v, t);
     return v.honba > 0 ? t('replayHonba', { round: name, h: v.honba }) : name;
   };
   const view = states[at];

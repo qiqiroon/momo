@@ -1,4 +1,4 @@
-// 終局（日本式・段階4の 3）。対局が終わった局面から、順位と最終得点を出す。
+// 終局（日本式・段階4の 3／中国式・段階9 手順6）。対局が終わった局面から、順位と最終得点を出す。
 // 全員に見えること（持ち点・卓に残った供託・ルール）だけで決まる＝どの端末でも同じ答えになる。
 //
 // 手順（ルール設定 v0.03 §4 下「終局の細目」）：
@@ -65,7 +65,25 @@ function splitTenths(total: number, n: number): number[] {
   return Array.from({ length: n }, (_, i) => (each + (i < rest ? 1 : 0)) / 10);
 }
 
+/**
+ * 中国式の終局（段階9 手順6）：持ち点の多い順。素点・ウマ・オカは無い＝total は持ち点そのもの（千点で割らない）。
+ * 同点はルールの tieCn：same＝同じ順位／mcrSeat・seat＝起家に近い人が上
+ * （国標の決め方は標準分が同じとき比賽分＝持ち点で比べる。「点の多い順」では持ち点が同じなので、起家に近い人で決まる）。
+ * 順位の付け方 rank の「国標の標準分」は国標の段で作る（それまでは点の多い順）
+ */
+function cnFinalResult(s: GameState): FinalRow[] {
+  if (!s.rules || s.rules.family !== 'cn') throw new Error('中国式の終局');
+  const fromChicha = (x: Seat) => (x - s.chicha + 4) % 4;
+  const order = ([0, 1, 2, 3] as Seat[]).sort((a, b) => s.scores[b] - s.scores[a] || fromChicha(a) - fromChicha(b));
+  const same = s.rules.values.tieCn === 'same';
+  return order.map((seat, i) => {
+    const firstEqual = same ? order.findIndex((x) => s.scores[x] === s.scores[seat]) : i;
+    return { seat, rank: firstEqual + 1, points: s.scores[seat], kyotaku: 0, base: 0, uma: 0, oka: 0, total: s.scores[seat] };
+  });
+}
+
 export function finalResult(s: GameState): FinalRow[] {
+  if (s.rules?.family === 'cn') return cnFinalResult(s);
   if (!s.rules || s.rules.family !== 'jp') throw new Error('日本式の終局');
   const v = s.rules.values;
   const kaeshi = v.kaeshi === 'none' ? null : RETURN_POINTS;

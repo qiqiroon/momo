@@ -247,15 +247,16 @@ export interface GameRunResult {
   events: number;
   /** 対局の終わり方（last＝予定どおり・tobi・yame・extension＝延長の終わり・unfinished） */
   ends: Record<string, number>;
-  /** 通った道：延長に入った対局・連荘した局・親が流れた局・アガリやめ/テンパイやめを選ぶ番になった回数・本場の最大 */
-  paths: { extension: number; renchan: number; rotated: number; yameAsked: number; maxHonba: number; tobiSeats: number };
+  /** 通った道：延長に入った対局・連荘した局・親が流れた局・親が下家以外へ飛んだ局（中国式の最初にアガった人）・アガリやめ/テンパイやめを選ぶ番になった回数・本場の最大 */
+  paths: { extension: number; renchan: number; rotated: number; jumped: number; yameAsked: number; maxHonba: number; tobiSeats: number };
   failures: { seed: string; seq: number; reasons: string[] }[];
 }
 
 /** 対局（半荘など）を終わりまで回す。打ち手は種の番号で交互に替える */
 export function runGames(games: number, seedPrefix = 'game', rules: Rules = GENERAL_RULES): GameRunResult {
-  const out: GameRunResult = { games: 0, hands: 0, maxHands: 0, events: 0, ends: {}, paths: { extension: 0, renchan: 0, rotated: 0, yameAsked: 0, maxHonba: 0, tobiSeats: 0 }, failures: [] };
-  const lastRound = rules.family === 'jp' && rules.values.length === 'east' ? 3 : 7;
+  const out: GameRunResult = { games: 0, hands: 0, maxHands: 0, events: 0, ends: {}, paths: { extension: 0, renchan: 0, rotated: 0, jumped: 0, yameAsked: 0, maxHonba: 0, tobiSeats: 0 }, failures: [] };
+  // 延長の印：日本式は予定の最後の局（東 4／南 4）を超えたら。中国式に延長は無い
+  const lastRound = rules.family === 'cn' ? Infinity : rules.values.length === 'east' ? 3 : 7;
   for (let i = 0; i < games; i++) {
     const r = playOne(`${seedPrefix}-${i}`, rules, i % 2 === 0 ? tsumogiriCpu : benchCpu, true);
     out.games++;
@@ -272,7 +273,8 @@ export function runGames(games: number, seedPrefix = 'game', rules: Rules = GENE
       const b = starts[j].ev;
       if (a.type !== 'roundStart' || b.type !== 'roundStart') continue;
       if (a.dealer === b.dealer) out.paths.renchan++;
-      else out.paths.rotated++;
+      else if (b.dealer === (a.dealer + 1) % 4) out.paths.rotated++;
+      else out.paths.jumped++;
       out.paths.maxHonba = Math.max(out.paths.maxHonba, b.honba ?? 0);
     }
     if (r.log.some((e) => e.ev.type === 'yame')) out.paths.yameAsked++;

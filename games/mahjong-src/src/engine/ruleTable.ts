@@ -143,7 +143,7 @@ export const CN_ITEMS: readonly RuleItem[] = [
   {"k":"handCap","name":"局数の上限","opts":[["none","なし"],["24","24局"]],"v":[null,null,"24"],"note":"香港は「4圏または24局」（連荘が続いても24局で終わる）。四川・国標は条文なし（どちらも16局ちょうどで終わる）"},
   {"k":"start","name":"持ち点","opts":[["0","0点から"],["500","500点"]],"v":[null,"500",null]},
   {"k":"rank","name":"順位の付け方","opts":[["points","点の多い順"],["mcr","国標の標準分"]],"v":[null,"mcr",null]},
-  {"k":"tieCn","name":"同点のときの順位","opts":[["mcrSeat","国標の決め方→決まらなければ起家に近い人"],["seat","起家に近い人が上"],["same","同じ順位"]],"v":[null,"mcrSeat",null]},
+  {"k":"tieCn","name":"同点のときの順位","opts":[["seat","起家に近い人が上"],["same","同じ順位（標準分は分け合う）"]],"v":[null,"same",null],"note":"国標は 1 対局の同点の条文が無く、大会の規程（騰訊 TMT 2016「比赛分相同，则均分标准分」）に合わせた。原典の比べ方（比賽分の合計など）は大会全体の順位のためのもの"},
   {"k":"dealer","name":"親の決め方","opts":[["firstWin","最初にアガった人が次の親"],["rotate","連荘なし（順に回る）"],["renchan","親がアガれば連荘"]],"v":["firstWin","rotate","renchan"]},
   {"k":"tobi","name":"飛び（0点未満で終了）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off"]},
   {"k":"tochu","name":"途中流局（九種九牌など）","opts":[["on","あり"],["off","なし"]],"v":["off","off","off"]},
@@ -181,9 +181,9 @@ export const CN_ITEMS: readonly RuleItem[] = [
   {"k":"baopai","name":"責任払い（十二章包・大三元包）","opts":[["on","あり"],["off","なし"]],"v":["off","off","on"],"dep":["pay","hk"]},
 ];
 export const SUPP_CN: Record<string, Record<string, string>> = {
-  "sichuan": {"length":"4","start":"0","rank":"points","tieCn":"mcrSeat","chajiaoPts":"ron","kuikae":"ok","handCap":"none"},
+  "sichuan": {"length":"4","start":"0","rank":"points","tieCn":"seat","chajiaoPts":"ron","kuikae":"ok","handCap":"none"},
   "mcr": {"kuikae":"ok","handCap":"none"},
-  "hk": {"start":"0","rank":"points","tieCn":"mcrSeat","multiDealer":"dealIn"},
+  "hk": {"start":"0","rank":"points","tieCn":"seat","multiDealer":"dealIn"},
 };
 export const CN_FIXED = "<b>中国式に無いもの</b>：赤5・リーチ・ドラ（日本式だけの仕組み）／誤ったアガリ・反則の罰（ゲームが受け付けないので起きない）";
 /** 中国式で同時に成り立ってはいけない組み合わせ（条件 [項目, 値, ('not')] が全部そろうと矛盾）。選択肢は、押すとどれかがそろうなら押せない */

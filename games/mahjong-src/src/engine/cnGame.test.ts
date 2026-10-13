@@ -156,11 +156,11 @@ describe('国標の順位（標準分）', () => {
     expect(apply(initialState(), { seq: 0, to: 'all', ev: { type: 'gameStart', rules: MCRR } }).scores).toEqual([500, 500, 500, 500]);
     expect(finalResult(over([480, 560, 500, 460])).map((r) => [r.seat, r.rank, r.total])).toEqual([[1, 1, 4], [2, 2, 2], [0, 3, 1], [3, 4, 0]]);
   });
-  it('同点は起家に近い人が上（国標の決め方は 1 対局では決まらない）', () => {
-    expect(finalResult(over([500, 500, 520, 480])).map((r) => [r.seat, r.total])).toEqual([[2, 4], [0, 2], [1, 1], [3, 0]]);
+  it('国標のセットは、同点を同じ順位にして標準分を分け合う（2 位と 3 位なら 1.5 ずつ＝騰訊 TMT 2016 の規程・Q5=A）', () => {
+    expect(finalResult(over([500, 500, 520, 480])).map((x) => [x.seat, x.rank, x.total])).toEqual([[2, 1, 4], [0, 2, 1.5], [1, 2, 1.5], [3, 4, 0]]);
   });
-  it('同点を同じ順位にするルールなら、標準分を分け合う（2 位と 3 位なら 1.5 ずつ）', () => {
-    const r: Rules = MCRR.family === 'cn' ? { family: 'cn', values: { ...MCRR.values, tieCn: 'same' } } : MCRR;
-    expect(finalResult(over([500, 500, 520, 480], r)).map((x) => [x.seat, x.rank, x.total])).toEqual([[2, 1, 4], [0, 2, 1.5], [1, 2, 1.5], [3, 4, 0]]);
+  it('同点を起家に近い人が上にするルールなら、標準分は順位どおり', () => {
+    const r: Rules = MCRR.family === 'cn' ? { family: 'cn', values: { ...MCRR.values, tieCn: 'seat' } } : MCRR;
+    expect(finalResult(over([500, 500, 520, 480], r)).map((x) => [x.seat, x.total])).toEqual([[2, 4], [0, 2], [1, 1], [3, 0]]);
   });
 });

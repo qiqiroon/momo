@@ -4,6 +4,8 @@ import { finalResult } from './final';
 import { cnRoundsTotal, nextStep } from './game';
 import { rulesOfCnSet } from './ruleSets';
 import type { Rules } from './rules';
+import { translate } from '../i18n/strings';
+import { roundName } from '../ui/roundName';
 import type { CnScore } from './sichuan';
 import { apply, initialState, type CnWin, type GameState, type RoundResult } from './state';
 
@@ -129,5 +131,20 @@ describe('局数の上限（香港＝24 局・利用者 Q4=A）', () => {
   });
   it('上限「なし」（四川）なら局の数では終わらない', () => {
     expect(nextStep({ ...ended(cnWin(tsumo(1)), { roundIndex: 9 }), handCount: 30 }).type).toBe('round');
+  });
+});
+
+describe('局の名前（利用者 Q5=A）', () => {
+  const t = (k: Parameters<typeof translate>[1], v?: Record<string, string | number>) => translate('ja', k, v);
+  it('親が回るルール（香港）は風の名前で、連荘には数を付ける。四川は「第n圏 m局」のまま', () => {
+    const HKR = rulesOfCnSet('hk');
+    expect(roundName({ ...ended(cnWin(), { rules: HKR, roundIndex: 5 }), repeat: 0 }, t)).toBe('南2局');
+    expect(roundName({ ...ended(cnWin(), { rules: HKR, roundIndex: 12 }), repeat: 2 }, t)).toBe('北1局・連荘2');
+    expect(roundName({ ...ended(cnWin(), { roundIndex: 5 }), repeat: 1 }, t)).toBe('第2圏 2局');
+  });
+  it('連荘の回数：同じ局の番号の局が続いたら 1 ずつ増え、変わったら 0', () => {
+    let s = apply(initialState(), { seq: 0, to: 'all', ev: { type: 'gameStart', rules: rulesOfCnSet('hk') } });
+    s = apply(s, { seq: s.nextSeq, to: 'all', ev: { type: 'roundStart', roundIndex: 0, dealer: 0 } });
+    expect(s.repeat).toBe(0);
   });
 });

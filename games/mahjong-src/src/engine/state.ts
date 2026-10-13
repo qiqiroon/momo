@@ -236,6 +236,8 @@ export interface GameState {
   yame: boolean | null;
   /** この対局で始めた局の数（山の種を局ごとに変えるため。連荘で局の番号が同じでも別の山になる） */
   handCount: number;
+  /** 同じ局の番号が続いた回数（連荘。中国式は本場が無いので、局の名前に「連荘 n」と出す） */
+  repeat: number;
   /** 続けてアガっている人と回数（八連荘。流局・途中流局をはさむと途切れる＝Q35＝A。局をまたぐ） */
   winStreak: { seat: Seat; n: number } | null;
   /** 対局が終わった理由（終わるまで null） */
@@ -395,6 +397,7 @@ export const initialState = (): GameState => ({
   winStreak: null,
   yame: null,
   handCount: 0,
+  repeat: 0,
   gameOver: null,
   result: null,
   queHeld: [null, null, null, null],
@@ -495,6 +498,7 @@ export function apply(state: GameState, env: Envelope): GameState {
         honba: ev.honba ?? 0,
         yame: null,
         handCount: s.handCount + 1,
+        repeat: s.roundIndex === ev.roundIndex ? s.repeat + 1 : 0,
         riichiStick: [false, false, false, false],
         pao: [null, null, null, null],
         settlement: null,

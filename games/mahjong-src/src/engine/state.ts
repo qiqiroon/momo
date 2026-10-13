@@ -252,6 +252,9 @@ export interface GameState {
   cnMissed: (number | null)[];
   /** 中国式の見逃し（ルールの miss が sameTile＝香港の「同巡內不能食跟張牌」）：ロンできたのに見送った牌の種類。次に自分が引くまで、同じ種類ではロンできない */
   cnMissedKinds: number[][];
+  /** 香港の跟張（ルールの baopai が「あり」のとき）：自分が引くまでに、鳴けたのに見送った牌と自分が切った牌の種類。
+   *  同じ種類を鳴いて包牌が生じるなら鳴けない（原典 鳴牌禁例 1・2） */
+  cnFollowKinds: number[][];
   /** 血戦到底：アガって抜けた席（局の終わりまで打たない・手牌は開けたまま） */
   cnOut: boolean[];
   /** 血戦到底：この局のアガリ（アガった順。点はアガったときに持ち点へ足してある） */
@@ -399,6 +402,7 @@ export const initialState = (): GameState => ({
   que: [null, null, null, null],
   cnMissed: [null, null, null, null],
   cnMissedKinds: [[], [], [], []],
+  cnFollowKinds: [[], [], [], []],
   cnOut: [false, false, false, false],
   cnWins: [],
   cnKans: [],
@@ -500,6 +504,7 @@ export function apply(state: GameState, env: Envelope): GameState {
         que: [null, null, null, null],
         cnMissed: [null, null, null, null],
         cnMissedKinds: [[], [], [], []],
+        cnFollowKinds: [[], [], [], []],
         cnOut: [false, false, false, false],
         cnWins: [],
         cnKans: [],
@@ -554,10 +559,12 @@ export function apply(state: GameState, env: Envelope): GameState {
       const cnMissed = s.cnMissed.slice();
       cnMissed[ev.seat] = null;
       const cnMissedKinds = s.cnMissedKinds.map((x, i) => (i === ev.seat ? [] : x));
+      const cnFollowKinds = s.cnFollowKinds.map((x, i) => (i === ev.seat ? [] : x));
       return {
         ...s,
         cnMissed,
         cnMissedKinds,
+        cnFollowKinds,
         // 缺一門のルールでは、親の 14 枚目で配り終えたところで 4 人が捨てる色を決める
         phase: s.phase === 'deal' && queOn(s.rules) ? 'que' : 'discard',
         hands,
@@ -624,7 +631,9 @@ export function apply(state: GameState, env: Envelope): GameState {
       const replies: Claim['replies'] = s.cnOut.map((o) => (o ? 'self' : null));
       replies[ev.seat] = 'self';
       const claim: Claim = { kind: 'discard', from: ev.seat, tile: ev.tile, replies, rons: [], calls: [], afterKan: s.rinshanDraw };
-      const after: GameState = { ...s, phase: 'claim', hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn, claim, rinshanDraw: false, kanChain: 0, kuikaeBan: [], que, queHeld, queHeldSuit };
+      // 香港の跟張：自分が切った牌の種類（自分が引くまで覚える）
+      const cnFollowKinds = s.rules?.family === 'cn' && s.rules.values.baopai === 'on' ? addFollow(s.cnFollowKinds, ev.seat, kindOf(ev.tile)) : s.cnFollowKinds;
+      const after: GameState = { ...s, phase: 'claim', hands, discards, drawn, riichi, riichiAt, ippatsu, missedTurn, claim, rinshanDraw: false, kanChain: 0, kuikaeBan: [], que, queHeld, queHeldSuit, cnFollowKinds };
       // 四家立直：ルールが「4 人目が宣言したとき」なら、宣言牌への返事を待たずに流局
       const v = s.rules?.family === 'jp' ? s.rules.values : null;
       if (ev.riichi && v?.suricchi === 'on' && v.suricchiWhen === 'declare' && riichi.every((r) => r !== 'none')) {
@@ -721,7 +730,8 @@ export function apply(state: GameState, env: Envelope): GameState {
       }
       const replies = c.replies.slice();
       replies[ev.seat] = 'pass';
-      return settleClaim({ ...s, missedTurn, missedRiichi, ...cnMissAfter(s, ev.seat), claim: { ...c, replies } });
+      const cnFollowKinds = couldCall(s, ev.seat) ? addFollow(s.cnFollowKinds, ev.seat, kindOf(c.tile)) : s.cnFollowKinds;
+      return settleClaim({ ...s, missedTurn, missedRiichi, ...cnMissAfter(s, ev.seat), cnFollowKinds, claim: { ...c, replies } });
     }
     case 'call': {
       const c = s.claim;
@@ -1266,7 +1276,7 @@ export function callProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan
   if (!hand.includes(HIDDEN) && !tiles.every((t) => hand.includes(t))) return '持っていない牌で鳴こうとした';
   const k = kindOf(c.tile);
   const ks = tiles.map(kindOf);
-  if (meld === 'kan') return ks.every((x) => x === k) ? null : 'カンは同じ牌 4 枚';
+  if (meld === 'kan') return ks.every((x) => x === k) ? followProblem(s, seat, meld, tiles) : 'カンは同じ牌 4 枚';
   if (meld === 'pon') {
     if (!ks.every((x) => x === k)) return 'ポンは同じ牌 3 枚';
   } else {
@@ -1281,7 +1291,35 @@ export function callProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan
     const rest = hand.filter((t) => !tiles.includes(t));
     if (rest.every((t) => ban.includes(kindOf(t)))) return '鳴いたあと切れる牌が無い（喰い替え禁止）';
   }
-  return null;
+  return followProblem(s, seat, meld, tiles);
+}
+
+/** 香港の鳴牌禁例：見送った牌・自分が切った牌と同じ種類（跟張）を、自分が引く前に鳴いて包牌が生じるなら鳴けない */
+function followProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan', tiles: readonly TileId[]): string | null {
+  const c = s.claim;
+  if (!c || s.rules?.family !== 'cn' || s.rules.values.baopai !== 'on' || !s.cnFollowKinds[seat].includes(kindOf(c.tile))) return null;
+  const after: OpenMeld[] = [...s.melds[seat], { type: meld === 'kan' ? 'minkan' : meld, tiles: [...tiles, c.tile], called: c.tile, from: c.from }];
+  return paoFromCall(s, after, c.from) ? '包牌が生じる跟張は鳴けない（鳴牌禁例）' : null;
+}
+
+/** 跟張の種類を足す（香港の包牌のルールだけ） */
+function addFollow(list: readonly number[][], seat: Seat, k: number): number[][] {
+  return list.map((x, i) => (i === seat && !x.includes(k) ? [...x, k] : x));
+}
+
+/** 切られた牌をポン・チーできたか（包牌の有無・跟張の縛りは見ない）。香港の包牌のルールで、手牌が見える局面だけ */
+function couldCall(s: GameState, seat: Seat): boolean {
+  const c = s.claim;
+  const cn = s.rules?.family === 'cn' ? s.rules.values : null;
+  if (!c || c.kind !== 'discard' || cn?.baopai !== 'on') return false;
+  const hand = s.hands[seat];
+  if (hand.includes(HIDDEN)) return false;
+  const k = kindOf(c.tile);
+  const n = (x: number) => hand.filter((t) => kindOf(t) === x).length;
+  if (n(k) >= 2) return true;
+  if (cn.chi !== 'on' || seat !== nextSeat(c.from) || k >= 27) return false;
+  const p = k % 9;
+  return (p >= 2 && n(k - 2) > 0 && n(k - 1) > 0) || (p >= 1 && p <= 7 && n(k - 1) > 0 && n(k + 1) > 0) || (p <= 6 && n(k + 1) > 0 && n(k + 2) > 0);
 }
 
 /**

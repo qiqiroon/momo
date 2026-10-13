@@ -410,3 +410,43 @@ describe('香港の細かい決まり（手順5）', () => {
     expect(t.phase).toBe('draw');
   });
 });
+
+describe('香港の鳴牌禁例（跟張で包牌が生じる鳴き）', () => {
+  const claimAt = (s: GameState, from: Seat, tile: TileId): GameState => ({
+    ...s,
+    phase: 'claim',
+    turn: from,
+    drawn: [null, null, null, null],
+    claim: { kind: 'discard', from, tile, replies: [0, 1, 2, 3].map((x) => (x === from ? 'self' : null)) as Claim['replies'], rons: [], calls: [] },
+  });
+  const pons = (st: GameState, seat: Seat) => legalActions(st, seat).filter((a) => a.type === 'pon');
+  // 席 1：白・發をポン済み、手に 中中・9m9m・1s2s3s。席 3 と親が 中・9m を切る
+  function base(): GameState {
+    const { s } = setup([H0, H1, H2, H3], '9s');
+    const dragonPon = (kind: number): OpenMeld => ({ type: 'pon', tiles: [kind * 4, kind * 4 + 1, kind * 4 + 2], called: kind * 4, from: 0 });
+    return {
+      ...s,
+      discards: s.discards.map(() => [999]),
+      hands: s.hands.map((h, i) => (i === 1 ? [135, 134, 35, 34, 72, 76, 80] : h)),
+      melds: [[], [dragonPon(31), dragonPon(32)], [], []],
+    };
+  }
+  it('3 組目の三元牌（大三元包になる）を一度見送ったら、自分が引く前に出た同じ牌はポンできない', () => {
+    const first = claimAt(base(), 3, 133);
+    expect(pons(first, 1)).toHaveLength(1);
+    const passed = run(first, 1, { type: 'pass' });
+    expect(passed.cnFollowKinds[1]).toContain(33);
+    expect(pons(claimAt(passed, 0, 132), 1)).toHaveLength(0);
+  });
+  it('見送っていなければポンできる（包牌は成立する）。包が生じない跟張（9m）は見送ったあとでもポンできる', () => {
+    expect(pons(claimAt(base(), 0, 132), 1)).toHaveLength(1);
+    const passed = run(claimAt(base(), 3, 33), 1, { type: 'pass' });
+    expect(passed.cnFollowKinds[1]).toContain(8);
+    expect(pons(claimAt(passed, 0, 32), 1)).toHaveLength(1);
+  });
+  it('自分が引けば跟張は消える', () => {
+    const passed = run(claimAt(base(), 3, 133), 1, { type: 'pass' });
+    const drew = apply({ ...passed, phase: 'draw', turn: 1, claim: null, wall: null }, { seq: passed.nextSeq, to: [1], ev: { type: 'draw', seat: 1, tile: 9 * 4 } });
+    expect(drew.cnFollowKinds[1]).toEqual([]);
+  });
+});

@@ -303,7 +303,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
               <Tile id={w.winTile} rules={view.rules} className="win-tile" />
               {meldsOf(w.seat)}
             </div>
-            <CnScoreView score={w.score} tsumo={w.from === null} rules={view.rules} t={t} />
+            <CnScoreView score={w.score} seat={w.seat} pays={w.pays} tsumo={w.from === null} rules={view.rules} t={t} />
           </Fragment>
         ))}
       {/* 刮风下雨：この局のカンの点（カンした人が受け取った合計。返したものは印）。アガリのあと・点の動きの前 */}
@@ -665,9 +665,22 @@ function ScoreView({ score, lang }: { score: ScoreResult; lang: Lang }) {
   );
 }
 
-/** 中国式（四川）のアガリの番と点。番の名前と数・合計（上限で切ったら印）・基本点・払い */
-function CnScoreView({ score, tsumo, rules, t }: { score: CnScore; tsumo: boolean; rules: Rules | null; t: (k: MessageKey, v?: Record<string, string | number>) => string }) {
+/**
+ * 中国式のアガリの番と点。番の名前と数・合計（上限で切ったら印・香港の例牌は印）・払い・点。
+ * 払いの一言は実際の点の動き（pays）から書く：3 人が同じ額＝ツモ／1 人＝放銃者（香港の搶槓はカンした人）
+ */
+function CnScoreView({ score, seat, pays, tsumo, rules, t }: { score: CnScore; seat: number; pays: readonly number[]; tsumo: boolean; rules: Rules | null; t: (k: MessageKey, v?: Record<string, string | number>) => string }) {
   const cap = rules?.family === 'cn' ? rules.values.cap : 'none';
+  const hk = rules?.family === 'cn' && rules.values.scoring === 'hk';
+  const payers = pays.flatMap((p, i) => (i !== seat && p < 0 ? [-p] : []));
+  const rob = score.fans.some((f) => f.id === 'qianggangHk');
+  const limit = hk && 'limit' in score && !!score.limit;
+  const pay =
+    payers.length > 1 && payers.every((p) => p === payers[0])
+      ? t('cnPayTsumo', { n: payers[0] })
+      : payers.length === 1
+        ? t(rob ? 'cnPayRob' : tsumo ? 'cnPayOne' : 'cnPayRon', { n: payers[0] })
+        : '';
   return (
     <div className="score">
       <table className="yaku-list">
@@ -682,10 +695,10 @@ function CnScoreView({ score, tsumo, rules, t }: { score: CnScore; tsumo: boolea
       </table>
       <p className="score-level">
         {score.fan === 0 ? t('cnNoFan') : t('fanN', { n: score.fan })}
-        {score.capped ? t('cnCapped', { cap }) : ''}
+        {limit ? t('cnLimit') : score.capped ? t('cnCapped', { cap }) : ''}
       </p>
-      <p className="score-pay">{tsumo ? t('cnPayTsumo', { n: score.points + 1 }) : t('cnPayRon', { n: score.points })}</p>
-      <p className="score-total">{t('cnPoints', { n: score.points })}</p>
+      <p className="score-pay">{pay}</p>
+      <p className="score-total">{hk ? t('cnGain', { n: pays[seat] }) : t('cnPoints', { n: score.points })}</p>
     </div>
   );
 }

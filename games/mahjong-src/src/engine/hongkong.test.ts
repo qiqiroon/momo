@@ -266,3 +266,45 @@ describe('香港のアガリ（局面から）', () => {
     expect(legalActions(later('555z456m789m1p1p5s5s', '5s'), 0).some((a) => a.type === 'tsumo')).toBe(true);
   });
 });
+
+describe('香港の払い（手順3・得分授受法）', () => {
+  const later = (s: GameState) => ({ ...s, discards: s.discards.map(() => [999]) }) as GameState;
+  it('ツモ：3 人が出銃の点の半分ずつ（3 番＝32 点→16 点ずつ）', () => {
+    const { s } = setup(['555z456m789m1p1p5s5s', '2m3m4m7p8p9p2s3s4s2z2z6z6z', '1p2p3p4m5m6m7m3p4p5p3z3z7z', '1s2s6s7s8s9s9p8p7p4z4z6z7z'], '5s');
+    const t = later(s);
+    const after = run(t, 0, legalActions(t, 0).find((a) => a.type === 'tsumo')!);
+    expect(after.result?.type === 'cnWin' && after.result.wins[0].pays).toEqual([48, -16, -16, -16]);
+  });
+  it('ロン：放銃者が全額（全銃）', () => {
+    // 席 1：555z 234m 789p と 6z6z・2s2s のシャンポン。親が 6z を切る → 三元牌 2 組＋門前清＝3 番 32 点
+    const { s } = setup(['111m4p5p6p7s8s9s3z3z6z9m', '555z2m3m4m7p8p9p6z6z2s2s', '1p2p3p4m5m6m7m3p4p5p3z7z7z', '1s1s6s7s8s9s9p8p7p4z4z4z1z'], '9m');
+    let t = run(later(s), 0, { type: 'discard', tile: tileOf(s, 0, BASE.z + 5) });
+    expect(legalActions(t, 1).some((a) => a.type === 'ron')).toBe(true);
+    t = run(t, 1, { type: 'ron' });
+    for (const seat of [2, 3] as Seat[]) if (t.phase === 'claim' && t.claim?.replies[seat] === null) t = run(t, seat, { type: 'pass' });
+    expect(t.result?.type === 'cnWin' && t.result.wins[0].pays).toEqual([-32, 32, 0, 0]);
+  });
+  it('搶槓：カンした人がツモと同じ額（3 人分）を 1 人で払う（搶槓當自摸）', () => {
+    // 席 0：6p をポン済みで 4 枚目を引いた。席 1：555z 666z 234m 78p 22s（6p・9p 待ち）→ 6p の加槓を搶槓
+    // 番＝三元牌 2＋門前清 1＋搶槓 1＝4 番 64 点 → ツモの 3 人分（32×3＝96）をカンした人が払う
+    const { s } = setup(['6p6p6p1m1m1m9m9m3z3z4s5s6s', '555z666z2m3m4m7p8p2s2s', '1p2p3p4m5m6m7m3p4p5p3z7z7z', '1s1s6s7s8s9s9p8p7p4z4z4z1z'], '6p');
+    const six = s.hands[0].filter((t) => kindOf(t) === BASE.p + 5);
+    const ponTiles = six.filter((t) => t !== s.drawn[0]);
+    const start: GameState = {
+      ...later(s),
+      hands: s.hands.map((h, i) => (i === 0 ? h.filter((t) => !ponTiles.includes(t)) : h)),
+      melds: [[{ type: 'pon', tiles: ponTiles, called: ponTiles[0], from: 1 }], [], [], []],
+    };
+    let t = run(start, 0, { type: 'kan', kan: 'kakan', tiles: [s.drawn[0]!] });
+    expect(t.phase).toBe('claim');
+    expect(legalActions(t, 1).some((a) => a.type === 'ron')).toBe(true);
+    t = run(t, 1, { type: 'ron' });
+    for (const seat of [2, 3] as Seat[]) if (t.phase === 'claim' && t.claim?.replies[seat] === null) t = run(t, seat, { type: 'pass' });
+    expect(t.result?.type).toBe('cnWin');
+    if (t.result?.type === 'cnWin') {
+      expect(t.result.wins[0].score.fans.map((f) => f.id)).toContain('qianggangHk');
+      expect(t.result.wins[0].score.points).toBe(64);
+      expect(t.result.wins[0].pays).toEqual([-96, 96, 0, 0]);
+    }
+  });
+});

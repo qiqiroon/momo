@@ -925,7 +925,7 @@ function settleCnRon(s: GameState, c: Claim): GameState {
   const rons = (c.cnRons ?? []).slice().sort((a, b) => order(a.seat) - order(b.seat));
   const v = s.rules?.family === 'cn' ? s.rules.values : null;
   const winners = v?.multiWin === 'atama' ? rons.slice(0, 1) : rons;
-  const wins: CnWin[] = winners.map((r) => ({ seat: r.seat, from: c.from, winTile: c.tile, score: r.score, pays: cnRonPays(c.from, r.seat, r.score) }));
+  const wins: CnWin[] = winners.map((r) => ({ seat: r.seat, from: c.from, winTile: c.tile, score: r.score, pays: cnRonPays(s, c, r.seat, r.score) }));
   // 杠上炮（MIL §8-4）：カンした人が直後の打牌で放銃したら、そのカン（最後のカン）の収入を返す
   if (c.kind === 'discard' && c.afterKan) {
     const i = s.cnKans.map((k) => k.seat).lastIndexOf(c.from);
@@ -1657,22 +1657,32 @@ export function cnRonBlocked(s: GameState, seat: Seat, score: CnScore): boolean 
   return missed !== null && score.points <= missed;
 }
 
-/** 中国式のツモの払い：まだアガっていない人がそれぞれ（基本点＋1）（ルールの pay が sichuan）。アガった人が抜ける血戦到底は手順3 */
+/**
+ * 中国式のツモの払い（ルールの pay）。
+ * 四川：まだアガっていない人がそれぞれ（基本点＋1）／香港：3 人が出銃の点の半分ずつ（得分授受法）
+ */
 function cnTsumoPays(s: GameState, seat: Seat, score: CnScore): number[] {
   const out = [0, 0, 0, 0];
+  const hk = s.rules?.family === 'cn' && s.rules.values.pay === 'hk';
+  const each = hk ? score.points / 2 : score.points + 1;
   for (const p of SEATS_) {
     if (p === seat || s.cnOut[p]) continue;
-    out[p] -= score.points + 1;
-    out[seat] += score.points + 1;
+    out[p] -= each;
+    out[seat] += each;
   }
   return out;
 }
 
-/** 中国式のロンの払い：放銃者が基本点を払う */
-function cnRonPays(from: Seat, seat: Seat, score: CnScore): number[] {
+/**
+ * 中国式のロンの払い：放銃者が払う（四川＝基本点／香港＝出銃の点＝全銃）。
+ * 香港の搶槓（加槓・十三么九の暗槓へのロン）はツモと同じ額（3 人分）をカンした人が 1 人で払う（搶槓當自摸）
+ */
+function cnRonPays(s: GameState, c: Claim, seat: Seat, score: CnScore): number[] {
   const out = [0, 0, 0, 0];
-  out[from] -= score.points;
-  out[seat] += score.points;
+  const hk = s.rules?.family === 'cn' && s.rules.values.pay === 'hk';
+  const amount = hk && c.kind !== 'discard' ? (score.points / 2) * 3 : score.points;
+  out[c.from] -= amount;
+  out[seat] += amount;
   return out;
 }
 

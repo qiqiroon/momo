@@ -1319,7 +1319,7 @@ export function callProblem(s: GameState, seat: Seat, meld: 'chi' | 'pon' | 'kan
   const cn = s.rules?.family === 'cn' ? s.rules.values : null;
   // 最後の捨て牌（河底）は鳴けない＝次のツモが無い（中国式はルールの lastTile が「できる」なら鳴ける）
   if (liveWallLeft(s) <= 0 && cn?.lastTile !== 'ok') return '山が尽きたあとの捨て牌は鳴けない';
-  // カンは補充の牌（嶺上牌）が要る＝山が尽きたあとはできない（最後の 1 枚で鳴けるルールでもポンだけ）
+  // カンは補充の牌（嶺上牌）が要る＝山が尽きたあとはできない（最後の捨て牌でチー・ポンできるルールでも＝ルール設定 v0.06 Q6=A）
   if (liveWallLeft(s) <= 0 && meld === 'kan') return '山が尽きたあとはカンできない';
   if (cn && meld === 'chi' && cn.chi !== 'on') return 'このルールではチーできない';
   // 缺一門で伏せておいた牌は、最初の打牌で切るまで使えない

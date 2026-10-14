@@ -17,7 +17,7 @@ import { nextStep } from '../engine/game';
 import { act, advance, dealChunkPositions, drawPosition, legalActions, positionsNeeded, rollForDealer, type Action } from '../engine/round';
 import { GENERAL_RULES, type Rules } from '../engine/rules';
 import { apply, initialState, type GameState } from '../engine/state';
-import type { TileId } from '../engine/tiles';
+import { tileSetFor, type TileId } from '../engine/tiles';
 import { callables, presetReply, prunePresets, type Presets } from './presets';
 import {
   LOCK_BITS,
@@ -108,6 +108,8 @@ const maskAll = (env: Envelope): Envelope => (env.to === 'all' ? env : mask(env,
 
 interface Hand {
   no: number;
+  /** この局の山の牌の顔ぶれ（ルールで決まる：日本式 136・四川 108・香港 136・国標 144） */
+  ids: number[];
   /** 自分が持つ席の錠前 */
   mine: Map<Seat, Locker>;
   start: bigint[];
@@ -187,7 +189,8 @@ export class OnlineTable {
 
   constructor(private readonly o: TableOptions) {
     this.g = groupOf(LOCK_BITS);
-    this.decode = decoder(this.g, Array.from({ length: 136 }, (_, i) => i));
+    // 背番号は最大の 144 枚ぶん（どのルールの山もこの中）
+    this.decode = decoder(this.g, Array.from({ length: 144 }, (_, i) => i));
   }
 
   // ---- 外から呼ぶ ----
@@ -321,12 +324,13 @@ export class OnlineTable {
 
   /** 局の錠前の段取りを始める（全員がこの局の自分の錠前を作る） */
   private onHand(no: number) {
-    const size = 136;
-    const mine = new Map(this.controlled().map((s) => [s, this.lockerFor(no, s)] as const));
+    const ids = this.wallIds();
+    const mine = new Map(this.controlled().map((s) => [s, this.lockerFor(no, s, ids.length)] as const));
     this.hand = {
       no,
+      ids,
       mine,
-      start: Array.from({ length: size }, (_, i) => encode(this.g, i)),
+      start: ids.map((i) => encode(this.g, i)),
       shuffled: [null, null, null, null],
       relocked: [null, null, null, null],
       final: null,
@@ -350,11 +354,16 @@ export class OnlineTable {
 
   private pendingRound: Round | null = null;
 
+  /** 山の牌の顔ぶれ（対局の始まりの出来事のルールから） */
+  private wallIds(rules: Rules | null = this.pub.rules): number[] {
+    return tileSetFor(rules ?? GENERAL_RULES).slice();
+  }
+
   /** この局の自分の錠前（控えがあればそれ。無ければ作って控える） */
-  private lockerFor(no: number, seat: Seat): Locker {
+  private lockerFor(no: number, seat: Seat, size: number): Locker {
     const kept = this.o.store?.load(no, seat);
-    if (kept) return lockerFromWire(kept);
-    const lk = newLocker(this.g, 136);
+    if (kept && kept.c.length === size) return lockerFromWire(kept);
+    const lk = newLocker(this.g, size);
     this.o.store?.save(no, seat, lockerToWire(lk));
     return lk;
   }
@@ -383,9 +392,10 @@ export class OnlineTable {
     }
   }
 
-  /** 表に開けてよい位置か（王牌のドラ・裏ドラの表示牌だけ） */
+  /** 表に開けてよい位置か（王牌のドラ・裏ドラの表示牌だけ。中国式はドラが無い＝無し） */
   private publicAllowed(pos: number): boolean {
-    const size = 136;
+    if (this.pub.rules?.family === 'cn') return false;
+    const size = this.hand?.ids.length ?? 136;
     for (let n = 0; n < MAX_INDICATORS; n++) if (pos === doraIndicatorPos(size, n) || pos === uraIndicatorPos(size, n)) return true;
     return false;
   }
@@ -529,8 +539,9 @@ export class OnlineTable {
     const h = this.hand;
     if (!h) return;
     const said: [number, TileId][] = [];
-    if (ev.type === 'doraReveal') said.push([doraIndicatorPos(136, this.pub.doraIndicators.length), ev.tile]);
-    if ((ev.type === 'ron' || ev.type === 'tsumo') && ev.ura.length) ev.ura.forEach((t, i) => said.push([uraIndicatorPos(136, i), t]));
+    const size = h.ids.length;
+    if (ev.type === 'doraReveal') said.push([doraIndicatorPos(size, this.pub.doraIndicators.length), ev.tile]);
+    if ((ev.type === 'ron' || ev.type === 'tsumo') && ev.ura.length) ev.ura.forEach((t, i) => said.push([uraIndicatorPos(size, i), t]));
     const bad = said.filter(([p, t]) => {
       this.tryDecode(p);
       const mine = h.tiles.get(p);
@@ -633,7 +644,7 @@ export class OnlineTable {
     if (h.revealed.size < 4 || h.verified) return;
     const lockers = SEATS.map((s) => h.revealed.get(s)!);
     const log = { start: h.start, shuffled: h.shuffled as bigint[][], relocked: h.relocked as bigint[][] };
-    const { problems, wall } = verifyDeal(this.g, Array.from({ length: 136 }, (_, i) => i), log, lockers, h.tiles);
+    const { problems, wall } = verifyDeal(this.g, h.ids, log, lockers, h.tiles);
     h.verified = problems;
     if (!problems.some((x) => x.kind === 'tiles')) this.walls.push(wall);
     this.o.onVerified?.();
@@ -701,10 +712,14 @@ export class OnlineTable {
       const deck = (x: (string[] | null)[]) => x.map((a) => (a ? a.map(big) : null));
       const shuffled = deck(d.hand.shuffled);
       const relocked = deck(d.hand.relocked);
+      // 山の顔ぶれは、受け取った列の対局の始まりのルールから
+      const ge = d.wire.find((x) => x.env.ev.type === 'gameStart')?.env.ev;
+      const ids = this.wallIds(ge && ge.type === 'gameStart' ? ge.rules : null);
       this.hand = {
         no,
-        mine: new Map(this.controlled().map((s) => [s, this.lockerFor(no, s)] as const)),
-        start: Array.from({ length: 136 }, (_, i) => encode(this.g, i)),
+        ids,
+        mine: new Map(this.controlled().map((s) => [s, this.lockerFor(no, s, ids.length)] as const)),
+        start: ids.map((i) => encode(this.g, i)),
         shuffled,
         relocked,
         final: relocked[3],
@@ -788,7 +803,12 @@ export class OnlineTable {
     if (h.round && !h.roundSent) {
       h.roundSent = true;
       const r = h.round;
-      const dora = doraIndicatorPos(136, 0);
+      // 中国式はドラが無い＝表に開けずに配る
+      if (p.rules?.family === 'cn') {
+        this.startRound(r, null);
+        return;
+      }
+      const dora = doraIndicatorPos(h.ids.length, 0);
       this.openPublic([dora], () => this.startRound(r, h.tiles.get(dora)!));
       return;
     }
@@ -825,13 +845,13 @@ export class OnlineTable {
   }
 
   /** ホスト：局の始まり・配牌（伏せた形＋位置）・ドラ表示牌 */
-  private startRound(r: Round, dora: TileId) {
+  private startRound(r: Round, dora: TileId | null) {
     let seq = this.pub.nextSeq;
     const items: { env: Envelope; pos?: number[] }[] = [{ env: { seq: seq++, to: 'all', ev: { type: 'roundStart', roundIndex: r.roundIndex, dealer: r.dealer, honba: r.honba } } }];
     for (const c of dealChunkPositions(r.dealer)) {
       items.push({ env: { seq: seq++, to: [c.seat], ev: { type: 'deal', seat: c.seat, tiles: c.positions.map(() => HIDDEN) } }, pos: c.positions });
     }
-    items.push({ env: { seq: seq++, to: 'all', ev: { type: 'doraReveal', tile: dora } } });
+    if (dora !== null) items.push({ env: { seq: seq++, to: 'all', ev: { type: 'doraReveal', tile: dora } } });
     this.emitAll(items);
   }
 

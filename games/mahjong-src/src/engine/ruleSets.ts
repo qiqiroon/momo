@@ -103,7 +103,26 @@ export function ruleChoiceOf(raw: unknown): RuleChoice | null {
     if (typeof v !== 'string' || !it.opts.some((o) => o[0] === v)) return null;
     values[it.k] = v;
   }
+  // 中国式（2026-10-14 第16・オンライン）：cn があれば、中国式の値を確かめて持たせる（矛盾する組み合わせなら読まない）
+  const c = raw as { cn?: unknown; cnValues?: unknown };
+  if (typeof c.cn === 'string' && (CN_SETS as readonly string[]).includes(c.cn)) {
+    if (!c.cnValues || typeof c.cnValues !== 'object') return null;
+    const raw2 = c.cnValues as Record<string, unknown>;
+    const cnValues = {} as Record<CnRuleKey, string>;
+    for (const it of CN_RULE_ITEMS) {
+      const v = raw2[it.k];
+      if (typeof v !== 'string' || !it.opts.some((o) => o[0] === v)) return null;
+      cnValues[it.k] = v;
+    }
+    if (!cnConsistent(cnValues)) return null;
+    return { base: r.base as SetId, values, cn: c.cn as CnSetId, cnValues };
+  }
   return { base: r.base as SetId, values };
+}
+
+/** 選んだルールから対局のルール（中国式なら中国式の値） */
+export function rulesOfChoice(c: RuleChoice): Rules {
+  return c.cn ? { family: 'cn', values: cnValuesOf(c.cnValues, c.cn) } : { family: 'jp', values: { ...c.values } };
 }
 
 /**

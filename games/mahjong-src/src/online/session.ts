@@ -13,7 +13,7 @@
 // 誰が抜けたかは土台からは確かに分からない（番号が重なりうる）ので、ホストが点呼を取って決める。
 
 import { cpuOf, DEFAULT_STRENGTH, loadStrength, strengthOf, type Strength } from '../cpu/strength';
-import { generalChoice, labelOf, ruleChoiceOf, type RuleChoice } from '../engine/ruleSets';
+import { generalChoice, labelOf, ruleChoiceOf, rulesOfChoice, type RuleChoice } from '../engine/ruleSets';
 import { isoLocal, type KifuSource } from '../kifu/kifu';
 import { saveLastGame } from '../kifu/store';
 import { DEAL_SHOW_MS, DICE_SHOW_MS, dealShowOn } from '../game/useTable';
@@ -410,7 +410,7 @@ export class OnlineSession {
     this.table.begin(
       this.s.members.filter((m) => m.online).map((m) => ({ id: m.id, name: m.name })),
       REPLY_WAIT_MS[this.s.replyWait],
-      { family: 'jp', values: { ...this.s.rules.values } },
+      rulesOfChoice(this.s.rules),
     );
   }
 

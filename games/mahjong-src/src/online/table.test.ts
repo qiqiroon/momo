@@ -2,7 +2,7 @@ import { decodeSameLink, encodeSameLink, sameWallOf } from '../kifu/same';
 import { startRoundFromWall } from '../engine/round';
 import { dealerByDice } from '../engine/state';
 import { describe, expect, it } from 'vitest';
-import { rulesOfSet } from '../engine/ruleSets';
+import { rulesOfCnSet, rulesOfSet } from '../engine/ruleSets';
 import { packKifu, unpackKifu } from '../kifu/link';
 import { GENERAL_RULES } from '../engine/rules';
 import { benchCpu } from '../cpu/bench';
@@ -181,6 +181,31 @@ describe('オンラインの卓（偽の通信）', () => {
     const theirs = full[0]!.flatMap((e) => (e.ev.type === 'deal' && e.ev.seat === 2 ? e.ev.tiles : []));
     expect(mine).toHaveLength(13);
     expect(mine).toEqual(theirs);
+  }, 70_000);
+
+  it('中国式（香港・2026-10-14 第16）で 1 局：ドラを開けずに配り、局が終わって検算も通る。ほかの人の牌は届かない', async () => {
+    const net = new FakeNet();
+    const host = net.add('H', true, { human: true });
+    const guest = net.add('G', false, { human: true, cpu: tsumogiriCpu });
+    (host as unknown as { o: { autoNext: boolean } }).o.autoNext = false;
+    host.begin(
+      [
+        { id: 'H', name: 'ホスト' },
+        { id: 'G', name: 'ゲスト' },
+      ],
+      0,
+      rulesOfCnSet('hk'),
+    );
+    await net.until(() => [host, guest].every((t) => t.pub.phase === 'ended' && t.lastVerify !== null), 60_000);
+    expect(net.problems).toEqual([]);
+    for (const [i, t] of [host, guest].entries()) {
+      expect(t.lastVerify).toEqual([]);
+      expect(t.view.rules?.family).toBe('cn');
+      expect(t.myLog.some((e) => e.ev.type === 'doraReveal')).toBe(false);
+      const leaked = t.myLog.filter((e) => (e.ev.type === 'deal' || e.ev.type === 'draw') && e.ev.seat !== i && (e.ev.type === 'deal' ? e.ev.tiles.some((x) => x !== HIDDEN) : e.ev.tile !== HIDDEN));
+      expect(leaked).toEqual([]);
+    }
+    expect(JSON.stringify(guest.pub)).toBe(JSON.stringify(host.pub));
   }, 70_000);
 
   it('ホストが選んだルール（WRC）で 1 局：全員の局面のルールがそれになり、局が終わって検算も通る', async () => {

@@ -3186,3 +3186,19 @@ body.in-game .site-header .subtitle {
   color: var(--text-muted);
   font-weight: 400;
 }
+
+/* ルールブックの遊び方 */
+.rb-howto ul {
+  margin: 0 0 6px;
+  padding-left: 1.2em;
+}
+
+.rb-howto li {
+  margin-bottom: 5px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.rb-howto .rb-sec:first-child {
+  margin-top: 4px;
+}

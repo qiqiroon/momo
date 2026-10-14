@@ -10,6 +10,7 @@ import type { BaseLang, MessageKey } from '../i18n/strings';
 import { DraggableDialog } from './DraggableDialog';
 import { CnFanList, JpYakuList } from './YakuList';
 import { RuleSettings } from './RuleSettings';
+import { howtoOf } from '../rulebook/howto';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
@@ -49,6 +50,21 @@ export function RuleBook({ t, lang, rules, first = 'yaku', onClose }: { t: T; la
         ))}
       </div>
       <div className="rb-body" role="tabpanel" data-tab={tab}>
+        {/* 遊び方（Q10=B）：流れの大筋に、いまのルールの値で変わる所を書き分けた文 */}
+        {tab === 'howto' && (
+          <div className="rb-howto">
+            {howtoOf(rules).map((sec, i) => (
+              <section key={i}>
+                <h4 className="rb-sec">{sec.title[lang]}</h4>
+                <ul>
+                  {sec.lines.map((l, j) => (
+                    <li key={j}>{l[lang]}</li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        )}
         {/* いまのルール（Q9=A）：ルール選択の画面と同じまとまり・畳み方で、値は見るだけ */}
         {tab === 'rules' && <RuleSettings t={t} lang={lang} choice={choiceOf(rules)} readOnly cnOk inBook />}
         {tab === 'yaku' && rules.family === 'jp' && <JpYakuList t={t} lang={lang} rules={rules} />}

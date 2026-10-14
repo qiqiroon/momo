@@ -103,6 +103,16 @@ const lockerFromWire = (w: WireLocker): Locker => ({
   perm: w.perm,
 });
 
+/** 席の持ち主が作り、本人にだけ見える出来事（ホストへは伏せた形で送る） */
+const PRIVATE_OWN = new Set<GameEvent['type']>(['queHold', 'huan3Pass']);
+/** 伏せた形か（中身の牌が全部 HIDDEN） */
+const isMasked = (e: Envelope): boolean => {
+  const ev = e.ev;
+  if (ev.type === 'queHold') return ev.tile === HIDDEN && ev.suit === HIDDEN;
+  if (ev.type === 'huan3Pass') return ev.tiles.every((t) => t === HIDDEN);
+  return false;
+};
+
 /** 全員から見えないものを伏せた形（ホストが番号を付けるときの局面に使う） */
 const maskAll = (env: Envelope): Envelope => (env.to === 'all' ? env : mask(env, -1 as Seat));
 
@@ -186,6 +196,11 @@ export class OnlineTable {
   private nextRequested = false;
   /** 人の席の返事待ち（画面が choose を呼ぶ） */
   private ids = new Map<string, Seat>();
+  /**
+   * 本人にだけ見える出来事（缺一門の伏せる牌・換三張で出す 3 枚）の本物。ホストへは伏せた形で送り、
+   * 配られてきたら自分の席の局面にはこちらを当てはめる（キー＝出来事の種類:席）
+   */
+  private privateReal = new Map<string, Envelope>();
 
   constructor(private readonly o: TableOptions) {
     this.g = groupOf(LOCK_BITS);
@@ -518,7 +533,12 @@ export class OnlineTable {
     if (h) this.checkPublicTiles(env.ev);
     for (const [seat, v] of this.views) {
       let e = env;
-      if (priv && (env.ev as { seat: Seat }).seat === seat && h && pos) {
+      // 本人にだけ見える出来事：自分の席の分は、控えておいた本物を当てはめる
+      const realKey = `${env.ev.type}:${seat}`;
+      if (PRIVATE_OWN.has(env.ev.type) && (env.ev as { seat: Seat }).seat === seat && this.privateReal.has(realKey)) {
+        e = { ...this.privateReal.get(realKey)!, seq: env.seq };
+        this.privateReal.delete(realKey);
+      } else if (priv && (env.ev as { seat: Seat }).seat === seat && h && pos) {
         const tiles = pos.map((p) => h.tiles.get(p)!);
         e = { ...env, ev: env.ev.type === 'deal' ? { ...env.ev, tiles } : { ...(env.ev as Extract<GameEvent, { type: 'draw' }>), tile: tiles[0] } };
       }
@@ -597,6 +617,8 @@ export class OnlineTable {
     const v = this.views.get(seat);
     if (!v) return;
     if (this.acted.get(seat) === v.nextSeq) return;
+    // 缺一門・換三張は 4 人が同時に選ぶ：自分の分を送って、まだ配られてこないうちは送り直さない
+    if ((v.phase === 'que' && this.privateReal.has(`queHold:${seat}`)) || (v.phase === 'huan3' && this.privateReal.has(`huan3Pass:${seat}`))) return;
     this.acted.set(seat, v.nextSeq);
     // 返事（見送る・鳴く・ロン）は、決めた時刻によらず返事の番の始まりから replyWait たってから出す。
     // ロンの裏ドラを開ける頼みも、そのあと（先に出すと誰かがロンすると分かる）
@@ -605,7 +627,12 @@ export class OnlineTable {
       const need = positionsNeeded((src) => act(v, seat, a, src));
       this.openPublic(need, () => {
         const h = this.hand;
-        const envs = act(v, seat, a, (p) => h?.tiles.get(p) ?? HIDDEN);
+        const envs = act(v, seat, a, (p) => h?.tiles.get(p) ?? HIDDEN).map((e) => {
+          if (e.to === 'all' || !PRIVATE_OWN.has(e.ev.type)) return e;
+          // 本人にだけ見える出来事：本物は手元に控え、ホストへは伏せた形で送る（中身はホストにも届かない）
+          this.privateReal.set(`${e.ev.type}:${seat}`, e);
+          return mask(e, -1 as Seat);
+        });
         this.toHost({ type: 'mt-act', id: this.o.myId, seat, envs });
       });
     };
@@ -623,9 +650,9 @@ export class OnlineTable {
     const out: Envelope[] = [];
     try {
       for (const e of envs) {
-        // 配るのは全員に見える出来事だけ。席のある出来事はその席のもの
-        if (e.to !== 'all') return;
+        // 配るのは全員に見える出来事と、本人にだけ見える出来事の伏せた形（宛先はその席だけ）。席のある出来事はその席のもの
         const evSeat = (e.ev as { seat?: Seat }).seat;
+        if (e.to !== 'all' && !(PRIVATE_OWN.has(e.ev.type) && e.to.length === 1 && e.to[0] === seat && isMasked(e))) return;
         if (evSeat !== undefined && evSeat !== seat) return;
         const n = { ...e, seq: trial.nextSeq };
         trial = apply(trial, n);

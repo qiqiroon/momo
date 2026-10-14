@@ -208,6 +208,30 @@ describe('オンラインの卓（偽の通信）', () => {
     expect(JSON.stringify(guest.pub)).toBe(JSON.stringify(host.pub));
   }, 70_000);
 
+  it('中国式（四川・缺一門と血戦到底）で 1 局：伏せた牌はホストにも届かず、局が終わって検算も通る', async () => {
+    const net = new FakeNet();
+    const host = net.add('H', true, { human: true });
+    const guest = net.add('G', false, { human: true });
+    (host as unknown as { o: { autoNext: boolean } }).o.autoNext = false;
+    host.begin(
+      [
+        { id: 'H', name: 'ホスト' },
+        { id: 'G', name: 'ゲスト' },
+      ],
+      0,
+      rulesOfCnSet('sichuan'),
+    );
+    await net.until(() => [host, guest].every((t) => t.pub.phase === 'ended' && t.lastVerify !== null), 60_000);
+    expect(net.problems).toEqual([]);
+    expect(JSON.stringify(guest.pub)).toBe(JSON.stringify(host.pub));
+    // ゲストが伏せた牌は、ホストに届いた知らせのどこにも入っていない（伏せた形だけ）
+    const holds = (net.seen.get('H') ?? []).flatMap((m) => (m.type === 'mt-act' ? (m.envs as Envelope[]) : m.type === 'mt-ev' ? [m.env as Envelope] : [])).filter((e) => e.ev.type === 'queHold' && e.ev.seat === 1);
+    expect(holds.length).toBeGreaterThan(0);
+    for (const e of holds) expect(e.ev.type === 'queHold' && e.ev.tile).toBe(HIDDEN);
+    // ゲスト自身の局面には本物（4 人とも捨てる色を宣言して打てた）
+    expect(guest.view.que[1]).not.toBeNull();
+  }, 70_000);
+
   it('ホストが選んだルール（WRC）で 1 局：全員の局面のルールがそれになり、局が終わって検算も通る', async () => {
     const net = new FakeNet();
     const host = net.add('H', true, { human: true });

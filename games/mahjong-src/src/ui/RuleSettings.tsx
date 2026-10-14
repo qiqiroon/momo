@@ -109,7 +109,8 @@ function ShareLink({ t, choice }: { t: T; choice: RuleChoice }) {
 
 /** share＝「このルールのリンクをコピー」を出す（CPU と対局の設定・ホストの待合） */
 /** cnOk＝中国式のセットを選べる（CPU と対局・オンライン〔2026-10-14 から〕・リンクで届いたルール） */
-export function RuleSettings({ t, lang, choice, onChange, readOnly = false, share = false, cnOk = false }: { t: T; lang: BaseLang; choice: RuleChoice; onChange?: (c: RuleChoice) => void; readOnly?: boolean; share?: boolean; cnOk?: boolean }) {
+/** inBook＝ルールブックの「いまのルール」のタブの中（見出し・セットの説明・ルールブックのボタンを出さない） */
+export function RuleSettings({ t, lang, choice, onChange, readOnly = false, share = false, cnOk = false, inBook = false }: { t: T; lang: BaseLang; choice: RuleChoice; onChange?: (c: RuleChoice) => void; readOnly?: boolean; share?: boolean; cnOk?: boolean; inBook?: boolean }) {
   /** 開いているまとまり（最初は全部畳む） */
   const [open, setOpen] = useState<Record<string, boolean>>({});
   /** ルールブックを開いているか（中身は選んでいる途中の値に合わせる） */
@@ -179,18 +180,22 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false, shar
   };
 
   return (
-    <section className="gset rule-settings">
-      <h3>
-        {t('ruleSet')}
-        <button type="button" className="btn-secondary rb-open" onClick={() => setBook(true)}>
-          {t('rbOpen')}
-        </button>
-      </h3>
-      {book && <RuleBook t={t} lang={lang} rules={cnVals ? { family: 'cn', values: cnVals } : { family: 'jp', values: choice.values }} onClose={() => setBook(false)} />}
-      <details className="about-sets">
-        <summary>{t('aboutSets')}</summary>
-        <p className="guide">{t('aboutSetsText')}</p>
-      </details>
+    <section className={`gset rule-settings${inBook ? ' in-book' : ''}`}>
+      {!inBook && (
+        <>
+          <h3>
+            {t('ruleSet')}
+            <button type="button" className="btn-secondary rb-open" onClick={() => setBook(true)}>
+              {t('rbOpen')}
+            </button>
+          </h3>
+          {book && <RuleBook t={t} lang={lang} rules={cnVals ? { family: 'cn', values: cnVals } : { family: 'jp', values: choice.values }} onClose={() => setBook(false)} />}
+          <details className="about-sets">
+            <summary>{t('aboutSets')}</summary>
+            <p className="guide">{t('aboutSetsText')}</p>
+          </details>
+        </>
+      )}
       {readOnly ? (
         <p className="cur ro-set">
           {label === 'custom' ? `${t('rsCustom')}（${t('rsChangedFrom', { set: t(`set_${baseSet}` as MessageKey) })}）` : t(`set_${label}` as MessageKey)}

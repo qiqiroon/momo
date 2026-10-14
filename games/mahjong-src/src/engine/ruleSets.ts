@@ -281,6 +281,12 @@ export function cnNearestSet(values: Readonly<Record<CnRuleKey, string>>): CnSet
   return CN_SETS.reduce((a, b) => (diff(b) < diff(a) ? b : a));
 }
 
+/** 日本式の値に一番近いセット（同じ数なら並びの先＝一般ルールが先）。ルールブックの「いまのルール」で、基にしたセットを決めるのに使う */
+export function jpNearestSet(values: Readonly<Record<JpRuleKey, string>>): SetId {
+  const diff = (set: SetId) => JP_RULE_KEYS.filter((k) => values[k] !== presetValue(set, k)).length;
+  return JP_SETS.reduce((a, b) => (diff(b) < diff(a) ? b : a));
+}
+
 /** 中国式の値が、同時に成り立ってはいけない組み合わせを含まないか */
 export const cnConsistent = (values: Readonly<Record<CnRuleKey, string>>): boolean => !CN_FORBID.some((f) => f.every((c) => condHolds(values, c)));
 

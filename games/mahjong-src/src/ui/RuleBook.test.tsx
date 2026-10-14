@@ -57,6 +57,28 @@ describe('ルールブックの窓', () => {
     expect(flower).toHaveClass('off');
   });
 
+  it('いまのルール（Q9=A）：設定画面と同じまとまりで畳んで出し、セットから変えた項目はオレンジ（基にしたセットは一番近いセット）', () => {
+    if (GENERAL_RULES.family !== 'jp') throw new Error('日本式のはず');
+    const { container } = render(<RuleBook t={t} lang="ja" rules={{ family: 'jp', values: { ...GENERAL_RULES.values, aka: 'off' } }} first="rules" onClose={() => {}} />);
+    expect(screen.getByText('現在のルール：カスタムルール')).toBeInTheDocument();
+    expect(container.querySelector('.rb-body')).toHaveTextContent('カスタムルール（「一般ルール」から変更）');
+    // 最初は畳む。ドラ・役のまとまりを開くと、変えた赤ドラがオレンジ（changed）
+    expect(container.querySelectorAll('.rb-body .set-row')).toHaveLength(0);
+    fireEvent.click(screen.getByText(/ドラ・役/));
+    const aka = [...container.querySelectorAll('.rb-body .set-row')].find((r) => r.textContent?.startsWith('赤ドラ'))!;
+    expect(aka).toHaveClass('changed');
+    expect(aka).toHaveTextContent('なし');
+    // ルールブックの中には「ルールブック」のボタンやセットのボタンを出さない
+    expect(container.querySelector('.rb-body .rb-open')).toBeNull();
+    expect(container.querySelector('.rb-body .sets')).toBeNull();
+  });
+
+  it('いまのルール：中国式も出る', () => {
+    render(<RuleBook t={t} lang="ja" rules={rulesOfCnSet('hk')} first="rules" onClose={() => {}} />);
+    expect(screen.getByRole('tabpanel')).toHaveTextContent(t('set_hk'));
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('変更 0');
+  });
+
   it('ほかの日本式のセットはその名前', () => {
     render(<RuleBook t={t} lang="ja" rules={rulesOfSet('tenhou')} first="howto" onClose={() => {}} />);
     expect(screen.getByText(`現在のルール：${t('set_tenhou')}`)).toBeInTheDocument();

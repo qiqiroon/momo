@@ -4,11 +4,12 @@
 // 窓は花札の役一覧と同じく、つかんで動かせて後ろを隠さない（DraggableDialog）。
 
 import { useState } from 'react';
-import { cnLabelOf, cnNearestSet, labelOf } from '../engine/ruleSets';
+import { cnLabelOf, cnNearestSet, generalChoice, jpNearestSet, labelOf, type RuleChoice } from '../engine/ruleSets';
 import type { Rules } from '../engine/rules';
 import type { BaseLang, MessageKey } from '../i18n/strings';
 import { DraggableDialog } from './DraggableDialog';
 import { CnFanList, JpYakuList } from './YakuList';
+import { RuleSettings } from './RuleSettings';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
@@ -18,8 +19,17 @@ const TABS: readonly RuleBookTab[] = ['yaku', 'howto', 'rules'];
 
 /** 窓の上に出すルールの名前（セットの名前か「カスタムルール」） */
 function setNameOf(rules: Rules, t: T): string {
-  const label = rules.family === 'cn' ? cnLabelOf(rules.values, cnNearestSet(rules.values)) : labelOf(rules.values, 'general');
+  const label = rules.family === 'cn' ? cnLabelOf(rules.values, cnNearestSet(rules.values)) : labelOf(rules.values, jpNearestSet(rules.values));
   return label === 'custom' ? t('rsCustom') : t(`set_${label}` as MessageKey);
+}
+
+/** 「いまのルール」のタブに渡す選び方（基にしたセット＝一番近いセット。セットから変えた項目はオレンジになる） */
+function choiceOf(rules: Rules): RuleChoice {
+  if (rules.family === 'cn') {
+    const g = generalChoice();
+    return { base: g.base, values: g.values, cn: cnNearestSet(rules.values), cnValues: { ...rules.values } };
+  }
+  return { base: jpNearestSet(rules.values), values: { ...rules.values } };
 }
 
 export function RuleBook({ t, lang, rules, first = 'yaku', onClose }: { t: T; lang: BaseLang; rules: Rules; first?: RuleBookTab; onClose: () => void }) {
@@ -39,6 +49,8 @@ export function RuleBook({ t, lang, rules, first = 'yaku', onClose }: { t: T; la
         ))}
       </div>
       <div className="rb-body" role="tabpanel" data-tab={tab}>
+        {/* いまのルール（Q9=A）：ルール選択の画面と同じまとまり・畳み方で、値は見るだけ */}
+        {tab === 'rules' && <RuleSettings t={t} lang={lang} choice={choiceOf(rules)} readOnly cnOk inBook />}
         {tab === 'yaku' && rules.family === 'jp' && <JpYakuList t={t} lang={lang} rules={rules} />}
         {tab === 'yaku' && rules.family === 'cn' && (rules.values.scoring === 'sichuan' || rules.values.scoring === 'hk' || rules.values.scoring === 'mcr') && <CnFanList t={t} lang={lang} rules={rules} scoring={rules.values.scoring} />}
       </div>

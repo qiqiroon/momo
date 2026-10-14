@@ -328,6 +328,7 @@ export function WaitingRoom({ t, lang, session }: { t: T; lang: BaseLang; sessio
         choice={s.rules}
         readOnly={!isHost || s.started}
         share={isHost && !s.started}
+        cnOk
         onChange={(c) => {
           saveRuleChoice(c);
           session.setRules(c);

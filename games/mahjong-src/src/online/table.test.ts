@@ -249,11 +249,19 @@ describe('オンラインの卓（偽の通信）', () => {
     expect(net.problems).toEqual([]);
     expect(JSON.stringify(guest.pub)).toBe(JSON.stringify(host.pub));
     expect(host.pub.buhuaDone).toEqual([true, true, true, true]);
+    // 同じ山で勝負（オンラインの国標＝144 枚の山）：リンクを読み直すと、山の並びと中国式のルールがそのまま戻る
+    const full = host.fullLog();
+    expect(full).not.toBeNull();
+    const src = { seed: 'online', startedAt: '2026-10-14T12:00:00+09:00', players: [], set: 'mcr', events: full!, mode: 'online' as const, walls: host.walls };
+    const sw = decodeSameLink(encodeSameLink(sameWallOf({ ...src, me: 0 })));
+    expect(sw?.choice.cn).toBe('mcr');
+    expect(sw?.online?.walls[0]).toHaveLength(144);
     // 花牌は表に出す（全員に見える）。手に残った花牌は無い
     for (const t of [host, guest]) for (const h of t.view.hands) expect(h.filter((x) => x >= 136)).toEqual([]);
   }, 70_000);
 
-  it('中国式（四川の血戦到底・血流成河）で 3 局ずつ：2 人以上アガる局があり、全員の局面がそろい、検算も通る', async () => {
+  // 長い（数十秒）ので、いつもの検査と並べず別に回す（npm run onlineplay）
+  it.runIf(import.meta.env.MODE === 'full')('中国式（四川の血戦到底・血流成河）で 3 局ずつ：2 人以上アガる局があり、全員の局面がそろい、検算も通る', async () => {
     for (const afterWin of ['leave', 'again'] as const) {
       const net = new FakeNet();
       const host = net.add('H', true, { human: true });
@@ -308,7 +316,8 @@ describe('オンラインの卓（偽の通信）', () => {
     expect(myTake && myTake.ev.type === 'huan3Take' && myTake.ev.tiles.every((x) => x !== HIDDEN)).toBe(true);
   }, 70_000);
 
-  it('★換三張のずる：手に無い牌を錠前に包んで渡すと、局の終わりに全員の牌で当てはめ直して見つかる。ずるが無ければ列は全部埋まる', async () => {
+  // 長い（数十秒）ので、いつもの検査と並べず別に回す（npm run onlineplay）
+  it.runIf(import.meta.env.MODE === 'full')('★換三張のずる：手に無い牌を錠前に包んで渡すと、局の終わりに全員の牌で当てはめ直して見つかる。ずるが無ければ列は全部埋まる', async () => {
     const { encode, modPow } = await import('./lock');
     for (const cheat of [false, true]) {
       const net = new FakeNet();

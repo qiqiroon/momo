@@ -107,7 +107,7 @@ function ShareLink({ t, choice }: { t: T; choice: RuleChoice }) {
 }
 
 /** share＝「このルールのリンクをコピー」を出す（CPU と対局の設定・ホストの待合） */
-/** cnOk＝中国式のセット（いま遊べるもの）を選べる＝CPU と対局だけ（オンラインは中国式に対応するまで選べない） */
+/** cnOk＝中国式のセットを選べる（CPU と対局・オンライン〔2026-10-14 から〕・リンクで届いたルール） */
 export function RuleSettings({ t, lang, choice, onChange, readOnly = false, share = false, cnOk = false }: { t: T; lang: BaseLang; choice: RuleChoice; onChange?: (c: RuleChoice) => void; readOnly?: boolean; share?: boolean; cnOk?: boolean }) {
   /** 開いているまとまり（最初は全部畳む） */
   const [open, setOpen] = useState<Record<string, boolean>>({});

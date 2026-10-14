@@ -102,12 +102,9 @@ export function RuleLinkScreen({ t, lang, choice, onCpu, onOnline, onCancel }: {
             <button type="button" className="btn-primary" onClick={onCpu}>
               {t('rlCpu')}
             </button>
-            {/* 中国式はオンライン対局にまだ対応していない＝CPU と対局だけ */}
-            {!choice.cn && (
-              <button type="button" className="btn-primary" onClick={onOnline}>
-                {t('rlOnline')}
-              </button>
-            )}
+            <button type="button" className="btn-primary" onClick={onOnline}>
+              {t('rlOnline')}
+            </button>
             <button type="button" className="btn-secondary" onClick={onCancel}>
               {t('rlCancel')}
             </button>

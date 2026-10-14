@@ -9,6 +9,7 @@ import { waitKinds } from './agari';
 import { nextStep } from './game';
 import { createRng, shuffle } from './rng';
 import { isFlower, isRed, kindOf, tileSetFor, type TileId } from './tiles';
+import type { Rules } from './rules';
 
 const HAND_SIZE = 13;
 
@@ -101,10 +102,11 @@ export function startRound(state: GameState, gameSeed: string, roundIndex: numbe
  * 並びは局面に持たせず、src で山の位置の牌を聞く＝このあとの advance・act にも同じ src を渡す。
  * 出来事の並びはオンラインの卓（online/table.ts）と同じ：局の始まり→配牌の塊→ドラ表示牌
  */
-export function startRoundFromWall(seq: number, r: { roundIndex: number; dealer: Seat; honba: number }, src: TileSource): Envelope[] {
+export function startRoundFromWall(seq: number, r: { roundIndex: number; dealer: Seat; honba: number }, src: TileSource, rules: Rules | null = null): Envelope[] {
   const out: Envelope[] = [{ seq: seq++, to: 'all', ev: { type: 'roundStart', roundIndex: r.roundIndex, dealer: r.dealer, honba: r.honba } }];
   for (const c of dealChunkPositions(r.dealer)) out.push({ seq: seq++, to: [c.seat], ev: { type: 'deal', seat: c.seat, tiles: c.positions.map(src) } });
-  out.push({ seq: seq++, to: 'all', ev: { type: 'doraReveal', tile: src(doraIndicatorPos(136, 0)) } });
+  // 中国式はドラが無い（オンラインの卓の startRound と同じ）
+  if (rules?.family !== 'cn') out.push({ seq: seq++, to: 'all', ev: { type: 'doraReveal', tile: src(doraIndicatorPos(136, 0)) } });
   return out;
 }
 // ---- 局の進行（段階1：ツモって切る） ----

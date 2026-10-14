@@ -9,6 +9,7 @@ import { mask, type Envelope, type Seat } from '../engine/events';
 import { nextStep } from '../engine/game';
 import { act, advance, legalActions, nextHand, rollForDealer, roundSeed, startRound, startRoundFromWall, type Action, type TileSource } from '../engine/round';
 import { GENERAL_RULES, type Rules } from '../engine/rules';
+import { tileSetFor } from '../engine/tiles';
 import { apply, dealerByDice, initialState, type GameState } from '../engine/state';
 import { createRng, shuffle } from '../engine/rng';
 import type { SameWallOnline } from '../kifu/same';
@@ -83,7 +84,7 @@ const sourceOf = (s: TableState): KifuSource => ({
 /** 決まった山で打つとき、h 局目（0 から）の山。リンクの山より局が多くなったら、種から作った新しい山で続ける */
 function wallOf(s: TableState, h: number): number[] {
   const given = s.fixed?.walls[h];
-  return given ?? shuffle(Array.from({ length: 136 }, (_, i) => i), createRng(roundSeed(s.seed, h)));
+  return given ?? shuffle(tileSetFor(s.full.rules ?? GENERAL_RULES), createRng(roundSeed(s.seed, h)));
 }
 
 /** 決まった山で打つとき、いまの局の山の位置の牌を返すもの（種から作る対局は undefined＝局面が山を持っている） */
@@ -118,7 +119,7 @@ export function useTable() {
     const afterDice = apply(apply(initialState(), first), dice);
     dispatch({ type: 'reset', seed, startedAt: isoLocal(new Date()), set, strength, fixed });
     const firstRound = fixed
-      ? startRoundFromWall(2, { roundIndex: 0, dealer: afterDice.chicha, honba: 0 }, (pos) => fixed.walls[0][pos])
+      ? startRoundFromWall(2, { roundIndex: 0, dealer: afterDice.chicha, honba: 0 }, (pos) => fixed.walls[0][pos], rules)
       : startRound(afterDice, seed, 0, afterDice.chicha);
     dispatch({ type: 'push', envs: [first, dice, ...firstRound] });
   }, []);
@@ -148,7 +149,7 @@ export function useTable() {
       const n = nextStep(full);
       if (n.type === 'round') {
         const w = wallOf(s, full.handCount);
-        envs = startRoundFromWall(full.nextSeq, n, (pos) => w[pos]);
+        envs = startRoundFromWall(full.nextSeq, n, (pos) => w[pos], full.rules);
       }
     }
     if (envs.length > 0) dispatch({ type: 'push', envs });

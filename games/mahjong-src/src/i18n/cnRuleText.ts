@@ -17,13 +17,13 @@ export const CN_NAMES: Record<string, Tr> = {
   flower: { en: 'Flower tiles (8 flowers and seasons)', zh: '花牌（春夏秋冬梅兰菊竹）' },
   flowerRefill: { en: 'Replacement after a flower', zh: '补花的位置' },
   chi: { en: 'Chow', zh: '吃' },
-  lastTile: { en: 'Chow / pung on the last discard', zh: '最后一张打出的牌吃・碰' },
+  lastTile: { en: 'Chow / pung on the last discard', zh: '最后一张打出的牌吃·碰' },
   kuikae: { en: 'Swap-discard after a call', zh: '食换' },
   queyimen: { en: 'Must be missing one suit to win (que yi men)', zh: '缺一门才能和牌' },
   minFan: { en: 'Minimum fan to win', zh: '起和番数' },
   qidui: { en: 'Seven pairs', zh: '七对' },
   haitei: { en: 'Winning on the last tile (haidi)', zh: '最后一张和牌（海底）' },
-  tenhou: { en: 'Heavenly / earthly hand', zh: '天和・地和' },
+  tenhou: { en: 'Heavenly / earthly hand', zh: '天和·地和' },
   multiWin: { en: 'Two or more players win on the same discard', zh: '同一张牌多人和牌' },
   afterWin: { en: 'After a win', zh: '和牌之后' },
   ron: { en: 'Win on a discard', zh: '点和（吃和）' },
@@ -41,7 +41,7 @@ export const CN_NAMES: Record<string, Tr> = {
   huazhu: { en: 'Penalty for keeping all three suits at a draw (hua zhu)', zh: '流局查花猪' },
   gangshangpao: { en: 'Win on the discard right after a kong (1 fan)', zh: '杠上炮（1番）' },
   chajiaoPts: { en: 'Points paid in cha jiao', zh: '查叫支付的分数' },
-  baopai: { en: 'Liability payment (twelve-tile / big three dragons)', zh: '包牌（十二张包・大三元包）' },
+  baopai: { en: 'Liability payment (twelve-tile / big three dragons)', zh: '包牌（十二张包·大三元包）' },
 };
 
 /** 選択肢（あり・なしは共通の言葉） */
@@ -60,7 +60,7 @@ export const CN_OPTS: Record<string, Record<string, Tr>> = {
   lastTile: { ok: { en: 'Allowed', zh: '可以' }, ng: { en: 'Not allowed', zh: '禁止' } },
   kuikae: { ok: { en: 'Allowed', zh: '允许' }, ng: { en: 'Not allowed', zh: '禁止' } },
   minFan: { '0': { en: 'None', zh: '无' }, '3': { en: '3 fan', zh: '3番' }, '8': { en: '8 fan', zh: '8番' } },
-  haitei: { both: { en: 'Self-draw and discard', zh: '自摸・点和均可' }, tsumo: { en: 'Self-draw only', zh: '仅自摸' } },
+  haitei: { both: { en: 'Self-draw and discard', zh: '自摸·点和均可' }, tsumo: { en: 'Self-draw only', zh: '仅自摸' } },
   multiWin: { all: { en: 'All may win', zh: '一炮多响' }, atama: { en: 'Only the first in turn order (head bump)', zh: '截和（只一人）' } },
   afterWin: {
     end: { en: 'Hand ends', zh: '本局结束' },
@@ -95,20 +95,20 @@ export const CN_OPTS: Record<string, Record<string, Tr>> = {
 export const CN_NOTES: Record<string, Tr> = {
   handCap: {
     en: 'Hong Kong: "4 rounds or 24 hands" (ends at 24 hands even if the dealer keeps winning). Sichuan and MCR have no such rule (both end at exactly 16 hands)',
-    zh: '香港为“4圈或24局”（连庄也在24局结束）。四川・国标无此条文（均为16局结束）',
+    zh: '香港为“4圈或24局”（连庄也在24局结束）。四川·国标无此条文（均为16局结束）',
   },
   tieCn: {
     en: 'MCR has no rule for a tie within one game; follows a tournament rule (Tencent TMT 2016: tied players share table points). The official tie-breaks are for overall tournament standings',
     zh: '国标对单场同分没有条文，依照赛事规程（腾讯TMT 2016“比赛分相同，则均分标准分”）。规则中的比较方法用于整个比赛的排名',
   },
-  tochu: { en: '"Yes" = nine terminals (player may choose), four winds, four kongs — same as the Japanese general rule. Dealer as in a normal draw', zh: '“有”＝九种九牌（本人选择）・四风连打・四杠散了（与日本一般规则相同）。庄家按流局处理' },
+  tochu: { en: '"Yes" = nine terminals (player may choose), four winds, four kongs — same as the Japanese general rule. Dealer as in a normal draw', zh: '“有”＝九种九牌（本人选择）·四风连打·四杠散了（与日本一般规则相同）。庄家按流局处理' },
   lastTile: {
     en: 'Kongs are never possible on the last tile (no replacement tile). MCR also forbids added/concealed kongs and flower replacement for whoever draws the last tile (MIL23-15)',
-    zh: '最后一张时任何规则都不能杠（没有补牌）。国标还禁止摸最后一张牌者加杠・暗杠・补花（MIL23-15）',
+    zh: '最后一张时任何规则都不能杠（没有补牌）。国标还禁止摸最后一张牌者加杠·暗杠·补花（MIL23-15）',
   },
   kuikae: {
     en: 'Hong Kong treats swap-discarding (discarding a tile that matches or extends the meld just called) as a foul = not allowed. Sichuan and MCR have no rule',
-    zh: '香港把“食换”（碰・吃后立即打出与该副露相同或可连接的牌）视为犯规＝禁止。四川・国标无条文',
+    zh: '香港把“食换”（碰·吃后立即打出与该副露相同或可连接的牌）视为犯规＝禁止。四川·国标无条文',
   },
   afterWin: {
     en: 'Xue liu cheng he is not in any official rule (an app variant) and no set uses it. Winners stay in and may only discard what they draw (no calls or kongs). Win as often as you like until the wall runs out',
@@ -116,12 +116,12 @@ export const CN_NOTES: Record<string, Tr> = {
   },
   huan3: {
     en: 'Not in any official rule (a familiar app variant). "Yes" = after dealing, everyone passes 3 tiles of one suit (honors with honors) face down; dice decide the direction (left, right or across). Que yi men is chosen afterwards',
-    zh: '不在任何条文中（应用程序中常见的玩法）。“有”＝配牌后每人扣出同一花色3张（字牌与字牌），掷骰决定方向（下家・上家・对家）后交换。之后再定缺',
+    zh: '不在任何条文中（应用程序中常见的玩法）。“有”＝配牌后每人扣出同一花色3张（字牌与字牌），掷骰决定方向（下家·上家·对家）后交换。之后再定缺',
   },
 };
 
 /** まとまりの名前（日本式に無いもの） */
 export const CN_GROUPS: Record<string, Tr> = {
   牌: { en: 'Tiles', zh: '牌' },
-  '鳴き・アガリ': { en: 'Calls and wins', zh: '吃碰・和牌' },
+  '鳴き・アガリ': { en: 'Calls and wins', zh: '吃碰·和牌' },
 };

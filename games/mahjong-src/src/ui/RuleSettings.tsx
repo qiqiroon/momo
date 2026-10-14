@@ -247,7 +247,7 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false, shar
           return (
             <div key={key}>
               <button type="button" className="group fold" aria-expanded={isOpen} onClick={() => toggle(key)}>
-                {isOpen ? '▼' : '▶'} {groupName(g.name, lang)}（{count}）
+                {isOpen ? '▼' : '▶'} {groupName(g.name, lang)}{lang === 'en' ? ` · ${count}` : `（${count}）`}
               </button>
               {isOpen && main.map(row)}
               {isOpen && detail.length > 0 && (

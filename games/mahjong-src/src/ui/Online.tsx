@@ -189,13 +189,13 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
                     {r.name || '(no name)'}
                     <small>
                       {r.hostName}
-                      {r.hasPassword ? ` ・ ${t('olPwTag')}` : ''}
-                      {!r.isPublic ? ` ・ ${t('olPrivateTag')}` : ''}
+                      {r.hasPassword ? ` ${t('listDot')} ${t('olPwTag')}` : ''}
+                      {!r.isPublic ? ` ${t('listDot')} ${t('olPrivateTag')}` : ''}
                     </small>
                   </span>
                   <span className="ol-room-state">
                     {t('olPlayers', { n: r.playerCount, max: MAX_SEATS })}
-                    {playing ? ` ・ ${t('olPlaying')}` : ''}
+                    {playing ? ` ${t('listDot')} ${t('olPlaying')}` : ''}
                   </span>
                   <button type="button" className="choice-btn" disabled={full || s.busy} onClick={() => join(r)}>
                     {t('olJoinBtn')}
@@ -231,7 +231,7 @@ export function OnlineStatus({ t, table, members }: { t: T; table: OnlineTable; 
         <span>{t('olNoCalls')}</span>
       </label>
       {table.dealing && <p>{t('olDealing')}</p>}
-      {away.length > 0 && <p className="away">{t('olWaitBack', { name: away.join('・') })}</p>}
+      {away.length > 0 && <p className="away">{t('olWaitBack', { name: away.join(t('listDot')) })}</p>}
       {bad && <p className="away">{t('olVerifyBad')}</p>}
     </div>
   );

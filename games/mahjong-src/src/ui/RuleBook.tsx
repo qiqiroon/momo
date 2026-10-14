@@ -3,7 +3,7 @@
 // 開く入口＝ルール選択の画面（RuleSettings）と、卓の画面（正方形は見出し・横4列は卓の上の帯）。対局中は役の一覧のタブで開く。
 // 窓は花札の役一覧と同じく、つかんで動かせて後ろを隠さない（DraggableDialog）。
 
-import { useState } from 'react';
+import { useLayoutEffect, useState, type CSSProperties } from 'react';
 import { cnLabelOf, cnNearestSet, generalChoice, jpNearestSet, labelOf, type RuleChoice } from '../engine/ruleSets';
 import type { Rules } from '../engine/rules';
 import type { BaseLang, MessageKey } from '../i18n/strings';
@@ -33,11 +33,40 @@ function choiceOf(rules: Rules): RuleChoice {
   return { base: jpNearestSet(rules.values), values: { ...rules.values } };
 }
 
-export function RuleBook({ t, lang, rules, first = 'yaku', onClose }: { t: T; lang: BaseLang; rules: Rules; first?: RuleBookTab; onClose: () => void }) {
+/** 手牌の上に収めるとき、窓の高さがこれより低くなるなら収めずに画面いっぱいで開く */
+const FIT_MIN_PX = 240;
+
+/**
+ * above＝この要素（自分の手牌）の上までに窓を収める（携帯の横4列の卓・利用者 Q4=C 2026-10-15）。
+ * 手牌と鳴き・アガリのボタンが窓に隠れないので、開いたまま打てる。手牌の場所が動いたら測り直す。
+ */
+function useFitAbove(above: string | undefined): number | null {
+  const [top, setTop] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!above) return;
+    const el = document.querySelector(above);
+    if (!el) return;
+    const measure = () => setTop(el.getBoundingClientRect().top);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [above]);
+  return top;
+}
+
+export function RuleBook({ t, lang, rules, first = 'yaku', above, onClose }: { t: T; lang: BaseLang; rules: Rules; first?: RuleBookTab; above?: string; onClose: () => void }) {
   const [tab, setTab] = useState<RuleBookTab>(first);
+  const handTop = useFitAbove(above);
+  const fitH = handTop === null ? 0 : Math.min(handTop - 16, 720);
+  const fit = fitH >= FIT_MIN_PX;
   const tabName = (x: RuleBookTab) => t(x === 'yaku' ? (rules.family === 'cn' ? 'rbTabFan' : 'rbTabYaku') : x === 'howto' ? 'rbTabHowto' : 'rbTabRules');
   return (
-    <DraggableDialog className="rulebook">
+    <DraggableDialog className={`rulebook${fit ? ' fit-above' : ''}`} style={fit ? ({ '--fit-h': `${fitH}px` } as CSSProperties) : undefined}>
       <div className="rb-head">
         <span className="rb-title">{t('rbTitle')}</span>
         <span className="rb-cur">{t('rbCur', { name: setNameOf(rules, t) })}</span>

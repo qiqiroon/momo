@@ -518,7 +518,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   );
 
   /** ルールブックの窓（対局中は役の一覧のタブで開く） */
-  const book = bookOpen && onBook && view.rules ? <RuleBook t={t} lang={baseOf(lang)} rules={view.rules} onClose={() => onBook(false)} /> : null;
+  const book = bookOpen && onBook && view.rules ? <RuleBook t={t} lang={baseOf(lang)} rules={view.rules} above={narrow ? '.my-hand' : undefined} onClose={() => onBook(false)} /> : null;
 
   if (narrow) {
     return (
@@ -995,7 +995,7 @@ function YakuHints({ view, legal, lang }: { view: GameState; legal: Action[]; la
     return (
       <div className="yaku-hints">
         <span className="hint-done">{t('hintDone')}</span>
-        {done.map((id) => t(`yaku_${id}` as MessageKey)).join('・')}
+        {done.map((id) => t(`yaku_${id}` as MessageKey)).join(t('listDot'))}
       </div>
     );
   }

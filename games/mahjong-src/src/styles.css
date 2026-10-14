@@ -449,6 +449,13 @@ body.in-game .site-header .subtitle {
   touch-action: pan-y;
 }
 
+/* 携帯の横4列の卓：窓を自分の手牌の上までに収める（Q4=C 2026-10-15）。高さは RuleBook が測って --fit-h に */
+.rulebook.fit-above {
+  top: 8px;
+  height: var(--fit-h);
+  transform: translate(calc(-50% + var(--dx, 0px)), var(--dy, 0px));
+}
+
 .rb-head {
   display: flex;
   flex-wrap: wrap;
@@ -2900,9 +2907,12 @@ body.in-game .site-header .subtitle {
   color: var(--orange);
 }
 
+/* 見るだけの値：項目名が長くて次の行へ落ちても右端に寄せ、見出しと見分けられるように（利用者 Q1=A 2026-10-15） */
 .rule-settings .set-row .ro-val {
   font-weight: 700;
   color: var(--text);
+  margin-left: auto;
+  text-align: right;
 }
 
 /* 基にしたセットから変えた項目（Q38＝A）：名前と、見るだけの値をオレンジの文字に */

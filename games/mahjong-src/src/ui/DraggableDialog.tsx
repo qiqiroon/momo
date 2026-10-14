@@ -16,9 +16,11 @@ const DRAG_START_PX = 5;
 interface Props {
   className: string;
   children: ReactNode;
+  /** 枠に足す見た目の指定（動かした量の --dx・--dy はこちらが付ける） */
+  style?: CSSProperties;
 }
 
-export function DraggableDialog({ className, children }: Props) {
+export function DraggableDialog({ className, children, style: extra }: Props) {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const suppressClick = useRef(false);
@@ -78,7 +80,7 @@ export function DraggableDialog({ className, children }: Props) {
     e.stopPropagation();
   };
 
-  const style = { '--dx': `${offset.x}px`, '--dy': `${offset.y}px` } as CSSProperties;
+  const style = { ...extra, '--dx': `${offset.x}px`, '--dy': `${offset.y}px` } as CSSProperties;
   return (
     <div
       className={`${className} draggable${dragging ? ' dragging' : ''}`}

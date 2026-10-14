@@ -37,6 +37,8 @@ export type GameEvent =
   /** 花牌を表にして脇に置く（中国式・ルールの flower）。全員に見える。このあと同じ席が補充の牌を引く（draw の flower）。
    *  配り終えたあと（局面が deal）は親から順に、局の途中は引いた牌が花牌だったとき。国標 第五条二十・第六条五(六) */
   | { type: 'flower'; seat: Seat; tile: TileId }
+  /** 配り終えたあとの補花で、手に花牌がもう無い（親から順に 1 人ずつ。全員に見える）。オンラインでは本人しか手牌を知らないので本人が出す */
+  | { type: 'buhuaDone'; seat: Seat }
   /** 打牌。全員に見える。tsumogiri＝引いた牌をそのまま切った。riichi＝この牌でリーチを宣言した（横に曲げて置く）。
    *  que＝缺一門の宣言（その人の最初の打牌だけ。伏せておいた牌を切り、捨てる色 0 萬・1 筒・2 索を全員に明かす） */
   | { type: 'discard'; seat: Seat; tile: TileId; tsumogiri: boolean; riichi?: boolean; que?: number }

@@ -899,6 +899,8 @@ export class OnlineTable {
     }
     // 人の席：見送るしかない返事・言えることが 1 つだけの宣言は自動（画面のボタンを待たない）
     const shown = this.choices(v, seat);
+    // 花牌を表にする・補花を終える：選ぶ余地が無いので自動（オンラインは本人が出すが、ボタンは出さない）
+    if (shown.length === 1 && (shown[0].type === 'flower' || shown[0].type === 'buhuaDone')) return this.perform(seat, shown[0]);
     if ((v.phase === 'claim' || v.phase === 'declare') && shown.length === 1) return this.perform(seat, shown[0]);
     // 返事の番：鳴ける牌の予告で先に選んであれば、そのとおりに返す（「その場で聞く」ならボタンを待つ）
     if (v.phase === 'claim') {

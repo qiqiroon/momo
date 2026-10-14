@@ -200,3 +200,17 @@ describe('対局の始まりで中国式のルールの値を確かめる（手�
     expect(() => start(cn('sichuan', { tobi: 'maybe' }))).toThrow('選択肢に無い');
   });
 });
+
+describe('補花を本人が出す段取り（オンライン・2026-10-14 第16）', () => {
+  it('一人用は進行役が自動で出す（親から順に表にして、無くなったら終える）。「補花を終える」が無い v0.25 までの牌譜も読める', async () => {
+    const { playOne } = await import('../selfplay/run');
+    const { benchCpu } = await import('../cpu/bench');
+    const { replay } = await import('./state');
+    const r = playOne('buhua-old', cn('mcr', {}), benchCpu);
+    expect(r.failure).toBeNull();
+    expect(r.log.filter((e) => e.ev.type === 'buhuaDone')).toHaveLength(4);
+    const old = r.log.filter((e) => e.ev.type !== 'buhuaDone').map((e, i) => ({ ...e, seq: i }));
+    expect(() => replay(old)).not.toThrow();
+    expect(replay(old).result).toEqual(replay(r.log).result);
+  });
+});

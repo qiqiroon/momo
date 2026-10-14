@@ -232,6 +232,27 @@ describe('オンラインの卓（偽の通信）', () => {
     expect(guest.view.que[1]).not.toBeNull();
   }, 70_000);
 
+  it('中国式（国標・花牌あり・144 枚）で 1 局：補花は本人が出し、局が終わって検算も通る', async () => {
+    const net = new FakeNet();
+    const host = net.add('H', true, { human: true });
+    const guest = net.add('G', false, { human: true });
+    (host as unknown as { o: { autoNext: boolean } }).o.autoNext = false;
+    host.begin(
+      [
+        { id: 'H', name: 'ホスト' },
+        { id: 'G', name: 'ゲスト' },
+      ],
+      0,
+      rulesOfCnSet('mcr'),
+    );
+    await net.until(() => [host, guest].every((t) => t.pub.phase === 'ended' && t.lastVerify !== null), 60_000);
+    expect(net.problems).toEqual([]);
+    expect(JSON.stringify(guest.pub)).toBe(JSON.stringify(host.pub));
+    expect(host.pub.buhuaDone).toEqual([true, true, true, true]);
+    // 花牌は表に出す（全員に見える）。手に残った花牌は無い
+    for (const t of [host, guest]) for (const h of t.view.hands) expect(h.filter((x) => x >= 136)).toEqual([]);
+  }, 70_000);
+
   it('ホストが選んだルール（WRC）で 1 局：全員の局面のルールがそれになり、局が終わって検算も通る', async () => {
     const net = new FakeNet();
     const host = net.add('H', true, { human: true });

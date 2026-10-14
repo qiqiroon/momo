@@ -3,7 +3,7 @@
 
 import { HIDDEN, SEATS, type Envelope, type GameEvent, type Seat, type Visibility } from './events';
 import { furitenOf } from './furiten';
-import { callProblem, cnDrawStateOf, cnRonBlocked, huan3DirOf, huan3From, huan3Problem, cnScoreRon, cnScoreTsumo, dealerByDice, kanProblem, kyushuOk, liveWallLeft, queDiscardProblem, queHoldProblem, queOn, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
+import { buhuaSeat, callProblem, cnDrawStateOf, cnRonBlocked, huan3DirOf, huan3From, huan3Problem, cnScoreRon, cnScoreTsumo, dealerByDice, kanProblem, kyushuOk, liveWallLeft, queDiscardProblem, queHoldProblem, queOn, riichiAffordable, riichiMinWall, scoreRon, scoreTsumo, tenpaiForDeclare, type GameState } from './state';
 import { doraIndicatorPos, uraIndicatorPos } from './dora';
 import { waitKinds } from './agari';
 import { nextStep } from './game';
@@ -132,7 +132,10 @@ export type Action =
   /** 缺一門：捨てる色の牌を 1 枚伏せる（suit＝捨てる色。手に 1 枚も無い色なら、伏せる牌と違う色でもよい） */
   | { type: 'que'; tile: TileId; suit: number }
   /** 換三張：同じ色の 3 枚を伏せて出す */
-  | { type: 'huan3'; tiles: TileId[] };
+  | { type: 'huan3'; tiles: TileId[] }
+  /** 花牌を表にする（オンラインで本人が出す：配り終えたあとの補花・局の途中で引いた花牌）／補花を終える */
+  | { type: 'flower'; tile: TileId }
+  | { type: 'buhuaDone' };
 
 /**
  * 局が終わった局面から、次の局（配牌まで）か対局の終わりの出来事を作る（進行役だけが呼ぶ）。
@@ -238,6 +241,17 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
     return n.type === 'yame' && n.seat === seat ? [{ type: 'yame', stop: true }, { type: 'yame', stop: false }] : [];
   }
   if (view.phase === 'declare' && view.turn === seat) return declareOptions(view, seat);
+  // 配り終えたあとの補花（本人が出す＝オンライン。一人用は進行役 advance が自動で出す）
+  if (view.phase === 'deal') {
+    if (view.flowerDue || buhuaSeat(view) !== seat || view.hands[seat].includes(HIDDEN)) return [];
+    const f = view.hands[seat].find((t) => isFlower(kindOf(t)));
+    return [f !== undefined ? { type: 'flower', tile: f } : { type: 'buhuaDone' }];
+  }
+  // 局の途中で引いた牌が花牌（まだ表にしていない＝オンライン）：表にするしかない（換三張・缺一門の前の親の 14 枚目も）
+  const dr = view.drawn[seat];
+  if (dr !== null && dr !== HIDDEN && flowersOn(view) && isFlower(kindOf(dr)) && view.turn === seat && (view.phase === 'discard' || view.phase === 'que' || view.phase === 'huan3')) {
+    return [{ type: 'flower', tile: dr }];
+  }
   if (view.phase === 'que') return queOptions(view, seat);
   if (view.phase === 'huan3') return huan3Options(view, seat);
   if (view.phase === 'claim') {
@@ -368,13 +382,13 @@ export function advance(full: GameState, src?: TileSource): Envelope[] {
   if (full.phase !== 'draw' && full.phase !== 'deal') throw new Error('ツモる時ではない');
   const tileAt: TileSource = src ?? wallSource(full);
   const at = envelopesFrom(full);
-  // 配り終えたあとの補花：親から順に、手に花牌がある人が 1 枚ずつ表にして補充を引く（国標 第六条五(六)）
-  if (full.phase === 'deal' && flowersOn(full) && !full.flowerDue) {
-    for (let i = 0; i < 4; i++) {
-      const seat = ((full.dealer + i) % 4) as Seat;
-      const f = full.hands[seat].find((t) => t !== HIDDEN && isFlower(kindOf(t)));
-      if (f !== undefined) return [at('all', { type: 'flower', seat, tile: f })];
-    }
+  // 配り終えたあとの補花：親から順に、手に花牌がある人が 1 枚ずつ表にして補充を引き、無くなったら終える（国標 第六条五(六)）。
+  // その人の手牌が伏せてある（オンライン＝本人しか知らない）なら、本人が出すのを待つ（何も出さない）
+  const bh = full.flowerDue ? null : buhuaSeat(full);
+  if (bh !== null) {
+    if (full.hands[bh].includes(HIDDEN)) return [];
+    const f = full.hands[bh].find((t) => isFlower(kindOf(t)));
+    return [at('all', f !== undefined ? { type: 'flower', seat: bh, tile: f } : { type: 'buhuaDone', seat: bh })];
   }
   const d = drawPosition(full);
   // 山が尽きた（最後の 1 枚が花牌なら補充できない＝国標 MIL23-15 の「最後の牌を引いた人は補花できない」）
@@ -390,7 +404,8 @@ export function advance(full: GameState, src?: TileSource): Envelope[] {
 
 /** 引いた牌が花牌なら、続けて表にする出来事（引いた人がそのまま補充を引く番になる） */
 function flowerOf(full: GameState, tile: TileId, at: (to: Visibility, ev: GameEvent) => Envelope): Envelope[] {
-  return flowersOn(full) && isFlower(kindOf(tile)) ? [at('all', { type: 'flower', seat: full.turn, tile })] : [];
+  // 伏せた牌（オンラインのホストは引いた牌を知らない）は、引いた本人が表にする
+  return flowersOn(full) && tile !== HIDDEN && isFlower(kindOf(tile)) ? [at('all', { type: 'flower', seat: full.turn, tile })] : [];
 }
 
 /** 番の人が選んだことを出来事にする。選べないことなら例外 */
@@ -407,6 +422,10 @@ export function act(full: GameState, seat: Seat, action: Action, src?: TileSourc
     return [{ seq: full.nextSeq, to: 'all', ev: { type: 'declare', seat, tenpai, hand: tenpai || full.rules?.family === 'cn' ? full.hands[seat].slice() : null } }];
   }
   const at = envelopesFrom(full);
+  if (action.type === 'flower' || action.type === 'buhuaDone') {
+    if (!legalActions(full, seat).some((a) => a.type === action.type)) throw new Error('いまは花牌を表にできない');
+    return [at('all', action.type === 'flower' ? { type: 'flower', seat, tile: action.tile } : { type: 'buhuaDone', seat })];
+  }
   if (full.phase === 'huan3') {
     if (action.type !== 'huan3') throw new Error(`いまは換三張の 3 枚を出すだけ（${action.type}）`);
     const problem = huan3Problem(full, seat, action.tiles);

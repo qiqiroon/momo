@@ -226,6 +226,8 @@ export interface GameState {
   flowers: TileId[][];
   flowerDue: boolean;
   flowerTaken: number;
+  /** 配り終えたあとの補花を終えた席（親から順に。全員が終えたら親の 14 枚目を引く） */
+  buhuaDone: boolean[];
   /** カンをしたが、まだめくっていないカンドラの数 */
   pendingDora: number;
   /** 最後のカンのカンドラを、打牌のときまでめくらない（kandoraWhen が split で、最後のカンが大明槓・加槓） */
@@ -320,6 +322,20 @@ export function nextActive(s: GameState, seat: Seat): Seat {
 export const baoOn = (rules: Rules | null): boolean => rules?.family === 'cn' && rules.values.baopai === 'on' && rules.values.pay === 'hk';
 /** 查叫が効くか（chajiao が「あり」で、点数の数え方が四川の番＝2026-10-13 第16 Q4=A） */
 export const chajiaoOn = (rules: Rules | null): boolean => rules?.family === 'cn' && rules.values.chajiao === 'on' && rules.values.scoring === 'sichuan';
+
+/**
+ * 配り終えたあとの補花で、いま花牌を表にする（または終える）席。親から順に、まだ終えていない最初の人。
+ * 花牌の無いルール・配っている途中（13 枚に満たない人がいる）・全員終えたなら null
+ */
+export function buhuaSeat(s: GameState): Seat | null {
+  if (s.phase !== 'deal' || s.rules?.family !== 'cn' || s.rules.values.flower !== 'on') return null;
+  if (s.hands.some((h) => h.length < 13)) return null;
+  for (let i = 0; i < 4; i++) {
+    const seat = ((s.dealer + i) % 4) as Seat;
+    if (!s.buhuaDone[seat]) return seat;
+  }
+  return null;
+}
 
 /** 缺一門で、まだ誰も捨てる色を決めておらず、誰も切っていない（親の 14 枚目の前後） */
 const queNotStarted = (s: GameState): boolean =>
@@ -445,6 +461,7 @@ export const initialState = (): GameState => ({
   flowers: [[], [], [], []],
   flowerDue: false,
   flowerTaken: 0,
+  buhuaDone: [false, false, false, false],
   pendingDora: 0,
   deferDora: false,
   kuikaeBan: [],
@@ -566,6 +583,7 @@ export function apply(state: GameState, env: Envelope): GameState {
         flowers: [[], [], [], []],
         flowerDue: false,
         flowerTaken: 0,
+        buhuaDone: [false, false, false, false],
         pendingDora: 0,
         deferDora: false,
         kuikaeBan: [],
@@ -709,11 +727,32 @@ export function apply(state: GameState, env: Envelope): GameState {
         flowerTaken: s.flowerTaken + (fromBack ? 1 : 0),
       };
     }
+    case 'buhuaDone': {
+      if (s.phase !== 'deal' || s.flowerDue || buhuaSeat(s) !== ev.seat) throw new Error('補花を終える時・席ではない');
+      if (s.hands[ev.seat].some((t) => t !== HIDDEN && isFlower(kindOf(t)))) throw new Error('花牌が手に残っているのに補花を終えた');
+      const buhuaDone = s.buhuaDone.slice();
+      buhuaDone[ev.seat] = true;
+      return { ...s, buhuaDone, turn: s.dealer };
+    }
     case 'flower': {
       if (!s.rules || s.rules.family !== 'cn' || s.rules.values.flower !== 'on') throw new Error('このルールに花牌は無い');
       if (s.flowerDue) throw new Error('花牌の補充を引く前に、また花牌を表にした');
       if (ev.tile === HIDDEN || !isFlower(kindOf(ev.tile))) throw new Error('花牌でない牌を表にした');
       const deal = s.phase === 'deal';
+      // 配り終えたあとの補花：その人より前の順番の人は終えたと見なす（「補花を終える」が無い v0.25 までの牌譜も読める）。
+      // 前の人の手に見えている花牌が残っていれば、順番を飛ばしたので止める
+      let buhuaDone = s.buhuaDone;
+      if (deal) {
+        if (buhuaSeat(s) === null) throw new Error('補花の時ではない');
+        buhuaDone = s.buhuaDone.slice();
+        for (let i = 0; i < 4; i++) {
+          const p = ((s.dealer + i) % 4) as Seat;
+          if (p === ev.seat) break;
+          if (!buhuaDone[p] && s.hands[p].some((t) => t !== HIDDEN && isFlower(kindOf(t)))) throw new Error('補花の順番でない席が花牌を表にした');
+          buhuaDone[p] = true;
+        }
+        if (buhuaDone[ev.seat]) throw new Error('補花を終えた席が花牌を表にした');
+      }
       // 捨てる色を決める段取り（que）に入った直後に、親の 14 枚目が花牌だったときも表にできる（まだ誰も決めていないときだけ）
       const queStart = (s.phase === 'que' || s.phase === 'huan3') && ev.seat === s.turn && queNotStarted(s);
       if (!deal && !queStart && !(s.phase === 'discard' && ev.seat === s.turn)) throw new Error('花牌を表にする時・席ではない');
@@ -728,7 +767,7 @@ export function apply(state: GameState, env: Envelope): GameState {
       const flowers = s.flowers.map((f, seat) => (seat === ev.seat ? [...f, ev.tile] : f));
       const drawn = s.drawn.slice();
       drawn[ev.seat] = null;
-      return { ...s, hands, flowers, drawn, flowerDue: true, turn: ev.seat, phase: deal ? 'deal' : 'draw', rinshanDraw: false };
+      return { ...s, hands, flowers, drawn, buhuaDone, flowerDue: true, turn: ev.seat, phase: deal ? 'deal' : 'draw', rinshanDraw: false };
     }
     case 'discard': {
       if (s.phase !== 'discard') throw new Error('切る時ではない');

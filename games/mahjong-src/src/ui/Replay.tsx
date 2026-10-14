@@ -49,9 +49,12 @@ interface Props {
   narrow: boolean;
   lang: Lang;
   onExit: () => void;
+  /** ルールブック（卓の画面と同じ。開いているかは App が持つ） */
+  bookOpen?: boolean;
+  onBook?: (open: boolean) => void;
 }
 
-export function Replay({ events, narrow, lang, onExit, makeSameLink }: Props) {
+export function Replay({ events, narrow, lang, onExit, makeSameLink, bookOpen, onBook }: Props) {
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
   const { steps, handStarts } = useMemo(() => replaySteps(events), [events]);
   // 局面は手の位置ごとに作っておく（出来事は数千なので、前から順に当てはめて控える）
@@ -177,7 +180,7 @@ export function Replay({ events, narrow, lang, onExit, makeSameLink }: Props) {
   );
   return (
     <div className="replay">
-      <Table narrow={narrow} view={view} legal={[]} lang={lang} onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} replay sidePanel={narrow ? undefined : playbar} />
+      <Table narrow={narrow} view={view} legal={[]} lang={lang} onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} replay sidePanel={narrow ? undefined : playbar} bookOpen={bookOpen} onBook={onBook} />
       {narrow && playbar}
     </div>
   );

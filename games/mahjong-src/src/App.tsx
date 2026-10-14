@@ -191,6 +191,12 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   };
   /** 卓を出している画面か（対局中・牌譜の再生中）。画面切替を出すのはここだけ */
   const onBoard = started || replaying !== null || onlineOn;
+  /** ルールブックを開いているか（卓の画面。卓を離れたら閉じる） */
+  const [bookOpen, setBookOpen] = useState(false);
+  useEffect(() => {
+    if (!onBoard) setBookOpen(false);
+  }, [onBoard]);
+  const bookProps = { bookOpen, onBook: setBookOpen };
   /** 対局の音と演出（再生中は鳴らさない） */
   const fx = useGameEffects(tableView, (started && !replaying) || onlineOn, seatInfo.me);
   /** 「音楽を再生しますか？」を出しているか・歯車の設定を開いているか */
@@ -284,6 +290,12 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
               <span className="quit-short">{t('quitGameShort')}</span>
             </button>
           )}
+          {/* ルールブック：正方形の卓は見出しに置く（横4列は卓の上の帯＝Table） */}
+          {onBoard && layout !== 'lanes' && (
+            <button type="button" className="icon-btn layout-btn" onClick={() => setBookOpen(true)}>
+              {t('rbOpen')}
+            </button>
+          )}
           {/* 画面切替は卓を出す画面（対局・牌譜の再生）だけ（利用者指示 10-09）。卓を出す画面を足したら onBoard に入れる */}
           {canSwitch && onBoard && (
             <button type="button" className="icon-btn layout-btn" onClick={toggle}>
@@ -307,7 +319,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
       </header>
       {replaying ? (
         <main className="game">
-          <Replay events={replaying} narrow={layout === 'lanes'} lang={lang} onExit={exitReplay} makeSameLink={sameLinkOf(replaySrc)} />
+          <Replay events={replaying} narrow={layout === 'lanes'} lang={lang} onExit={exitReplay} makeSameLink={sameLinkOf(replaySrc)} {...bookProps} />
         </main>
       ) : started ? (
         <main className="game">
@@ -328,6 +340,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             saveNote={note}
             dealt={fx.dealt}
             onQuit={onTitle}
+            {...bookProps}
             chat={<Chat t={t} you={t('you')} />}
           />
         </main>
@@ -346,6 +359,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             {...onlineSave(tbl.view.phase === 'gameover' ? online.kifuSource() : null)}
             dealt={fx.dealt}
             onQuit={onTitle}
+            {...bookProps}
             chat={<Chat t={t} you={t('you')} online={{ lines: ol.chat, myId: online.myId, onSend: (s) => online.sendChat(s) }} />}
             callPanel={<CallStrip t={t} table={tbl} />}
           />

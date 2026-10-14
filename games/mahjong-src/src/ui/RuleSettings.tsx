@@ -13,6 +13,7 @@ import { CN_RULE_ITEMS, CN_SETS, JP_RULE_ITEMS, JP_SETS, blockedBy, cnBlockedBy,
 import type { CnRuleKey, JpRuleKey } from '../engine/rules';
 import { groupName, optLabel, ruleName, ruleNote } from '../i18n/ruleText';
 import type { BaseLang, MessageKey } from '../i18n/strings';
+import { RuleBook } from './RuleBook';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
@@ -111,6 +112,8 @@ function ShareLink({ t, choice }: { t: T; choice: RuleChoice }) {
 export function RuleSettings({ t, lang, choice, onChange, readOnly = false, share = false, cnOk = false }: { t: T; lang: BaseLang; choice: RuleChoice; onChange?: (c: RuleChoice) => void; readOnly?: boolean; share?: boolean; cnOk?: boolean }) {
   /** 開いているまとまり（最初は全部畳む） */
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  /** ルールブックを開いているか（中身は選んでいる途中の値に合わせる） */
+  const [book, setBook] = useState(false);
   const cn = cnOk ? choice.cn : undefined;
   const fam: 'jp' | 'cn' = cn ? 'cn' : 'jp';
   // 中国式の値（個別に変えた値を含む）。日本式は choice.values
@@ -177,7 +180,13 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false, shar
 
   return (
     <section className="gset rule-settings">
-      <h3>{t('ruleSet')}</h3>
+      <h3>
+        {t('ruleSet')}
+        <button type="button" className="btn-secondary rb-open" onClick={() => setBook(true)}>
+          {t('rbOpen')}
+        </button>
+      </h3>
+      {book && <RuleBook t={t} lang={lang} rules={cnVals ? { family: 'cn', values: cnVals } : { family: 'jp', values: choice.values }} onClose={() => setBook(false)} />}
       <details className="about-sets">
         <summary>{t('aboutSets')}</summary>
         <p className="guide">{t('aboutSetsText')}</p>

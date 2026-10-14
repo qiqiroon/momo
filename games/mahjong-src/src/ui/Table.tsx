@@ -15,7 +15,8 @@ import type { CnScore } from '../engine/sichuan';
 import { liveWallLeft, PIG_PENALTY, queOn, startPoints, suitOfKind, type GameState, type OpenMeld } from '../engine/state';
 import { isRed, kindOf, type TileId } from '../engine/tiles';
 import { relFrom, useSeat } from './seatContext';
-import { translate, type Lang, type MessageKey } from '../i18n/strings';
+import { baseOf, translate, type Lang, type MessageKey } from '../i18n/strings';
+import { RuleBook } from './RuleBook';
 import { DraggableDialog } from './DraggableDialog';
 import { lengthName, roundName } from './roundName';
 import { Tile } from './Tile';
@@ -58,6 +59,9 @@ interface Props {
   sidePanel?: ReactNode;
   /** 同じ山で勝負のリンクから始めた対局：送ってくれた人の成績（終局の画面で自分の成績と並べる） */
   compare?: { rank: number; total: number } | null;
+  /** ルールブック（2026-10-14 第17）。開いているかは App が持つ（正方形の卓は見出しのボタン・横4列は卓の上の帯のボタンで開く）。無ければボタンも出さない */
+  bookOpen?: boolean;
+  onBook?: (open: boolean) => void;
 }
 
 /** 自分から見た位置（0＝自分・1＝下家・2＝対面・3＝上家） */
@@ -65,7 +69,7 @@ interface Props {
 /** 手牌の並べ替え：種類順、同じ種類なら背番号順 */
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kindOf(a) - kindOf(b) || a - b);
 
-export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, chat, callPanel, sidePanel, compare = null }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, chat, callPanel, sidePanel, compare = null, bookOpen = false, onBook }: Props) {
   /** 配っている途中は手牌を先頭から決まった枚数だけ見せる */
   const dealing = <X,>(xs: readonly X[]): readonly X[] => (dealt === null ? xs : xs.slice(0, dealt));
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
@@ -513,21 +517,36 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
     </DraggableDialog>
   );
 
+  /** ルールブックの窓（対局中は役の一覧のタブで開く） */
+  const book = bookOpen && onBook && view.rules ? <RuleBook t={t} lang={baseOf(lang)} rules={view.rules} onClose={() => onBook(false)} /> : null;
+
   if (narrow) {
     return (
       <div className="lanes-wrap felt" style={{ '--hand-units': narrowUnits } as CSSProperties}>
         <div className="lanes-info">
-          {onQuit && view.phase !== 'gameover' && (
-            <button type="button" className="icon-btn layout-btn quit-btn lanes-quit" onClick={onQuit} aria-label={t('quitGame')}>
-              {t('quitGameShort')}
-            </button>
+          {/* 中断とルールブックは 1 組。帯が 1 行に入りきらない狭い携帯では、残り（局・残り枚数・ドラなど）を 2 行目へ回す（利用者 Q5=A 10-14） */}
+          {(onQuit || onBook) && (
+            <div className="lanes-btns">
+              {onQuit && view.phase !== 'gameover' && (
+                <button type="button" className="icon-btn layout-btn quit-btn lanes-quit" onClick={onQuit} aria-label={t('quitGame')}>
+                  {t('quitGameShort')}
+                </button>
+              )}
+              {onBook && (
+                <button type="button" className="icon-btn layout-btn lanes-book" onClick={() => onBook(true)} aria-label={t('rbOpen')}>
+                  {t('rbOpenShort')}
+                </button>
+              )}
+            </div>
           )}
-          {lengthLabel && <span className="length-label">{lengthLabel}</span>}
-          <span className="round-label">{roundLabel}</span>
-          <span className="wall-left">{t('wallLeft', { n: left })}</span>
-          {sticks}
-          {indicators}
-          {winNote}
+          <div className="lanes-stats">
+            {lengthLabel && <span className="length-label">{lengthLabel}</span>}
+            <span className="round-label">{roundLabel}</span>
+            <span className="wall-left">{t('wallLeft', { n: left })}</span>
+            {sticks}
+            {indicators}
+            {winNote}
+          </div>
         </div>
         <div className="lanes">
           {[1, 2, 3, 0].map((rel) => {
@@ -569,6 +588,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         {callPanel}
         {chat}
         {result}
+        {book}
       </div>
     );
   }
@@ -634,6 +654,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         </div>
         {result}
       </div>
+      {book}
       {callPanel || chat || sidePanel ? (
         <div className={`side-col${sidePanel ? ' side-top' : ''}`}>
           {sidePanel}

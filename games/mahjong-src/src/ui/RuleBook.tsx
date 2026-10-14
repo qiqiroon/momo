@@ -40,7 +40,7 @@ export function RuleBook({ t, lang, rules, first = 'yaku', onClose }: { t: T; la
       </div>
       <div className="rb-body" role="tabpanel" data-tab={tab}>
         {tab === 'yaku' && rules.family === 'jp' && <JpYakuList t={t} lang={lang} rules={rules} />}
-        {tab === 'yaku' && rules.family === 'cn' && (rules.values.scoring === 'sichuan' || rules.values.scoring === 'hk') && <CnFanList t={t} lang={lang} rules={rules} scoring={rules.values.scoring} />}
+        {tab === 'yaku' && rules.family === 'cn' && (rules.values.scoring === 'sichuan' || rules.values.scoring === 'hk' || rules.values.scoring === 'mcr') && <CnFanList t={t} lang={lang} rules={rules} scoring={rules.values.scoring} />}
       </div>
       <button type="button" className="btn-secondary rb-close" onClick={onClose}>
         {t('rbClose')}

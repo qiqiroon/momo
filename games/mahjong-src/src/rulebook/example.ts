@@ -6,6 +6,7 @@ import type { KindId, TileId } from '../engine/tiles';
 import type { Meld, WinContext } from '../engine/yaku';
 import type { HkWinContext } from '../engine/hongkong';
 import type { CnWinContext } from '../engine/sichuan';
+import type { McrWinContext } from '../engine/mcr';
 import type { YakuExample } from './jpYaku';
 import { idOfKind, parseKinds } from './notation';
 
@@ -85,7 +86,30 @@ export function shownGroups(ex: YakuExample): ShownGroup[] {
         : kinds.map((k, j) => ({ id: idOfKind(k), called: j === 0 }));
     groups.push({ tiles, meld: true, key: isKey(ex.hand.length + n) });
   });
+  // 表にした花牌（国標）は最後に別のまとまりで。役に関わるかは key に花牌の番号（面子の続き）で書く
+  if (ex.flowers) groups.push({ tiles: parseKinds(ex.flowers).map((k) => ({ id: idOfKind(k) })), meld: true, key: isKey(ex.hand.length + (ex.melds?.length ?? 0)) });
   return groups;
+}
+
+/** 例を国標の番の入力にする（七対はアガリの形に入れる） */
+export function mcrContextOf(ex: YakuExample): McrWinContext {
+  const h = hkContextOf(ex);
+  const c = ex.ctx ?? {};
+  return {
+    concealed: h.concealed,
+    melds: h.melds,
+    winTile: h.winTile,
+    tsumo: h.tsumo,
+    seatWind: h.seatWind,
+    roundWind: h.roundWind,
+    flowers: ex.flowers ? parseKinds(ex.flowers).length : 0,
+    lastDraw: !!c.lastDraw,
+    lastClaim: !!c.lastClaim,
+    gangkai: !!c.gangkai,
+    qianggang: !!c.qianggang,
+    juezhang: !!c.juezhang,
+    qidui: true,
+  };
 }
 
 /** 例を四川の番の入力にする */

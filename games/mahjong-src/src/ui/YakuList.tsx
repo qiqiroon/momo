@@ -1,4 +1,4 @@
-// ルールブックの役の一覧（日本式）と番の一覧（中国式の四川・香港）。花札の役一覧と同じ形：名前と翻・番（右）・説明・牌の並びの例。
+// ルールブックの役の一覧（日本式）と番の一覧（中国式の四川・香港・国標）。花札の役一覧と同じ形：名前と翻・番（右）・説明・牌の並びの例。
 // いまのルールで付かない役は灰色（ローカル役の「なし」・一発なし・人和なし など）。鳴いたときの翻は喰いタンの値も見る。
 
 import type { CSSProperties, ReactNode } from 'react';
@@ -7,7 +7,8 @@ import type { BaseLang, MessageKey } from '../i18n/strings';
 import { shownGroups } from '../rulebook/example';
 import type { YakuId } from '../engine/yaku';
 import { JP_SECTIONS, JP_YAKU, isLocalYaku, membersOf, type JpYakuEntry, type YakuExample } from '../rulebook/jpYaku';
-import { cnFansOf, cnMembersOf, type CnFanEntry, type CnScoring } from '../rulebook/cnFan';
+import { cnFansOf, type CnFanEntry, type CnScoring } from '../rulebook/cnFan';
+import { MCR_FAN_LIST } from '../rulebook/mcrFan';
 import { Tile } from './Tile';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
@@ -116,31 +117,39 @@ export function JpYakuList({ t, lang, rules }: { t: T; lang: BaseLang; rules: Ex
 
 type CnValues = Extract<Rules, { family: 'cn' }>['values'];
 
-/** 字牌を使う香港の番（字牌「なし」のルールでは付かない） */
-const HK_HONOR_FANS: ReadonlySet<string> = new Set(['dragon', 'wind', 'huayao', 'hunyise', 'xiaosanyuan', 'dasanyuan', 'ziyise', 'xiaosixi', 'dasixi', 'shisanyao']);
+/** 字牌を使う番（字牌「なし」のルールでは付かない）。香港と国標 */
+const HONOR_FANS: ReadonlySet<string> = new Set([
+  'dragon', 'wind', 'huayao', 'hunyise', 'xiaosanyuan', 'dasanyuan', 'ziyise', 'xiaosixi', 'dasixi', 'shisanyao',
+  'dasixiG', 'dasanyuanG', 'shisanyaoG', 'xiaosixiG', 'xiaosanyuanG', 'ziyiseG', 'hunyaojiu', 'qixingbukao', 'quanbukao', 'sanfengke', 'wumenqi', 'shuangjianke', 'jianke', 'quanfengke', 'menfengke', 'hunyiseG',
+]);
 
-/** いまのルールでその番が付くか（七対子・嶺上・杠上炮・搶槓・天糊地糊・字牌の項目） */
+/** いまのルールでその番が付くか（七対子・嶺上・杠上炮・搶槓・天糊地糊・字牌・花牌の項目） */
 export function cnFanOn(id: string, v: CnValues): boolean {
-  if (id === 'qidui') return v.qidui === 'on';
+  if (id === 'qidui' || id === 'qiduiG' || id === 'lianqidui') return v.qidui === 'on';
   if (id === 'gangkai' || id === 'gangkaiHk' || id === 'ganggang') return v.rinshan === 'on';
   if (id === 'gangpao') return v.gangshangpao === 'on';
-  if (id === 'qianggang' || id === 'qianggangHk') return v.chankan === 'on';
+  if (id === 'qianggang' || id === 'qianggangHk' || id === 'qiangganghe') return v.chankan === 'on';
   if (id === 'tianhu' || id === 'dihu') return v.tenhou === 'on';
-  if (HK_HONOR_FANS.has(id)) return v.honors === 'on';
+  if (id === 'huapai') return v.flower === 'on';
+  if (HONOR_FANS.has(id)) return v.honors === 'on';
   return true;
 }
 
-/** 番の一覧（四川・香港）。番数ごとにまとめ、香港の例牌（10 番）は最後に別の見出し */
-export function CnFanList({ t, lang, rules, scoring }: { t: T; lang: BaseLang; rules: Extract<Rules, { family: 'cn' }>; scoring: CnScoring }) {
+/** 一覧の 1 行ぶん（四川・香港・国標で同じ形） */
+type FanRow = Pick<CnFanEntry, 'fan' | 'each' | 'limit' | 'text' | 'ex'> & { id: string; also?: readonly string[] };
+
+/** 番の一覧（四川・香港・国標）。番数ごとにまとめる。四川・香港は小さい番から（香港の例牌は最後に別の見出し）、国標は公式の表と同じく大きい番から（Q8=A） */
+export function CnFanList({ t, lang, rules, scoring }: { t: T; lang: BaseLang; rules: Extract<Rules, { family: 'cn' }>; scoring: CnScoring | 'mcr' }) {
   const v = rules.values;
-  const list = cnFansOf(scoring);
+  const list: readonly FanRow[] = scoring === 'mcr' ? MCR_FAN_LIST : cnFansOf(scoring);
+  const members = (e: FanRow) => [e.id, ...(e.also ?? [])];
   const fanName = (id: string) => t(`cnFan_${id}` as MessageKey);
-  const sections = [...new Set(list.filter((e) => !e.limit).map((e) => e.fan))].sort((a, b) => a - b);
-  const value = (e: CnFanEntry) => (e.each ? t('rbFanEach', { n: e.fan }) : t('rbFanN', { n: e.fan }));
-  const rows = (es: readonly CnFanEntry[]) =>
+  const sections = [...new Set(list.filter((e) => !e.limit).map((e) => e.fan))].sort((a, b) => (scoring === 'mcr' ? b - a : a - b));
+  const value = (e: FanRow) => (e.each ? t(scoring === 'mcr' ? 'rbFanPerFlower' : 'rbFanEach', { n: e.fan }) : t('rbFanN', { n: e.fan }));
+  const rows = (es: readonly FanRow[]) =>
     es.map((e) => {
-      const off = !cnMembersOf(e).some((id) => cnFanOn(id, v));
-      return <Row key={e.id} name={cnMembersOf(e).map(fanName).join(t('rbJoin'))} value={off ? t('rbOff') : value(e)} off={off} text={e.text[lang]} ex={e.ex} rules={rules} />;
+      const off = !members(e).some((id) => cnFanOn(id, v));
+      return <Row key={e.id} name={members(e).map(fanName).join(t('rbJoin'))} value={off ? t('rbOff') : value(e)} off={off} text={e.text[lang]} ex={e.ex} rules={rules} />;
     });
   const limits = list.filter((e) => e.limit);
   return (

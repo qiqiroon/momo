@@ -51,7 +51,13 @@ export interface YakuExample {
     kanChain?: number;
     tianhu?: boolean;
     dihu?: boolean;
+    // 国標（mcrFan.ts）：最後の 1 枚をツモ・最後の捨て牌でロン・アガリ牌の 3 枚が見えている
+    lastDraw?: boolean;
+    lastClaim?: boolean;
+    juezhang?: boolean;
   };
+  /** 表にした花牌（国標の花牌の番。14 枚とは別に、最後に並べる） */
+  flowers?: string;
 }
 
 export interface JpYakuEntry {

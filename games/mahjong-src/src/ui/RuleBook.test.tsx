@@ -45,6 +45,18 @@ describe('ルールブックの窓', () => {
     expect(screen.getByText('平糊').closest('.rb-row')).not.toHaveClass('off');
   });
 
+  it('国標は 88 番から順に並び、花牌は「1枚ごと」。花牌なしのルールでは付かない', () => {
+    const mcr = rulesOfCnSet('mcr');
+    if (mcr.family !== 'cn') throw new Error('中国式のはず');
+    const { container } = render(<RuleBook t={t} lang="ja" rules={{ family: 'cn', values: { ...mcr.values, flower: 'off' } }} onClose={() => {}} />);
+    const secs = [...container.querySelectorAll('.rb-sec')].map((x) => x.textContent);
+    expect(secs[0]).toBe('88番');
+    expect(secs[secs.length - 1]).toBe('1番');
+    expect(container.querySelectorAll('.rb-row')).toHaveLength(75);
+    const flower = screen.getByText('花牌').closest('.rb-row')!;
+    expect(flower).toHaveClass('off');
+  });
+
   it('ほかの日本式のセットはその名前', () => {
     render(<RuleBook t={t} lang="ja" rules={rulesOfSet('tenhou')} first="howto" onClose={() => {}} />);
     expect(screen.getByText(`現在のルール：${t('set_tenhou')}`)).toBeInTheDocument();

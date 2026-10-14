@@ -277,6 +277,37 @@ describe('オンラインの卓（偽の通信）', () => {
     }
   }, 260_000);
 
+  it('中国式の換三張（Q12=A）で 1 局：2 人の間だけで受け渡し、ゲストの 3 枚はホストにも届かない。局が終わって検算も通る', async () => {
+    const net = new FakeNet();
+    const host = net.add('H', true, { human: true });
+    const guest = net.add('G', false, { human: true });
+    (host as unknown as { o: { autoNext: boolean } }).o.autoNext = false;
+    const base = rulesOfCnSet('sichuan');
+    const rules = base.family === 'cn' ? { family: 'cn' as const, values: { ...base.values, huan3: 'on' } } : base;
+    host.begin(
+      [
+        { id: 'H', name: 'ホスト' },
+        { id: 'G', name: 'ゲスト' },
+      ],
+      0,
+      rules,
+    );
+    await net.until(() => [host, guest].every((t) => t.pub.phase === 'ended' && t.lastVerify !== null), 60_000);
+    expect(net.problems).toEqual([]);
+    expect(JSON.stringify(guest.pub)).toBe(JSON.stringify(host.pub));
+    // 4 人とも受け取った（向きはホストのサイコロ）
+    expect(host.pub.huan3Taken).toEqual([true, true, true, true]);
+    expect(host.pub.huan3Dir).not.toBeNull();
+    // ゲストが出した 3 枚・受け取った 3 枚は、ホストに届いた知らせでは伏せた形だけ
+    const seenByHost = (net.seen.get('H') ?? []).flatMap((m) => (m.type === 'mt-act' ? (m.envs as Envelope[]) : m.type === 'mt-ev' ? [m.env as Envelope] : []));
+    const guestOwn = seenByHost.filter((e) => (e.ev.type === 'huan3Pass' || e.ev.type === 'huan3Take') && e.ev.seat === 1);
+    expect(guestOwn.length).toBeGreaterThanOrEqual(2);
+    for (const e of guestOwn) expect((e.ev as unknown as { tiles: number[] }).tiles.every((x) => x === HIDDEN)).toBe(true);
+    // ゲスト自身は本物を受け取った（受け取った 3 枚が手牌に入っている）
+    const myTake = guest.myLog.find((e) => e.ev.type === 'huan3Take' && e.ev.seat === 1);
+    expect(myTake && myTake.ev.type === 'huan3Take' && myTake.ev.tiles.every((x) => x !== HIDDEN)).toBe(true);
+  }, 70_000);
+
   it('ホストが選んだルール（WRC）で 1 局：全員の局面のルールがそれになり、局が終わって検算も通る', async () => {
     const net = new FakeNet();
     const host = net.add('H', true, { human: true });

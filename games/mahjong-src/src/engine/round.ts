@@ -432,7 +432,8 @@ export function act(full: GameState, seat: Seat, action: Action, src?: TileSourc
     if (problem) throw new Error(problem);
     const pass = at([seat], { type: 'huan3Pass', seat, tiles: action.tiles.slice() });
     const outs = full.huan3Out.map((x, i) => (i === seat ? action.tiles : x));
-    if (outs.some((x) => x === null)) return [pass];
+    // 4 人とも出していない／ほかの人の 3 枚が伏せてある（オンライン＝ホストが向きを決め、2 人の間だけで受け渡す）なら、出すだけ
+    if (outs.some((x) => x === null || x.includes(HIDDEN))) return [pass];
     // 4 人とも出した：サイコロで向きを決め、各人へ受け取る 3 枚を渡す。目は山の頭の 8 枚（配り終えた位置）から決まる＝牌譜・同じ山で同じ目
     const rng = createRng(`huan3:${[0, 1, 2, 3, 4, 5, 6, 7].map((p) => tileAt(p)).join('.')}`);
     const dice: [number, number] = [1 + Math.floor(rng() * 6), 1 + Math.floor(rng() * 6)];

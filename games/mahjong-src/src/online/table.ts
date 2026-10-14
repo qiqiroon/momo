@@ -16,7 +16,7 @@ import { doraIndicatorPos, uraIndicatorPos, MAX_INDICATORS } from '../engine/dor
 import { nextStep } from '../engine/game';
 import { act, advance, dealChunkPositions, drawPosition, legalActions, positionsNeeded, rollForDealer, type Action } from '../engine/round';
 import { GENERAL_RULES, type Rules } from '../engine/rules';
-import { apply, initialState, type GameState } from '../engine/state';
+import { apply, huan3DirOf, huan3From, initialState, type GameState } from '../engine/state';
 import { tileSetFor, type TileId } from '../engine/tiles';
 import { callables, presetReply, prunePresets, type Presets } from './presets';
 import {
@@ -24,12 +24,15 @@ import {
   decoder,
   encode,
   groupOf,
+  modPow,
+  newKey,
   newLocker,
   relockPass,
   shufflePass,
   unlock,
   verifyDeal,
   type Group,
+  type Key,
   type Locker,
   type VerifyProblem,
 } from './lock';
@@ -104,12 +107,12 @@ const lockerFromWire = (w: WireLocker): Locker => ({
 });
 
 /** 席の持ち主が作り、本人にだけ見える出来事（ホストへは伏せた形で送る） */
-const PRIVATE_OWN = new Set<GameEvent['type']>(['queHold', 'huan3Pass']);
+const PRIVATE_OWN = new Set<GameEvent['type']>(['queHold', 'huan3Pass', 'huan3Take']);
 /** 伏せた形か（中身の牌が全部 HIDDEN） */
 const isMasked = (e: Envelope): boolean => {
   const ev = e.ev;
   if (ev.type === 'queHold') return ev.tile === HIDDEN && ev.suit === HIDDEN;
-  if (ev.type === 'huan3Pass') return ev.tiles.every((t) => t === HIDDEN);
+  if (ev.type === 'huan3Pass' || ev.type === 'huan3Take') return ev.tiles.every((t) => t === HIDDEN);
   return false;
 };
 
@@ -201,6 +204,11 @@ export class OnlineTable {
    * 配られてきたら自分の席の局面にはこちらを当てはめる（キー＝出来事の種類:席）
    */
   private privateReal = new Map<string, Envelope>();
+  /**
+   * 換三張の 2 人の間だけの受け渡し（Q12=A）：渡す人 A が錠前 a を掛けて送る（x）→ 受け取る人 B が錠前 b を重ねて返す（y）→
+   * A が a を外して送る（z）→ B が b を外すと中身が分かる。ほかの人に見えるのは錠前の掛かった形だけ。鍵は局の終わりに明かして確かめる
+   */
+  private h3 = { give: new Map<Seat, Key>(), take: new Map<Seat, { from: Seat; key: Key }>(), done: new Set<Seat>(), inbox: [] as { stage: 'x' | 'y' | 'z'; from: Seat; vals: bigint[] }[] };
 
   constructor(private readonly o: TableOptions) {
     this.g = groupOf(LOCK_BITS);
@@ -277,6 +285,10 @@ export class OnlineTable {
         return this.onReveal(Number(d.no), d.seat as Seat, d.locker as WireLocker);
       case 'mt-rekey':
         return this.onRekey(Number(d.no), d.seat as Seat, d.positions as number[]);
+      case 'mt-h3':
+        if (Number(d.no) !== this.hand?.no) return undefined;
+        this.h3.inbox.push({ stage: d.stage as 'x' | 'y' | 'z', from: d.from as Seat, vals: (d.vals as string[]).map(big) });
+        return this.drive();
       default:
         return undefined;
     }
@@ -362,6 +374,7 @@ export class OnlineTable {
     this.pendingRound = null;
     this.waiters = [];
     this.opens = [];
+    this.h3 = { give: new Map(), take: new Map(), done: new Set(), inbox: [] };
     this.changed();
     // 席 0 から順に混ぜる（席 0 の持ち主が最初）
     this.lockStep('s', 0, this.hand.start);
@@ -818,7 +831,48 @@ export class OnlineTable {
       for (const [seat, lk] of h.mine) this.broadcast({ type: 'mt-reveal', no: h.no, seat, locker: lockerToWire(lk) });
     }
     if (this.o.isHost) this.driveHost();
+    this.driveHuan3();
     for (const seat of this.controlled()) this.driveSeat(seat);
+  }
+
+  /** 換三張の受け渡し（向きが決まったあと）。届いた知らせは向きが分かってから処理する */
+  private driveHuan3() {
+    const h = this.hand;
+    const dir = this.pub.huan3Dir;
+    if (!h || this.pub.phase !== 'huan3' || dir === null) return;
+    const p = this.g.p;
+    // 渡す人：自分の 3 枚に錠前 a を掛けて送る
+    for (const seat of this.controlled()) {
+      const out = this.views.get(seat)?.huan3Out[seat];
+      if (this.h3.give.has(seat) || !out || out.includes(HIDDEN)) continue;
+      const a = newKey(this.g);
+      this.h3.give.set(seat, a);
+      this.broadcast({ type: 'mt-h3', no: h.no, stage: 'x', from: seat, vals: out.map((t) => hex(modPow(encode(this.g, t), a.e, p))) });
+    }
+    const inbox = this.h3.inbox;
+    this.h3.inbox = [];
+    for (const m of inbox) {
+      const to = SEATS.find((x) => huan3From(x, dir) === m.from)!;
+      if (m.stage === 'x' && this.views.has(to) && !this.h3.take.has(to)) {
+        // 受け取る人：錠前 b を重ねて返す
+        const b = newKey(this.g);
+        this.h3.take.set(to, { from: m.from, key: b });
+        this.broadcast({ type: 'mt-h3', no: h.no, stage: 'y', from: m.from, vals: m.vals.map((v) => hex(modPow(v, b.e, p))) });
+      } else if (m.stage === 'y' && this.h3.give.has(m.from)) {
+        // 渡す人：自分の錠前 a を外して送る（残るのは b だけ）
+        const a = this.h3.give.get(m.from)!;
+        this.broadcast({ type: 'mt-h3', no: h.no, stage: 'z', from: m.from, vals: m.vals.map((v) => hex(modPow(v, a.d, p))) });
+      } else if (m.stage === 'z' && this.h3.take.get(to)?.from === m.from && !this.h3.done.has(to)) {
+        // 受け取る人：錠前 b を外すと中身が分かる。受け取った出来事は本人にだけ見える形で出す
+        const b = this.h3.take.get(to)!.key;
+        const tiles = m.vals.map((v) => this.decode(modPow(v, b.d, p)));
+        if (tiles.some((t) => t < 0)) continue;
+        this.h3.done.add(to);
+        const real: Envelope = { seq: this.pub.nextSeq, to: [to], ev: { type: 'huan3Take', seat: to, tiles } };
+        this.privateReal.set(`huan3Take:${to}`, real);
+        this.toHost({ type: 'mt-act', id: this.o.myId, seat: to, envs: [mask(real, -1 as Seat)] });
+      }
+    }
   }
 
   /** ホスト：局を始める・山から引かせる・次の局へ */
@@ -840,6 +894,15 @@ export class OnlineTable {
       return;
     }
     if (this.hostStep === p.nextSeq) return;
+    // 換三張：4 人とも出したら、サイコロを振って渡す向きを決める（オンラインはホストの端末の乱数）
+    if (p.phase === 'huan3' && p.huan3Dir === null && p.huan3Out.every((x) => x !== null)) {
+      this.hostStep = p.nextSeq;
+      const n = new Uint32Array(2);
+      crypto.getRandomValues(n);
+      const dice: [number, number] = [1 + (n[0] % 6), 1 + (n[1] % 6)];
+      this.emit({ seq: p.nextSeq, to: 'all', ev: { type: 'huan3Swap', dice, dir: huan3DirOf(dice) } });
+      return;
+    }
     if ((p.phase === 'deal' && h.dealt >= 16) || p.phase === 'draw') {
       this.hostStep = p.nextSeq;
       const d = drawPosition(p);

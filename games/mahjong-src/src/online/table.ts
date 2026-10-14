@@ -16,7 +16,7 @@ import { doraIndicatorPos, uraIndicatorPos, MAX_INDICATORS } from '../engine/dor
 import { nextStep } from '../engine/game';
 import { act, advance, dealChunkPositions, drawPosition, legalActions, positionsNeeded, rollForDealer, type Action } from '../engine/round';
 import { GENERAL_RULES, type Rules } from '../engine/rules';
-import { apply, huan3DirOf, huan3From, initialState, type GameState } from '../engine/state';
+import { apply, huan3DirOf, huan3From, initialState, replay, type GameState } from '../engine/state';
 import { tileSetFor, type TileId } from '../engine/tiles';
 import { callables, presetReply, prunePresets, type Presets } from './presets';
 import {
@@ -208,7 +208,18 @@ export class OnlineTable {
    * 換三張の 2 人の間だけの受け渡し（Q12=A）：渡す人 A が錠前 a を掛けて送る（x）→ 受け取る人 B が錠前 b を重ねて返す（y）→
    * A が a を外して送る（z）→ B が b を外すと中身が分かる。ほかの人に見えるのは錠前の掛かった形だけ。鍵は局の終わりに明かして確かめる
    */
-  private h3 = { give: new Map<Seat, Key>(), take: new Map<Seat, { from: Seat; key: Key }>(), done: new Set<Seat>(), inbox: [] as { stage: 'x' | 'y' | 'z'; from: Seat; vals: bigint[] }[] };
+  private h3 = {
+    give: new Map<Seat, Key>(),
+    take: new Map<Seat, { from: Seat; key: Key }>(),
+    done: new Set<Seat>(),
+    inbox: [] as { stage: 'x' | 'y' | 'z'; from: Seat; vals: bigint[] }[],
+    /** 渡す人ごとの錠前 a を掛けた 3 枚（局の終わりに a の鍵が明かされたら中身が分かる） */
+    xs: new Map<Seat, bigint[]>(),
+    /** 局の終わりに明かされた錠前 a の外す鍵 */
+    revealed: new Map<Seat, bigint>(),
+  };
+  /** 局ごとの換三張で出した 3 枚（局の終わりに分かった分。walls と同じ順） */
+  h3Tiles: Map<Seat, TileId[]>[] = [];
 
   constructor(private readonly o: TableOptions) {
     this.g = groupOf(LOCK_BITS);
@@ -282,6 +293,7 @@ export class OnlineTable {
       case 'mt-act':
         return this.onAct(String(d.id), d.seat as Seat, d.envs as Envelope[]);
       case 'mt-reveal':
+        if (typeof d.h3 === 'string' && Number(d.no) === this.hand?.no) this.h3.revealed.set(d.seat as Seat, big(d.h3));
         return this.onReveal(Number(d.no), d.seat as Seat, d.locker as WireLocker);
       case 'mt-rekey':
         return this.onRekey(Number(d.no), d.seat as Seat, d.positions as number[]);
@@ -374,7 +386,7 @@ export class OnlineTable {
     this.pendingRound = null;
     this.waiters = [];
     this.opens = [];
-    this.h3 = { give: new Map(), take: new Map(), done: new Set(), inbox: [] };
+    this.h3 = { give: new Map(), take: new Map(), done: new Set(), inbox: [], xs: new Map(), revealed: new Map() };
     this.changed();
     // 席 0 から順に混ぜる（席 0 の持ち主が最初）
     this.lockStep('s', 0, this.hand.start);
@@ -685,8 +697,24 @@ export class OnlineTable {
     const lockers = SEATS.map((s) => h.revealed.get(s)!);
     const log = { start: h.start, shuffled: h.shuffled as bigint[][], relocked: h.relocked as bigint[][] };
     const { problems, wall } = verifyDeal(this.g, h.ids, log, lockers, h.tiles);
+    if (!problems.some((x) => x.kind === 'tiles')) {
+      this.walls.push(wall);
+      // 換三張で出した 3 枚：錠前 a を外して中身を出す
+      const passed = new Map<Seat, TileId[]>();
+      for (const [seat, xs] of this.h3.xs) {
+        const d = this.h3.revealed.get(seat);
+        if (d !== undefined) passed.set(seat, xs.map((x) => this.decode(modPow(x, d, this.g.p))));
+      }
+      this.h3Tiles.push(passed);
+      // 全員の牌を本物で埋めた列を最初から当てはめ直す（持っていない牌を切った・表にした・換三張で出した なら止まる）
+      try {
+        const full = this.fullLog();
+        if (full) replay(full);
+      } catch (e) {
+        problems.push({ kind: 'events', why: (e as Error).message });
+      }
+    }
     h.verified = problems;
-    if (!problems.some((x) => x.kind === 'tiles')) this.walls.push(wall);
     this.o.onVerified?.();
     this.lastVerify = problems;
     if (problems.length) this.o.onProblem?.(problems);
@@ -721,6 +749,12 @@ export class OnlineTable {
         const d = drawPosition(s);
         if (!w || !d) return null;
         e = { ...e, ev: { ...ev, tile: w[d.pos] } };
+      } else if ((ev.type === 'huan3Pass' || ev.type === 'huan3Take') && ev.tiles.includes(HIDDEN)) {
+        // 換三張：局の終わりに分かった 3 枚（受け取った人の分は、渡した人の 3 枚）
+        const from = ev.type === 'huan3Pass' ? ev.seat : s.huan3Dir !== null ? huan3From(ev.seat, s.huan3Dir) : null;
+        const tiles = from !== null ? this.h3Tiles[hand]?.get(from) : undefined;
+        if (!tiles) return null;
+        e = { ...e, ev: { ...ev, tiles } };
       }
       s = apply(s, e);
       out.push(e);
@@ -828,7 +862,11 @@ export class OnlineTable {
     // 局が終わったら、自分の錠前を明かす（1 局に 1 回）
     if (h && h.final && h.dealt > 0 && (this.pub.phase === 'ended' || this.pub.phase === 'gameover') && !h.revealedMine) {
       h.revealedMine = true;
-      for (const [seat, lk] of h.mine) this.broadcast({ type: 'mt-reveal', no: h.no, seat, locker: lockerToWire(lk) });
+      // 換三張で掛けた錠前 a の外す鍵も明かす（出した 3 枚を全員が確かめられる）
+      for (const [seat, lk] of h.mine) {
+        const a = this.h3.give.get(seat);
+        this.broadcast({ type: 'mt-reveal', no: h.no, seat, locker: lockerToWire(lk), ...(a ? { h3: hex(a.d) } : {}) });
+      }
     }
     if (this.o.isHost) this.driveHost();
     this.driveHuan3();
@@ -853,6 +891,7 @@ export class OnlineTable {
     this.h3.inbox = [];
     for (const m of inbox) {
       const to = SEATS.find((x) => huan3From(x, dir) === m.from)!;
+      if (m.stage === 'x') this.h3.xs.set(m.from, m.vals);
       if (m.stage === 'x' && this.views.has(to) && !this.h3.take.has(to)) {
         // 受け取る人：錠前 b を重ねて返す
         const b = newKey(this.g);

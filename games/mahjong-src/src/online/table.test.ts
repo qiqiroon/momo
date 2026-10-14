@@ -308,6 +308,54 @@ describe('オンラインの卓（偽の通信）', () => {
     expect(myTake && myTake.ev.type === 'huan3Take' && myTake.ev.tiles.every((x) => x !== HIDDEN)).toBe(true);
   }, 70_000);
 
+  it('★換三張のずる：手に無い牌を錠前に包んで渡すと、局の終わりに全員の牌で当てはめ直して見つかる。ずるが無ければ列は全部埋まる', async () => {
+    const { encode, modPow } = await import('./lock');
+    for (const cheat of [false, true]) {
+      const net = new FakeNet();
+      const host = net.add('H', true, { human: true });
+      const guest = net.add('G', false, { human: true });
+      (host as unknown as { o: { autoNext: boolean } }).o.autoNext = false;
+      if (cheat) {
+        // ゲストの端末を書き換えた人：錠前 a を掛けて送る 1 枚目を、手に無い牌にすり替える
+        const g = guest as unknown as { broadcast: (m: Record<string, unknown>) => void; h3: { give: Map<number, { e: bigint }> }; g: { p: bigint }; views: Map<number, { hands: number[][] }> };
+        const orig = g.broadcast.bind(guest);
+        g.broadcast = (m) => {
+          if (m.type === 'mt-h3' && m.stage === 'x' && m.from === 1) {
+            const a = g.h3.give.get(1)!;
+            const hand = g.views.get(1)!.hands[1];
+            const other = Array.from({ length: 108 }, (_, i) => i).find((t) => !hand.includes(t))!;
+            const c = modPow(encode(g.g as never, other), a.e, g.g.p);
+            let h = c.toString(16);
+            if (h.length % 2) h = '0' + h;
+            let bin = '';
+            for (let i = 0; i < h.length; i += 2) bin += String.fromCharCode(parseInt(h.slice(i, i + 2), 16));
+            m = { ...m, vals: [btoa(bin), ...(m.vals as string[]).slice(1)] };
+          }
+          orig(m);
+        };
+      }
+      const base = rulesOfCnSet('sichuan');
+      const rules = base.family === 'cn' ? { family: 'cn' as const, values: { ...base.values, huan3: 'on' } } : base;
+      host.begin(
+        [
+          { id: 'H', name: 'ホスト' },
+          { id: 'G', name: 'ゲスト' },
+        ],
+        0,
+        rules,
+      );
+      await net.until(() => [host, guest].every((t) => t.pub.phase === 'ended' && t.lastVerify !== null), 60_000);
+      if (cheat) {
+        expect(host.lastVerify?.some((x) => x.kind === 'events')).toBe(true);
+      } else {
+        expect(net.problems).toEqual([]);
+        const full = host.fullLog();
+        expect(full).not.toBeNull();
+        expect(full!.some((e) => (e.ev.type === 'huan3Pass' || e.ev.type === 'huan3Take') && e.ev.tiles.includes(HIDDEN))).toBe(false);
+      }
+    }
+  }, 140_000);
+
   it('ホストが選んだルール（WRC）で 1 局：全員の局面のルールがそれになり、局が終わって検算も通る', async () => {
     const net = new FakeNet();
     const host = net.add('H', true, { human: true });

@@ -162,7 +162,9 @@ export type VerifyProblem =
   | { kind: 'shuffle'; seat: number }
   | { kind: 'relock'; seat: number; pos: number }
   | { kind: 'tiles' }
-  | { kind: 'claimed'; pos: number };
+  | { kind: 'claimed'; pos: number }
+  /** 全員の牌を本物で埋めた列を最初から当てはめ直すと止まる（持っていない牌を切った・表にした・換三張で出した など） */
+  | { kind: 'events'; why: string };
 
 /**
  * 4. 検算：全員が明かした鍵と並べ方で、途中の山を 1 つずつ作り直して突き合わせる。

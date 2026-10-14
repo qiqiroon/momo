@@ -8,7 +8,7 @@ import { cnLabelOf, cnNearestSet, labelOf } from '../engine/ruleSets';
 import type { Rules } from '../engine/rules';
 import type { BaseLang, MessageKey } from '../i18n/strings';
 import { DraggableDialog } from './DraggableDialog';
-import { JpYakuList } from './YakuList';
+import { CnFanList, JpYakuList } from './YakuList';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
@@ -40,6 +40,7 @@ export function RuleBook({ t, lang, rules, first = 'yaku', onClose }: { t: T; la
       </div>
       <div className="rb-body" role="tabpanel" data-tab={tab}>
         {tab === 'yaku' && rules.family === 'jp' && <JpYakuList t={t} lang={lang} rules={rules} />}
+        {tab === 'yaku' && rules.family === 'cn' && (rules.values.scoring === 'sichuan' || rules.values.scoring === 'hk') && <CnFanList t={t} lang={lang} rules={rules} scoring={rules.values.scoring} />}
       </div>
       <button type="button" className="btn-secondary rb-close" onClick={onClose}>
         {t('rbClose')}

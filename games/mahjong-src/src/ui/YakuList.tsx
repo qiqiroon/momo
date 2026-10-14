@@ -1,12 +1,13 @@
-// ルールブックの役の一覧（日本式）。花札の役一覧と同じ形：役の名前と翻（右）・説明・牌の並びの例。
+// ルールブックの役の一覧（日本式）と番の一覧（中国式の四川・香港）。花札の役一覧と同じ形：名前と翻・番（右）・説明・牌の並びの例。
 // いまのルールで付かない役は灰色（ローカル役の「なし」・一発なし・人和なし など）。鳴いたときの翻は喰いタンの値も見る。
 
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { Rules } from '../engine/rules';
 import type { BaseLang, MessageKey } from '../i18n/strings';
 import { shownGroups } from '../rulebook/example';
 import type { YakuId } from '../engine/yaku';
-import { JP_SECTIONS, JP_YAKU, isLocalYaku, membersOf, type JpYakuEntry } from '../rulebook/jpYaku';
+import { JP_SECTIONS, JP_YAKU, isLocalYaku, membersOf, type JpYakuEntry, type YakuExample } from '../rulebook/jpYaku';
+import { cnFansOf, cnMembersOf, type CnFanEntry, type CnScoring } from '../rulebook/cnFan';
 import { Tile } from './Tile';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
@@ -34,8 +35,8 @@ function unitsOf(groups: ReturnType<typeof shownGroups>): number {
   return Math.max(17, tiles + groups.length * 0.4 + 1);
 }
 
-function Example({ e, rules }: { e: JpYakuEntry; rules: Rules }) {
-  const groups = shownGroups(e.ex);
+function Example({ ex, rules }: { ex: YakuExample; rules: Rules }) {
+  const groups = shownGroups(ex);
   return (
     <div className="rb-tiles" style={{ '--u': unitsOf(groups).toFixed(2) } as CSSProperties}>
       {groups.map((g, i) => (
@@ -45,6 +46,21 @@ function Example({ e, rules }: { e: JpYakuEntry; rules: Rules }) {
           ))}
         </span>
       ))}
+    </div>
+  );
+}
+
+/** 一覧の 1 行：名前と値（右）・説明・補足・牌の並び。off＝いまのルールで付かない（灰色） */
+function Row({ name, value, off, text, note, ex, rules }: { name: string; value: string; off: boolean; text: string; note?: ReactNode; ex: YakuExample; rules: Rules }) {
+  return (
+    <div className={`rb-row${off ? ' off' : ''}`}>
+      <div className="rb-row-head">
+        <span className="rb-name">{name}</span>
+        <span className="rb-val">{value}</span>
+      </div>
+      <p className="rb-cond">{text}</p>
+      {note}
+      <Example ex={ex} rules={rules} />
     </div>
   );
 }
@@ -75,22 +91,73 @@ export function JpYakuList({ t, lang, rules }: { t: T; lang: BaseLang; rules: Ex
               // まとめた行のローカル役は、名前ごとにいまのルールで付くかを書く
               const locals = membersOf(e).filter(isLocalYaku);
               return (
-                <div key={e.id} className={`rb-row${st.off ? ' off' : ''}`}>
-                  <div className="rb-row-head">
-                    <span className="rb-name">{nameOf(e)}</span>
-                    <span className="rb-val">{st.off ? t('rbOff') : value(e, st.openHan)}</span>
-                  </div>
-                  <p className="rb-cond">{e.text[lang]}</p>
-                  {locals.length > 1 && (
-                    <p className="rb-cond rb-state">{t('rbLocalState', { list: locals.map((id) => `${yakuName(id)} ${t(jpYakuOn(id, v) ? 'rbOnWord' : 'rbOffWord')}`).join(t('rbJoin')) })}</p>
-                  )}
-                  <Example e={e} rules={rules} />
-                </div>
+                <Row
+                  key={e.id}
+                  name={nameOf(e)}
+                  value={st.off ? t('rbOff') : value(e, st.openHan)}
+                  off={st.off}
+                  text={e.text[lang]}
+                  note={
+                    locals.length > 1 && (
+                      <p className="rb-cond rb-state">{t('rbLocalState', { list: locals.map((id) => `${yakuName(id)} ${t(jpYakuOn(id, v) ? 'rbOnWord' : 'rbOffWord')}`).join(t('rbJoin')) })}</p>
+                    )
+                  }
+                  ex={e.ex}
+                  rules={rules}
+                />
               );
             })}
           </section>
         );
       })}
+    </div>
+  );
+}
+
+type CnValues = Extract<Rules, { family: 'cn' }>['values'];
+
+/** 字牌を使う香港の番（字牌「なし」のルールでは付かない） */
+const HK_HONOR_FANS: ReadonlySet<string> = new Set(['dragon', 'wind', 'huayao', 'hunyise', 'xiaosanyuan', 'dasanyuan', 'ziyise', 'xiaosixi', 'dasixi', 'shisanyao']);
+
+/** いまのルールでその番が付くか（七対子・嶺上・杠上炮・搶槓・天糊地糊・字牌の項目） */
+export function cnFanOn(id: string, v: CnValues): boolean {
+  if (id === 'qidui') return v.qidui === 'on';
+  if (id === 'gangkai' || id === 'gangkaiHk' || id === 'ganggang') return v.rinshan === 'on';
+  if (id === 'gangpao') return v.gangshangpao === 'on';
+  if (id === 'qianggang' || id === 'qianggangHk') return v.chankan === 'on';
+  if (id === 'tianhu' || id === 'dihu') return v.tenhou === 'on';
+  if (HK_HONOR_FANS.has(id)) return v.honors === 'on';
+  return true;
+}
+
+/** 番の一覧（四川・香港）。番数ごとにまとめ、香港の例牌（10 番）は最後に別の見出し */
+export function CnFanList({ t, lang, rules, scoring }: { t: T; lang: BaseLang; rules: Extract<Rules, { family: 'cn' }>; scoring: CnScoring }) {
+  const v = rules.values;
+  const list = cnFansOf(scoring);
+  const fanName = (id: string) => t(`cnFan_${id}` as MessageKey);
+  const sections = [...new Set(list.filter((e) => !e.limit).map((e) => e.fan))].sort((a, b) => a - b);
+  const value = (e: CnFanEntry) => (e.each ? t('rbFanEach', { n: e.fan }) : t('rbFanN', { n: e.fan }));
+  const rows = (es: readonly CnFanEntry[]) =>
+    es.map((e) => {
+      const off = !cnMembersOf(e).some((id) => cnFanOn(id, v));
+      return <Row key={e.id} name={cnMembersOf(e).map(fanName).join(t('rbJoin'))} value={off ? t('rbOff') : value(e)} off={off} text={e.text[lang]} ex={e.ex} rules={rules} />;
+    });
+  const limits = list.filter((e) => e.limit);
+  return (
+    <div className="rb-yaku">
+      <p className="rb-legend">{t('rbLegend')}</p>
+      {sections.map((n) => (
+        <section key={n}>
+          <h4 className="rb-sec">{t('rbFanSec', { n })}</h4>
+          {rows(list.filter((e) => !e.limit && e.fan === n))}
+        </section>
+      ))}
+      {limits.length > 0 && (
+        <section>
+          <h4 className="rb-sec">{t('rbSecLimit')}</h4>
+          {rows(limits)}
+        </section>
+      )}
     </div>
   );
 }

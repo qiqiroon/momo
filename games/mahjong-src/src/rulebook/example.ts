@@ -1,9 +1,11 @@
-// 役の例（YakuExample）を、ルール部分の役の判定にそのまま渡せる形にする。検査と画面の両方で使う。
+// 役の例（YakuExample）を、ルール部分の役の判定（日本式・四川・香港）にそのまま渡せる形にする。検査と画面の両方で使う。
 
 import { HIDDEN } from '../engine/events';
 import type { Rules } from '../engine/rules';
 import type { KindId, TileId } from '../engine/tiles';
 import type { Meld, WinContext } from '../engine/yaku';
+import type { HkWinContext } from '../engine/hongkong';
+import type { CnWinContext } from '../engine/sichuan';
 import type { YakuExample } from './jpYaku';
 import { idOfKind, parseKinds } from './notation';
 
@@ -84,4 +86,46 @@ export function shownGroups(ex: YakuExample): ShownGroup[] {
     groups.push({ tiles, meld: true, key: isKey(ex.hand.length + n) });
   });
   return groups;
+}
+
+/** 例を四川の番の入力にする */
+export function sichuanContextOf(ex: YakuExample): CnWinContext {
+  const concealed = new Array<number>(34).fill(0);
+  for (const g of ex.hand) for (const k of parseKinds(g)) concealed[k]++;
+  const c = ex.ctx ?? {};
+  return {
+    concealed,
+    melds: (ex.melds ?? []).map((s) => {
+      const { kind, kinds } = parseMeld(s);
+      return { kind: Math.min(...kinds), size: kinds.length === 4 ? 4 : 3, ...(kind === 'chi' ? { chi: true } : {}) };
+    }),
+    haidi: !!c.haidi,
+    gangkai: c.gangkai,
+    gangpao: c.gangpao,
+    qianggang: c.qianggang,
+  };
+}
+
+/** 例を香港の番の入力にする */
+export function hkContextOf(ex: YakuExample): HkWinContext {
+  const concealed = new Array<number>(34).fill(0);
+  for (const g of ex.hand) for (const k of parseKinds(g)) concealed[k]++;
+  const c = ex.ctx ?? {};
+  return {
+    concealed,
+    melds: (ex.melds ?? []).map((s) => {
+      const { kind, kinds } = parseMeld(s);
+      return { kind: Math.min(...kinds), type: kind === 'ankan' ? 'kan' : kind, concealed: kind === 'ankan' };
+    }),
+    winTile: parseKinds(ex.win)[0],
+    tsumo: !!ex.tsumo,
+    seatWind: windKind(c.seatWind),
+    roundWind: windKind(c.roundWind),
+    haidi: !!c.haidi,
+    gangkai: !!c.gangkai,
+    kanChain: c.kanChain ?? 0,
+    qianggang: !!c.qianggang,
+    tianhu: !!c.tianhu,
+    dihu: !!c.dihu,
+  };
 }

@@ -43,6 +43,14 @@ export interface YakuExample {
     kanburi?: boolean;
     seatWind?: 1 | 2 | 3 | 4;
     roundWind?: 1 | 2 | 3 | 4;
+    // 中国式（cnFan.ts）の場面：海底・嶺上でツモ・カンの直後の捨て牌でロン・搶槓・続けてカンした回数・天糊・地糊
+    haidi?: boolean;
+    gangkai?: boolean;
+    gangpao?: boolean;
+    qianggang?: boolean;
+    kanChain?: number;
+    tianhu?: boolean;
+    dihu?: boolean;
   };
 }
 

@@ -11,12 +11,15 @@
 // ホストの進め方（局の始まり・配牌の塊・ドラ表示牌・advance・対局の終わり）で作り直す。親決めのサイコロは頭に入れる。
 // 山の並びが手元に無い牌譜（ファイルから読んだもの）は、作り直しながら牌譜の出来事から山の位置の牌を読み取る（使わない位置は残りの牌で埋める）。
 // 版 2（10-11）：ルールは全項目の値をそのまま書く（a）。版 1 はセットとの差だけ（r）だったので、あとでセットの値が変わると読み違える。
+// 中国式（10-14 第16）：f＝'cn' なら a は中国式の全項目の値。山の枚数はルールから（108・136・144）。缺一門・換三張も選ぶ番。
+// オンライン対局の換三張は、ホストのサイコロの目と受け取りが届いた順を作り直せないので、局ごとに x に控える。
 
 import { strengthOf } from '../cpu/strength';
 import { act, advance, legalActions, nextHand, rollForDealer, startRound, startRoundFromWall } from '../engine/round';
-import { dealerByDice } from '../engine/state';
-import { decodeRuleLink, decodeRuleValues, encodeRuleValues } from '../engine/ruleSets';
-import type { JpRuleKey, Rules } from '../engine/rules';
+import { dealerByDice, huan3DirOf, huan3From } from '../engine/state';
+import { CN_SETS, decodeCnValues, decodeRuleLink, decodeRuleValues, encodeCnValues, encodeRuleValues, type CnSetId } from '../engine/ruleSets';
+import type { CnRuleKey, JpRuleKey, Rules } from '../engine/rules';
+import { tileSetFor } from '../engine/tiles';
 import { nextStep } from '../engine/game';
 import { apply, initialState, type GameState } from '../engine/state';
 import type { Envelope, Seat } from '../engine/events';
@@ -44,6 +47,10 @@ interface Head {
   c?: KifuSource['cpu'];
   /** 1＝一人用だが山は決まった並び（オンライン対局から作った同じ山で勝負）。o の山で作り直すが、オンライン対局ではない */
   l?: 1;
+  /** 'cn'＝中国式（a は中国式の全項目の値） */
+  f?: 'cn';
+  /** オンライン対局の換三張：局ごと（何局目）に [サイコロ, サイコロ, 受け取った順の席 4 つ] */
+  x?: Record<number, number[]>;
 }
 
 /** 局ごとの山（位置→牌の背番号。まだ分からない位置は -1） */
@@ -78,12 +85,12 @@ function unify(g: unknown, t: unknown, learned: Map<number, number>): boolean {
 }
 
 /** 読み取った牌を山に書き込む */
-function learn(walls: Walls, learned: Map<number, number>) {
+function learn(walls: Walls, learned: Map<number, number>, size: number) {
   for (const [m, tile] of learned) {
     const n = MARK - m;
     const hand = Math.floor(n / 200);
     const pos = n % 200;
-    while (walls.length <= hand) walls.push(new Array<number>(136).fill(-1));
+    while (walls.length <= hand) walls.push(new Array<number>(size).fill(-1));
     walls[hand][pos] = tile;
   }
 }
@@ -92,7 +99,7 @@ function learn(walls: Walls, learned: Map<number, number>) {
 function fillWalls(walls: Walls): number[][] {
   return walls.map((w) => {
     const used = new Set(w.filter((x) => x >= 0));
-    const rest = Array.from({ length: 136 }, (_, i) => i).filter((x) => !used.has(x));
+    const rest = Array.from({ length: w.length }, (_, i) => i).filter((x) => !used.has(x));
     return w.map((x) => (x >= 0 ? x : rest.shift()!));
   });
 }
@@ -101,18 +108,31 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 /** いま誰かが選ぶ番か（選ぶ番なら、その出来事を出す席の候補） */
 function choosing(s: GameState): boolean {
-  if (s.phase === 'claim' || s.phase === 'discard' || s.phase === 'declare') return true;
+  if (s.phase === 'claim' || s.phase === 'discard' || s.phase === 'declare' || s.phase === 'que') return true;
+  // 換三張：まだ出していない人がいるあいだは選ぶ番（4 人とも出したら、向きと受け取りは自動）
+  if (s.phase === 'huan3') return s.huan3Out.some((x) => x === null);
   return s.phase === 'ended' && nextStep(s).type === 'yame';
 }
 
 /** 選ぶ番でないときに出る出来事（一人用の進め方と同じ。オンライン対局はホストの進め方と同じ） */
 function automatic(s: GameState, head: Head, walls: Walls): Envelope[] {
+  // オンライン対局の換三張：控えたサイコロの目で向きを決め、控えた順に受け取る（一人用は最後に出した人の出来事に含まれる）
+  if (s.phase === 'huan3' && head.o) {
+    const x = head.x?.[s.handCount - 1];
+    if (!x) throw new Error('換三張の控えが無い');
+    if (s.huan3Dir === null) {
+      const dice: [number, number] = [x[0], x[1]];
+      return [{ seq: s.nextSeq, to: 'all', ev: { type: 'huan3Swap', dice, dir: huan3DirOf(dice) } }];
+    }
+    const seat = x[2 + s.huan3Taken.filter(Boolean).length] as Seat;
+    return [{ seq: s.nextSeq, to: [seat], ev: { type: 'huan3Take', seat, tiles: s.huan3Out[huan3From(seat, s.huan3Dir)]!.slice() } }];
+  }
   if (!head.o) return s.phase === 'ended' ? nextHand(s, head.s) : advance(s);
   if (s.phase === 'ended') {
     const n = nextStep(s);
     if (n.type === 'end') return [{ seq: s.nextSeq, to: 'all', ev: { type: 'gameEnd', reason: n.reason } }];
     if (n.type !== 'round') throw new Error('次の局を決められない');
-    return roundStartOnline(s.nextSeq, n, walls, s.handCount);
+    return roundStartOnline(s.nextSeq, n, walls, s.handCount, s.rules);
   }
   return advance(s, (pos) => tileAt(walls, s.handCount - 1, pos));
 }
@@ -121,9 +141,12 @@ function automatic(s: GameState, head: Head, walls: Walls): Envelope[] {
 const srcOf = (s: GameState, head: Head, walls: Walls) => (head.o ? (pos: number) => tileAt(walls, s.handCount - 1, pos) : undefined);
 
 /** オンライン対局の局の始まり（table.ts の startRound と同じ並び） */
-function roundStartOnline(seq: number, r: { roundIndex: number; dealer: Seat; honba: number }, walls: Walls, hand: number): Envelope[] {
-  return startRoundFromWall(seq, r, (pos) => tileAt(walls, hand, pos));
+function roundStartOnline(seq: number, r: { roundIndex: number; dealer: Seat; honba: number }, walls: Walls, hand: number, rules: Rules | null): Envelope[] {
+  return startRoundFromWall(seq, r, (pos) => tileAt(walls, hand, pos), rules);
 }
+
+/** 選んだ出来事の列：オンライン対局の換三張は、最後に出した人の端末も「出す」だけ（向きと受け取りは別の出来事） */
+const chosenEnvs = (envs: Envelope[], head: Head) => (head.o && envs[0]?.ev.type === 'huan3Pass' ? envs.slice(0, 1) : envs);
 
 
 /** 牌譜を、詰めた中身（縮める前のバイト列）にする */
@@ -131,8 +154,11 @@ export function packKifu(src: KifuSource): Uint8Array {
   const ev = src.events;
   if (ev[0]?.ev.type !== 'gameStart' || ev[1]?.ev.type !== 'dealerDice') throw new Error('対局の始まりが無い');
   const rules = ev[0].ev.rules;
-  if (rules.family !== 'jp') throw new Error('日本式だけ');
-  const head: Head = { v: KIFU_LINK_VERSION, a: encodeRuleValues(rules.values as Record<JpRuleKey, string>), s: src.seed, b: ev[1].ev.by, t: src.startedAt, e: src.set, n: ev.length };
+  const head: Head =
+    rules.family === 'cn'
+      ? { v: KIFU_LINK_VERSION, f: 'cn', a: encodeCnValues(rules.values as Record<CnRuleKey, string>), s: src.seed, b: ev[1].ev.by, t: src.startedAt, e: src.set, n: ev.length }
+      : { v: KIFU_LINK_VERSION, a: encodeRuleValues(rules.values as Record<JpRuleKey, string>), s: src.seed, b: ev[1].ev.by, t: src.startedAt, e: src.set, n: ev.length };
+  const size = tileSetFor(rules).length;
   if (src.players.length) head.p = src.players;
   if (src.cpu) head.c = src.cpu;
   // 山の並び：控えがあればそれ、無ければ作り直しながら牌譜から読み取る
@@ -159,11 +185,19 @@ export function packKifu(src: KifuSource): Uint8Array {
     const learned = new Map<number, number>();
     if (!unify(envs, ev.slice(i, i + envs.length), learned)) return envs;
     if (learned.size === 0) return envs;
-    learn(walls, learned);
+    learn(walls, learned, size);
     return gen();
   };
   take(make(() => start(head, rules, walls)));
   while (i < ev.length) {
+    // オンライン対局の換三張：4 人とも出したら、牌譜のサイコロの目と受け取った順を控える
+    if (head.o && s.phase === 'huan3' && s.huan3Dir === null && s.huan3Out.every((x) => x !== null)) {
+      const sw = ev[i]?.ev;
+      if (sw?.type !== 'huan3Swap') throw new Error(`${i} 番目が換三張の向きでない`);
+      const order = ev.slice(i + 1, i + 5).map((e) => (e.ev.type === 'huan3Take' ? e.ev.seat : -1));
+      if (order.includes(-1)) throw new Error('換三張の受け取りが 4 人そろっていない');
+      head.x = { ...(head.x ?? {}), [s.handCount - 1]: [sw.dice[0], sw.dice[1], ...order] };
+    }
     if (choosing(s)) {
       const want = ev[i];
       const seat = (want.ev as { seat?: Seat }).seat;
@@ -171,16 +205,16 @@ export function packKifu(src: KifuSource): Uint8Array {
       const legal = legalActions(s, seat);
       const n = legal.findIndex((a) => {
         try {
-          const envs = act(s, seat, a, srcOf(s, head, walls));
+          const envs = chosenEnvs(act(s, seat, a, srcOf(s, head, walls)), head);
           return unify(envs, ev.slice(i, i + envs.length), new Map());
         } catch {
           return false;
         }
       });
-      if (n < 0) throw new Error(`${i} 番目の選んだことが、選べたことの中に無い`);
+      if (n < 0) throw new Error(`${i} 番目の選んだことが、選べたことの中に無い（${JSON.stringify(want.ev).slice(0, 160)}）`);
       if (n < 63) out.push((seat << 6) | n);
       else out.push((seat << 6) | 63, n - 63);
-      take(make(() => act(s, seat, legal[n], srcOf(s, head, walls))));
+      take(make(() => chosenEnvs(act(s, seat, legal[n], srcOf(s, head, walls)), head)));
     } else {
       take(make(() => automatic(s, head, walls)));
     }
@@ -198,7 +232,7 @@ function start(head: Head, rules: Rules, walls: Walls): Envelope[] {
     ? { seq: 1, to: 'all', ev: { type: 'dealerDice', by: head.o.d[0], dice: [head.o.d[1], head.o.d[2]], dealer: dealerByDice(head.o.d[0], [head.o.d[1], head.o.d[2]]) } }
     : { seq: 1, to: 'all', ev: rollForDealer(head.s, head.b) };
   const after = apply(apply(initialState(), first), dice);
-  if (head.o) return [first, dice, ...roundStartOnline(2, { roundIndex: 0, dealer: after.chicha, honba: 0 }, walls, 0)];
+  if (head.o) return [first, dice, ...roundStartOnline(2, { roundIndex: 0, dealer: after.chicha, honba: 0 }, walls, 0, rules)];
   return [first, dice, ...startRound(after, head.s, 0, after.chicha)];
 }
 
@@ -208,14 +242,23 @@ export function unpackKifu(bytes: Uint8Array): KifuSource {
   const head = JSON.parse(new TextDecoder().decode(bytes.subarray(2, 2 + len))) as Head;
   if (head.v !== 1 && head.v !== KIFU_LINK_VERSION) throw new Error('知らない版の牌譜のリンク');
   // 版 1 はセットとの差、版 2 は全項目の値
-  const values = head.a !== undefined ? decodeRuleValues(head.a) : head.r !== undefined ? (decodeRuleLink(head.r)?.values ?? null) : null;
-  if (!values) throw new Error('ルールを読めない');
-  const rules: Rules = { family: 'jp', values };
+  let rules: Rules;
+  if (head.f === 'cn') {
+    const set: CnSetId = (CN_SETS as readonly string[]).includes(head.e) ? (head.e as CnSetId) : 'sichuan';
+    const cv = head.a !== undefined ? decodeCnValues(head.a, set) : null;
+    if (!cv) throw new Error('ルールを読めない');
+    rules = { family: 'cn', values: cv };
+  } else {
+    const values = head.a !== undefined ? decodeRuleValues(head.a) : head.r !== undefined ? (decodeRuleLink(head.r)?.values ?? null) : null;
+    if (!values) throw new Error('ルールを読めない');
+    rules = { family: 'jp', values };
+  }
+  const size = tileSetFor(rules).length;
   let p = 2 + len;
   const walls: number[][] = [];
   for (let k = 0; k < (head.o?.w ?? 0); k++) {
-    walls.push(Array.from(bytes.subarray(p, p + 136)));
-    p += 136;
+    walls.push(Array.from(bytes.subarray(p, p + size)));
+    p += size;
   }
   const events: Envelope[] = [];
   let s = initialState();
@@ -238,7 +281,7 @@ export function unpackKifu(bytes: Uint8Array): KifuSource {
     if (n === 63) n += bytes[p++];
     const legal = legalActions(s, seat);
     if (!legal[n]) throw new Error('選んだことが選べたことの中に無い');
-    take(act(s, seat, legal[n], srcOf(s, head, walls)));
+    take(chosenEnvs(act(s, seat, legal[n], srcOf(s, head, walls)), head));
   }
   if (events.length !== head.n) throw new Error('出来事の数が合わない');
   return { seed: head.s, startedAt: head.t, players: head.p ?? [], set: head.e, events, ...(head.c ? { cpu: strengthOf(head.c) } : {}), ...(head.o ? (head.l ? { walls } : { mode: 'online' as const, walls }) : {}) };

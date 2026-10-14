@@ -256,6 +256,9 @@ describe('オンラインの卓（偽の通信）', () => {
     const sw = decodeSameLink(encodeSameLink(sameWallOf({ ...src, me: 0 })));
     expect(sw?.choice.cn).toBe('mcr');
     expect(sw?.online?.walls[0]).toHaveLength(144);
+    // 牌譜のリンク（中国式・10-14）：詰めて読み直すと同じ列。山の並びの控えが無い（ファイルから読んだ）牌譜も
+    expect(unpackKifu(packKifu(src)).events).toEqual(full);
+    expect(unpackKifu(packKifu({ ...src, walls: undefined })).events).toEqual(full);
     // 花牌は表に出す（全員に見える）。手に残った花牌は無い
     for (const t of [host, guest]) for (const h of t.view.hands) expect(h.filter((x) => x >= 136)).toEqual([]);
   }, 70_000);
@@ -314,6 +317,11 @@ describe('オンラインの卓（偽の通信）', () => {
     // ゲスト自身は本物を受け取った（受け取った 3 枚が手牌に入っている）
     const myTake = guest.myLog.find((e) => e.ev.type === 'huan3Take' && e.ev.seat === 1);
     expect(myTake && myTake.ev.type === 'huan3Take' && myTake.ev.tiles.every((x) => x !== HIDDEN)).toBe(true);
+    // 牌譜のリンク：ホストのサイコロの目と受け取った順を控えて、読み直すと同じ列
+    const full = host.fullLog();
+    expect(full).not.toBeNull();
+    const src = { seed: 'online', startedAt: '2026-10-14T12:00:00+09:00', players: [], set: 'custom', events: full!, mode: 'online' as const, walls: host.walls };
+    expect(unpackKifu(packKifu(src)).events).toEqual(full);
   }, 70_000);
 
   // 長い（数十秒）ので、いつもの検査と並べず別に回す（npm run onlineplay）

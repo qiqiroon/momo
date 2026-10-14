@@ -731,7 +731,21 @@ export class OnlineTable {
     let s = initialState();
     let hand = -1;
     let chunk = 0;
-    for (const e0 of this.myLog) {
+    // 缺一門で伏せた牌（ほかの人の分は伏せてある）：その人の最初の打牌（捨てる色の印つき）で表に出るので、そこから埋める
+    const queOf = new Map<number, { tile: TileId; suit: number }>();
+    this.myLog.forEach((e, k) => {
+      if (e.ev.type !== 'queHold' || e.ev.tile !== HIDDEN) return;
+      const seat = e.ev.seat;
+      for (let j = k + 1; j < this.myLog.length; j++) {
+        const x = this.myLog[j].ev;
+        if (x.type === 'roundStart') break;
+        if (x.type === 'discard' && x.seat === seat && x.que !== undefined) {
+          queOf.set(k, { tile: x.tile, suit: x.que });
+          break;
+        }
+      }
+    });
+    for (const [k, e0] of this.myLog.entries()) {
       let e = e0;
       const ev = e.ev;
       if (ev.type === 'roundStart') {
@@ -749,6 +763,9 @@ export class OnlineTable {
         const d = drawPosition(s);
         if (!w || !d) return null;
         e = { ...e, ev: { ...ev, tile: w[d.pos] } };
+      } else if (ev.type === 'queHold' && ev.tile === HIDDEN) {
+        const q = queOf.get(k);
+        if (q) e = { ...e, ev: { ...ev, tile: q.tile, suit: q.suit } };
       } else if ((ev.type === 'huan3Pass' || ev.type === 'huan3Take') && ev.tiles.includes(HIDDEN)) {
         // 換三張：局の終わりに分かった 3 枚（受け取った人の分は、渡した人の 3 枚）
         const from = ev.type === 'huan3Pass' ? ev.seat : s.huan3Dir !== null ? huan3From(ev.seat, s.huan3Dir) : null;

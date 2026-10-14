@@ -245,13 +245,13 @@ export function legalActions(view: GameState, seat: Seat): Action[] {
   if (view.phase === 'declare' && view.turn === seat) return declareOptions(view, seat);
   // 配り終えたあとの補花（本人が出す＝オンライン。一人用は進行役 advance が自動で出す）
   if (view.phase === 'deal') {
-    if (view.flowerDue || buhuaSeat(view) !== seat || view.hands[seat].includes(HIDDEN)) return [];
+    if (view.flowerDue || buhuaSeat(view) !== seat || view.hands[seat].some((t) => t < 0)) return [];
     const f = view.hands[seat].find((t) => isFlower(kindOf(t)));
     return [f !== undefined ? { type: 'flower', tile: f } : { type: 'buhuaDone' }];
   }
   // 局の途中で引いた牌が花牌（まだ表にしていない＝オンライン）：表にするしかない（換三張・缺一門の前の親の 14 枚目も）
   const dr = view.drawn[seat];
-  if (dr !== null && dr !== HIDDEN && flowersOn(view) && isFlower(kindOf(dr)) && view.turn === seat && (view.phase === 'discard' || view.phase === 'que' || view.phase === 'huan3')) {
+  if (dr !== null && dr >= 0 && flowersOn(view) && isFlower(kindOf(dr)) && view.turn === seat && (view.phase === 'discard' || view.phase === 'que' || view.phase === 'huan3')) {
     return [{ type: 'flower', tile: dr }];
   }
   if (view.phase === 'que') return queOptions(view, seat);
@@ -388,7 +388,7 @@ export function advance(full: GameState, src?: TileSource): Envelope[] {
   // その人の手牌が伏せてある（オンライン＝本人しか知らない）なら、本人が出すのを待つ（何も出さない）
   const bh = full.flowerDue ? null : buhuaSeat(full);
   if (bh !== null) {
-    if (full.hands[bh].includes(HIDDEN)) return [];
+    if (full.hands[bh].some((t) => t < 0)) return [];
     const f = full.hands[bh].find((t) => isFlower(kindOf(t)));
     return [at('all', f !== undefined ? { type: 'flower', seat: bh, tile: f } : { type: 'buhuaDone', seat: bh })];
   }
@@ -407,7 +407,7 @@ export function advance(full: GameState, src?: TileSource): Envelope[] {
 /** 引いた牌が花牌なら、続けて表にする出来事（引いた人がそのまま補充を引く番になる） */
 function flowerOf(full: GameState, tile: TileId, at: (to: Visibility, ev: GameEvent) => Envelope): Envelope[] {
   // 伏せた牌（オンラインのホストは引いた牌を知らない）は、引いた本人が表にする
-  return flowersOn(full) && tile !== HIDDEN && isFlower(kindOf(tile)) ? [at('all', { type: 'flower', seat: full.turn, tile })] : [];
+  return flowersOn(full) && tile >= 0 && isFlower(kindOf(tile)) ? [at('all', { type: 'flower', seat: full.turn, tile })] : [];
 }
 
 /** 番の人が選んだことを出来事にする。選べないことなら例外 */

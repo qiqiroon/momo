@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { benchCpu } from '../cpu/bench';
 import { tsumogiriCpu } from '../cpu/tsumogiri';
-import { rulesOfSet } from '../engine/ruleSets';
+import { rulesOfCnSet, rulesOfSet } from '../engine/ruleSets';
 import { GENERAL_RULES } from '../engine/rules';
 import { decodeKifuLink, encodeKifuLink, packKifu, unpackKifu } from './link';
 import type { KifuSource } from './kifu';
@@ -29,6 +29,11 @@ function solo(seed: string, rules: Rules, upto = Infinity): Envelope[] {
       const waiting = ([1, 2, 3].map((d) => (s.claim!.from + d) % 4) as Seat[]).filter((x) => s.claim!.replies[x] === null);
       const seat = waiting[k++ % waiting.length];
       take(act(s, seat, p(seat)));
+    } else if (s.phase === 'que' || s.phase === 'huan3') {
+      // 缺一門・換三張：まだ選んでいない人が選ぶ（順番は毎回変える）
+      const waiting = ([0, 1, 2, 3] as Seat[]).filter((x) => (s.phase === 'que' ? s.queHeld[x] === null : s.huan3Out[x] === null));
+      const seat = waiting[k++ % waiting.length];
+      take(act(s, seat, p(seat)));
     } else if (s.phase === 'discard' || s.phase === 'declare') take(act(s, s.turn, p(s.turn)));
     else take(advance(s));
   }
@@ -49,6 +54,28 @@ describe('牌譜のリンク', () => {
       expect(back.set).toBe(set);
     }
   }, 120_000);
+
+  it('★中国式（2026-10-14 第16）：3 つのセットと、換三張・血流成河・途中流局を入れたカスタムで、詰めて読み直すと出来事の列がそっくり同じ', () => {
+    const cases: [string, Rules][] = [
+      ['sichuan', rulesOfCnSet('sichuan')],
+      ['hk', rulesOfCnSet('hk')],
+      ['mcr', rulesOfCnSet('mcr')],
+    ];
+    const sc = rulesOfCnSet('sichuan');
+    const mcr = rulesOfCnSet('mcr');
+    if (sc.family === 'cn' && mcr.family === 'cn') {
+      cases.push(['custom', { family: 'cn', values: { ...sc.values, huan3: 'on', afterWin: 'again', length: '1' } }]);
+      cases.push(['custom', { family: 'cn', values: { ...mcr.values, huan3: 'on', tochu: 'on', length: '1' } }]);
+    }
+    for (const [i, [set, rules]] of cases.entries()) {
+      const seed = `cnlink-${i}`;
+      const events = solo(seed, rules);
+      expect(events.at(-1)?.ev.type, set).toBe('gameEnd');
+      const back = unpackKifu(packKifu(src(events, seed, set)));
+      expect(back.events, set).toEqual(events);
+      expect(back.events[0].ev.type === 'gameStart' && back.events[0].ev.rules).toEqual(rules);
+    }
+  }, 180_000);
 
   it('途中で保存した対局（選ぶ番の途中で終わっている）も、そこまで同じに作り直す', () => {
     const events = solo('mid', GENERAL_RULES, 700);

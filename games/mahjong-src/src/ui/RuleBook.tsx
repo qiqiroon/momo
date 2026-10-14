@@ -8,6 +8,7 @@ import { cnLabelOf, cnNearestSet, labelOf } from '../engine/ruleSets';
 import type { Rules } from '../engine/rules';
 import type { BaseLang, MessageKey } from '../i18n/strings';
 import { DraggableDialog } from './DraggableDialog';
+import { JpYakuList } from './YakuList';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
@@ -21,7 +22,7 @@ function setNameOf(rules: Rules, t: T): string {
   return label === 'custom' ? t('rsCustom') : t(`set_${label}` as MessageKey);
 }
 
-export function RuleBook({ t, rules, first = 'yaku', onClose }: { t: T; lang: BaseLang; rules: Rules; first?: RuleBookTab; onClose: () => void }) {
+export function RuleBook({ t, lang, rules, first = 'yaku', onClose }: { t: T; lang: BaseLang; rules: Rules; first?: RuleBookTab; onClose: () => void }) {
   const [tab, setTab] = useState<RuleBookTab>(first);
   const tabName = (x: RuleBookTab) => t(x === 'yaku' ? (rules.family === 'cn' ? 'rbTabFan' : 'rbTabYaku') : x === 'howto' ? 'rbTabHowto' : 'rbTabRules');
   return (
@@ -37,7 +38,9 @@ export function RuleBook({ t, rules, first = 'yaku', onClose }: { t: T; lang: Ba
           </button>
         ))}
       </div>
-      <div className="rb-body" role="tabpanel" data-tab={tab} />
+      <div className="rb-body" role="tabpanel" data-tab={tab}>
+        {tab === 'yaku' && rules.family === 'jp' && <JpYakuList t={t} lang={lang} rules={rules} />}
+      </div>
       <button type="button" className="btn-secondary rb-close" onClick={onClose}>
         {t('rbClose')}
       </button>

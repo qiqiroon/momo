@@ -3100,3 +3100,89 @@ body.in-game .site-header .subtitle {
   margin-left: 6px;
   opacity: 0.85;
 }
+
+/* ルールブックの役の一覧（花札の役一覧と同じ形：名前と翻・説明・牌の並び） */
+.rb-legend {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+.rb-sec {
+  margin: 14px 0 6px;
+  font-size: 13px;
+  color: var(--orange-mid);
+}
+
+.rb-row {
+  margin-bottom: 6px;
+  padding: 7px 10px 9px;
+  background: #0c0c0c;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.rb-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.rb-name {
+  font-weight: 700;
+}
+
+.rb-val {
+  color: var(--orange-mid);
+  font-weight: 700;
+  font-size: 13px;
+  text-align: right;
+}
+
+.rb-cond {
+  margin: 3px 0 6px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+/* 14 枚と鳴いた牌の横倒しの分が 1 行に入る大きさ（窓の幅で決める） */
+.rb-tiles {
+  container-type: inline-size;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0 4px;
+}
+
+.rb-tiles .tile {
+  --tw: min(calc(100cqw / var(--u, 16)), 26px);
+  box-shadow: 0 calc(var(--tw) * 0.09) 0 var(--tile-side);
+}
+
+.rb-grp {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+/* 役に関わらない牌は暗く */
+.rb-grp.rb-dim .tile {
+  filter: brightness(0.45);
+}
+
+.rb-tiles .tile.rb-win {
+  outline: 2px solid var(--orange-mid);
+  outline-offset: 1px;
+}
+
+/* いまのルールで付かない役は灰色（花札と同じ） */
+.rb-row.off {
+  opacity: 0.45;
+}
+
+.rb-row.off .rb-val {
+  color: var(--text-muted);
+  font-weight: 400;
+}

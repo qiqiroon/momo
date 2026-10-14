@@ -1,0 +1,87 @@
+// 役の例（YakuExample）を、ルール部分の役の判定にそのまま渡せる形にする。検査と画面の両方で使う。
+
+import { HIDDEN } from '../engine/events';
+import type { Rules } from '../engine/rules';
+import type { KindId, TileId } from '../engine/tiles';
+import type { Meld, WinContext } from '../engine/yaku';
+import type { YakuExample } from './jpYaku';
+import { idOfKind, parseKinds } from './notation';
+
+type MeldKind = 'chi' | 'pon' | 'kan' | 'ankan';
+
+function parseMeld(s: string): { kind: MeldKind; kinds: KindId[] } {
+  const m = /^(chi|pon|kan|ankan):(.+)$/.exec(s);
+  if (!m) throw new Error(`鳴いた面子が読めない: ${s}`);
+  return { kind: m[1] as MeldKind, kinds: parseKinds(m[2]) };
+}
+
+const windKind = (n: 1 | 2 | 3 | 4 | undefined) => 26 + (n ?? 1);
+
+/** 例を役の判定の入力にする（ルールは呼ぶ側が渡す） */
+export function contextOf(ex: YakuExample, rules: Rules): WinContext {
+  const concealed = new Array<number>(34).fill(0);
+  for (const g of ex.hand) for (const k of parseKinds(g)) concealed[k]++;
+  const melds: Meld[] = (ex.melds ?? []).map((s) => {
+    const { kind, kinds } = parseMeld(s);
+    return { type: kind === 'ankan' ? 'kan' : kind, first: Math.min(...kinds), open: kind !== 'ankan' };
+  });
+  const c = ex.ctx ?? {};
+  return {
+    concealed,
+    melds,
+    winTile: parseKinds(ex.win)[0],
+    tsumo: !!ex.tsumo,
+    seatWind: windKind(c.seatWind),
+    roundWind: windKind(c.roundWind),
+    riichi: c.riichi ?? 'none',
+    ippatsu: c.ippatsu,
+    haitei: c.haitei,
+    houtei: c.houtei,
+    rinshan: c.rinshan,
+    chankan: c.chankan,
+    tenhou: c.tenhou,
+    chiihou: c.chiihou,
+    jinho: c.jinho,
+    tsubame: c.tsubame,
+    kanburi: c.kanburi,
+    rules,
+  };
+}
+
+/** 画面に並べる 1 枚。called＝鳴いた牌（横に倒す）・win＝アガリ牌の印 */
+export interface ShownTile {
+  id: TileId;
+  called?: boolean;
+  win?: boolean;
+}
+
+/** 画面に並べる面子のまとまり。key＝役に関わる（明るいまま） */
+export interface ShownGroup {
+  tiles: ShownTile[];
+  meld: boolean;
+  key: boolean;
+}
+
+/** 例を画面に並べる形にする。アガリ牌の印は、手の中でその牌を含む最後の面子の最後の 1 枚に付ける */
+export function shownGroups(ex: YakuExample): ShownGroup[] {
+  const isKey = (i: number) => !ex.key || ex.key.includes(i);
+  const win = parseKinds(ex.win)[0];
+  const groups: ShownGroup[] = ex.hand.map((g, i) => ({ tiles: parseKinds(g).map((k) => ({ id: idOfKind(k) })), meld: false, key: isKey(i) }));
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const ts = groups[i].tiles;
+    const j = ts.map((x) => x.id).lastIndexOf(idOfKind(win));
+    if (j >= 0) {
+      ts[j] = { ...ts[j], win: true };
+      break;
+    }
+  }
+  (ex.melds ?? []).forEach((s, n) => {
+    const { kind, kinds } = parseMeld(s);
+    const tiles: ShownTile[] =
+      kind === 'ankan'
+        ? kinds.map((k, j) => ({ id: j === 0 || j === 3 ? HIDDEN : idOfKind(k) }))
+        : kinds.map((k, j) => ({ id: idOfKind(k), called: j === 0 }));
+    groups.push({ tiles, meld: true, key: isKey(ex.hand.length + n) });
+  });
+  return groups;
+}

@@ -240,7 +240,7 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false, shar
           const isOpen = !!open[key];
           const count = g.fold
             ? t('rsLocalCount', { n: g.members.filter((m) => vals[m.k] === 'on').length, all: g.members.length })
-            : t('rsGroupCount', { n: g.members.length, c: changed(g.members) });
+            : t(g.members.length === 1 ? 'rsGroupCount1' : 'rsGroupCount', { n: g.members.length, c: changed(g.members) });
           const main = g.fold ? g.members : g.members.filter((m) => !isDetail(fam, m.k));
           const detail = g.fold ? [] : g.members.filter((m) => isDetail(fam, m.k));
           const dkey = key + ':detail';
@@ -253,7 +253,7 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false, shar
               {isOpen && detail.length > 0 && (
                 <>
                   <button type="button" className="group fold detail" aria-expanded={!!open[dkey]} onClick={() => toggle(dkey)}>
-                    {open[dkey] ? '▼' : '▶'} {t('rsDetail', { n: detail.length, c: changed(detail) })}
+                    {open[dkey] ? '▼' : '▶'} {t(detail.length === 1 ? 'rsDetail1' : 'rsDetail', { n: detail.length, c: changed(detail) })}
                   </button>
                   {open[dkey] && detail.map(row)}
                 </>

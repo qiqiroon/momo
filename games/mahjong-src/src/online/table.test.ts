@@ -253,6 +253,30 @@ describe('オンラインの卓（偽の通信）', () => {
     for (const t of [host, guest]) for (const h of t.view.hands) expect(h.filter((x) => x >= 136)).toEqual([]);
   }, 70_000);
 
+  it('中国式（四川の血戦到底・血流成河）で 3 局ずつ：2 人以上アガる局があり、全員の局面がそろい、検算も通る', async () => {
+    for (const afterWin of ['leave', 'again'] as const) {
+      const net = new FakeNet();
+      const host = net.add('H', true, { human: true });
+      const guest = net.add('G', false, { human: true });
+      const base = rulesOfCnSet('sichuan');
+      const rules = base.family === 'cn' ? { family: 'cn' as const, values: { ...base.values, afterWin } } : base;
+      host.begin(
+        [
+          { id: 'H', name: 'ホスト' },
+          { id: 'G', name: 'ゲスト' },
+        ],
+        0,
+        rules,
+      );
+      await net.until(() => net.verified >= 6, 120_000);
+      expect(net.problems).toEqual([]);
+      const wins = host.myLog.filter((e) => e.ev.type === 'tsumo' || e.ev.type === 'ron').length;
+      expect(wins, afterWin).toBeGreaterThanOrEqual(2);
+      await net.until(() => guest.pub.nextSeq === host.pub.nextSeq, 10_000);
+      expect(JSON.stringify(guest.pub.scores)).toBe(JSON.stringify(host.pub.scores));
+    }
+  }, 260_000);
+
   it('ホストが選んだルール（WRC）で 1 局：全員の局面のルールがそれになり、局が終わって検算も通る', async () => {
     const net = new FakeNet();
     const host = net.add('H', true, { human: true });

@@ -3212,3 +3212,32 @@ body.in-game .site-header .subtitle {
 .rb-howto .rb-sec:first-child {
   margin-top: 4px;
 }
+
+/* ---- 対局中のメニュー（段階10・GameMenu）：歯車の設定の窓にそろえ、選べることを縦に並べる ---- */
+.game-menu .btn-secondary {
+  width: 100%;
+  text-align: center;
+}
+
+/* 選べないとき（ホストの返事待ち・接続が切れている人）だけ灰色 */
+.game-menu .btn-secondary:disabled {
+  color: var(--text-muted);
+  border-color: var(--border);
+  cursor: default;
+}
+
+.game-menu .menu-cancel {
+  margin-top: 4px;
+}
+
+/* ホストへの「席を返してほしい」：卓の上の一言の並びに出す */
+.ol-reclaim {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ol-reclaim .btn-secondary {
+  padding: 4px 14px;
+}

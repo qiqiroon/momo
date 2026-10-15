@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { BaseLang, MessageKey } from '../i18n/strings';
 import { MAX_SEATS, REPLY_WAIT_MS, type Member, type OnlineNote, type OnlineSession, type ReplyWait, type RoomInfo } from '../online/session';
 import type { OnlineTable } from '../online/table';
+import type { Seat } from '../engine/events';
 import { BackButton, ScreenHead } from './Menu';
 import { Chat } from './Chat';
 import { saveStrength } from '../cpu/strength';
@@ -216,9 +217,23 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
 }
 
 /** オンラインの卓の上に出す一言：配っている・切れた人を待っている・検算の食い違い */
-export function OnlineStatus({ t, table, members }: { t: T; table: OnlineTable; members: Member[] }) {
-  const away = members.filter((m) => !m.online).map((m) => m.name);
+export function OnlineStatus({ t, table, members, isHost }: { t: T; table: OnlineTable; members: Member[]; isHost: boolean }) {
+  // CPU に任された人の席（段階10）。切れたまま CPU が打っている人は「戻るのを待っています」に出さない
+  const proxyIds = new Set(table.seats.flatMap((x) => (x.kind === 'human' && x.proxy ? [x.id] : [])));
+  const away = members.filter((m) => !m.online && !proxyIds.has(m.id)).map((m) => m.name);
   const bad = table.lastVerify !== null && table.lastVerify.length > 0;
+  const me = table.mySeat;
+  const proxyMe = me !== null && table.isProxy(me);
+  const proxyOthers = table.seats.flatMap((x, i) => (x.kind === 'human' && x.proxy && i !== me ? [x.name] : []));
+  // この局は配り直した局か（いちばん新しい局の始まりの直前が「なかったことにした局」）
+  const kinds = table.wire.map((x) => x.env.ev.type);
+  const lastStart = kinds.lastIndexOf('roundStart');
+  const redealt = lastStart > 0 && kinds.lastIndexOf('roundVoid', lastStart) > kinds.lastIndexOf('roundStart', lastStart - 1);
+  const asks = isHost ? [...table.reclaims.keys()] : [];
+  const nameOf = (seat: number) => {
+    const x = table.seats[seat];
+    return x?.kind === 'human' ? x.name : '?';
+  };
   const toggle = (on: boolean) => {
     saveNoCalls(on);
     table.setNoCalls(on);
@@ -232,6 +247,21 @@ export function OnlineStatus({ t, table, members }: { t: T; table: OnlineTable; 
       </label>
       {table.dealing && <p>{t('olDealing')}</p>}
       {away.length > 0 && <p className="away">{t('olWaitBack', { name: away.join(t('listDot')) })}</p>}
+      {proxyMe && <p>{t('olProxyMe')}</p>}
+      {proxyOthers.length > 0 && <p>{t('olProxyOthers', { name: proxyOthers.join(t('listDot')) })}</p>}
+      {redealt && <p>{t('olRedealt')}</p>}
+      {table.reclaimRefused && <p className="away">{t('olReclaimRefused')}</p>}
+      {asks.map((seat) => (
+        <div key={seat} className="ol-reclaim">
+          <span>{t('olReclaimAsk', { name: nameOf(seat) })}</span>
+          <button type="button" className="btn-secondary" onClick={() => void table.answerReclaim(seat as Seat, true)}>
+            {t('olReclaimGive')}
+          </button>
+          <button type="button" className="btn-secondary" onClick={() => void table.answerReclaim(seat as Seat, false)}>
+            {t('olReclaimDecline')}
+          </button>
+        </div>
+      ))}
       {bad && <p className="away">{t('olVerifyBad')}</p>}
     </div>
   );

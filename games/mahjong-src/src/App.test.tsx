@@ -351,15 +351,17 @@ describe('モード選択と、そこから入る画面', () => {
 });
 
 describe('見出しのボタン（対局の中断・画面切替）と同意画面の赤い見出し', () => {
-  it('モード選択には「対局を中断」も「画面切替」も出ない。対局中だけ出て、中断は確かめてからモード選択へ戻る', () => {
+  it('モード選択には「メニュー」も「画面切替」も出ない。対局中だけ出て、メニューの「対局を中断」は確かめてからモード選択へ戻る', () => {
     render(<App startConsented />);
-    expect(screen.queryByText('対局を中断')).toBeNull();
+    expect(screen.queryByText('メニュー')).toBeNull();
     expect(screen.queryByText('画面切替')).toBeNull();
     fireEvent.click(startButton());
-    expect(screen.getByText('対局を中断')).toBeInTheDocument();
+    expect(screen.queryByText('対局を中断')).toBeNull(); // 中断はメニューの中（段階10・利用者指示 10-15）
     const ask = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    fireEvent.click(screen.getByText('メニュー'));
     fireEvent.click(screen.getByText('対局を中断'));
     expect(document.querySelectorAll('.mode-list .mode-row')).toHaveLength(0); // やめるを選べば対局のまま
+    fireEvent.click(screen.getByText('メニュー'));
     fireEvent.click(screen.getByText('対局を中断'));
     expect(ask).toHaveBeenCalledTimes(2);
     expect(document.querySelectorAll('.mode-list .mode-row')).toHaveLength(3);
@@ -370,6 +372,7 @@ describe('見出しのボタン（対局の中断・画面切替）と同意画�
     render(<App startConsented />);
     fireEvent.click(startButton());
     const ask = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    fireEvent.click(screen.getByText('メニュー'));
     fireEvent.click(screen.getByText('対局を中断')); // 途中までの対局が「最後に打った・開いた対局」になる
     ask.mockRestore();
     fireEvent.click(screen.getByText('対局の再生'));
@@ -379,6 +382,21 @@ describe('見出しのボタン（対局の中断・画面切替）と同意画�
     expect(screen.getByText('画面切替')).toBeInTheDocument();
     fireEvent.click(screen.getByText('再生を終える'));
     expect(screen.queryByText('画面切替')).toBeNull();
+  });
+
+  it('対局中のメニュー（一人用）：対局を中断・ルールブック・キャンセル。CPU に任せる・ほかの人の切り替えはオンラインだけ。キャンセルで閉じる', () => {
+    render(<App startConsented />);
+    fireEvent.click(startButton());
+    fireEvent.click(screen.getByText('メニュー'));
+    const items = [...document.querySelectorAll('.game-menu button')].map((b) => b.textContent);
+    expect(items).toEqual(['対局を中断', 'ルールブック', 'キャンセル']);
+    fireEvent.click(screen.getByText('キャンセル'));
+    expect(document.querySelector('.game-menu')).toBeNull();
+    // ルールブックはメニューから開く
+    fireEvent.click(screen.getByText('メニュー'));
+    fireEvent.click(within(document.querySelector('.game-menu') as HTMLElement).getByText('ルールブック'));
+    expect(document.querySelector('.game-menu')).toBeNull();
+    expect(document.querySelector('.rb-head')).not.toBeNull();
   });
 
   it('同意画面は、隠れている所まで送って読むまで同意を押せない', () => {

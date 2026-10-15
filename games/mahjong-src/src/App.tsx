@@ -1,6 +1,6 @@
 import { loadStrength, strengthOf } from './cpu/strength';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import type { Envelope } from './engine/events';
+import type { Envelope, Seat } from './engine/events';
 import { HUMAN, useTable } from './game/useTable';
 import { cnLabelOf, cnValuesOf, decodeRuleLink, labelOf, type RuleChoice } from './engine/ruleSets';
 import { decodeSameLink, encodeSameLink, sameWallOf, type SameWall } from './kifu/same';
@@ -22,6 +22,7 @@ import { Notice, TERMS_URL, type NoticeKind } from './ui/Notice';
 import { LANG_MODES, baseOf, changeMode, currentMode, initLang, translate, type LangMode, type MessageKey } from './i18n/strings';
 import { Table } from './ui/Table';
 import { Lobby, OnlineStatus, WaitingRoom, useOnline } from './ui/Online';
+import { GameMenu } from './ui/GameMenu';
 import { CallStrip } from './ui/CallStrip';
 import { OnlineSession } from './online/session';
 import { matchmakingTransport } from './online/transport';
@@ -116,7 +117,9 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   const tbl = online.table;
   const onlineOn = screen === 'online' && ol.where === 'room' && ol.started && !!tbl?.started && !ol.reconnecting;
   const tableView = onlineOn && tbl ? tbl.view : view;
-  const seatInfo: SeatInfo = onlineOn && tbl ? { me: tbl.mySeat ?? 0, names: tbl.seats.map((x) => (x.kind === 'human' ? x.name : null)) } : { me: HUMAN, names: null };
+  // CPU に任された人の席は名前に「（CPU）」を付ける（段階10）
+  const seatInfo: SeatInfo =
+    onlineOn && tbl ? { me: tbl.mySeat ?? 0, names: tbl.seats.map((x) => (x.kind === 'human' ? (x.proxy ? t('olProxyName', { name: x.name }) : x.name) : null)) } : { me: HUMAN, names: null };
   /** ご利用にあたって：起動するたびに開いた瞬間に出し、同意するまで閉じない（利用者 Q2=A）。
    *  端末には覚えない＝毎回、賭けに使わないことを思い出してもらう（利用者 10-09）。startConsented は検査用 */
   const [consented, setConsented] = useState(startConsented);
@@ -263,6 +266,34 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
     document.documentElement.lang = base === 'zh' ? 'zh-CN' : base;
   }, [started, replaying, onlineOn, lang, consented, reading]);
 
+  /** 対局中のメニュー（一人用・オンライン。牌譜の再生には出さない） */
+  const inPlay = (started || onlineOn) && !replaying;
+  const over = tableView.phase === 'gameover';
+  const me = tbl?.mySeat ?? null;
+  const gameMenu = inPlay ? (
+    <GameMenu
+      t={t}
+      className={layout === 'lanes' ? 'lanes-quit' : ''}
+      onQuit={over ? undefined : onTitle}
+      onBook={() => setBookOpen(true)}
+      cpu={
+        onlineOn && tbl && me !== null && !over
+          ? { proxy: tbl.isProxy(me), pending: tbl.reclaimPending, onYield: () => void tbl.yieldSeat(), onReclaim: () => tbl.requestReclaim() }
+          : undefined
+      }
+      take={
+        onlineOn && tbl && ol.room?.isHost && !over
+          ? {
+              seats: tbl.seats.flatMap((x, i) =>
+                x.kind === 'human' && i !== me && !x.proxy ? [{ seat: i, name: x.name, away: !(ol.members.find((m) => m.id === x.id)?.online ?? false) }] : [],
+              ),
+              onTake: (seat) => tbl.takeSeat(seat as Seat),
+            }
+          : undefined
+      }
+    />
+  ) : null;
+
   const onLang = (m: LangMode) => {
     setMode(m);
     setLang(changeMode(m));
@@ -283,15 +314,10 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
         <div className="header-right">
           {/* 画面切替：正方形の卓を出せない狭い画面（携帯）ではボタンごと出さない（見出しをはみ出させないため・利用者指示） */}
           {/* 対局の中断：確かめてからモード選択へ（途中までの対局は「最後に打った・開いた対局」として残る） */}
-          {(started || onlineOn) && !replaying && tableView.phase !== 'gameover' && layout !== 'lanes' && (
-            <button type="button" className="icon-btn layout-btn quit-btn" onClick={onTitle} aria-label={t('quitGame')}>
-              {/* 狭い画面は短く（見出しから言語選択をはみ出させない） */}
-              <span className="quit-long">{t('quitGame')}</span>
-              <span className="quit-short">{t('quitGameShort')}</span>
-            </button>
-          )}
-          {/* ルールブック：正方形の卓は見出しに置く（横4列は卓の上の帯＝Table） */}
-          {onBoard && layout !== 'lanes' && (
+          {/* 対局中は「メニュー」（中断・CPU に任せる・ルールブック・キャンセル＝段階10・利用者指示 10-15）。横4列は卓の上の帯＝Table */}
+          {gameMenu && layout !== 'lanes' && gameMenu}
+          {/* ルールブック：牌譜の再生の正方形の卓は見出しに置く（対局中はメニューの中） */}
+          {replaying && layout !== 'lanes' && (
             <button type="button" className="icon-btn layout-btn" onClick={() => setBookOpen(true)}>
               {t('rbOpen')}
             </button>
@@ -340,13 +366,14 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             saveNote={note}
             dealt={fx.dealt}
             onQuit={onTitle}
+            menu={gameMenu}
             {...bookProps}
             chat={<Chat t={t} you={t('you')} />}
           />
         </main>
       ) : onlineOn && tbl ? (
         <main className="game">
-          <OnlineStatus t={t} table={tbl} members={ol.members} />
+          <OnlineStatus t={t} table={tbl} members={ol.members} isHost={!!ol.room?.isHost} />
           <Table
             narrow={layout === 'lanes'}
             view={tbl.view}
@@ -359,6 +386,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             {...onlineSave(tbl.view.phase === 'gameover' ? online.kifuSource() : null)}
             dealt={fx.dealt}
             onQuit={onTitle}
+            menu={gameMenu}
             {...bookProps}
             chat={<Chat t={t} you={t('you')} online={{ lines: ol.chat, myId: online.myId, onSend: (s) => online.sendChat(s) }} />}
             callPanel={<CallStrip t={t} table={tbl} />}

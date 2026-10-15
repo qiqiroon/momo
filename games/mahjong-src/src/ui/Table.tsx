@@ -51,6 +51,8 @@ interface Props {
   dealt?: number | null;
   /** 対局を中断（横4列では見出しに置く余裕が無いので、卓の上の帯の左端に置く） */
   onQuit?: () => void;
+  /** 対局中のメニュー（段階10・中断とルールブックはこの中）。あれば横4列の帯の左端に、中断・ルールブックのボタンの代わりに置く */
+  menu?: ReactNode;
   /** チャット欄（横4列は手牌の下・正方形の卓は卓の横） */
   chat?: ReactNode;
   /** 鳴ける牌の予告の欄（オンライン）。横4列は手牌の下・正方形の卓は右の列のチャットの上（利用者指示 10-10＝手牌をずらさない） */
@@ -69,7 +71,7 @@ interface Props {
 /** 手牌の並べ替え：種類順、同じ種類なら背番号順 */
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kindOf(a) - kindOf(b) || a - b);
 
-export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, chat, callPanel, sidePanel, compare = null, bookOpen = false, onBook }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, menu, chat, callPanel, sidePanel, compare = null, bookOpen = false, onBook }: Props) {
   /** 配っている途中は手牌を先頭から決まった枚数だけ見せる */
   const dealing = <X,>(xs: readonly X[]): readonly X[] => (dealt === null ? xs : xs.slice(0, dealt));
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
@@ -525,14 +527,15 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
       <div className="lanes-wrap felt" style={{ '--hand-units': narrowUnits } as CSSProperties}>
         <div className="lanes-info">
           {/* 中断とルールブックは 1 組。帯が 1 行に入りきらない狭い携帯では、残り（局・残り枚数・ドラなど）を 2 行目へ回す（利用者 Q5=A 10-14） */}
-          {(onQuit || onBook) && (
+          {(menu || onQuit || onBook) && (
             <div className="lanes-btns">
-              {onQuit && view.phase !== 'gameover' && (
+              {menu}
+              {!menu && onQuit && view.phase !== 'gameover' && (
                 <button type="button" className="icon-btn layout-btn quit-btn lanes-quit" onClick={onQuit} aria-label={t('quitGame')}>
                   {t('quitGameShort')}
                 </button>
               )}
-              {onBook && (
+              {!menu && onBook && (
                 <button type="button" className="icon-btn layout-btn lanes-book" onClick={() => onBook(true)} aria-label={t('rbOpen')}>
                   {t('rbOpenShort')}
                 </button>

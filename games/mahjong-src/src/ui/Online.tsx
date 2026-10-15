@@ -247,7 +247,7 @@ export function OnlineStatus({ t, table, members, isHost }: { t: T; table: Onlin
       </label>
       {table.dealing && <p>{t('olDealing')}</p>}
       {away.length > 0 && <p className="away">{t('olWaitBack', { name: away.join(t('listDot')) })}</p>}
-      {proxyMe && <p>{t('olProxyMe')}</p>}
+      {proxyMe && <p>{t(isHost ? 'olProxyMeHost' : 'olProxyMe')}</p>}
       {proxyOthers.length > 0 && <p>{t('olProxyOthers', { name: proxyOthers.join(t('listDot')) })}</p>}
       {redealt && <p>{t('olRedealt')}</p>}
       {table.reclaimRefused && <p className="away">{t('olReclaimRefused')}</p>}

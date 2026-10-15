@@ -77,6 +77,7 @@ const ja: NoticeTexts = {
           '手牌：各プレイヤーの手牌を開けられるのは、そのプレイヤーの端末だけです。ホストにも、他のプレイヤーにも見えません。',
           'CPU：CPU の手牌と考えは、ホストの端末の中で動いています。ホストが端末のデータを解析すれば、CPU の手牌を見ることができます（ひとりで遊ぶときは、あなたがホストです）。',
           '参加者全員が示し合わせた場合など、この仕組みでは防げないこともあります。',
+          '第三者の解析や改造による不正で勝敗に影響が出ても、保証はできません。',
         ],
       },
       {
@@ -142,6 +143,7 @@ const en: NoticeTexts = {
           "Hands: Each player's hand can be opened only on that player's own device. Neither the host nor the other players can see it.",
           "CPU: The CPU players' hands and decisions run on the host's device. If the host analyzes the data on the device, the host can see the CPU players' hands (when you play alone, you are the host).",
           'Some cases, such as all participants colluding, cannot be prevented by this mechanism.',
+          'If cheating by a third party through analysis or modification affects the outcome of a game, we cannot provide any guarantee.',
         ],
       },
       {
@@ -208,6 +210,7 @@ const zh: NoticeTexts = {
           '手牌：每位玩家的手牌只能在该玩家自己的设备上打开。房主和其他玩家都无法看到。',
           '电脑玩家：电脑玩家的手牌和思考在房主的设备上运行。如果房主解析设备中的数据，就能看到电脑玩家的手牌（单人游玩时，您就是房主）。',
           '在全体参与者串通等情况下，本机制无法防止。',
+          '如因第三方的解析或篡改等作弊行为影响胜负，我们无法提供保证。',
         ],
       },
       {

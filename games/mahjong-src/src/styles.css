@@ -573,7 +573,8 @@ body.in-game .site-header .subtitle {
   flex: 1;
   width: 100%;
   display: flex;
-  align-items: center;
+  /* 上端でそろえる：右の列（鳴ける牌・チャット）が卓より高くなっても、卓を下へ押さない（10-15 利用者指摘＝鳴ける牌が多いと卓が 1 行ずれた） */
+  align-items: flex-start;
   justify-content: center;
   padding: 16px 0 20px;
   /* チャット欄は卓の横の空きへ。入らなければ卓の下へ回る */

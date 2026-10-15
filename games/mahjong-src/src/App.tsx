@@ -1,6 +1,6 @@
 import { loadStrength, strengthOf } from './cpu/strength';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import type { Envelope, Seat } from './engine/events';
+import type { Envelope } from './engine/events';
 import { HUMAN, useTable } from './game/useTable';
 import { cnLabelOf, cnValuesOf, decodeRuleLink, labelOf, type RuleChoice } from './engine/ruleSets';
 import { decodeSameLink, encodeSameLink, sameWallOf, type SameWall } from './kifu/same';
@@ -287,7 +287,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
               seats: tbl.seats.flatMap((x, i) =>
                 x.kind === 'human' && i !== me && !x.proxy ? [{ seat: i, name: x.name, away: !(ol.members.find((m) => m.id === x.id)?.online ?? false) }] : [],
               ),
-              onTake: (seat) => tbl.takeSeat(seat as Seat),
+              onTake: (seat) => online.takeSeat(seat),
             }
           : undefined
       }

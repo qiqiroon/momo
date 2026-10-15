@@ -3,7 +3,8 @@
 // 部屋の名前・パスワード（任意）・非公開にする／一覧の 🔒 とパスワードつき／非公開の部屋を表示／
 // 一覧の下のパスワード欄に入れてから参加。パスワード欄はブラウザに保存の候補を出させない（ふつうの文字の欄を伏せ字に見せる）。
 
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import type { BaseLang, MessageKey } from '../i18n/strings';
 import { MAX_SEATS, REPLY_WAIT_MS, type Member, type OnlineNote, type OnlineSession, type ReplyWait, type RoomInfo } from '../online/session';
 import type { OnlineTable } from '../online/table';
@@ -101,11 +102,6 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
   const [joinPw, setJoinPw] = useState('');
   const [showPrivate, setShowPrivate] = useState(false);
   useEffect(() => session.open(), [session]);
-  // 知らせは画面の上に出す。携帯で一覧まで下げていても見えるよう、出たらそこまで戻す
-  const noteRef = useRef<HTMLParagraphElement>(null);
-  useEffect(() => {
-    if (s.note) noteRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
-  }, [s.note]);
   const rename = (v: string) => {
     setName(v);
     saveName(v.trim());
@@ -121,10 +117,18 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
         <BackButton t={t} onClick={onBack} />
         <span className={`ol-server${s.wsOpen ? ' on' : ''}`}>{t(s.wsOpen ? 'olServerOn' : 'olServerConnecting')}</span>
       </div>
+      {/* 知らせ（入れなかった・部屋が閉じた等）は、閉じるを押すまで消えない窓で出す（10-15 利用者指摘＝すぐ消えて読めなかった） */}
       {s.note && (
-        <p ref={noteRef} className="ol-note" role="alert">
-          {noteText(t, s.note)}
-        </p>
+        <div className="sound-backdrop" role="alertdialog" aria-modal="true">
+          <div className="sound-panel">
+            <p className="ol-note">{noteText(t, s.note)}</p>
+            <div className="sound-actions">
+              <button type="button" className="btn-secondary sound-close" onClick={() => session.clearNote()}>
+                {t('close')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {saved && (
         <section className="gset ol-panel ol-rejoin">
@@ -238,6 +242,18 @@ export function OnlineStatus({ t, table, members, isHost }: { t: T; table: Onlin
     saveNoCalls(on);
     table.setNoCalls(on);
   };
+  const awayText = away.join(t('listDot'));
+  const othersText = proxyOthers.join(t('listDot'));
+  const msgs = [
+    ...(table.dealing ? [{ key: 'dealing', text: t('olDealing') }] : []),
+    ...(away.length ? [{ key: `away:${awayText}`, text: t('olWaitBack', { name: awayText }), warn: true }] : []),
+    ...(proxyMe ? [{ key: 'proxyMe', text: t(isHost ? 'olProxyMeHost' : 'olProxyMe') }] : []),
+    ...(proxyOthers.length ? [{ key: `proxy:${othersText}`, text: t('olProxyOthers', { name: othersText }) }] : []),
+    ...(redealt ? [{ key: `redealt:${lastStart}`, text: t('olRedealt') }] : []),
+    ...(table.reclaimRefused ? [{ key: 'refused', text: t('olReclaimRefused'), warn: true }] : []),
+    ...(bad ? [{ key: 'bad', text: t('olVerifyBad'), warn: true }] : []),
+  ];
+  const shown = useToasts(msgs);
   return (
     <div className="ol-status" role="status">
       {/* 「鳴かない」：自分の席だけに効く。チー・ポン・カンは自動で見送り、ロンのときは止まる（利用者 Q16=B） */}
@@ -245,26 +261,54 @@ export function OnlineStatus({ t, table, members, isHost }: { t: T; table: Onlin
         <input type="checkbox" checked={table.noCalls} onChange={(e) => toggle(e.target.checked)} />
         <span>{t('olNoCalls')}</span>
       </label>
-      {table.dealing && <p>{t('olDealing')}</p>}
-      {away.length > 0 && <p className="away">{t('olWaitBack', { name: away.join(t('listDot')) })}</p>}
-      {proxyMe && <p>{t(isHost ? 'olProxyMeHost' : 'olProxyMe')}</p>}
-      {proxyOthers.length > 0 && <p>{t('olProxyOthers', { name: proxyOthers.join(t('listDot')) })}</p>}
-      {redealt && <p>{t('olRedealt')}</p>}
-      {table.reclaimRefused && <p className="away">{t('olReclaimRefused')}</p>}
-      {asks.map((seat) => (
-        <div key={seat} className="ol-reclaim">
-          <span>{t('olReclaimAsk', { name: nameOf(seat) })}</span>
-          <button type="button" className="btn-secondary" onClick={() => void table.answerReclaim(seat as Seat, true)}>
-            {t('olReclaimGive')}
-          </button>
-          <button type="button" className="btn-secondary" onClick={() => void table.answerReclaim(seat as Seat, false)}>
-            {t('olReclaimDecline')}
-          </button>
-        </div>
-      ))}
-      {bad && <p className="away">{t('olVerifyBad')}</p>}
+      {/* 一言は卓に重ねて数秒だけ出す（卓の高さを変えない＝10-15 利用者 Q15=C）。席を返す頼みだけは答えるまで出したまま */}
+      {createPortal(
+      <div className="ol-toasts">
+        {shown.map((m) => (
+          <p key={m.key} className={`ol-toast${m.warn ? ' away' : ''}`}>
+            {m.text}
+          </p>
+        ))}
+        {asks.map((seat) => (
+          <div key={seat} className="ol-toast ol-reclaim">
+            <span>{t('olReclaimAsk', { name: nameOf(seat) })}</span>
+            <button type="button" className="btn-secondary" onClick={() => void table.answerReclaim(seat as Seat, true)}>
+              {t('olReclaimGive')}
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => void table.answerReclaim(seat as Seat, false)}>
+              {t('olReclaimDecline')}
+            </button>
+          </div>
+        ))}
+      </div>,
+        document.body,
+      )}
     </div>
   );
+}
+
+/** 卓の上の一言を出しておく長さ */
+export const TOAST_MS = 4000;
+
+/**
+ * 出ている一言のうち、新しく出たものだけを TOAST_MS のあいだ見せる（同じ一言は出続けていても 1 回だけ。
+ * 一度消えてまた出たら、また見せる）
+ */
+function useToasts<M extends { key: string }>(msgs: M[]): M[] {
+  const [since] = useState(() => new Map<string, number>());
+  const [, tick] = useState(0);
+  const now = Date.now();
+  const keys = new Set(msgs.map((m) => m.key));
+  for (const k of [...since.keys()]) if (!keys.has(k)) since.delete(k);
+  for (const m of msgs) if (!since.has(m.key)) since.set(m.key, now);
+  const live = msgs.filter((m) => now - since.get(m.key)! < TOAST_MS);
+  const next = live.length ? Math.min(...live.map((m) => since.get(m.key)! + TOAST_MS)) - now : null;
+  useEffect(() => {
+    if (next === null) return;
+    const id = setTimeout(() => tick((n) => n + 1), Math.max(0, next) + 20);
+    return () => clearTimeout(id);
+  }, [next]);
+  return live;
 }
 
 /** 待合：返事の待ち（ホストだけが選べる。ゲストには選ばれた値を見せる） */

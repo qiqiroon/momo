@@ -131,8 +131,13 @@ describe('席を移す（段階10）', () => {
     // 降りた人は、そのあと打っていない（ホストへの打つ知らせを出していない）。降りたあとの局の自分の牌は伏せたまま
     const iYield = net.types.findIndex((x) => x.type === 'mt-yield');
     expect(net.types.slice(iYield + 1).filter((x) => x.from === 'G' && x.type === 'mt-act')).toEqual([]);
-    const lastStart = G.myLog.map((e) => e.ev.type).lastIndexOf('roundStart');
-    const myDraws = G.myLog.slice(lastStart).filter((e) => e.ev.type === 'draw' && e.ev.seat === 1);
+    // 降りた人がその局で引くまで待つ（鳴きで順番が飛ぶと、局の途中でもまだ引いていないことがある）
+    const drawsOfG = () => {
+      const lastStart = G.myLog.map((e) => e.ev.type).lastIndexOf('roundStart');
+      return G.myLog.slice(lastStart).filter((e) => e.ev.type === 'draw' && e.ev.seat === 1);
+    };
+    await net.until(() => drawsOfG().length > 0 || H.pub.phase === 'ended', 30_000);
+    const myDraws = drawsOfG();
     expect(myDraws.length).toBeGreaterThan(0);
     for (const e of myDraws) expect(e.ev.type === 'draw' && e.ev.tile).toBe(HIDDEN);
     // 全員の局面がそろっている
@@ -221,6 +226,42 @@ describe('席を移す（段階10）', () => {
     await net.until(() => H.pub.handCount > n && K.pub.nextSeq === H.pub.nextSeq, 60_000);
     expect(net.problems).toEqual([]);
     expect(H.myLog.some((e) => e.ev.type === 'roundVoid')).toBe(false);
+  }, 90_000);
+
+  it('★ホストの局面が遅れている間に届いた、先の局面の知らせは捨てずに預かる（捨てると送った人は送り直さず卓が止まる＝前からの不具合）', async () => {
+    // 親の最初のツモがホストの持つ席（ホストか CPU）の局を作る（親はサイコロで決まるので、そうなるまで作り直す）
+    for (let tries = 0; tries < 8; tries++) {
+      const net = new Net();
+      const H = net.add('H', true);
+      const G = net.add('G', false);
+      let held = false;
+      net.onPush = (from, msg) => {
+        const env = msg.env as Envelope | undefined;
+        // ホストが親の最初のツモ（ホストの持つ席）を配った瞬間から、G の鍵の知らせを止める＝ホストはそのツモを開けられず局面が止まる
+        if (!held && from === 'H' && msg.type === 'mt-ev' && env?.ev.type === 'draw' && (env.ev.seat === 0 || env.ev.seat === 2 || env.ev.seat === 3)) {
+          held = true;
+          net.hold('G', 'mt-keys');
+        }
+      };
+      H.begin(
+        [
+          { id: 'H', name: 'H' },
+          { id: 'G', name: 'G' },
+        ],
+        0,
+        rulesOfCnSet('sichuan'),
+      );
+      await net.until(() => H.pub.phase === 'que' || G.pub.phase === 'que' || G.pub.phase === 'discard', 20_000);
+      if (!held) continue; // 親が G だった：作り直す
+      // G は先に進んで伏せる牌を送った。ホストはまだ配る途中（G の鍵待ち）
+      await net.until(() => net.types.some((x) => x.from === 'G' && x.type === 'mt-act'), 10_000);
+      expect(H.pub.phase).toBe('deal');
+      net.release('G');
+      await net.until(() => H.pub.que.every((q) => q !== null), 10_000);
+      expect(net.problems).toEqual([]);
+      return;
+    }
+    throw new Error('親がホストの持つ席になる局が作れなかった');
   }, 90_000);
 
   it('預かりが無い：その局をなかったことにして、同じ局を CPU 入りで配り直す（Q5=A）', async () => {

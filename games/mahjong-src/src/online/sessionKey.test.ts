@@ -1,6 +1,6 @@
 // 落ちた人の鍵の預かり（段階10・Q8=A）：部屋の側の段取り。卓は偽物（呼ばれたことだけ見る）。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { KEY_FALLBACK_MS, OnlineSession, type Transport, type TransportHandlers } from './session';
+import { KEY_FALLBACK_MS, OnlineSession, RECLAIM_WAIT_MS, TAKE_WAIT_MS, type Transport, type TransportHandlers } from './session';
 import type { OnlineTable, TableOptions } from './table';
 
 interface Sent {
@@ -18,7 +18,10 @@ function fakeTransport() {
       x.onOpen();
     },
     createRoom: (o) => h!.onCreated('R1', o.name),
-    joinRoom: (id) => h!.onJoined(id, '卓'),
+    joinRoom: (id) => {
+      sent.push({ data: { type: '(join)', roomId: id }, to: 'host' });
+      h!.onJoined(id, '卓');
+    },
     send: (data, to) => sent.push({ data: structuredClone(data), to }),
     leave: () => {},
     refresh: () => {},
@@ -29,14 +32,20 @@ function fakeTransport() {
 
 /** 偽の卓：作り方の options（onPackage）を控え、呼ばれたことを記録する */
 function fakeTable() {
-  const calls: { adopt: [string, string | null][] } = { adopt: [] };
+  const calls: { adopt: [string, string | null][]; take: number[] } = { adopt: [], take: [] };
   let opts: TableOptions | null = null;
   const proxies = new Set<number>();
   const make = (o: TableOptions) => {
     opts = o;
     return {
       started: true,
-      seats: [],
+      seats: [
+        { kind: 'human', id: 'H', name: 'H' },
+        { kind: 'human', id: 'A', name: 'A' },
+        { kind: 'human', id: 'B', name: 'B' },
+        { kind: 'cpu' },
+      ],
+      takeSeat: (seat: number) => calls.take.push(seat),
       begin: () => {},
       receive: () => {},
       isProxy: (s: number) => proxies.has(s),
@@ -50,7 +59,7 @@ function fakeTable() {
       view: { phase: 'draw' },
     } as unknown as OnlineTable;
   };
-  return { make, calls, opts: () => opts! };
+  return { make, calls, opts: () => opts!, proxies };
 }
 
 beforeEach(() => vi.useFakeTimers());
@@ -117,10 +126,47 @@ describe('鍵の預かり（部屋の側）', () => {
     expect(tb.calls.adopt).toEqual([]);
   });
 
-  it('ホスト：つながっている人の分の包みは受け取らない（切れていない人の席は取らない）', async () => {
-    const { net, tb } = hostStarted();
+  it('ホスト：つながって見える人の包みも、預かれるサーバーから届いたら受け取り、その人は切れたことにする（アプリが落ちて古い接続が残っていた）', async () => {
+    const { net, tb, h } = hostStarted();
     net.recv({ type: 'mj_key_ready' });
     net.recv({ type: 'mj_key_release', id: 'B', no: 1, blob: 'PKG' });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(tb.calls.adopt).toEqual([['B', 'PKG']]);
+    expect(h.state.members.find((m) => m.id === 'B')?.online).toBe(false);
+  });
+
+  it('ホスト：つながっている人の席を CPU に切り替える＝まず本人の端末に頼み、渡してこなければ（落ちていれば）サーバーに包みを頼む', async () => {
+    const { net, tb, h } = hostStarted();
+    net.recv({ type: 'mj_key_ready' });
+    h.takeSeat(1);
+    expect(tb.calls.take).toEqual([1]);
+    expect(net.sent.some((x) => x.data.type === 'mj_key_release_now')).toBe(false);
+    await vi.advanceTimersByTimeAsync(TAKE_WAIT_MS + 10);
+    expect(net.sent.filter((x) => x.data.type === 'mj_key_release_now').map((x) => x.data.id)).toEqual(['A']);
+    // 生きていた：何もしない／預かりが無かった：配り直しで引き継ぐ
+    net.recv({ type: 'mj_key_alive', id: 'A' });
+    net.recv({ type: 'mj_key_none', id: 'A' });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(tb.calls.adopt).toEqual([]);
+  });
+
+  it('ホスト：切れている人の席は 3 分待たずに切り替えられる（すぐサーバーに包みを頼む。預かりが無ければ配り直し）', async () => {
+    const { net, tb, h } = hostStarted();
+    net.recv({ type: 'mj_key_ready' });
+    net.recv({ type: 'mj-bye', id: 'A' });
+    h.takeSeat(1);
+    expect(tb.calls.take).toEqual([]);
+    expect(net.sent.filter((x) => x.data.type === 'mj_key_release_now').map((x) => x.data.id)).toEqual(['A']);
+    net.recv({ type: 'mj_key_none', id: 'A' });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(tb.calls.adopt).toEqual([['A', null]]);
+  });
+
+  it('ホスト：頼んでいない「預かりが無い」は無視する', async () => {
+    const { net, tb } = hostStarted();
+    net.recv({ type: 'mj_key_ready' });
+    net.recv({ type: 'mj-bye', id: 'A' });
+    net.recv({ type: 'mj_key_none', id: 'A' });
     await vi.advanceTimersByTimeAsync(10);
     expect(tb.calls.adopt).toEqual([]);
   });
@@ -142,5 +188,37 @@ describe('鍵の預かり（部屋の側）', () => {
     net.recv({ type: 'mj-hello', id: 'A', name: 'A' });
     await vi.advanceTimersByTimeAsync(KEY_FALLBACK_MS);
     expect(tb.calls.adopt).toEqual([]);
+  });
+});
+
+describe('開き直して戻る（10-15 利用者指摘＝アプリが落ちると満員で入れない）', () => {
+  const saved = { roomId: 'R1', roomName: '卓', hasPassword: false, myId: 'me1', name: 'G', password: '', keySecret: 'secret-secret-1234' };
+  beforeEach(() => localStorage.setItem('momo-mahjong.online.seat', JSON.stringify(saved)));
+  afterEach(() => localStorage.removeItem('momo-mahjong.online.seat'));
+
+  it('戻るを押すと、先に合言葉で古い接続の追い出しを頼み、返事が来たら入る', () => {
+    const net = fakeTransport();
+    const g = new OnlineSession(net.tr, fakeTable().make);
+    g.open();
+    g.rejoin();
+    const types = () => net.sent.map((x) => x.data.type);
+    expect(types()).toEqual(['mj_seat_reclaim']);
+    expect(net.sent[0].data).toMatchObject({ roomId: 'R1', id: 'me1', secret: 'secret-secret-1234' });
+    net.handlers().onMessage({ type: 'mj_seat_reclaim_ok' });
+    expect(types().slice(0, 2)).toEqual(['mj_seat_reclaim', '(join)']);
+    // 返事が 2 度来ても 1 回だけ入る
+    net.handlers().onMessage({ type: 'mj_seat_reclaim_no' });
+    expect(types().filter((x) => x === '(join)').length).toBe(1);
+  });
+
+  it('古いサーバー（返事が無い）でも、少し待ってから入る', async () => {
+    const net = fakeTransport();
+    const g = new OnlineSession(net.tr, fakeTable().make);
+    g.open();
+    g.rejoin();
+    await vi.advanceTimersByTimeAsync(RECLAIM_WAIT_MS - 100);
+    expect(net.sent.some((x) => x.data.type === '(join)')).toBe(false);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(net.sent.filter((x) => x.data.type === '(join)').length).toBe(1);
   });
 });

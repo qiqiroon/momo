@@ -17,6 +17,7 @@ import { generalChoice, labelOf, ruleChoiceOf, rulesOfChoice, type RuleChoice } 
 import { isoLocal, type KifuSource } from '../kifu/kifu';
 import { saveLastGame } from '../kifu/store';
 import { DEAL_SHOW_MS, DICE_SHOW_MS, dealShowOn } from '../game/useTable';
+import type { Seat } from '../engine/events';
 import { OnlineTable, type LockerStore, type SyncData, type TableOptions, type WireLocker } from './table';
 
 /** 「鳴かない」の端末の控え（画面の Online.tsx と同じ名前） */
@@ -151,6 +152,10 @@ export const ROLLCALL_MS = 3000;
  * 包みが来なかった（古いサーバー・預ける前に切れた）ときは、この長さで「包み無し」として引き継ぐ（＝その局は配り直し）
  */
 export const KEY_FALLBACK_MS = 3 * 60 * 1000 + 10_000;
+/** 戻るときの古い接続の追い出し：サーバーの返事を待つ長さ（古いサーバーは返事をしない） */
+export const RECLAIM_WAIT_MS = 2000;
+/** ホストが、つながっている人の席を移すとき：本人の端末が錠前を渡してくるのを待つ長さ。来なければサーバーに包みを頼む */
+export const TAKE_WAIT_MS = 6000;
 
 /** 土台のエラー文（日本語の決まった文）を一言の種類へ */
 function noteOfServer(message: string): OnlineNote {
@@ -354,8 +359,24 @@ export class OnlineSession {
     this.password = sv.password;
     this.pending = { id: sv.roomId, name: sv.roomName, hasPassword: sv.hasPassword };
     this.set({ busy: true, note: null });
-    this.tr.joinRoom(sv.roomId, sv.password, sv.name);
+    // アプリが落ちた携帯の古い接続がサーバーに残っていると、席が埋まって入れない（10-15 利用者指摘）。
+    // 合言葉で本人と確かめてもらい、古い接続を追い出してから入る（常時の見張りはしない＝Q14=B）
+    if (!sv.keySecret) return this.tr.joinRoom(sv.roomId, sv.password, sv.name);
+    const go = () => {
+      if (!this.reclaimTimer) return;
+      clearTimeout(this.reclaimTimer);
+      this.reclaimTimer = null;
+      this.tr.joinRoom(sv.roomId, sv.password, sv.name);
+    };
+    this.reclaimGo = go;
+    // 古いサーバーは返事をしないので、少し待ってから入る
+    this.reclaimTimer = setTimeout(go, RECLAIM_WAIT_MS);
+    this.tr.send({ type: 'mj_seat_reclaim', roomId: sv.roomId, id: sv.myId, secret: sv.keySecret }, 'host');
   }
+
+  /** 戻るときの古い接続の追い出しの返事を待つ時計（返事が来たら・時間が来たら入る） */
+  private reclaimTimer: ReturnType<typeof setTimeout> | null = null;
+  private reclaimGo: (() => void) | null = null;
 
   /** 戻るのをやめる（控えを消す） */
   forgetSaved() {
@@ -515,6 +536,36 @@ export class OnlineSession {
     this.tr.send({ type: 'mj_key_deposit', id: this.myId, secret: this.keySecret, no: this.lastPkg.no, blob: this.lastPkg.blob }, 'host');
   }
 
+  /** ホスト：すぐ受け取りたいと頼んだ人 */
+  private askedNow = new Set<string>();
+
+  /**
+   * ホスト：その席を CPU に切り替える（メニュー・10-15 利用者指示＝切れている人も 3 分待たずに）。
+   * つながっている人：本人の端末が錠前を渡してくる。来なければ（アプリが落ちて古い接続だけ残っている等）サーバーに包みを頼む。
+   * 切れている人：サーバーに包みをすぐ頼む（古いサーバーなら包み無し＝その局は配り直し）
+   */
+  takeSeat(seat: number) {
+    const t = this.table;
+    if (!this.s.room?.isHost || !t) return;
+    const x = t.seats[seat];
+    if (x?.kind !== 'human' || x.proxy) return;
+    const m = this.s.members.find((y) => y.id === x.id);
+    const askServer = () => {
+      if (t.isProxy(seat as Seat)) return;
+      if (!this.keyReady) return void this.takeOver(x.id, null);
+      this.askedNow.add(x.id);
+      this.tr.send({ type: 'mj_key_release_now', id: x.id }, 'host');
+    };
+    if (m?.online) {
+      t.takeSeat(seat as Seat);
+      setTimeout(askServer, TAKE_WAIT_MS);
+    } else {
+      // 切れている人：古いサーバーでは包みが来ないので、切れたことにしてすぐ引き継ぐ（配り直し）
+      if (!this.keyReady) return void this.takeOver(x.id, null);
+      askServer();
+    }
+  }
+
   /** ホスト：切れた人の予備の時計を止める */
   private stopKeyTimer(id: string) {
     const t = this.keyTimers.get(id);
@@ -525,9 +576,16 @@ export class OnlineSession {
   /** ホスト：切れた人の席を引き継ぐ（包みが無ければ配り直し）。戻っていたら・もう CPU なら何もしない */
   private async takeOver(id: string, blob: string | null) {
     this.stopKeyTimer(id);
+    this.askedNow.delete(id);
     const t = this.table;
     const m = this.s.members.find((x) => x.id === id);
-    if (!t || !m || m.online) return;
+    if (!t || !m) return;
+    // つながって見える人（アプリが落ちて古い接続が残っていた）：サーバーが確かめたので、切れたことにする
+    if (m.online) {
+      if (!this.keyReady) return;
+      this.set({ members: this.s.members.map((x) => (x.id === id ? { ...x, online: false } : x)) });
+      this.broadcastMembers();
+    }
     const how = await t.adoptReleased(id, blob);
     if (how !== 'none') {
       this.takeovers = [...this.takeovers, { id, how }];
@@ -589,6 +647,12 @@ export class OnlineSession {
   }
 
   private receive(d: Record<string, unknown>) {
+    // 部屋の外（一覧）で届く返事：戻るときの古い接続の追い出し
+    if (d.type === 'mj_seat_reclaim_ok' || d.type === 'mj_seat_reclaim_no') {
+      this.reclaimGo?.();
+      this.reclaimGo = null;
+      return;
+    }
     if (this.s.where !== 'room' || !this.s.room) return;
     if (typeof d.type === 'string' && d.type.startsWith('mt-')) return this.receiveTable(d);
     // サーバーからの返事（鍵の預かり）。古いサーバーでは誰かの問い合わせが中継されてくるだけ＝返事は来ない
@@ -596,9 +660,20 @@ export class OnlineSession {
       this.keyReady = true;
       return this.depositKey();
     }
-    // ホスト：切れて戻らなかった人の包み。預かれるサーバーのときだけ受け取る（古いサーバーでは誰でも同じ形を送れてしまう）
+    // ホスト：切れて戻らなかった人の包み。預かれるサーバーのときだけ受け取る（古いサーバーでは誰でも同じ形を送れてしまう）。
+    // 新しいサーバーはクライアントからの mj_key_ を中継しないので、届いたものはサーバーが切れたと確かめて渡したもの
     if (d.type === 'mj_key_release') {
       if (this.s.room.isHost && this.keyReady && typeof d.id === 'string') void this.takeOver(d.id, typeof d.blob === 'string' ? d.blob : null);
+      return;
+    }
+    // ホスト：すぐ受け取りたいと頼んだが、預かりが無かった＝その局は配り直して CPU へ
+    if (d.type === 'mj_key_none') {
+      if (this.s.room.isHost && this.keyReady && typeof d.id === 'string' && this.askedNow.has(d.id)) void this.takeOver(d.id, null);
+      return;
+    }
+    // ホスト：すぐ受け取りたいと頼んだが、その人の端末はまだ答えた（生きている）
+    if (d.type === 'mj_key_alive') {
+      if (typeof d.id === 'string') this.askedNow.delete(d.id);
       return;
     }
     if (typeof d.type === 'string' && d.type.startsWith('mj_key_')) return;

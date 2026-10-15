@@ -355,7 +355,7 @@ export class OnlineTable {
       case 'mt-keys':
         return this.onKeys(Number(d.no), d.seat as Seat, d.keys as [number, string][]);
       case 'mt-act':
-        return this.onAct(String(d.id), d.seat as Seat, d.envs as Envelope[]);
+        return this.onAct(String(d.id), d.seat as Seat, d.envs as Envelope[], typeof d.at === 'number' ? d.at : undefined);
       case 'mt-reveal':
         if (typeof d.h3 === 'string' && Number(d.no) === this.hand?.no) this.h3.revealed.set(d.seat as Seat, big(d.h3));
         return this.onReveal(Number(d.no), d.seat as Seat, d.locker as WireLocker);
@@ -470,6 +470,7 @@ export class OnlineTable {
     this.pendingRound = null;
     this.waiters = [];
     this.opens = [];
+    this.lateActs = [];
     this.h3 = { give: new Map(), take: new Map(), done: new Set(), inbox: [], xs: new Map(), revealed: new Map() };
     this.changed();
     this.ownLogs = new Map();
@@ -754,16 +755,38 @@ export class OnlineTable {
           this.privateReal.set(`${e.ev.type}:${seat}`, e);
           return mask(e, -1 as Seat);
         });
-        this.toHost({ type: 'mt-act', id: this.o.myId, seat, envs });
+        // at＝この選択を決めた局面の通し番号（ホストの局面が遅れていたら、追いつくまで預かってもらう）
+        this.toHost({ type: 'mt-act', id: this.o.myId, seat, envs, at: v.nextSeq });
       });
     };
     if (delay > 0) setTimeout(go, delay);
     else go();
   }
 
+  /**
+   * ホスト：自分の局面より先の局面で決めた知らせ（at が自分の通し番号より先）。
+   * ホストは自分の牌の鍵が届くまで局面を進めずに待つので、先に進んだ人の知らせが早く届くことがある。
+   * 捨てると、送った人は送り直さないので卓が止まる（10-15 に見つけた前からの不具合）→ 追いつくまで預かる
+   */
+  private lateActs: { id: string; seat: Seat; envs: Envelope[]; at: number }[] = [];
+
+  /** ホスト：預かっていた知らせのうち、局面が追いついたものを確かめる */
+  private flushLateActs() {
+    for (;;) {
+      const i = this.lateActs.findIndex((x) => x.at <= this.pub.nextSeq);
+      if (i < 0) return;
+      const [x] = this.lateActs.splice(i, 1);
+      this.onAct(x.id, x.seat, x.envs, x.at);
+    }
+  }
+
   /** ホスト：席の持ち主から届いた出来事に番号を付け直して配る（古い局面から作ったものは捨てる） */
-  private onAct(id: string, seat: Seat, envs: Envelope[]) {
+  private onAct(id: string, seat: Seat, envs: Envelope[], at?: number) {
     if (!this.o.isHost || envs.length === 0) return;
+    if (at !== undefined && at > this.pub.nextSeq) {
+      this.lateActs.push({ id, seat, envs, at });
+      return;
+    }
     const owner = this.seats[seat];
     const fromOk = this.cpuSeat(seat) ? id === this.o.myId : owner?.kind === 'human' && owner.id === id;
     if (!fromOk) return;
@@ -992,7 +1015,10 @@ export class OnlineTable {
         this.broadcast({ type: 'mt-reveal', no: h.no, seat, locker: lockerToWire(lk), ...(a ? { h3: hex(a.d) } : {}) });
       }
     }
-    if (this.o.isHost) this.driveHost();
+    if (this.o.isHost) {
+      this.flushLateActs();
+      this.driveHost();
+    }
     this.driveHuan3();
     for (const seat of this.controlled()) this.driveSeat(seat);
   }
@@ -1033,7 +1059,7 @@ export class OnlineTable {
         this.h3.done.add(to);
         const real: Envelope = { seq: this.pub.nextSeq, to: [to], ev: { type: 'huan3Take', seat: to, tiles } };
         this.privateReal.set(`huan3Take:${to}`, real);
-        this.toHost({ type: 'mt-act', id: this.o.myId, seat: to, envs: [mask(real, -1 as Seat)] });
+        this.toHost({ type: 'mt-act', id: this.o.myId, seat: to, envs: [mask(real, -1 as Seat)], at: this.pub.nextSeq });
       }
     }
   }

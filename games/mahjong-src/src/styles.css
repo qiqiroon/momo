@@ -3241,3 +3241,40 @@ body.in-game .site-header .subtitle {
 .ol-reclaim .btn-secondary {
   padding: 4px 14px;
 }
+
+/* 卓の上の一言（段階10・Q15=C）：卓に重ねて数秒だけ出す＝卓の高さを変えない。押せるのは席を返す頼みだけ */
+.ol-toasts {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  /* 卓より手前・窓（メニュー・設定＝120）より奥 */
+  z-index: 110;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.ol-toasts .ol-toast {
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: rgba(10, 10, 10, 0.88);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.ol-toasts .ol-toast.away {
+  color: var(--warn);
+}
+
+.ol-toasts .ol-reclaim {
+  pointer-events: auto;
+}

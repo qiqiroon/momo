@@ -9,7 +9,7 @@ type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 export interface MenuSeat {
   seat: number;
   name: string;
-  /** 接続が切れている（3 分待っているあいだはホストも切り替えられない＝利用者決定） */
+  /** 接続が切れている（ホストは 3 分待たずに切り替えられる＝10-15 利用者指示） */
   away: boolean;
 }
 
@@ -77,7 +77,7 @@ export function GameMenu({ t, onQuit, onBook, cpu, take, className = '' }: GameM
                 <h2>{t('menuTakeTitle')}</h2>
                 {take && take.seats.length === 0 && <p>{t('menuTakeNone')}</p>}
                 {take?.seats.map((s) => (
-                  <button key={s.seat} type="button" className="btn-secondary" disabled={s.away} onClick={run(() => take.onTake(s.seat))}>
+                  <button key={s.seat} type="button" className="btn-secondary" onClick={run(() => take.onTake(s.seat))}>
                     {s.away ? t('menuTakeAway', { name: s.name }) : s.name}
                   </button>
                 ))}

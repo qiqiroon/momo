@@ -69,6 +69,8 @@ export interface SavedSeat {
   myId: string;
   name: string;
   password: string;
+  /** サーバーに預けた鍵の包みの合言葉（開き直して戻ったときに預け直す・段階10） */
+  keySecret?: string;
 }
 
 export interface OnlineState {
@@ -144,6 +146,11 @@ export type ReplyWait = 'fast' | 'normal' | 'slow';
 export const REPLY_WAIT_MS: Record<ReplyWait, number> = { fast: 1000, normal: 3000, slow: 10000 };
 /** 点呼の返事を待つ長さ */
 export const ROLLCALL_MS = 3000;
+/**
+ * ホスト：切れた人を待つ長さの予備（段階10・利用者 Q2=A）。サーバーは 3 分で預かった包みを渡してくる。
+ * 包みが来なかった（古いサーバー・預ける前に切れた）ときは、この長さで「包み無し」として引き継ぐ（＝その局は配り直し）
+ */
+export const KEY_FALLBACK_MS = 3 * 60 * 1000 + 10_000;
 
 /** 土台のエラー文（日本語の決まった文）を一言の種類へ */
 function noteOfServer(message: string): OnlineNote {
@@ -152,6 +159,13 @@ function noteOfServer(message: string): OnlineNote {
   if (message.includes('見つかりません')) return 'roomGone';
   if (message.includes('混雑')) return 'serverBusy';
   return { raw: message };
+}
+
+/** 包みの合言葉（サーバーは sha256 だけを持つ） */
+function newSecret(): string {
+  const a = new Uint8Array(16);
+  crypto.getRandomValues(a);
+  return Array.from(a, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 function newId(): string {
@@ -226,6 +240,17 @@ export class OnlineSession {
   private myName = '';
   /** 入ろうとしている部屋（返事が来たら room にする） */
   private pending: { id: string; name: string; hasPassword: boolean } | null = null;
+  // ---- 落ちた人の鍵の預かり（段階10） ----
+  /** いまの接続のサーバーが鍵を預かれる（mj_key_probe に mj_key_ready が返った） */
+  private keyReady = false;
+  /** 預ける包みの合言葉（自分の ID と組。開き直しても控えから同じものを使う） */
+  private keySecret = '';
+  /** 最後に作った自分の包み（サーバーに預ける） */
+  private lastPkg: { no: number; blob: string } | null = null;
+  /** ホスト：切れた人ごとの予備の時計 */
+  private keyTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** ホスト：席を引き継いだ（画面に一言を出す）。id→引き継ぎ方 */
+  takeovers: { id: string; how: 'continued' | 'redealt' }[] = [];
   /** ホスト：点呼 */
   private rollcall: { nonce: string; heard: Set<string>; expect: number; timer: ReturnType<typeof setTimeout> } | null = null;
 
@@ -298,6 +323,7 @@ export class OnlineSession {
     if (!hostName) return this.set({ note: 'noName' });
     if (!roomName) return this.set({ note: 'noRoomName' });
     this.myId = newId();
+    this.keySecret = newSecret();
     this.myName = hostName;
     this.pending = { id: '', name: roomName, hasPassword: o.password !== '' };
     this.set({ busy: true, note: null });
@@ -310,6 +336,7 @@ export class OnlineSession {
     // パスワードの無い部屋にパスワードを入れて入ろうとしたら、違うとして止める（MOMO Hanafuda v2.73 と同じ）
     if (!room.hasPassword && typedPw !== '') return this.set({ note: 'wrongPw' });
     this.myId = newId();
+    this.keySecret = newSecret();
     this.myName = me;
     this.password = room.hasPassword ? typedPw : '';
     this.pending = { id: room.id, name: room.name, hasPassword: room.hasPassword };
@@ -322,6 +349,7 @@ export class OnlineSession {
     const sv = this.s.saved;
     if (!sv) return;
     this.myId = sv.myId;
+    this.keySecret = sv.keySecret ?? newSecret();
     this.myName = sv.name;
     this.password = sv.password;
     this.pending = { id: sv.roomId, name: sv.roomName, hasPassword: sv.hasPassword };
@@ -425,6 +453,10 @@ export class OnlineSession {
       // 一人用と同じ長さ（useTable の DEAL_SHOW_MS・DICE_SHOW_MS）
       dealHold: (first) => (dealShowOn() ? DEAL_SHOW_MS + (first ? DICE_SHOW_MS : 0) : 0),
       store: lockerStore(roomId, this.myId),
+      onPackage: (no, blob) => {
+        this.lastPkg = { no, blob };
+        this.depositKey();
+      },
       onChange: () => {
         this.set({ tableRev: this.s.tableRev + 1 });
         // 終局したら一度控え直す（最後の局の検算のあとに来る「対局の終わり」まで牌譜に入れる）
@@ -477,8 +509,38 @@ export class OnlineSession {
     };
   }
 
+  /** 自分の包みをサーバーに預ける（預かれるサーバーのときだけ。古いサーバーだと全員へ中継されてしまうため） */
+  private depositKey() {
+    if (!this.keyReady || !this.lastPkg || this.s.room?.isHost) return;
+    this.tr.send({ type: 'mj_key_deposit', id: this.myId, secret: this.keySecret, no: this.lastPkg.no, blob: this.lastPkg.blob }, 'host');
+  }
+
+  /** ホスト：切れた人の予備の時計を止める */
+  private stopKeyTimer(id: string) {
+    const t = this.keyTimers.get(id);
+    if (t) clearTimeout(t);
+    this.keyTimers.delete(id);
+  }
+
+  /** ホスト：切れた人の席を引き継ぐ（包みが無ければ配り直し）。戻っていたら・もう CPU なら何もしない */
+  private async takeOver(id: string, blob: string | null) {
+    this.stopKeyTimer(id);
+    const t = this.table;
+    const m = this.s.members.find((x) => x.id === id);
+    if (!t || !m || m.online) return;
+    const how = await t.adoptReleased(id, blob);
+    if (how !== 'none') {
+      this.takeovers = [...this.takeovers, { id, how }];
+      this.set({ tableRev: this.s.tableRev + 1 });
+    }
+  }
+
   private toLobby(note: OnlineNote | null) {
     this.stopRollcall();
+    for (const id of [...this.keyTimers.keys()]) this.stopKeyTimer(id);
+    this.takeovers = [];
+    this.lastPkg = null;
+    this.keyReady = false;
     this.pending = null;
     this.table = null;
     // 対局が終わった・部屋が閉じた＝戻る先は無い
@@ -500,6 +562,8 @@ export class OnlineSession {
       strength: loadStrength(),
     });
     this.pending = null;
+    this.keyReady = false;
+    this.tr.send({ type: 'mj_key_probe' }, 'host');
   }
 
   private joined(id: string, name: string) {
@@ -515,6 +579,8 @@ export class OnlineSession {
       strength: back ? this.s.strength : DEFAULT_STRENGTH,
     });
     this.pending = null;
+    this.keyReady = false;
+    this.tr.send({ type: 'mj_key_probe' }, 'host');
     this.tr.send({ type: 'mj-hello', id: this.myId, name: this.myName }, 'host');
   }
 
@@ -525,6 +591,17 @@ export class OnlineSession {
   private receive(d: Record<string, unknown>) {
     if (this.s.where !== 'room' || !this.s.room) return;
     if (typeof d.type === 'string' && d.type.startsWith('mt-')) return this.receiveTable(d);
+    // サーバーからの返事（鍵の預かり）。古いサーバーでは誰かの問い合わせが中継されてくるだけ＝返事は来ない
+    if (d.type === 'mj_key_ready') {
+      this.keyReady = true;
+      return this.depositKey();
+    }
+    // ホスト：切れて戻らなかった人の包み。預かれるサーバーのときだけ受け取る（古いサーバーでは誰でも同じ形を送れてしまう）
+    if (d.type === 'mj_key_release') {
+      if (this.s.room.isHost && this.keyReady && typeof d.id === 'string') void this.takeOver(d.id, typeof d.blob === 'string' ? d.blob : null);
+      return;
+    }
+    if (typeof d.type === 'string' && d.type.startsWith('mj_key_')) return;
     const id = typeof d.id === 'string' ? d.id : '';
     // チャット：だれから来ても受け取る（文字数を超えたものは捨てる）
     if (d.type === 'mj-chat' && id && typeof d.text === 'string' && d.text.length <= CHAT_MAX_LEN) {
@@ -550,7 +627,7 @@ export class OnlineSession {
       this.set({ members: d.members as Member[], started, replyWait: rw, rules: ruleChoiceOf(d.rules) ?? this.s.rules, strength: strengthOf(d.strength) });
       // 対局中のゲストは、開き直したときに戻れるよう控える
       if (started && this.s.room && !this.s.room.isHost) {
-        const sv: SavedSeat = { roomId: this.s.room.id, roomName: this.s.room.name, hasPassword: this.s.room.hasPassword, myId: this.myId, name: this.myName, password: this.password };
+        const sv: SavedSeat = { roomId: this.s.room.id, roomName: this.s.room.name, hasPassword: this.s.room.hasPassword, myId: this.myId, name: this.myName, password: this.password, keySecret: this.keySecret };
         writeJson(SAVED_KEY, sv);
         this.set({ saved: sv });
       }
@@ -585,6 +662,7 @@ export class OnlineSession {
       this.tr.send({ type: 'mj-chatlog', target: id, lines: this.s.chat }, 'all');
     }
     if (known) {
+      this.stopKeyTimer(id);
       this.set({ members: this.s.members.map((m) => (m.id === id ? { ...m, online: true } : m)) });
       // 対局中に戻ってきた人へ、それまでの出来事の列と局の山を渡す（その人は自分の牌の鍵を頼み直して開け直す）
       if (this.s.started && this.table?.started) {
@@ -609,6 +687,16 @@ export class OnlineSession {
       : this.s.members.filter((m) => !gone.has(m.id));
     this.set({ members });
     this.broadcastMembers();
+    // 対局中に切れた人：サーバーから包みが来なければ、予備の時計で引き継ぐ（その局は配り直し）
+    if (this.s.started) {
+      for (const id of gone) {
+        if (this.keyTimers.has(id)) continue;
+        this.keyTimers.set(
+          id,
+          setTimeout(() => void this.takeOver(id, null), KEY_FALLBACK_MS),
+        );
+      }
+    }
   }
 
   /** ホスト：誰かが抜けた＝点呼を取り、返事の無かった人を抜けたことにする */

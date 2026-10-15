@@ -26,6 +26,11 @@ export type GameEvent =
   | { type: 'dealerDice'; by: Seat; dice: [number, number]; dealer: Seat }
   /** 局の始まり。honba＝この局の本場の数（局の進め方が決める・段階4の 2） */
   | { type: 'roundStart'; roundIndex: number; dealer: Seat; honba?: number }
+  /**
+   * この局をなかったことにする（オンラインで切れた人が戻らず、その人の鍵も無いとき・段階10・利用者 Q5=A）。
+   * 局面は局の始まりの直前に戻る（リーチ棒・点の動きも戻る）。次は同じ局・同じ本場を配り直す。全員に見える
+   */
+  | { type: 'roundVoid' }
   /** 山の種。局の終わりまで誰にも見せない */
   | { type: 'wallSeed'; seed: string | null }
   /** 配牌。本人だけに見える */

@@ -36,8 +36,27 @@ import {
   type Locker,
   type VerifyProblem,
 } from './lock';
+import { newWrapKeyPair, unwrap, validWrapKey, wrapFor, type WrapKeyPair } from './keywrap';
 
-export type SeatKind = { kind: 'human'; id: string; name: string } | { kind: 'cpu' };
+/**
+ * 席。人の席でも proxy なら、ホストの端末の CPU が打つ（段階10・利用者決定 10-15：本人が降りた・ホストが権限を移した・
+ * 切れて戻らず鍵がサーバーから届いた）。そのときは本人の錠前をホストが持つ
+ */
+export type SeatKind = { kind: 'human'; id: string; name: string; proxy?: boolean } | { kind: 'cpu' };
+
+/**
+ * 席を移すときに渡すもの（ホストにしか開けられない形に包んで送る・サーバーに預けるのも同じ形）：
+ * その局の錠前と、本人にだけ見える出来事の本物（缺一門の伏せる牌・換三張の 3 枚）
+ */
+export interface SeatPackage {
+  no: number;
+  seat: Seat;
+  locker: WireLocker;
+  priv: Envelope[];
+}
+
+/** 包む鍵を送れる形（36 進）から数へ */
+const fromB36 = (v: string): bigint => [...v].reduce((a, c) => a * 36n + BigInt(parseInt(c, 36)), 0n);
 
 export type Send = (msg: Record<string, unknown>, to: 'all' | 'host') => void;
 
@@ -65,6 +84,11 @@ export interface TableOptions {
   onVerified?: () => void;
   /** 自分の錠前の控え（接続が切れて戻ったとき・開き直したときに、自分の牌を開け直すのに要る） */
   store?: LockerStore;
+  /**
+   * 自分の席を移すときの包み（ホストにしか開けられない）ができた・変わった（局の初め・本人にだけ見える出来事のあと）。
+   * 部屋の側がサーバーに預ける（切れて戻らなかったときだけ、サーバーがホストへ渡す）
+   */
+  onPackage?: (no: number, blob: string) => void;
 }
 
 export interface LockerStore {
@@ -75,6 +99,8 @@ export interface LockerStore {
 /** 戻ってきた人へホストが渡すもの（それまでの出来事の列＝全員に見える形・局の山の途中） */
 export interface SyncData {
   seats: SeatKind[];
+  /** ホストの包む鍵 */
+  wk?: string;
   wire: { env: Envelope; pos?: number[] }[];
   hand: { no: number; shuffled: (string[] | null)[]; relocked: (string[] | null)[] } | null;
 }
@@ -221,6 +247,24 @@ export class OnlineTable {
   /** 局ごとの換三張で出した 3 枚（局の終わりに分かった分。walls と同じ順） */
   h3Tiles: Map<Seat, TileId[]>[] = [];
 
+  // ---- 席を移す（段階10） ----
+  /** ホスト：包みを開ける鍵（ホストの端末から出さない） */
+  private wrapKeys: WrapKeyPair | null = null;
+  /** ホストの包む鍵（全員へ配られる） */
+  private hostWk: bigint | null = null;
+  /** 自分の包みを開ける鍵（席を返してもらうとき） */
+  private myWrap: WrapKeyPair | null = null;
+  /** 自分の席を降りた（ホストへ渡した）。席の知らせ（mt-seat）が来る前から打たない */
+  private yielded = false;
+  /** 席ごとの、この局の本人にだけ見える出来事の本物（自分が見ている席だけ） */
+  private ownLogs = new Map<Seat, Envelope[]>();
+  /** ホスト：席を返してほしいという頼み（席→頼んだ人の包む鍵） */
+  reclaims = new Map<Seat, bigint>();
+  /** 自分：席を返してほしいと頼んでいる */
+  reclaimPending = false;
+  /** 自分：席を返す頼みを断られた（画面に出す） */
+  reclaimRefused = false;
+
   constructor(private readonly o: TableOptions) {
     this.g = groupOf(LOCK_BITS);
     // 背番号は最大の 144 枚ぶん（どのルールの山もこの中）
@@ -233,7 +277,8 @@ export class OnlineTable {
   begin(humans: { id: string; name: string }[], replyWait = 0, rules: Rules = GENERAL_RULES) {
     if (!this.o.isHost) return;
     const seats: SeatKind[] = SEATS.map((i) => (humans[i] ? { kind: 'human', id: humans[i].id, name: humans[i].name } : { kind: 'cpu' }));
-    this.broadcast({ type: 'mt-begin', seats, replyWait });
+    this.wrapKeys = newWrapKeyPair(this.g);
+    this.broadcast({ type: 'mt-begin', seats, replyWait, wk: this.wrapKeys.y.toString(36) });
     const seedBytes = new Uint32Array(2);
     crypto.getRandomValues(seedBytes);
     const seed = Array.from(seedBytes, (n) => n.toString(36)).join('');
@@ -279,7 +324,26 @@ export class OnlineTable {
     switch (d.type) {
       case 'mt-begin':
         this.replyWait = Math.max(0, Number(d.replyWait) || 0);
+        this.setHostWk(d.wk);
         return this.onBegin(d.seats as SeatKind[]);
+      case 'mt-seat':
+        return this.onSeat(Number(d.seat) as Seat, !!d.proxy);
+      case 'mt-take':
+        if (Number(d.seat) === this.mySeat) void this.yieldSeat();
+        return undefined;
+      case 'mt-yield':
+        return void this.onYield(Number(d.seat) as Seat, String(d.id), String(d.blob ?? ''));
+      case 'mt-reclaim':
+        return this.onReclaim(Number(d.seat) as Seat, String(d.id), d.wk);
+      case 'mt-reclaim-no':
+        if (Number(d.seat) === this.mySeat) {
+          this.reclaimPending = false;
+          this.reclaimRefused = true;
+          this.changed();
+        }
+        return undefined;
+      case 'mt-give':
+        return void this.onGive(Number(d.seat) as Seat, String(d.blob ?? ''));
       case 'mt-hand':
         return this.onHand(Number(d.no));
       case 'mt-lock':
@@ -345,9 +409,28 @@ export class OnlineTable {
 
   private holding = 0;
 
-  /** 自分が持つ席（ホストは自分の席と CPU の席） */
+  /** 自分が打つ席（ホストは自分の席と CPU の席と、CPU に任された人の席） */
   private controlled(): Seat[] {
-    return SEATS.filter((s) => (this.seats[s]?.kind === 'cpu' ? this.o.isHost : s === this.mySeat));
+    return SEATS.filter((s) => (this.cpuSeat(s) ? this.o.isHost : s === this.mySeat && !this.yielded));
+  }
+
+  /** CPU が打つ席か（空き席・CPU に任された人の席） */
+  cpuSeat(s: Seat): boolean {
+    const k = this.seats[s];
+    return k?.kind === 'cpu' || (k?.kind === 'human' && !!k.proxy);
+  }
+
+  /** CPU に任された人の席か */
+  isProxy(s: Seat): boolean {
+    const k = this.seats[s];
+    return k?.kind === 'human' && !!k.proxy;
+  }
+
+  /** 局面を持つ席（打つ席と、自分の席＝CPU に任せていても見ていられる） */
+  private viewSeats(): Seat[] {
+    const out = this.controlled();
+    if (this.mySeat !== null && !out.includes(this.mySeat)) out.push(this.mySeat);
+    return out;
   }
 
   // ---- 受け取る ----
@@ -356,7 +439,8 @@ export class OnlineTable {
     this.seats = seats;
     this.ids = new Map(seats.flatMap((s, i) => (s.kind === 'human' ? [[s.id, i as Seat] as const] : [])));
     this.mySeat = this.ids.get(this.o.myId) ?? null;
-    this.views = new Map(this.controlled().map((s) => [s, initialState()]));
+    this.yielded = this.mySeat !== null && this.isProxy(this.mySeat);
+    this.views = new Map(this.viewSeats().map((s) => [s, initialState()]));
     this.started = true;
     this.changed();
   }
@@ -388,6 +472,8 @@ export class OnlineTable {
     this.opens = [];
     this.h3 = { give: new Map(), take: new Map(), done: new Set(), inbox: [], xs: new Map(), revealed: new Map() };
     this.changed();
+    this.ownLogs = new Map();
+    this.depositMine();
     // 席 0 から順に混ぜる（席 0 の持ち主が最初）
     this.lockStep('s', 0, this.hand.start);
   }
@@ -546,7 +632,7 @@ export class OnlineTable {
         pos.forEach((p) => h.privatePos.set(p, target));
         this.sendKeys(pos, target);
       }
-      if (this.views.has(target)) {
+      if (h.mine.has(target)) {
         for (const p of pos) this.tryDecode(p);
         if (!pos.every((p) => h.tiles.has(p))) {
           if (!this.waiters.some((w) => w.need === pos)) this.waiters.push({ need: pos, run: () => {} });
@@ -563,13 +649,23 @@ export class OnlineTable {
       if (PRIVATE_OWN.has(env.ev.type) && (env.ev as { seat: Seat }).seat === seat && this.privateReal.has(realKey)) {
         e = { ...this.privateReal.get(realKey)!, seq: env.seq };
         this.privateReal.delete(realKey);
-      } else if (priv && (env.ev as { seat: Seat }).seat === seat && h && pos) {
+      } else if (priv && (env.ev as { seat: Seat }).seat === seat && h && pos && pos.every((p) => h.tiles.has(p))) {
         const tiles = pos.map((p) => h.tiles.get(p)!);
         e = { ...env, ev: env.ev.type === 'deal' ? { ...env.ev, tiles } : { ...(env.ev as Extract<GameEvent, { type: 'draw' }>), tile: tiles[0] } };
+      } else if (priv && (env.ev as { seat: Seat }).seat === seat) {
+        // 自分の席でも錠前を持っていない（CPU に任せたあとの局）：伏せたまま
+        e = mask(env, -1 as Seat);
+      }
+      if (PRIVATE_OWN.has(e.ev.type) && (e.ev as { seat: Seat }).seat === seat && !isMasked(e)) {
+        const l = this.ownLogs.get(seat) ?? [];
+        l.push(e);
+        this.ownLogs.set(seat, l);
+        if (seat === this.mySeat) this.depositMine();
       }
       this.views.set(seat, apply(v, mask(e, seat)));
       if (seat === this.mySeat) this.myLog.push(mask(e, seat));
     }
+    if (env.ev.type === 'roundStart' || env.ev.type === 'roundVoid') this.ownLogs = new Map();
     this.pub = apply(this.pub, maskAll(env));
     this.wire.push({ env: maskAll(env), ...(pos ? { pos } : {}) });
     const ck = this.claimKey(this.pub);
@@ -669,7 +765,7 @@ export class OnlineTable {
   private onAct(id: string, seat: Seat, envs: Envelope[]) {
     if (!this.o.isHost || envs.length === 0) return;
     const owner = this.seats[seat];
-    const fromOk = owner?.kind === 'cpu' ? id === this.o.myId : owner?.kind === 'human' && owner.id === id;
+    const fromOk = this.cpuSeat(seat) ? id === this.o.myId : owner?.kind === 'human' && owner.id === id;
     if (!fromOk) return;
     let trial = this.pub;
     const out: Envelope[] = [];
@@ -745,14 +841,23 @@ export class OnlineTable {
         }
       }
     });
+    // なかったことにした局（roundVoid・段階10）は牌譜に入れない：局の始まりから roundVoid までを飛ばし、通し番号を付け直す
+    const skip = new Set<number>();
+    let lastStart = -1;
+    this.myLog.forEach((e, k) => {
+      if (e.ev.type === 'roundStart') lastStart = k;
+      if (e.ev.type === 'roundVoid' && lastStart >= 0) for (let j = lastStart; j <= k; j++) skip.add(j);
+    });
     for (const [k, e0] of this.myLog.entries()) {
-      let e = e0;
+      if (skip.has(k)) continue;
+      let e: Envelope = { ...e0, seq: s.nextSeq };
       const ev = e.ev;
       if (ev.type === 'roundStart') {
         hand++;
         chunk = 0;
       }
-      const w = this.walls[hand];
+      // 検算できなかった局（錠前が届かず検算なしで進めた局）は空の山＝埋められない
+      const w = this.walls[hand]?.length ? this.walls[hand] : undefined;
       if (ev.type === 'deal') {
         const c = dealChunkPositions(s.dealer)[chunk++];
         if (ev.tiles.includes(HIDDEN)) {
@@ -792,11 +897,12 @@ export class OnlineTable {
     const w = (d: (bigint[] | null)[]) => d.map((x) => (x ? x.map(hex) : null));
     // 配ったがまだ当てはめていない出来事（戻ってきた人の鍵を待っているもの）も渡す
     const waiting = [...this.queue.values()].sort((a, b) => a.env.seq - b.env.seq).map((x) => ({ env: maskAll(x.env), ...(x.pos ? { pos: x.pos } : {}) }));
-    return { seats: this.seats, wire: [...this.wire, ...waiting], hand: h ? { no: h.no, shuffled: w(h.shuffled), relocked: w(h.relocked) } : null };
+    return { seats: this.seats, wk: this.hostWk?.toString(36), wire: [...this.wire, ...waiting], hand: h ? { no: h.no, shuffled: w(h.shuffled), relocked: w(h.relocked) } : null };
   }
 
   /** 戻ってきた人：ホストから受け取った列で局面を作り直す。自分の牌は鍵を頼み直して開け直す */
   loadSync(d: SyncData) {
+    this.setHostWk(d.wk);
     this.onBegin(d.seats);
     if (d.hand) {
       const no = d.hand.no;
@@ -831,6 +937,7 @@ export class OnlineTable {
       if (this.mySeat !== null) this.broadcast({ type: 'mt-rekey', no, seat: this.mySeat, positions });
       // 錠前の段取りの途中なら、自分の番から続ける
       if (!this.hand.final) this.resumeLock();
+      this.depositMine();
     }
     // 局の始まりより前（前の局）の出来事は、自分の牌を開けずに伏せたまま当てはめる
     const startAt = d.wire.map((x) => x.env.ev.type).lastIndexOf('roundStart');
@@ -1009,12 +1116,12 @@ export class OnlineTable {
     if (v.phase !== 'ended' && !this.hand?.final) return;
     const legal = legalActions(v, seat);
     if (legal.length === 0) return;
-    const kind = this.seats[seat]?.kind;
-    const auto = kind === 'cpu' ? this.o.cpu : this.o.autoplay;
+    const isCpu = this.cpuSeat(seat);
+    const auto = isCpu ? this.o.cpu : this.o.autoplay;
     // CPU は少し間を置く（見送るだけの返事は待たせない）
     if (auto) {
       const a = auto(v, seat);
-      return this.perform(seat, a, kind === 'cpu' && v.phase !== 'claim' ? (this.o.cpuDelay ?? 0) : 0);
+      return this.perform(seat, a, isCpu && v.phase !== 'claim' ? (this.o.cpuDelay ?? 0) : 0);
     }
     // 人の席：見送るしかない返事・言えることが 1 つだけの宣言は自動（画面のボタンを待たない）
     const shown = this.choices(v, seat);
@@ -1058,6 +1165,319 @@ export class OnlineTable {
   /** 画面から：「鳴かない」を切り替える（いま返事の番なら、見送るしかなくなったときにすぐ見送る） */
   setNoCalls(on: boolean) {
     this.noCalls = on;
+    this.changed();
+    this.drive();
+  }
+
+  // ---- 席を移す（段階10・利用者決定 10-15） ----
+  //  - 本人が降りる／ホストが権限を移す：本人の端末が錠前をホストへ渡す（ホストにしか開けられない包み）→ ホストの CPU が続きを打つ
+  //  - 切れて戻らない：局の初めにサーバーへ預けた包みを、3 分後にサーバーがホストへ渡す（部屋の側が adoptReleased を呼ぶ）
+  //  - 包みが無い・使えない（錠前の段取りの途中に落ちた・換三張の受け渡しの途中など）：その局をなかったことにして配り直す（Q5=A）
+  //  - 席を返す：本人が頼み、ホストが許可すると、ホストが錠前と本物の出来事を本人にしか開けられない包みで返す（Q4=A）
+
+  private setHostWk(v: unknown) {
+    if (typeof v !== 'string') return;
+    const y = fromB36(v);
+    if (validWrapKey(this.g, y)) this.hostWk = y;
+  }
+
+  private packageOf(seat: Seat): SeatPackage | null {
+    const h = this.hand;
+    const lk = h?.mine.get(seat);
+    if (!h || !lk) return null;
+    return { no: h.no, seat, locker: lockerToWire(lk), priv: (this.ownLogs.get(seat) ?? []).slice() };
+  }
+
+  /** 自分の席の包みを作り直して部屋の側へ（サーバーに預ける）。ホストは預けない */
+  private depositMine() {
+    if (this.o.isHost || !this.o.onPackage || this.mySeat === null || this.yielded || this.hostWk === null) return;
+    const pkg = this.packageOf(this.mySeat);
+    if (!pkg) return;
+    void wrapFor(this.g, this.hostWk, JSON.stringify(pkg)).then((blob) => this.o.onPackage?.(pkg.no, blob));
+  }
+
+  /** 自分の席を CPU に任せる（本人が降りる・ホストに言われた）。ホストは自分の席をそのまま CPU に回す */
+  async yieldSeat(): Promise<void> {
+    const seat = this.mySeat;
+    if (seat === null || this.yielded || !this.started) return;
+    if (this.o.isHost) {
+      this.setProxy(seat, true);
+      return;
+    }
+    if (this.hostWk === null) return;
+    const pkg = this.packageOf(seat);
+    this.yielded = true;
+    this.reclaimRefused = false;
+    this.changed();
+    // 局の間（錠前がまだ無い）なら錠前は渡さない＝ホストが次の局から作る
+    const blob = pkg ? await wrapFor(this.g, this.hostWk, JSON.stringify(pkg)) : '';
+    this.toHost({ type: 'mt-yield', seat, id: this.o.myId, blob });
+  }
+
+  /** ホスト：つながっている人の席を CPU に移す（その人の端末が錠前を渡してくる） */
+  takeSeat(seat: Seat) {
+    if (!this.o.isHost || this.isProxy(seat) || this.seats[seat]?.kind !== 'human') return;
+    if (seat === this.mySeat) return void this.yieldSeat();
+    this.send({ type: 'mt-take', seat }, 'all');
+  }
+
+  /** ホスト：席の持ち主が錠前を渡してきた */
+  private async onYield(seat: Seat, id: string, blob: string) {
+    const k = this.seats[seat];
+    if (!this.o.isHost || !this.wrapKeys || k?.kind !== 'human' || k.id !== id || k.proxy) return;
+    this.adopt(seat, await this.openPackage(seat, blob));
+  }
+
+  private async openPackage(seat: Seat, blob: string | null): Promise<SeatPackage | null> {
+    if (!blob || !this.wrapKeys) return null;
+    const plain = await unwrap(this.g, this.wrapKeys.x, blob);
+    if (!plain) return null;
+    try {
+      const pkg = JSON.parse(plain) as SeatPackage;
+      return pkg.seat === seat ? pkg : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * ホスト：切れて戻らなかった人の包みがサーバーから届いた（blob が null＝預かりが無かった・サーバーが対応していない）。
+   * 包みを開けて、その局の続きをホストの CPU が打つ。使えなければ局を配り直す
+   */
+  async adoptReleased(id: string, blob: string | null): Promise<'continued' | 'redealt' | 'none'> {
+    const seat = this.ids.get(id);
+    if (!this.o.isHost || seat === undefined || this.isProxy(seat)) return 'none';
+    return this.adopt(seat, await this.openPackage(seat, blob));
+  }
+
+  /** ホスト：席を CPU に移し、包みで局面を作り直す（作れなければ配り直す） */
+  private adopt(seat: Seat, pkg: SeatPackage | null): 'continued' | 'redealt' {
+    const h = this.hand;
+    this.setProxy(seat, true);
+    // 錠前の段取りの途中：その席の錠前があれば続ける。無ければ段取りからやり直す
+    if (h && !h.final) {
+      this.views.set(seat, this.viewFromWire(seat));
+      if (pkg && pkg.no === h.no) {
+        h.mine.set(seat, lockerFromWire(pkg.locker));
+        this.resumeLock();
+        this.drive();
+        return 'continued';
+      }
+      this.redeal();
+      return 'redealt';
+    }
+    const r = pkg ? this.rebuildSeat(seat, pkg) : false;
+    if (pkg && r !== false) {
+      // 錠前は持った：その人が出すはずだった鍵を出し直す（作り直しが鍵待ちでも先に出す＝ほかの人の局面が進む）
+      h!.mine.set(seat, lockerFromWire(pkg.locker));
+      this.sendSeatKeys(seat);
+      if (r !== true) {
+        // ほかの人の鍵が届いたら作り直す。それまでその席は打たない（局面を持たない）
+        this.views.delete(seat);
+        this.waiters.push({ need: r, run: () => this.adoptRetry(seat, pkg) });
+        return 'continued';
+      }
+      // 局が終わって錠前を明かしたあとなら、この席の分も明かす（検算がそろう）
+      if (h && h.revealedMine) this.broadcast({ type: 'mt-reveal', no: h.no, seat, locker: pkg.locker });
+      this.changed();
+      this.drive();
+      return 'continued';
+    }
+    this.views.set(seat, this.viewFromWire(seat));
+    this.redeal();
+    return 'redealt';
+  }
+
+  /** 鍵待ちだった作り直しをやり直す（その間に局が変わっていれば配り直す） */
+  private adoptRetry(seat: Seat, pkg: SeatPackage) {
+    const r = this.rebuildSeat(seat, pkg);
+    if (r === true) {
+      const h = this.hand;
+      if (h && h.revealedMine) this.broadcast({ type: 'mt-reveal', no: h.no, seat, locker: pkg.locker });
+      this.changed();
+      this.drive();
+    } else if (r === false) {
+      this.views.set(seat, this.viewFromWire(seat));
+      this.redeal();
+    } else this.waiters.push({ need: r, run: () => this.adoptRetry(seat, pkg) });
+  }
+
+  /** ホスト：席を CPU に任せる／戻すを全員へ */
+  private setProxy(seat: Seat, proxy: boolean) {
+    this.broadcast({ type: 'mt-seat', seat, proxy });
+  }
+
+  private onSeat(seat: Seat, proxy: boolean) {
+    const k = this.seats[seat];
+    if (k?.kind !== 'human' || !!k.proxy === proxy) return;
+    this.seats = this.seats.map((x, i) => (i === seat && x.kind === 'human' ? { ...x, proxy } : x));
+    if (seat === this.mySeat) {
+      this.yielded = proxy;
+      if (!proxy) {
+        this.reclaimPending = false;
+        this.reclaimRefused = false;
+      }
+    }
+    if (this.o.isHost) this.reclaims.delete(seat);
+    // 打たなくなった席の局面は捨てる（自分の席は見ていられるように残す）
+    if (!this.viewSeats().includes(seat)) this.views.delete(seat);
+    this.changed();
+    this.drive();
+  }
+
+  /** 全員に見える列だけで、その席から見える局面（その席の牌は伏せたまま） */
+  private viewFromWire(seat: Seat): GameState {
+    let v = initialState();
+    for (const { env } of this.wire) v = apply(v, mask(env, seat));
+    return v;
+  }
+
+  /**
+   * 包みの錠前と本物の出来事で、その席の局面を作り直す（この局の配牌・ツモは錠前で開け直す。
+   * ほかの人の鍵は全員あてに出ているので手元にある）。作れなければ false（何も変えない）
+   */
+  private rebuildSeat(seat: Seat, pkg: SeatPackage): boolean | number[] {
+    const h = this.hand;
+    if (!h || !h.final || pkg.no !== h.no || pkg.seat !== seat) return false;
+    // 換三張の受け渡しの途中は、錠前だけでは続けられない（受け渡しの鍵は本人の端末の中）
+    if (this.pub.phase === 'huan3') return false;
+    const had = h.mine.get(seat);
+    h.mine.set(seat, lockerFromWire(pkg.locker));
+    const fail = () => {
+      if (had) h.mine.set(seat, had);
+      else h.mine.delete(seat);
+      return false;
+    };
+    const real = new Map(pkg.priv.map((e) => [e.seq, e]));
+    const startAt = this.wire.map((x) => x.env.ev.type).lastIndexOf('roundStart');
+    const own: Envelope[] = [];
+    const missing: number[] = [];
+    let v = initialState();
+    try {
+      for (const [i, { env, pos }] of this.wire.entries()) {
+        if (missing.length) break;
+        let e = env;
+        const ev = env.ev;
+        const evSeat = (ev as { seat?: Seat }).seat;
+        if (i > startAt && evSeat === seat && pos && (ev.type === 'deal' || ev.type === 'draw')) {
+          for (const p of pos) this.tryDecode(p);
+          // ほかの人の鍵がまだ届いていない（落ちる直前に引いた牌など）：届くのを待ってやり直す
+          if (!pos.every((p) => h.tiles.has(p))) {
+            missing.push(...pos.filter((p) => !h.tiles.has(p)));
+            continue;
+          }
+          const tiles = pos.map((p) => h.tiles.get(p)!);
+          e = { ...env, ev: ev.type === 'deal' ? { ...ev, tiles } : { ...ev, tile: tiles[0] } };
+        } else if (i > startAt && evSeat === seat && PRIVATE_OWN.has(ev.type)) {
+          const r = real.get(env.seq);
+          if (!r || r.ev.type !== ev.type) return fail();
+          e = r;
+          own.push(r);
+        }
+        v = apply(v, mask(e, seat));
+      }
+    } catch {
+      return fail();
+    }
+    // 鍵待ち：錠前は持ったまま（届いた鍵と合わせて開けるため）
+    if (missing.length) return missing;
+    this.views.set(seat, v);
+    this.ownLogs.set(seat, own);
+    return true;
+  }
+
+  /**
+   * 引き取った席の鍵を、その人が出すはずだった所へ出し直す（ほかの人に配った牌・表に開ける頼み）。
+   * 落ちる前に出していた分と重なっても、同じ鍵なので困らない
+   */
+  private sendSeatKeys(seat: Seat) {
+    const h = this.hand;
+    const lk = h?.mine.get(seat);
+    if (!h || !lk || !h.final) return;
+    const positions = [...h.privatePos].filter(([, owner]) => owner !== seat).map(([p]) => p);
+    for (const o of this.opens) for (const p of o) if (this.publicAllowed(p) && !h.privatePos.has(p)) positions.push(p);
+    if (positions.length) this.broadcast({ type: 'mt-keys', no: h.no, seat, keys: positions.map((p) => [p, hex(lk.perCard[p].d)]) });
+  }
+
+  /** ホスト：この局をなかったことにして、同じ局を配り直す（錠前の段取りの途中なら段取りからやり直す） */
+  private redeal() {
+    const h = this.hand;
+    const p = this.pub;
+    if (h && h.round && !h.roundSent) {
+      this.beginHand(h.round);
+      return;
+    }
+    if (p.phase === 'gameover' || p.roundIndex < 0) return;
+    if (p.phase === 'ended') {
+      // 局はもう終わっている：その人の錠前が無いので検算だけがそろわない。検算なしで次へ進めるようにする
+      if (h && h.verified === null) {
+        h.verified = [];
+        this.lastVerify = [];
+        // 牌譜の山の並びを局の順にそろえておく（この局は空＝全員の牌は出せない）
+        this.walls.push([]);
+        this.h3Tiles.push(new Map());
+      }
+      this.changed();
+      this.drive();
+      return;
+    }
+    const r: Round = { roundIndex: p.roundIndex, dealer: p.dealer, honba: p.honba };
+    this.emit({ seq: p.nextSeq, to: 'all', ev: { type: 'roundVoid' } });
+    this.beginHand(r);
+  }
+
+  /** 自分：席を返してほしいとホストへ頼む（ホストの許可が要る） */
+  requestReclaim() {
+    const seat = this.mySeat;
+    if (seat === null || !this.isProxy(seat) || this.reclaimPending) return;
+    if (this.o.isHost) {
+      // ホストは自分の席をそのまま戻す（錠前は手元にある）
+      this.setProxy(seat, false);
+      return;
+    }
+    this.myWrap ??= newWrapKeyPair(this.g);
+    this.reclaimPending = true;
+    this.reclaimRefused = false;
+    this.toHost({ type: 'mt-reclaim', seat, id: this.o.myId, wk: this.myWrap.y.toString(36) });
+    this.changed();
+  }
+
+  private onReclaim(seat: Seat, id: string, wk: unknown) {
+    const k = this.seats[seat];
+    if (!this.o.isHost || k?.kind !== 'human' || k.id !== id || !k.proxy || typeof wk !== 'string') return;
+    const y = fromB36(wk);
+    if (!validWrapKey(this.g, y)) return;
+    this.reclaims.set(seat, y);
+    this.changed();
+  }
+
+  /** ホスト：席を返す頼みに答える */
+  async answerReclaim(seat: Seat, ok: boolean) {
+    const y = this.reclaims.get(seat);
+    if (!this.o.isHost || y === undefined) return;
+    this.reclaims.delete(seat);
+    if (!ok) {
+      this.send({ type: 'mt-reclaim-no', seat }, 'all');
+      this.changed();
+      return;
+    }
+    // その局の錠前と本物の出来事を、本人にしか開けられない形で返す（局の間なら錠前は無い＝次の局から本人が作る）
+    const pkg = this.packageOf(seat);
+    const blob = pkg ? await wrapFor(this.g, y, JSON.stringify(pkg)) : '';
+    this.send({ type: 'mt-give', seat, blob }, 'all');
+    this.setProxy(seat, false);
+  }
+
+  /** 自分：ホストから席が返ってきた */
+  private async onGive(seat: Seat, blob: string) {
+    if (seat !== this.mySeat || !this.myWrap || !blob) return;
+    const plain = await unwrap(this.g, this.myWrap.x, blob);
+    if (!plain) return;
+    const pkg = JSON.parse(plain) as SeatPackage;
+    const h = this.hand;
+    if (h && !h.final && pkg.no === h.no) h.mine.set(seat, lockerFromWire(pkg.locker));
+    else this.rebuildSeat(seat, pkg);
+    this.depositMine();
     this.changed();
     this.drive();
   }

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { benchCpu } from '../cpu/bench';
 import { HIDDEN, type Envelope, type Seat } from '../engine/events';
 import { replay } from '../engine/state';
-import { OnlineTable } from './table';
+import { OnlineTable, type LockerStore, type WireLocker } from './table';
 import { rulesOfCnSet } from '../engine/ruleSets';
 import type { Rules } from '../engine/rules';
 
@@ -18,8 +18,9 @@ class Net {
   private q: { from: string; to: 'all' | 'host'; msg: Record<string, unknown> }[] = [];
   private running = false;
 
-  add(id: string, host: boolean) {
+  add(id: string, host: boolean, store?: LockerStore) {
     const t: OnlineTable = new OnlineTable({
+      store,
       send: (msg, to) => this.push(id, to, msg),
       isHost: host,
       myId: id,
@@ -90,6 +91,12 @@ class Net {
       await new Promise((r) => setTimeout(r, 5));
     }
   }
+}
+
+/** 錠前の控え（端末の localStorage の代わり。開き直しても残る） */
+function memStore(): LockerStore {
+  const m = new Map<string, WireLocker>();
+  return { save: (no, seat, w) => void m.set(`${no}:${seat}`, w), load: (no, seat) => m.get(`${no}:${seat}`) ?? null };
 }
 
 /** 局の途中（何人かが何枚か切ったあと） */
@@ -263,6 +270,49 @@ describe('席を移す（段階10）', () => {
     }
     throw new Error('親がホストの持つ席になる局が作れなかった');
   }, 90_000);
+
+  it('★2 局目以降に開き直して戻る：ホストが渡す列で作り直せて、続きを打てる（前は前の局の出来事の順が狂って止まり、画面が暗いまま＝10-15 利用者指摘）', async () => {
+    const net = new Net();
+    const H = net.add('H', true);
+    const store = memStore();
+    net.add('G', false, store);
+    H.begin([
+      { id: 'H', name: 'H' },
+      { id: 'G', name: 'G' },
+    ]);
+    await net.until(() => H.pub.handCount >= 2 && midHand(H, 4), 90_000);
+    net.cut('G');
+    // 開き直した：同じ ID と錠前の控えで新しい卓を作り、ホストが渡す列で作り直す（部屋の側の mt-sync と同じ）
+    const G2 = net.add('G', false, store);
+    G2.loadSync(JSON.parse(JSON.stringify(H.syncData())));
+    expect(G2.mySeat).toBe(1);
+    await nextHandRuns(net, H, [G2]);
+    expect(net.problems).toEqual([]);
+    expect(JSON.stringify(G2.pub)).toBe(JSON.stringify(H.pub));
+  }, 150_000);
+
+  it('★配り直したあとに開き直して戻る（なかったことにした局をはさんでも作り直せる）', async () => {
+    const net = new Net();
+    const H = net.add('H', true);
+    const store = memStore();
+    net.add('G', false, store);
+    net.add('K', false);
+    H.begin([
+      { id: 'H', name: 'H' },
+      { id: 'G', name: 'G' },
+      { id: 'K', name: 'K' },
+    ]);
+    await net.until(() => midHand(H, 6), 30_000);
+    net.cut('K');
+    expect(await H.adoptReleased('K', null)).toBe('redealt');
+    await net.until(() => H.myLog.some((e) => e.ev.type === 'roundVoid') && midHand(H, 4), 30_000);
+    net.cut('G');
+    const G2 = net.add('G', false, store);
+    G2.loadSync(JSON.parse(JSON.stringify(H.syncData())));
+    await nextHandRuns(net, H, [G2]);
+    expect(net.problems).toEqual([]);
+    expect(JSON.stringify(G2.pub)).toBe(JSON.stringify(H.pub));
+  }, 150_000);
 
   it('預かりが無い：その局をなかったことにして、同じ局を CPU 入りで配り直す（Q5=A）', async () => {
     const { net, H, K } = start();

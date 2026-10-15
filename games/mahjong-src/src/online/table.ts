@@ -962,12 +962,28 @@ export class OnlineTable {
       if (!this.hand.final) this.resumeLock();
       this.depositMine();
     }
-    // 局の始まりより前（前の局）の出来事は、自分の牌を開けずに伏せたまま当てはめる
+    // 局の始まりより前（前の局）の出来事は、全部を順番どおり、自分の牌を開けずに伏せたまま当てはめる。
+    // ★以前は位置付き（配牌・ツモ）だけを先に当てはめ、ほかを後回しにしていたため、2 局目以降（配り直しのあとも）に
+    // 戻ると通し番号が合わずに止まり、画面が暗いまま入れなかった（10-15 利用者指摘で発見）
     const startAt = d.wire.map((x) => x.env.ev.type).lastIndexOf('roundStart');
     d.wire.forEach((x, i) => {
-      if (i < startAt && x.pos) this.applyOld(x.env);
+      if (i < startAt) this.applyOld(x.env);
       else this.queue.set(x.env.seq, x);
     });
+    // 前の局の山は知らない（その局の錠前は明かされたあと）。牌譜の山の並びを局の順にそろえるため、空の山を置いておく
+    // （fullLog は空の山の局を埋められない＝全員の牌の牌譜は作らない。なかったことにした局は数えない）
+    const kinds = d.wire.slice(0, Math.max(0, startAt)).map((x) => x.env.ev.type);
+    let past = 0;
+    kinds.forEach((k, i) => {
+      if (k !== 'roundStart') return;
+      const nextStart = kinds.indexOf('roundStart', i + 1);
+      const voided = kinds.slice(i + 1, nextStart < 0 ? undefined : nextStart).includes('roundVoid');
+      if (!voided) past++;
+    });
+    while (this.walls.length < past) {
+      this.walls.push([]);
+      this.h3Tiles.push(new Map());
+    }
     this.pump();
   }
 
@@ -1163,7 +1179,8 @@ export class OnlineTable {
 
   /** 画面に出す選べること（「鳴かない」なら返事のチー・ポン・カンを除く） */
   choices(v: GameState = this.view, seat: Seat | null = this.mySeat): Action[] {
-    if (seat === null || this.dealing) return [];
+    // CPU に任せている間は自分では選べない（手牌も伏せたままのことがある＝計算すると止まる）
+    if (seat === null || this.dealing || (seat === this.mySeat && this.yielded)) return [];
     const legal = legalActions(v, seat);
     if (!this.noCalls || v.phase !== 'claim') return legal;
     return legal.filter((a) => a.type !== 'chi' && a.type !== 'pon' && a.type !== 'kan');

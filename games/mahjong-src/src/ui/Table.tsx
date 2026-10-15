@@ -69,7 +69,8 @@ interface Props {
 /** 自分から見た位置（0＝自分・1＝下家・2＝対面・3＝上家） */
 
 /** 手牌の並べ替え：種類順、同じ種類なら背番号順 */
-const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => kindOf(a) - kindOf(b) || a - b);
+// 伏せた牌（中身の分からない牌＝CPU に任せている間の自分の手牌など）は後ろへ。kindOf は伏せた牌を受け付けない
+const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => (a < 0 || b < 0 ? Number(a < 0) - Number(b < 0) : kindOf(a) - kindOf(b) || a - b));
 
 export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, menu, chat, callPanel, sidePanel, compare = null, bookOpen = false, onBook }: Props) {
   /** 配っている途中は手牌を先頭から決まった枚数だけ見せる */
@@ -993,6 +994,8 @@ function YakuHints({ view, legal, lang }: { view: GameState; legal: Action[]; la
   const t = (k: MessageKey) => translate(lang, k, { wind: '' });
   const how = legal.some((a) => a.type === 'ron') ? 'ron' : legal.some((a) => a.type === 'tsumo') ? 'tsumo' : null;
   const { me } = useSeat();
+  // 手牌が伏せたまま（CPU に任せている間など）は出さない（役の判定は中身の分からない牌を受け付けない）
+  if (view.hands[me].some((x) => x < 0)) return null;
   const done = how ? establishedYaku(view, me, how) : null;
   if (done && done.length > 0) {
     return (

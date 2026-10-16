@@ -21,6 +21,7 @@ import { hiddenRightsFingerprint } from '../../core/engine/victory/repetition';
 import { PLAIN_RULES, advancePosition, type AdvanceRules } from '../../core/engine/position/advance';
 import { MATE_VALUE, buildValueBook, evaluate, pieceValue } from './evaluate';
 import type { KingSafetyWeights, ValueBook } from './evaluate';
+import { NEAR_MARGIN, NEAR_NODES, bookApplies, pickWeighted, probeBook, standardBook } from './opening-book/book';
 
 export interface SearchOptions {
   /** 考える時間の上限 (ms)。深さ 1 だけは必ず読み切る。 */
@@ -101,6 +102,11 @@ export interface SearchFeatures {
    * (evaluate.ts kingSafetyScore)。量子の対局には効かない。省略＝数えない。
    */
   kingSafety?: boolean;
+  /**
+   * ★v1.84 §7.3.7: 序盤の定石の表を引く (本将棋の平手だけ・opening-book/book.ts)。
+   * 表にある局面では読まずに表の手を指す。省略＝引かない。
+   */
+  openingBook?: boolean;
 }
 
 const NO_FEATURES: SearchFeatures = { tt: false, killers: false, checkExtension: false, mateSearch: false };
@@ -123,6 +129,8 @@ export interface SearchResult {
   elapsedMs: number;
   /** 上限の深さまで読み切れたか (時間切れで途中なら false)。 */
   completed: boolean;
+  /** ★v1.84: 定石の表から指したか (`exact`＝そのまま一致・`near`＝近い形を確かめて採った)。 */
+  book?: 'exact' | 'near';
 }
 
 /** 静かになるまで駒の取り合いだけを読み続ける深さの上限。 */
@@ -504,6 +512,51 @@ function findMate(ctx: Ctx, position: Position, plies: number, limit: { nodes: n
   return attack(position, plies);
 }
 
+/**
+ * ★v1.84 §7.3.7.4: 定石の表から 1 手選ぶ。
+ *
+ * - そのまま一致 → 重みで選んで指す (読まない)。
+ * - 近い形 → 重みで選んだ手を、**表を使わずに短く読んだ最善手**と比べ、損が NEAR_MARGIN 以内の
+ *   ときだけ指す。確かめるのは AI 自身の判断なので、AI が分からない種類の損は見逃す (既知の限界)。
+ */
+function openingBookMove(
+  mgf: Mgf,
+  position: Position,
+  options: SearchOptions,
+  random: () => number,
+): { move: Move; score: number; nodes: number; kind: 'exact' | 'near' } | null {
+  const probe = probeBook(mgf, standardBook(mgf), position);
+  const exact = pickWeighted(
+    probe.exact.map((c) => ({ ...c, weight: c.entry.weight })),
+    random,
+  );
+  if (exact) return { move: exact.move, score: 0, nodes: 0, kind: 'exact' };
+
+  const near = pickWeighted(
+    probe.near.map((c) => ({ ...c, weight: c.entry.weight })),
+    random,
+  );
+  if (!near) return null;
+  const rules = options.rules ?? PLAIN_RULES;
+  const sub: SearchOptions = {
+    movetimeMs: options.movetimeMs,
+    maxDepth: options.maxDepth,
+    maxNodes: NEAR_NODES,
+    jitter: 0,
+    rules,
+    features: { ...options.features, openingBook: false },
+    shouldStop: options.shouldStop,
+    now: options.now,
+    random: () => 0.5,
+  };
+  const best = searchBestMove(mgf, position, sub);
+  const child = advancePosition(mgf, position, near.move, rules);
+  if (child.anomaly) return null;
+  const mine = child.royalCaptured ? MATE_VALUE : -searchBestMove(mgf, child.position, sub).score;
+  if (mine < best.score - NEAR_MARGIN) return null;
+  return { move: near.move, score: mine, nodes: best.nodes, kind: 'near' };
+}
+
 export function searchBestMove(mgf: Mgf, position: Position, options: SearchOptions): SearchResult {
   const now = options.now ?? (() => Date.now());
   const random = options.random ?? Math.random;
@@ -535,6 +588,14 @@ export function searchBestMove(mgf: Mgf, position: Position, options: SearchOpti
   const rootMoves = safeLegalMoves(mgf, position);
   if (rootMoves.length === 0) {
     return { move: null, score: -MATE_VALUE, depth: 0, nodes: 0, elapsedMs: now() - start, completed: true };
+  }
+
+  // ★v1.84 §7.3.7: 序盤の定石。表にあれば読まずに指す (近い形は短く読んで確かめてから)。
+  if (ctx.f.openingBook && bookApplies(mgf, position, ctx.rules.quantum)) {
+    const hit = openingBookMove(mgf, position, options, random);
+    if (hit) {
+      return { move: hit.move, score: hit.score, depth: 0, nodes: hit.nodes, elapsedMs: now() - start, completed: true, book: hit.kind };
+    }
   }
 
   // 最初の並びも、見込みが同じ手どうしは順番をばらす (下の並べ替えと同じ理由)。

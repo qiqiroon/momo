@@ -147,6 +147,13 @@ export interface KingSafetyWeights {
    * 上の加点と打ち消し合う (測定では固めた形を崩す手が増えた)。
    */
   escapeNeedsDanger: boolean;
+  /**
+   * ★v1.85 §7.3.6.7 美濃の形: 美濃の仲間の形 (CASTLE_SHAPES) がそろっていて、玉が定位置にいるときの加点。
+   * 守り駒は玉の隣の金銀しか数えないので、美濃では玉が銀の下へ潜ると金も隣に来て得に見えていた。0＝数えない。
+   */
+  castle: number;
+  /** 上の加点を付けてよい「危ないマス」(玉の周りで相手の利きがあるマス) の数の上限。これを超えたら付けない。 */
+  castleMaxDanger: number;
 }
 
 export const KING_SAFETY_WEIGHTS: KingSafetyWeights = {
@@ -159,7 +166,37 @@ export const KING_SAFETY_WEIGHTS: KingSafetyWeights = {
   shell: 10,
   shellCap: 3,
   escapeNeedsDanger: true,
+  castle: 80,
+  castleMaxDanger: 1,
 };
+
+/**
+ * ★v1.85 §7.3.6.7 美濃の仲間の形 (先手から見た筋・段)。後手は盤を 180 度回した位置。
+ * 玉の位置と、そこにそろっているべき銀・金 (成っていないもの)。
+ */
+export const CASTLE_SHAPES: { name: string; king: [number, number]; gin: [number, number]; kin: [number, number] }[] = [
+  { name: '美濃', king: [2, 8], gin: [3, 8], kin: [4, 9] },
+  { name: '銀冠', king: [2, 8], gin: [2, 7], kin: [3, 8] },
+  { name: '左美濃', king: [8, 8], gin: [7, 8], kin: [6, 9] },
+  { name: '居飛車の銀冠', king: [8, 8], gin: [8, 7], kin: [7, 8] },
+];
+
+/** その側の玉が美濃の仲間の形の定位置にいるか (本将棋の 9×9 だけ)。 */
+export function inCastleShape(position: Position, king: { row: number; col: number }, side: Player): boolean {
+  if (position.width !== 9 || position.height !== 9) return false;
+  // 筋・段 (先手から見た形) → 内部の座標。後手は 180 度回す。
+  const sq = ([x, y]: [number, number]) =>
+    side === 'player1' ? { row: y - 1, col: 9 - x } : { row: 9 - y, col: x - 1 };
+  const has = (xy: [number, number], kind: string) => {
+    const { row, col } = sq(xy);
+    const c = position.board[row][col];
+    return !!c && c.owner === side && c.kind === kind && !c.promoted;
+  };
+  return CASTLE_SHAPES.some((s) => {
+    const k = sq(s.king);
+    return k.row === king.row && k.col === king.col && has(s.gin, 'gin') && has(s.kin, 'kin');
+  });
+}
 
 /** 守り駒に数える駒種 (金・銀)。表に無いルール (チェス等) では数えない。 */
 const GUARD_KINDS = new Set(['kin', 'gin']);
@@ -399,5 +436,8 @@ function kingDanger(
     if (escapes === 0) penalty += w.noEscape;
     else if (escapes === 1) penalty += w.oneEscape;
   }
+  // ★v1.85 §7.3.6.7: 美濃の仲間の形で玉が定位置にいれば加点。危ないマスが多いときは付けない
+  // (具体的に危ないときは、いつもの判断で玉を動かしてよい＝利用者の指示)。
+  if (w.castle && danger <= w.castleMaxDanger && inCastleShape(position, king, side)) penalty -= w.castle;
   return penalty;
 }

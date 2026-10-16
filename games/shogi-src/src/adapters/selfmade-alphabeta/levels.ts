@@ -51,6 +51,7 @@ const ALL_FEATURES: SearchFeatures = {
   mateSearch: true,
   quantumKingSafety: true,
   kingSafety: true,
+  openingBook: true,
 };
 
 export const LEVEL_TABLE: Record<AiLevel, LevelRow> = {

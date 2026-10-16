@@ -13,6 +13,7 @@
  *   SP_NODES_A / SP_NODES_B  片方だけ読む量を変える (読む量の差が強さにどれだけ効くかを測る)
  *   SP_PLIES     手数の上限                  (既定 300)
  *   SP_SEED      出だしの種の始まり          (既定 1)
+ *   SP_OPENING_PLIES  出だしに無作為に指す手数 (既定 4。定石の効き目を測るときは 0＝初期局面から)
  *   SP_JOBS      並べて走らせる数            (既定 8)
  */
 
@@ -67,6 +68,23 @@ const VARIANTS: Record<string, Partial<SearchOptions>> = {
     features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumKingSafety: true, kingSafety: true },
     kingSafetyWeights: { shell: 0, escapeNeedsDanger: false },
   },
+  /** ★v1.85 §7.3.6.7 美濃の形の加点を切ったもの (v2.09 までと同じ)。`ks` は既定の加点が入る。 */
+  castle0: {
+    features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumKingSafety: true, kingSafety: true },
+    kingSafetyWeights: { castle: 0 },
+  },
+  /** ★v1.84/v1.85: 定石と美濃の形の加点 (既定の値) が入った段。`castle0` と比べると v2.09 との差になる。 */
+  book: {
+    features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumKingSafety: true, kingSafety: true, openingBook: true },
+  },
+  castle50: {
+    features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumKingSafety: true, kingSafety: true },
+    kingSafetyWeights: { castle: 50 },
+  },
+  castle80: {
+    features: { tt: true, killers: true, checkExtension: true, mateSearch: true, quantumKingSafety: true, kingSafety: true },
+    kingSafetyWeights: { castle: 80 },
+  },
 };
 
 const env = process.env;
@@ -78,6 +96,7 @@ const nodesB = Number(env.SP_NODES_B ?? nodes);
 const aName = env.SP_A ?? 'base';
 const bName = env.SP_B ?? 'base';
 const openings = Number(env.SP_OPENINGS ?? 20);
+const openingPlies = Number(env.SP_OPENING_PLIES ?? 4);
 const maxPlies = Number(env.SP_PLIES ?? 300);
 const seedBase = Number(env.SP_SEED ?? 1);
 const jobs = Math.max(1, Math.min(Number(env.SP_JOBS ?? 8), openings));
@@ -93,7 +112,7 @@ function runShard(shard: number, shards: number): void {
   const a = alphaBetaPlayer(hondou, rules, nodesA, VARIANTS[aName]);
   const b = alphaBetaPlayer(hondou, rules, nodesB, VARIANTS[bName]);
   for (let o = shard; o < openings; o += shards) {
-    for (const rec of playPair({ mgf: hondou, rules, initial, a, b, opening: seedBase + o, openingPlies: 4, maxPlies })) {
+    for (const rec of playPair({ mgf: hondou, rules, initial, a, b, opening: seedBase + o, openingPlies, maxPlies })) {
       process.stdout.write(`SPJSON ${JSON.stringify(rec)}\n`);
     }
   }

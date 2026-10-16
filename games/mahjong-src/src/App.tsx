@@ -25,7 +25,7 @@ import { Lobby, OnlineStatus, WaitingRoom, useOnline } from './ui/Online';
 import { GameMenu } from './ui/GameMenu';
 import { MoveClock, TimeConsent, TimeConsentWait } from './ui/TimeLimit';
 import { CallStrip } from './ui/CallStrip';
-import { OnlineSession } from './online/session';
+import { OnlineSession, spectatorsOf } from './online/session';
 import { matchmakingTransport } from './online/transport';
 import { useLayout } from './ui/useLayout';
 import { APP_VERSION } from './version';
@@ -120,7 +120,9 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   const tableView = onlineOn && tbl ? tbl.view : view;
   // CPU に任された人の席は名前に「（CPU）」を付ける（段階10）
   const seatInfo: SeatInfo =
-    onlineOn && tbl ? { me: tbl.mySeat ?? 0, names: tbl.seats.map((x) => (x.kind === 'human' ? (x.proxy ? t('olProxyName', { name: x.name }) : x.name) : null)) } : { me: HUMAN, names: null };
+    onlineOn && tbl
+      ? { me: tbl.mySeat ?? 0, names: tbl.seats.map((x) => (x.kind === 'human' ? (x.proxy ? t('olProxyName', { name: x.name }) : x.name) : null)), watching: tbl.mySeat === null }
+      : { me: HUMAN, names: null };
   /** ご利用にあたって：起動するたびに開いた瞬間に出し、同意するまで閉じない（利用者 Q2=A）。
    *  端末には覚えない＝毎回、賭けに使わないことを思い出してもらう（利用者 10-09）。startConsented は検査用 */
   const [consented, setConsented] = useState(startConsented);
@@ -299,6 +301,16 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             }
           : undefined
       }
+      watch={
+        onlineOn && ol.room?.isHost && !over
+          ? {
+              allow: ol.allowSpectators,
+              spectators: spectatorsOf(ol.members).map((m) => ({ id: m.id, name: m.name })),
+              onAllow: (v) => online.setAllowSpectators(v),
+              onKick: (id) => online.kick(id),
+            }
+          : undefined
+      }
     />
   ) : null;
 
@@ -396,7 +408,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             onQuit={onTitle}
             menu={gameMenu}
             {...bookProps}
-            chat={<Chat t={t} you={t('you')} online={{ lines: ol.chat, myId: online.myId, onSend: (s) => online.sendChat(s) }} />}
+            chat={<Chat t={t} you={t('you')} online={{ lines: ol.chat, myId: online.myId, onSend: (s) => online.sendChat(s), readOnly: !online.canChat() }} />}
             callPanel={<CallStrip t={t} table={tbl} />}
             clock={<MoveClock t={t} deadline={tbl.deadline} timeouts={tbl.timeouts} />}
           />

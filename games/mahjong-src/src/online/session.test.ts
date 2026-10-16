@@ -2,7 +2,7 @@ import { cpuOf } from '../cpu/strength';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ruleChoiceOf, rulesOfSet } from '../engine/ruleSets';
 import type { JpRuleKey } from '../engine/rules';
-import { OnlineSession, ROLLCALL_MS, type RoomInfo, type Transport, type TransportHandlers } from './session';
+import { joinRoleOf, OnlineSession, playersOf, ROLLCALL_MS, spectatorsOf, type RoomInfo, type Transport, type TransportHandlers } from './session';
 
 // 本物のサーバーの多人数の部屋をまねた偽物。
 // ★番号の付け方も本物と同じ（'p' + いまの人数）＝抜けた人のあとに入った人の番号が重なる癖ごとまねる
@@ -11,6 +11,8 @@ interface Peer {
   pid: string;
   host: boolean;
   room: string | null;
+  /** サーバーに名乗った役割（入ったときのまま変わらない＝本物と同じ） */
+  role?: 'player' | 'spectator';
 }
 interface FakeRoom {
   id: string;
@@ -44,12 +46,14 @@ class FakeServer {
         me.h.onCreated(id, o.name);
         this.broadcastList();
       },
-      joinRoom: (id, pw, _name) => {
+      joinRoom: (id, pw, _name, role = 'player') => {
         const r = this.rooms.get(id);
         if (!r) return me.h.onError('部屋が見つかりません');
         if (r.password && r.password !== pw) return me.h.onError('パスワードが違います');
-        if (r.peers.length >= 4) return me.h.onError('プレイヤーが満員です');
-        Object.assign(me, { pid: `p${r.peers.length}`, host: false, room: id });
+        const players = r.peers.filter((p) => p.role !== 'spectator').length;
+        if (role === 'player' && players >= 4) return me.h.onError('プレイヤーが満員です');
+        if (role === 'spectator' && r.peers.length - players >= 8) return me.h.onError('観戦が満員です');
+        Object.assign(me, { pid: role === 'spectator' ? `v${r.peers.length - players + 1}` : `p${players}`, host: false, room: id, role });
         r.peers.push(me);
         me.h.onJoined(id, r.name);
         this.broadcastList();
@@ -108,8 +112,10 @@ class FakeServer {
       hostName: r.hostName,
       hasPassword: r.password !== '',
       isPublic: r.isPublic,
-      playerCount: r.peers.length,
+      playerCount: r.peers.filter((p) => p.role !== 'spectator').length,
       maxPlayers: 4,
+      spectatorCount: r.peers.filter((p) => p.role === 'spectator').length,
+      maxSpectators: 8,
       gameState: r.gameState,
     }));
   }
@@ -197,12 +203,18 @@ describe('部屋を作る・入る', () => {
     expect(roomOf(person()).isPublic).toBe(false);
   });
 
-  it('5 人目は満員で入れない', () => {
+  it('5 人目は席に着けない（観戦者になる・段階10の3）。観戦を断っている部屋なら入れない', () => {
     const { host } = hostWith('A', 'B', 'C');
+    host.setAllowSpectators(false);
     const e = person();
     e.join(roomOf(e), 'E', '');
-    expect(e.state.note).toBe('roomFull');
+    expect(e.state.note).toBe('noSpectators');
     expect(names(host)).toHaveLength(4);
+    host.setAllowSpectators(true);
+    e.clearNote();
+    e.join(roomOf(e), 'E', '');
+    expect(e.myRole()).toBe('spectator');
+    expect(playersOf(host.state.members)).toHaveLength(4);
   });
 });
 
@@ -269,14 +281,24 @@ describe('始める', () => {
     expect(roomOf(person()).gameState).toBe('playing');
   });
 
-  it('始めたあとに新しい人が入ってきたら断る（名簿は変わらない）', () => {
+  it('始めたあとに新しい人が入ってきたら観戦者として入る（段階10の3・Q13=B）。観戦を断っている部屋では断る', () => {
     const { host } = hostWith('A');
     host.start();
     const x = person();
+    expect(joinRoleOf(roomOf(x))).toBe('spectator');
     x.join(roomOf(x), 'X', '');
-    expect(x.state.where).toBe('lobby');
-    expect(x.state.note).toBe('rejectedStarted');
-    expect(names(host)).toEqual(['ホスト', 'A']);
+    expect(x.state.where).toBe('room');
+    expect(x.myRole()).toBe('spectator');
+    expect(names(host)).toEqual(['ホスト', 'A', 'X']);
+    expect(playersOf(host.state.members).map((m) => m.name)).toEqual(['ホスト', 'A']);
+    // 途中から入った観戦者にも卓ができる（席は無い＝誰の手牌も開けられない）
+    expect(x.table?.started).toBe(true);
+    expect(x.table?.mySeat).toBeNull();
+    host.setAllowSpectators(false);
+    const y = person();
+    y.join(roomOf(y), 'Y', '');
+    expect(y.state.where).toBe('lobby');
+    expect(y.state.note).toBe('noSpectators');
   });
 
   it('始めたあとに抜けた人は席を残して「接続が切れています」の印', () => {
@@ -357,5 +379,103 @@ describe('始める', () => {
     const b = person();
     b.join(roomOf(b), 'B', '');
     expect(b.state.chat.map((l) => l.text)).toEqual(['始める前の話']);
+  });
+});
+
+describe('観戦（段階10の3・利用者決定 10-16）', () => {
+  const roles = (s: OnlineSession) => s.state.members.map((m) => `${m.name}:${m.role ?? 'player'}`);
+
+  it('席が 4 つ埋まっていると、5 人目からは観戦者として入る（一覧のボタンは「観戦」）', () => {
+    const { host, gs } = hostWith('A', 'B', 'C', 'D');
+    expect(roles(host)).toEqual(['ホスト:player', 'A:player', 'B:player', 'C:player', 'D:spectator']);
+    expect(gs[3].myRole()).toBe('spectator');
+    expect(roles(gs[0])).toEqual(roles(host));
+  });
+
+  it('ホストは待合でプレイヤーを観戦者に・観戦者をプレイヤーにできる（席は 4 つまで）', () => {
+    const { host, gs } = hostWith('A', 'B', 'C', 'D');
+    host.setRole(gs[3].myId, 'player'); // 席が埋まっているので動かない
+    expect(gs[3].myRole()).toBe('spectator');
+    host.setRole(gs[0].myId, 'spectator');
+    host.setRole(gs[3].myId, 'player');
+    expect(roles(host)).toEqual(['ホスト:player', 'A:spectator', 'B:player', 'C:player', 'D:player']);
+    expect(gs[0].myRole()).toBe('spectator');
+    gs[0].setRole(gs[1].myId, 'spectator'); // ゲストは動かせない
+    expect(gs[1].myRole()).toBe('player');
+  });
+
+  it('プレイヤーは自分から観戦に回れる。観戦者は自分ではプレイヤーに戻れない（入り直せば席が空いていればプレイヤー）', () => {
+    const { host, gs } = hostWith('A');
+    gs[0].becomeSpectator();
+    expect(gs[0].myRole()).toBe('spectator');
+    expect(roles(host)).toEqual(['ホスト:player', 'A:spectator']);
+    gs[0].leave();
+    gs[0].join(roomOf(gs[0]), 'A', '');
+    expect(gs[0].myRole()).toBe('player');
+  });
+
+  it('始まったあとは役割を動かせない（ホストも本人も）', () => {
+    const { host, gs } = hostWith('A', 'B', 'C', 'D');
+    host.start();
+    host.setRole(gs[0].myId, 'spectator');
+    gs[1].becomeSpectator();
+    host.setRole(gs[3].myId, 'player');
+    expect(roles(host)).toEqual(['ホスト:player', 'A:player', 'B:player', 'C:player', 'D:spectator']);
+  });
+
+  it('キック：待合では誰でも、対局中は観戦者だけ。キックされた人はまた入れる', () => {
+    const { host, gs } = hostWith('A', 'B', 'C', 'D');
+    host.kick(gs[0].myId);
+    expect(gs[0].state.where).toBe('lobby');
+    expect(gs[0].state.note).toBe('kicked');
+    expect(names(host)).toEqual(['ホスト', 'B', 'C', 'D']);
+    gs[0].clearNote();
+    gs[0].join(roomOf(gs[0]), 'A', '');
+    expect(gs[0].state.where).toBe('room');
+    host.start();
+    host.kick(gs[1].myId); // プレイヤーは対局中にキックできない
+    expect(gs[1].state.where).toBe('room');
+    const watcher = [gs[0], gs[3]].find((g) => g.myRole() === 'spectator')!;
+    host.kick(watcher.myId);
+    expect(watcher.state.where).toBe('lobby');
+    expect(watcher.state.note).toBe('kicked');
+  });
+
+  it('対局中に「観戦を断る」へ切り替えると、見ている人も全員出る（Q11=B）', () => {
+    const { host, gs } = hostWith('A');
+    host.start();
+    const x = person();
+    x.join(roomOf(x), 'X', '');
+    const y = person();
+    y.join(roomOf(y), 'Y', '');
+    expect(spectatorsOf(host.state.members).length).toBe(2);
+    host.setAllowSpectators(false);
+    for (const v of [x, y]) {
+      expect(v.state.where).toBe('lobby');
+      expect(v.state.note).toBe('noSpectators');
+    }
+    expect(names(host)).toEqual(['ホスト', 'A']);
+    expect(gs[0].state.allowSpectators).toBe(false);
+  });
+
+  it('チャット：待合では観戦者も書ける。対局が始まったら観戦者は書けないが、読める', () => {
+    const { host, gs } = hostWith('A', 'B', 'C', 'D');
+    const w = gs[3];
+    expect(w.sendChat('待合です', 10_000)).toBe(true);
+    expect(host.state.chat.map((l) => l.text)).toContain('待合です');
+    host.start();
+    expect(w.canChat()).toBe(false);
+    expect(w.sendChat('対局中です', 20_000)).toBe(false);
+    expect(host.state.chat.map((l) => l.text)).not.toContain('対局中です');
+    expect(gs[0].sendChat('プレイヤーです', 30_000)).toBe(true);
+    expect(w.state.chat.map((l) => l.text)).toContain('プレイヤーです');
+  });
+
+  it('対局中に観戦者が抜けても、席の人は「切れた」にならない（観戦者は名簿から外れる）', () => {
+    const { host, gs } = hostWith('A', 'B', 'C', 'D');
+    host.start();
+    gs[3].leave();
+    vi.advanceTimersByTime(ROLLCALL_MS + 10);
+    expect(names(host)).toEqual(['ホスト', 'A', 'B', 'C']);
   });
 });

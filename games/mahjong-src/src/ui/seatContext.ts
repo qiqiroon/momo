@@ -8,6 +8,8 @@ export interface SeatInfo {
   me: Seat;
   /** 席ごとの名前（null の席は「CPU n」と出す）。null＝一人用 */
   names: readonly (string | null)[] | null;
+  /** 観戦者（段階10の3）：席が無いので me（席 0 から見た形で描く）を「あなた」と呼ばない */
+  watching?: boolean;
 }
 
 export const SeatContext = createContext<SeatInfo>({ me: 0, names: null });

@@ -70,10 +70,11 @@ const HUMANS = [
   { id: 'K', name: 'K' },
 ];
 
-function start(timeLimit: number, o: { manualG?: boolean; consentMs?: number } = {}) {
+/** consentMsG＝G の端末だけ同意の待ちを替える（ホストの予備の時計を確かめるとき、G の時計が先に鳴らないように） */
+function start(timeLimit: number, o: { manualG?: boolean; consentMs?: number; consentMsG?: number } = {}) {
   const net = new Net();
   const H = net.add('H', true, { consentMs: o.consentMs });
-  const G = net.add('G', false, { manual: o.manualG, consentMs: o.consentMs });
+  const G = net.add('G', false, { manual: o.manualG, consentMs: o.consentMsG ?? o.consentMs });
   const K = net.add('K', false, { consentMs: o.consentMs });
   H.begin(HUMANS, 0, undefined, timeLimit);
   return { net, H, G, K };
@@ -118,7 +119,8 @@ describe('制限時間への同意', () => {
 
   it('押さないまま待つ長さが過ぎた人は、本人の端末が「やめる」を送って CPU になる', async () => {
     const { net, H, G, K } = start(60_000, { consentMs: 300 });
-    await net.until(() => G.consentDeadline !== null, 5_000);
+    // ★窓が出ている（0.3 秒で閉じる）を見張ると、重いときに見逃して待ち続ける＝卓ができたことを待つ
+    await net.until(() => G.started && K.started, 5_000);
     H.answerConsent(true);
     K.answerConsent(true);
     await net.until(() => H.isProxy(1), 5_000);
@@ -129,12 +131,15 @@ describe('制限時間への同意', () => {
   }, 30_000);
 
   it('返事が届かない人（端末が止まった）は、ホストの予備の時計で CPU にして始める', async () => {
-    const { net, H, G, K } = start(60_000, { consentMs: 200 });
-    await net.until(() => G.consentDeadline !== null, 5_000);
+    // G の端末の時計は長く（自分で「やめる」を送らない）＝ホストの予備の時計（0.2 秒＋予備）だけで CPU になることを確かめる
+    const { net, H, G, K } = start(60_000, { consentMs: 200, consentMsG: 60_000 });
+    await net.until(() => G.started && K.started, 5_000);
     net.cut('G');
     H.answerConsent(true);
     K.answerConsent(true);
     await net.until(() => H.isProxy(1), 10_000);
+    // G は何も返していない（ホストの予備の時計で決まった）
+    expect(net.types.some((x) => x.from === 'G' && x.type === 'mt-consent')).toBe(false);
     await net.until(() => H.pub.phase === 'discard' || H.pub.phase === 'claim', 20_000);
   }, 30_000);
 });

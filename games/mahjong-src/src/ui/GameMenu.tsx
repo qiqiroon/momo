@@ -21,12 +21,14 @@ export interface GameMenuProps {
   cpu?: { proxy: boolean; pending: boolean; onYield: () => void; onReclaim: () => void };
   /** オンラインのホスト：ほかの人の席を CPU に切り替える（CPU に任されていない人の席だけ） */
   take?: { seats: MenuSeat[]; onTake: (seat: number) => void };
+  /** オンラインのホスト：観戦者（段階10の3）。観戦を許す・断る（断ると見ている人にも出てもらう）と、観戦者のキック */
+  watch?: { allow: boolean; spectators: { id: string; name: string }[]; onAllow: (v: boolean) => void; onKick: (id: string) => void };
   /** ボタンにつける見た目（置き場所ごとに違う） */
   className?: string;
 }
 
-export function GameMenu({ t, onQuit, onBook, cpu, take, className = '' }: GameMenuProps) {
-  const [open, setOpen] = useState<'main' | 'take' | null>(null);
+export function GameMenu({ t, onQuit, onBook, cpu, take, watch, className = '' }: GameMenuProps) {
+  const [open, setOpen] = useState<'main' | 'take' | 'watch' | null>(null);
   const close = () => setOpen(null);
   const run = (f: () => void) => () => {
     close();
@@ -63,12 +65,35 @@ export function GameMenu({ t, onQuit, onBook, cpu, take, className = '' }: GameM
                     {t('menuTake')}
                   </button>
                 )}
+                {watch && (
+                  <button type="button" className="btn-secondary" onClick={() => setOpen('watch')}>
+                    {t('menuWatch')}
+                  </button>
+                )}
                 {onBook && (
                   <button type="button" className="btn-secondary" onClick={run(onBook)}>
                     {t('rbOpen')}
                   </button>
                 )}
                 <button type="button" className="btn-secondary menu-cancel" onClick={close}>
+                  {t('menuCancel')}
+                </button>
+              </>
+            ) : open === 'watch' && watch ? (
+              <>
+                <h2>{t('menuWatch')}</h2>
+                <label className="ol-check">
+                  <input type="checkbox" checked={watch.allow} onChange={(e) => watch.onAllow(e.target.checked)} />
+                  <span>{t('olAllowSpectators')}</span>
+                </label>
+                <p>{t('olAllowSpectatorsDesc')}</p>
+                {watch.spectators.length === 0 && <p>{t('olNoSpectatorsYet')}</p>}
+                {watch.spectators.map((s) => (
+                  <button key={s.id} type="button" className="btn-secondary" onClick={() => watch.onKick(s.id)}>
+                    {t('menuWatchKick', { name: s.name })}
+                  </button>
+                ))}
+                <button type="button" className="btn-secondary menu-cancel" onClick={() => setOpen('main')}>
                   {t('menuCancel')}
                 </button>
               </>

@@ -13,7 +13,7 @@ interface Props {
   t: T;
   you: string;
   /** オンライン：部屋のチャット（無ければ自分の画面だけ） */
-  online?: { lines: readonly ChatLine[]; myId: string; onSend: (text: string) => boolean };
+  online?: { lines: readonly ChatLine[]; myId: string; onSend: (text: string) => boolean; readOnly?: boolean };
 }
 
 export function Chat({ t, you, online }: Props) {
@@ -45,12 +45,17 @@ export function Chat({ t, you, online }: Props) {
           <p key={i}>{l}</p>
         ))}
       </div>
+      {/* 対局中の観戦者は読むだけ（利用者指示 10-16） */}
+      {online?.readOnly ? (
+        <p className="chat-ro">{t('chatSpectatorRo')}</p>
+      ) : (
       <form className="chat-form" onSubmit={send}>
         <input type="text" value={text} onChange={(e) => setText(e.target.value)} placeholder={t('chatPlaceholder')} maxLength={CHAT_MAX_LEN} aria-label={t('chatPlaceholder')} />
         <button type="submit" className="btn-secondary chat-send">
           {t('chatSend')}
         </button>
       </form>
+      )}
     </section>
   );
 }

@@ -38,15 +38,27 @@ export interface RoomInfo {
   isPublic: boolean;
   playerCount: number;
   maxPlayers: number;
+  /** 観戦の人数と枠（サーバーの役割で数えたもの。麻雀の中での役割はホストが決めるので、ずれることがある） */
+  spectatorCount?: number;
+  maxSpectators?: number;
   gameState: string;
 }
+
+/** 部屋の中での役割（段階10の3）。サーバーの役割（入ったときのまま）とは別に、ホストが決めて名簿で配る */
+export type Role = 'player' | 'spectator';
 
 export interface Member {
   id: string;
   name: string;
   /** 対局が始まったあとで抜けた人は、席を残したまま false にする（戻れるのは同じ ID の人だけ） */
   online: boolean;
+  /** 無ければプレイヤー（前の版の名簿） */
+  role?: Role;
 }
+
+/** 席に着く人（ホストを含む・入った順＝席順）と観戦者 */
+export const playersOf = (ms: readonly Member[]) => ms.filter((m) => (m.role ?? 'player') === 'player');
+export const spectatorsOf = (ms: readonly Member[]) => ms.filter((m) => m.role === 'spectator');
 
 /** 画面に出す一言（言葉は画面の側で選ぶ） */
 export type OnlineNote =
@@ -60,6 +72,10 @@ export type OnlineNote =
   | 'hostLeftGame'
   | 'connectionLost'
   | 'serverBusy'
+  /** ホストに部屋から出された（段階10の3） */
+  | 'kicked'
+  /** 観戦を断っている部屋（入ろうとした・途中で断るに切り替わった） */
+  | 'noSpectators'
   | { raw: string };
 
 /** 開き直したときに戻るための控え（ホスト以外。端末に 1 つ） */
@@ -100,6 +116,8 @@ export interface OnlineState {
   strength: Strength;
   /** 1 手ごとの制限時間（ホストが選び、名簿と一緒に配る・段階10の2） */
   timeLimit: TimeLimit;
+  /** 観戦を許すか（ホストが部屋を作るときに選び、途中でも切り替えられる・段階10の3） */
+  allowSpectators: boolean;
   /** チャット（待合と卓で同じ記録を続けて使う） */
   chat: ChatLine[];
 }
@@ -123,7 +141,8 @@ export interface TransportHandlers {
 export interface Transport {
   connect(h: TransportHandlers): void;
   createRoom(o: { hostName: string; name: string; password: string; isPublic: boolean; maxPlayers: number }): void;
-  joinRoom(roomId: string, password: string, name: string): void;
+  /** role＝サーバーに名乗る役割（席が埋まっていれば観戦。麻雀の中の役割はホストが決め直す） */
+  joinRoom(roomId: string, password: string, name: string, role?: Role): void;
   send(data: Record<string, unknown>, to: 'all' | 'host'): void;
   leave(): void;
   refresh(): void;
@@ -131,6 +150,8 @@ export interface Transport {
 }
 
 export const MAX_SEATS = 4;
+/** 観戦者の上限（サーバーの最大と同じ・Q10=A） */
+export const MAX_SPECTATORS = 8;
 
 /** チャットの 1 行（自由に打った文。訳さない） */
 export interface ChatLine {
@@ -175,6 +196,9 @@ function noteOfServer(message: string): OnlineNote {
   return { raw: message };
 }
 
+/** 一覧から入るときにサーバーへ名乗る役割（Q13=B：席が空いていればプレイヤー、埋まっている・対局中なら観戦） */
+export const joinRoleOf = (r: RoomInfo): Role => (r.gameState === 'playing' || r.playerCount >= r.maxPlayers ? 'spectator' : 'player');
+
 /** 包みの合言葉（サーバーは sha256 だけを持つ） */
 function newSecret(): string {
   const a = new Uint8Array(16);
@@ -207,6 +231,7 @@ const INITIAL: OnlineState = {
   rules: generalChoice(),
   strength: DEFAULT_STRENGTH,
   timeLimit: 'none',
+  allowSpectators: true,
   chat: [],
 };
 
@@ -332,7 +357,7 @@ export class OnlineSession {
     this.tr.refresh();
   }
 
-  create(o: { hostName: string; roomName: string; password: string; isPrivate: boolean }) {
+  create(o: { hostName: string; roomName: string; password: string; isPrivate: boolean; allowSpectators?: boolean }) {
     const hostName = o.hostName.trim();
     const roomName = o.roomName.trim();
     if (!hostName) return this.set({ note: 'noName' });
@@ -341,7 +366,7 @@ export class OnlineSession {
     this.keySecret = newSecret();
     this.myName = hostName;
     this.pending = { id: '', name: roomName, hasPassword: o.password !== '' };
-    this.set({ busy: true, note: null });
+    this.set({ busy: true, note: null, allowSpectators: o.allowSpectators ?? true });
     this.tr.createRoom({ hostName, name: roomName, password: o.password, isPublic: !o.isPrivate, maxPlayers: MAX_SEATS });
   }
 
@@ -356,7 +381,8 @@ export class OnlineSession {
     this.password = room.hasPassword ? typedPw : '';
     this.pending = { id: room.id, name: room.name, hasPassword: room.hasPassword };
     this.set({ busy: true, note: null });
-    this.tr.joinRoom(room.id, this.password, me);
+    // 席が埋まっている・対局中なら、サーバーには観戦として名乗る（満員で断られない）。席に着くかはホストが決める（花札と同じ）
+    this.tr.joinRoom(room.id, this.password, me, joinRoleOf(room));
   }
 
   /** 開き直したあと：控えた ID で対局中の部屋に戻る */
@@ -410,7 +436,7 @@ export class OnlineSession {
 
   private retryJoin() {
     if (!this.s.reconnecting || !this.s.wsOpen || !this.pending) return;
-    this.tr.joinRoom(this.pending.id, this.password, this.myName);
+    this.tr.joinRoom(this.pending.id, this.password, this.myName, this.myRole() === 'spectator' ? 'spectator' : 'player');
   }
 
   /** 部屋を出る（ホストなら部屋が閉じる） */
@@ -428,11 +454,68 @@ export class OnlineSession {
   sendChat(text: string, now = Date.now()): boolean {
     const s = text.trim();
     if (this.s.where !== 'room' || !s || s.length > CHAT_MAX_LEN || now - this.lastChatAt < CHAT_GAP_MS) return false;
+    if (!this.canChat()) return false;
     this.lastChatAt = now;
     const line: ChatLine = { id: this.myId, name: this.myName, text: s };
     this.tr.send({ type: 'mj-chat', ...line }, 'all');
     this.addChat(line);
     return true;
+  }
+
+  /** 自分の部屋の中での役割（名簿に無ければ null） */
+  myRole(): Role | null {
+    const m = this.s.members.find((x) => x.id === this.myId);
+    return m ? (m.role ?? 'player') : null;
+  }
+
+  /** チャットに書けるか（利用者指示：待合は全員、対局が始まったら観戦者は書けない＝読むことはできる） */
+  canChat(): boolean {
+    return !(this.s.started && this.myRole() === 'spectator');
+  }
+
+  /** その人が観戦者か（対局中の観戦者のチャットは受け取らない） */
+  private isSpectator(id: string): boolean {
+    return this.s.members.find((x) => x.id === id)?.role === 'spectator';
+  }
+
+  // ---- 観戦（段階10の3・利用者決定 10-16） ----
+  //  - ホストは待合でプレイヤー⇄観戦者を入れ替え、誰でもキックできる。対局中にキックできるのは観戦者だけ（プレイヤーは CPU に切り替えるだけ）
+  //  - プレイヤーは自分で観戦者になれる（待合）。観戦者をプレイヤーにできるのはホストだけ
+  //  - キックは締め出さない（また入れる）。観戦を断るに切り替えたら、見ている人も全員出てもらう（Q11=B）
+  //  - 観戦者には手牌を送らない（卓はもともと伏せて配る）。途中から入った観戦者には、戻った人と同じ写し（mt-sync）を送る
+
+  /** ホスト：待合で、その人をプレイヤー／観戦者にする（ホスト自身は動かさない・席は 4 つまで） */
+  setRole(id: string, role: Role) {
+    if (!this.s.room?.isHost || this.s.started || id === this.myId) return;
+    const m = this.s.members.find((x) => x.id === id);
+    if (!m || (m.role ?? 'player') === role) return;
+    if (role === 'player' && playersOf(this.s.members).length >= MAX_SEATS) return;
+    this.set({ members: this.s.members.map((x) => (x.id === id ? { ...x, role } : x)) });
+    this.broadcastMembers();
+  }
+
+  /** プレイヤー：待合で、自分から観戦者になる（ホストへ頼む。ホストは自分では動かない） */
+  becomeSpectator() {
+    if (this.s.started || this.s.room?.isHost || this.myRole() !== 'player') return;
+    this.tr.send({ type: 'mj-spectate', id: this.myId }, 'host');
+  }
+
+  /** ホスト：その人に部屋から出てもらう。対局中は観戦者だけ（プレイヤーは CPU に切り替える） */
+  kick(id: string, reason: 'kicked' | 'noSpectators' = 'kicked') {
+    if (!this.s.room?.isHost || id === this.myId) return;
+    const m = this.s.members.find((x) => x.id === id);
+    if (!m || (this.s.started && m.role !== 'spectator')) return;
+    this.tr.send({ type: 'mj-kick', target: id, reason }, 'all');
+    this.set({ members: this.s.members.filter((x) => x.id !== id) });
+    this.broadcastMembers();
+  }
+
+  /** ホスト：観戦を許す・断る（いつでも。断るに切り替えたら、見ている人にも出てもらう＝Q11=B） */
+  setAllowSpectators(v: boolean) {
+    if (!this.s.room?.isHost || this.s.allowSpectators === v) return;
+    this.set({ allowSpectators: v });
+    if (!v) for (const m of spectatorsOf(this.s.members)) this.kick(m.id, 'noSpectators');
+    this.broadcastMembers();
   }
 
   private addChat(line: ChatLine) {
@@ -476,7 +559,7 @@ export class OnlineSession {
     this.broadcastMembers();
     this.table = this.newTable(true);
     this.table.begin(
-      this.s.members.filter((m) => m.online).map((m) => ({ id: m.id, name: m.name })),
+      playersOf(this.s.members).filter((m) => m.online).map((m) => ({ id: m.id, name: m.name })),
       REPLY_WAIT_MS[this.s.replyWait],
       rulesOfChoice(this.s.rules),
       TIME_LIMIT_MS[this.s.timeLimit],
@@ -633,7 +716,7 @@ export class OnlineSession {
       where: 'room',
       busy: false,
       room: { id, name, hasPassword: this.pending?.hasPassword ?? false, isHost: true },
-      members: [{ id: this.myId, name: this.myName, online: true }],
+      members: [{ id: this.myId, name: this.myName, online: true, role: 'player' }],
       started: false,
       // ホストのルールは、この端末で前に選んだもの（CPU と対局と同じ控え）
       rules: ruleChoiceOf(readJson<unknown>(RULES_KEY)) ?? generalChoice(),
@@ -667,7 +750,7 @@ export class OnlineSession {
   }
 
   private broadcastMembers() {
-    this.tr.send({ type: 'mj-members', members: this.s.members, started: this.s.started, replyWait: this.s.replyWait, rules: this.s.rules, strength: this.s.strength, timeLimit: this.s.timeLimit }, 'all');
+    this.tr.send({ type: 'mj-members', members: this.s.members, started: this.s.started, replyWait: this.s.replyWait, rules: this.s.rules, strength: this.s.strength, timeLimit: this.s.timeLimit, allowSpectators: this.s.allowSpectators }, 'all');
   }
 
   private receive(d: Record<string, unknown>) {
@@ -703,7 +786,8 @@ export class OnlineSession {
     if (typeof d.type === 'string' && d.type.startsWith('mj_key_')) return;
     const id = typeof d.id === 'string' ? d.id : '';
     // チャット：だれから来ても受け取る（文字数を超えたものは捨てる）
-    if (d.type === 'mj-chat' && id && typeof d.text === 'string' && d.text.length <= CHAT_MAX_LEN) {
+    // 対局中の観戦者の発言は受け取らない（書けないようにしてあるが、古い版・いじった端末から来ても出さない）
+    if (d.type === 'mj-chat' && id && typeof d.text === 'string' && d.text.length <= CHAT_MAX_LEN && !(this.s.started && this.isSpectator(id))) {
       return this.addChat({ id, name: String(d.name ?? '?'), text: d.text });
     }
     // 入ってきた人へ、それまでのチャットを渡す（ホストから）
@@ -713,6 +797,14 @@ export class OnlineSession {
     if (this.s.room.isHost) {
       if (d.type === 'mj-hello' && id) return this.hello(id, String(d.name ?? ''));
       if (d.type === 'mj-bye' && id) return this.dropMembers(new Set([id]));
+      if (d.type === 'mj-spectate' && id && !this.s.started) {
+        const m = this.s.members.find((x) => x.id === id);
+        if (m && (m.role ?? 'player') === 'player') {
+          this.set({ members: this.s.members.map((x) => (x.id === id ? { ...x, role: 'spectator' as const } : x)) });
+          this.broadcastMembers();
+        }
+        return;
+      }
       if (d.type === 'mj-here' && id && this.rollcall && d.nonce === this.rollcall.nonce) {
         this.rollcall.heard.add(id);
         if (this.rollcall.heard.size >= this.rollcall.expect) this.finishRollcall();
@@ -723,9 +815,9 @@ export class OnlineSession {
       const started = d.started === true;
       const rw = d.replyWait === 'fast' || d.replyWait === 'slow' ? d.replyWait : 'normal';
       // ルールは確かめてから使う（読めなければ一般ルールのまま）
-      this.set({ members: d.members as Member[], started, replyWait: rw, rules: ruleChoiceOf(d.rules) ?? this.s.rules, strength: strengthOf(d.strength), timeLimit: timeLimitOf(d.timeLimit) });
-      // 対局中のゲストは、開き直したときに戻れるよう控える
-      if (started && this.s.room && !this.s.room.isHost) {
+      this.set({ members: d.members as Member[], started, replyWait: rw, rules: ruleChoiceOf(d.rules) ?? this.s.rules, strength: strengthOf(d.strength), timeLimit: timeLimitOf(d.timeLimit), allowSpectators: d.allowSpectators !== false });
+      // 対局中のゲスト（席に着いている人）は、開き直したときに戻れるよう控える。観戦者は控えない（一覧から入り直せばよい）
+      if (started && this.s.room && !this.s.room.isHost && this.myRole() === 'player') {
         const sv: SavedSeat = { roomId: this.s.room.id, roomName: this.s.room.name, hasPassword: this.s.room.hasPassword, myId: this.myId, name: this.myName, password: this.password, keySecret: this.keySecret };
         writeJson(SAVED_KEY, sv);
         this.set({ saved: sv });
@@ -734,7 +826,14 @@ export class OnlineSession {
     }
     if (d.type === 'mj-reject' && d.target === this.myId) {
       this.tr.leave();
-      this.toLobby(d.reason === 'full' ? 'roomFull' : 'rejectedStarted');
+      this.toLobby(d.reason === 'full' ? 'roomFull' : d.reason === 'noSpectators' ? 'noSpectators' : 'rejectedStarted');
+      return;
+    }
+    // ホストに出された（キック・観戦を断るに切り替わった）。締め出しではない＝また入れる
+    if (d.type === 'mj-kick' && d.target === this.myId) {
+      this.tr.leave();
+      this.forgetSaved();
+      this.toLobby(d.reason === 'noSpectators' ? 'noSpectators' : 'kicked');
       return;
     }
     if (d.type === 'mj-rollcall') this.tr.send({ type: 'mj-here', id: this.myId, nonce: d.nonce }, 'host');
@@ -757,39 +856,40 @@ export class OnlineSession {
   /** ホスト：入ってきた人を席に着ける。対局が始まったあとは、抜けた本人（同じ ID）だけ戻れる */
   private hello(id: string, name: string) {
     const known = this.s.members.find((m) => m.id === id);
-    // 入ってきた人（戻ってきた人も）へ、それまでのチャットを渡す
-    if (this.s.chat.length && (known || (!this.s.started && this.s.members.length < MAX_SEATS))) {
-      this.tr.send({ type: 'mj-chatlog', target: id, lines: this.s.chat }, 'all');
+    // 席に着けるか・観戦で入れるか（対局中は観戦だけ＝Q13=B。観戦を断っている部屋は観戦で入れない）
+    const seatFree = !this.s.started && playersOf(this.s.members).length < MAX_SEATS;
+    const watchOk = this.s.allowSpectators && spectatorsOf(this.s.members).length < MAX_SPECTATORS;
+    if (!known && !seatFree && !watchOk) {
+      return this.tr.send({ type: 'mj-reject', target: id, reason: this.s.allowSpectators ? 'full' : 'noSpectators' }, 'all');
     }
+    // 入ってきた人（戻ってきた人も・観戦者も）へ、それまでのチャットを渡す（観戦者もプレイヤーのチャットは読める）
+    if (this.s.chat.length) this.tr.send({ type: 'mj-chatlog', target: id, lines: this.s.chat }, 'all');
     if (known) {
       this.stopKeyTimer(id);
       this.set({ members: this.s.members.map((m) => (m.id === id ? { ...m, online: true } : m)) });
-      // 対局中に戻ってきた人へ、それまでの出来事の列と局の山を渡す（その人は自分の牌の鍵を頼み直して開け直す）
-      if (this.s.started && this.table?.started) {
-        this.broadcastMembers();
-        this.tr.send({ type: 'mt-sync', target: id, data: this.table.syncData() }, 'all');
-        return;
-      }
-    } else if (this.s.started) {
-      return this.tr.send({ type: 'mj-reject', target: id, reason: 'started' }, 'all');
-    } else if (this.s.members.length >= MAX_SEATS) {
-      return this.tr.send({ type: 'mj-reject', target: id, reason: 'full' }, 'all');
     } else {
-      this.set({ members: [...this.s.members, { id, name: name || '?', online: true }] });
+      const role: Role = seatFree ? 'player' : 'spectator';
+      this.set({ members: [...this.s.members, { id, name: name || '?', online: true, role }] });
     }
     this.broadcastMembers();
+    // 対局中に入ってきた人へ、それまでの出来事の列と局の山を渡す。
+    // 戻ってきたプレイヤーは自分の牌の鍵を頼み直して開け直す。観戦者は席が無いので伏せたまま（手牌は見えない）
+    if (this.s.started && this.table?.started) this.tr.send({ type: 'mt-sync', target: id, data: this.table.syncData() }, 'all');
   }
 
   /** ホスト：抜けた人を外す（始まったあとは席を残して抜けた印だけ付ける） */
   private dropMembers(gone: ReadonlySet<string>) {
+    // 観戦者は席が無いので、いつでも名簿から外す（戻ってきたら観戦者として入り直す）
     const members = this.s.started
-      ? this.s.members.map((m) => (gone.has(m.id) ? { ...m, online: false } : m))
+      ? this.s.members.filter((m) => !(gone.has(m.id) && m.role === 'spectator')).map((m) => (gone.has(m.id) ? { ...m, online: false } : m))
       : this.s.members.filter((m) => !gone.has(m.id));
+    const seated = new Set(playersOf(this.s.members).map((m) => m.id));
     this.set({ members });
     this.broadcastMembers();
-    // 対局中に切れた人：サーバーから包みが来なければ、予備の時計で引き継ぐ（その局は配り直し）
+    // 対局中に切れた人（席のある人だけ）：サーバーから包みが来なければ、予備の時計で引き継ぐ（その局は配り直し）
     if (this.s.started) {
       for (const id of gone) {
+        if (!seated.has(id)) continue;
         if (this.keyTimers.has(id)) continue;
         this.keyTimers.set(
           id,
@@ -799,7 +899,7 @@ export class OnlineSession {
     }
   }
 
-  /** ホスト：誰かが抜けた＝点呼を取り、返事の無かった人を抜けたことにする */
+  /** ホスト：誰かが抜けた＝点呼を取り、返事の無かった人を抜けたことにする。people＝ホストを含む部屋の人数（観戦者も点呼に答える） */
   private peerLeft(players: number) {
     if (!this.s.room?.isHost) return;
     this.stopRollcall();

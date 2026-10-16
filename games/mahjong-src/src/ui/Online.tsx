@@ -6,7 +6,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import type { BaseLang, MessageKey } from '../i18n/strings';
-import { MAX_SEATS, REPLY_WAIT_MS, TIME_LIMIT_MS, TIME_LIMITS, type Member, type OnlineNote, type OnlineSession, type ReplyWait, type RoomInfo, type TimeLimit } from '../online/session';
+import { joinRoleOf, MAX_SEATS, playersOf, REPLY_WAIT_MS, spectatorsOf, TIME_LIMIT_MS, TIME_LIMITS, type Member, type OnlineNote, type OnlineSession, type ReplyWait, type RoomInfo, type TimeLimit } from '../online/session';
 import type { OnlineTable } from '../online/table';
 import type { Seat } from '../engine/events';
 import { BackButton, ScreenHead } from './Menu';
@@ -62,6 +62,8 @@ function noteText(t: T, note: OnlineNote): string {
     hostLeftGame: 'olHostLeftGame',
     connectionLost: 'olLost',
     serverBusy: 'olBusy',
+    kicked: 'olErrKicked',
+    noSpectators: 'olErrNoSpectators',
   };
   return t(keys[note]);
 }
@@ -99,6 +101,8 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
   const [roomName, setRoomName] = useState('');
   const [pw, setPw] = useState('');
   const [isPrivate, setPrivate] = useState(false);
+  // 観戦を許す（Q10=A：部屋を作るときに選ぶ・最初は許す。部屋に入ってからも切り替えられる）
+  const [allowWatch, setAllowWatch] = useState(true);
   const [joinPw, setJoinPw] = useState('');
   const [showPrivate, setShowPrivate] = useState(false);
   useEffect(() => session.open(), [session]);
@@ -164,8 +168,12 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
           <input type="checkbox" checked={isPrivate} onChange={(e) => setPrivate(e.target.checked)} />
           <span>{t('olPrivate')}</span>
         </label>
+        <label className="ol-check">
+          <input type="checkbox" checked={allowWatch} onChange={(e) => setAllowWatch(e.target.checked)} />
+          <span>{t('olAllowSpectators')}</span>
+        </label>
         <div>
-          <button type="button" className="btn-primary" disabled={!s.wsOpen || s.busy} onClick={() => session.create({ hostName: name, roomName, password: pw, isPrivate })}>
+          <button type="button" className="btn-primary" disabled={!s.wsOpen || s.busy} onClick={() => session.create({ hostName: name, roomName, password: pw, isPrivate, allowSpectators: allowWatch })}>
             {t('olCreateBtn')}
           </button>
         </div>
@@ -185,7 +193,9 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
             <li className="ol-empty">{t('olNoRooms')}</li>
           ) : (
             rooms.map((r) => {
-              const full = r.playerCount >= Math.min(r.maxPlayers, MAX_SEATS);
+              // ボタンは 1 つ（Q13=B）：席が空いていれば「参加」、埋まっている・対局中なら「観戦」。観戦の枠も埋まっていれば押せない
+              const watch = joinRoleOf(r) === 'spectator';
+              const full = watch && (r.spectatorCount ?? 0) >= (r.maxSpectators ?? 0);
               const playing = r.gameState === 'playing';
               return (
                 <li key={r.id} className="ol-room">
@@ -199,11 +209,12 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
                     </small>
                   </span>
                   <span className="ol-room-state">
-                    {t('olPlayers', { n: r.playerCount, max: MAX_SEATS })}
+                    {t('olPlayers', { n: Math.min(r.playerCount, MAX_SEATS), max: MAX_SEATS })}
+                    {r.spectatorCount ? ` ${t('listDot')} ${t('olWatchers', { n: r.spectatorCount })}` : ''}
                     {playing ? ` ${t('listDot')} ${t('olPlaying')}` : ''}
                   </span>
                   <button type="button" className="choice-btn" disabled={full || s.busy} onClick={() => join(r)}>
-                    {t('olJoinBtn')}
+                    {t(watch ? 'olWatchBtn' : 'olJoinBtn')}
                   </button>
                 </li>
               );
@@ -222,9 +233,11 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
 
 /** オンラインの卓の上に出す一言：配っている・切れた人を待っている・検算の食い違い */
 export function OnlineStatus({ t, table, members, isHost }: { t: T; table: OnlineTable; members: Member[]; isHost: boolean }) {
+  // 観戦者の名前（利用者指示＝観戦者名は表示される）
+  const watchers = spectatorsOf(members).map((m) => m.name).join(t('listDot'));
   // CPU に任された人の席（段階10）。切れたまま CPU が打っている人は「戻るのを待っています」に出さない
   const proxyIds = new Set(table.seats.flatMap((x) => (x.kind === 'human' && x.proxy ? [x.id] : [])));
-  const away = members.filter((m) => !m.online && !proxyIds.has(m.id)).map((m) => m.name);
+  const away = playersOf(members).filter((m) => !m.online && !proxyIds.has(m.id)).map((m) => m.name);
   const bad = table.lastVerify !== null && table.lastVerify.length > 0;
   const me = table.mySeat;
   const proxyMe = me !== null && table.isProxy(me);
@@ -257,10 +270,15 @@ export function OnlineStatus({ t, table, members, isHost }: { t: T; table: Onlin
   return (
     <div className="ol-status" role="status">
       {/* 「鳴かない」：自分の席だけに効く。チー・ポン・カンは自動で見送り、ロンのときは止まる（利用者 Q16=B） */}
-      <label className="ol-check ol-nocalls">
-        <input type="checkbox" checked={table.noCalls} onChange={(e) => toggle(e.target.checked)} />
-        <span>{t('olNoCalls')}</span>
-      </label>
+      {me !== null ? (
+        <label className="ol-check ol-nocalls">
+          <input type="checkbox" checked={table.noCalls} onChange={(e) => toggle(e.target.checked)} />
+          <span>{t('olNoCalls')}</span>
+        </label>
+      ) : (
+        <span className="ol-watch-me">{t('olYouWatch')}</span>
+      )}
+      {watchers && <span className="ol-watchers">{t('olWatchingNames', { name: watchers })}</span>}
       {/* 一言は卓に重ねて数秒だけ出す（卓の高さを変えない＝10-15 利用者 Q15=C）。席を返す頼みだけは答えるまで出したまま */}
       {createPortal(
       <div className="ol-toasts">
@@ -360,7 +378,26 @@ export function WaitingRoom({ t, lang, session }: { t: T; lang: BaseLang; sessio
     );
   }
   const isHost = s.room.isHost;
-  const seats = Array.from({ length: MAX_SEATS }, (_, i) => s.members[i] ?? null);
+  const players = playersOf(s.members);
+  const watchers = spectatorsOf(s.members);
+  const seats = Array.from({ length: MAX_SEATS }, (_, i) => players[i] ?? null);
+  const meRole = session.myRole();
+  // ホストの操作（Q12=B：プレイヤーの入れ替え・キックは待合だけ。対局中にキックできるのは観戦者だけ）
+  const hostOps = (m: Member, spectator: boolean) =>
+    isHost && m.id !== session.myId ? (
+      <span className="ol-seat-ops">
+        {!s.started && (
+          <button type="button" className="choice-btn" disabled={spectator && players.length >= MAX_SEATS} onClick={() => session.setRole(m.id, spectator ? 'player' : 'spectator')}>
+            {t(spectator ? 'olToPlayer' : 'olToSpectator')}
+          </button>
+        )}
+        {(!s.started || spectator) && (
+          <button type="button" className="choice-btn" onClick={() => session.kick(m.id)}>
+            {t('olKick')}
+          </button>
+        )}
+      </span>
+    ) : null;
   return (
     <>
       <ScreenHead title={t('olRoomTitle')} />
@@ -389,9 +426,41 @@ export function WaitingRoom({ t, lang, session }: { t: T; lang: BaseLang; sessio
                 {m && m.id === session.myId && <span className="ol-tag you">{t('you')}</span>}
                 {m && !m.online && <span className="ol-tag">{t('olAway')}</span>}
               </span>
+              {m && hostOps(m, false)}
+              {/* プレイヤーは自分から観戦に回れる（待合だけ・ホストは除く） */}
+              {m && m.id === session.myId && !isHost && !s.started && (
+                <span className="ol-seat-ops">
+                  <button type="button" className="choice-btn" onClick={() => session.becomeSpectator()}>
+                    {t('olBecomeSpectator')}
+                  </button>
+                </span>
+              )}
             </li>
           ))}
         </ol>
+        {/* 観戦者（名前を出す）。ホストは観戦を許す・断るをいつでも切り替えられる（断ると見ている人にも出てもらう＝Q11=B） */}
+        <h4 className="ol-watch-head">{t('olSpectators')}</h4>
+        <ul className="ol-seats ol-watchers-list">
+          {watchers.length === 0 ? (
+            <li className="cpu">
+              <span className="ol-seat-name">{t('olNoSpectatorsYet')}</span>
+            </li>
+          ) : (
+            watchers.map((m) => (
+              <li key={m.id}>
+                <span className="ol-seat-name">{m.name}</span>
+                <span className="ol-seat-tags">{m.id === session.myId && <span className="ol-tag you">{t('you')}</span>}</span>
+                {hostOps(m, true)}
+              </li>
+            ))
+          )}
+        </ul>
+        {meRole === 'spectator' && <p className="guide">{t('olYouWatch')}</p>}
+        <label className="ol-check">
+          <input type="checkbox" checked={s.allowSpectators} disabled={!isHost} onChange={(e) => session.setAllowSpectators(e.target.checked)} />
+          <span>{t('olAllowSpectators')}</span>
+        </label>
+        <p className="guide">{t('olAllowSpectatorsDesc')}</p>
         <ReplyWaitPicker t={t} session={session} value={s.replyWait} isHost={isHost} started={s.started} />
         <p className="guide">{t('olReplyWaitDesc')}</p>
         <TimeLimitPicker t={t} session={session} value={s.timeLimit} isHost={isHost} started={s.started} />
@@ -428,7 +497,7 @@ export function WaitingRoom({ t, lang, session }: { t: T; lang: BaseLang; sessio
       />
       {/* 始める前も話せる（待合と卓で同じ記録） */}
       <div className="ol-panel ol-chat">
-        <Chat t={t} you={t('you')} online={{ lines: s.chat, myId: session.myId, onSend: (x) => session.sendChat(x) }} />
+        <Chat t={t} you={t('you')} online={{ lines: s.chat, myId: session.myId, onSend: (x) => session.sendChat(x), readOnly: !session.canChat() }} />
       </div>
     </>
   );

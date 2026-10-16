@@ -80,10 +80,10 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
   const windOf = (seat: number) => t(`wind${(seat - view.dealer + 4) % 4}` as MessageKey);
   // 自分の席（一人用は 0・オンラインは配られた席）と席の名前
-  const { me, names } = useSeat();
+  const { me, names, watching } = useSeat();
   const relOf = (seat: number): number => relFrom(me, seat);
   const seatAt = (rel: number): Seat => ((rel + me) % 4) as Seat;
-  const nameOf = (seat: number) => (seat === me ? t('you') : (names?.[seat] ?? t('cpu', { n: relOf(seat) })));
+  const nameOf = (seat: number) => (seat === me && !watching ? t('you') : (names?.[seat] ?? t('cpu', { n: relOf(seat) })));
   const roundLabel = roundName(view, t);
   const left = Math.max(0, liveWallLeft(view));
   /** 半荘戦か東風戦か（対局の長さ。利用者指示 10-09：どちらか分かる表示）。中国式は 4圏・1圏 */
@@ -806,7 +806,10 @@ function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints }: { v
   const drawn = view.drawn[me];
   const mine = view.hands[me];
   // 配っている途中は、配られた順の先頭から見せる（並べ替えは配り終えてから＝理牌）
-  const rest = dealt !== null ? mine.slice(0, dealt) : sortTiles(drawn === null ? mine : mine.filter((x) => x !== drawn));
+  // 引いた牌は右端に別に置く：手牌から 1 枚だけ外す（★伏せた牌はどれも同じ番号なので、同じ番号を全部外すと 1 枚しか残らなかった＝
+  // 観戦者や CPU に任せた自分の席で、その席が引いているあいだ手牌が 1 枚に見えた。10-16 に観戦の確認で発見）
+  const drawnAt = drawn === null ? -1 : mine.lastIndexOf(drawn);
+  const rest = dealt !== null ? mine.slice(0, dealt) : sortTiles(drawnAt < 0 ? mine : mine.filter((_, i) => i !== drawnAt));
   const canTsumo = legal.some((a) => a.type === 'tsumo');
   const canKyushu = legal.some((a) => a.type === 'kyushu');
   // 切られた牌でロン・チー・ポンできるときだけボタンを出す（できないときは自動で見送る）

@@ -34,7 +34,8 @@ const api = (): MomoMatchmakingApi => {
   return window.MomoMatchmaking;
 };
 
-const playersOf = (roster: readonly RosterEntry[]) => roster.filter((p) => p.role === 'host' || p.role === 'player').length;
+/** 部屋にいる人の数（ホスト・プレイヤー・観戦。点呼の返事を待つ人数に使う。サーバーの役割は入ったときのまま＝麻雀の役割はアプリが決める） */
+const peopleOf = (roster: readonly RosterEntry[]) => roster.length;
 
 function toRoom(r: Record<string, unknown>): RoomInfo | null {
   if (r.mode !== 'multi') return null;
@@ -46,6 +47,8 @@ function toRoom(r: Record<string, unknown>): RoomInfo | null {
     isPublic: r.isPublic !== false,
     playerCount: Number(r.playerCount ?? 0),
     maxPlayers: Number(r.maxPlayers ?? 4),
+    spectatorCount: Number(r.spectatorCount ?? 0),
+    maxSpectators: Number(r.maxSpectators ?? 0),
     gameState: String(r.gameState ?? 'lobby'),
   };
 }
@@ -69,7 +72,7 @@ export const matchmakingTransport: Transport = {
         inRoom = true;
         h.onJoined(id, name);
       },
-      onParticipantLeft: (_pid: string, roster: RosterEntry[]) => h.onPeerLeft(playersOf(roster)),
+      onParticipantLeft: (_pid: string, roster: RosterEntry[]) => h.onPeerLeft(peopleOf(roster)),
       onMessage: (d: Record<string, unknown>) => h.onMessage(d),
       onDisconnected: () => {
         if (!inRoom) return;
@@ -86,10 +89,11 @@ export const matchmakingTransport: Transport = {
     });
   },
   createRoom(o) {
-    api().createRoom({ ...o, mode: 'multi', maxSpectators: 0 });
+    // 観戦の枠はいつもサーバーの最大（8）で作る。観戦を許すか・断るかはホストのアプリが決める（途中で切り替えられる＝段階10の3）
+    api().createRoom({ ...o, mode: 'multi', maxSpectators: 8 });
   },
-  joinRoom(roomId, password, name) {
-    api().joinRoom(roomId, password, name, 'player');
+  joinRoom(roomId, password, name, role = 'player') {
+    api().joinRoom(roomId, password, name, role);
   },
   send(data, to) {
     api().send(data, to);

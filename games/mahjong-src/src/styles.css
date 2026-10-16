@@ -3321,3 +3321,37 @@ body.in-game .site-header .subtitle {
   color: #fff;
   font-weight: 700;
 }
+
+/* ---- 観戦（段階10の3）：待合の観戦者の一覧・ホストの操作・卓の上の観戦者の名前・読むだけのチャット ---- */
+.ol-seats li {
+  flex-wrap: wrap;
+}
+
+.ol-seat-ops {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ol-seat-ops .choice-btn {
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
+.ol-watch-head {
+  margin: 12px 0 6px;
+  font-size: 14px;
+}
+
+.ol-watchers,
+.ol-watch-me {
+  display: block;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.chat-ro {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+}

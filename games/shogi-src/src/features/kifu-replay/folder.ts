@@ -352,14 +352,14 @@ export async function writeIntoFolder(
  * **索引は持たない**ので毎回読む (§9.2.1)。**棋譜かどうかの判定はここではしない**
  * ＝ここは端末のファイルを触るだけの層で、棋譜の読み方は一段上が持つ。
  */
-export async function readFolderTexts(dir: FsDirHandle): Promise<string[]> {
-  const out: string[] = [];
+export async function readFolderTexts(dir: FsDirHandle): Promise<{ name: string; text: string }[]> {
+  const out: { name: string; text: string }[] = [];
   try {
     for await (const entry of dir.values()) {
       if (entry.kind !== 'file') continue;
       if (!entry.name.toLowerCase().endsWith('.json')) continue;
       try {
-        out.push(await (await entry.getFile()).text());
+        out.push({ name: entry.name, text: await (await entry.getFile()).text() });
       } catch {
         // 読めないファイルは飛ばす。一覧に出ないだけで、ファイルには手を触れない。
       }

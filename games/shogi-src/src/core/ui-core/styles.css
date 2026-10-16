@@ -3871,6 +3871,8 @@ body::before {
 .kcard .r1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .kcard .rn { font-weight: 700; font-size: 13px; }
 .kcard .r2 { font-size: 11px; color: var(--text-muted); display: flex; gap: 10px; flex-wrap: wrap; }
+/* ★画面機能 v0.61: ファイル名 (長い名前は折り返す)。 */
+.kcard .r3 { font-size: 11px; color: var(--text-muted); overflow-wrap: anywhere; }
 /* 未保存の印＝左端のオレンジのドット (D-8 §7) */
 .kcard .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--orange-mid); flex: none; }
 .kcard .save-btn {

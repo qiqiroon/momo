@@ -37,7 +37,7 @@ import { setReplayOrigin } from './ui/origin';
 import { buildKifuFile } from './build';
 import { kifuFileName } from './filename';
 import { readFolderTexts, type FsDirHandle } from './folder';
-import { parseKifu, writeKifuFile, type KifuSaveOutcome } from './io';
+import { parseKifu, rememberKifuFileName, writeKifuFile, type KifuSaveOutcome } from './io';
 import { isReplayingKifu } from './replay';
 import {
   discardKifu,
@@ -100,9 +100,12 @@ export async function saveKifuFile(file: KifuFile): Promise<KifuSaveOutcome> {
  */
 export async function listFolderKifu(dir: FsDirHandle): Promise<KifuFile[]> {
   const out: KifuFile[] = [];
-  for (const text of await readFolderTexts(dir)) {
+  for (const { name, text } of await readFolderTexts(dir)) {
     try {
-      out.push(parseKifu(text));
+      const kifu = parseKifu(text);
+      // ★画面機能 v0.61: 一覧に名前を添えるため (見せるだけ・素性は読み戻さない)。
+      rememberKifuFileName(kifu, name);
+      out.push(kifu);
     } catch {
       // 棋譜ではなかった。一覧に出さないだけで、ファイルには手を触れない。
     }

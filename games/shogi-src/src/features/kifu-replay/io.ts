@@ -40,9 +40,30 @@ export function parseKifu(text: string): KifuFile {
   return f as KifuFile;
 }
 
+/**
+ * ★画面機能 v0.61 §3 S08: 一覧に添えるファイル名の控え (2026-10-16 利用者の指示)。
+ *
+ * **見せるためだけ**に持つ＝素性は読み戻さない (§9.2.2・名前は改名され得るので正本ではない)。
+ * 棋譜の中身には書き込まない (書き出すとファイル名と食い違うため) ので、棋譜そのものに付けず
+ * 横に控える。ブラウザに覚えている 1 局は名前を持たない (読み直したあとは出ない)。
+ */
+const fileNames = new WeakMap<KifuFile, string>();
+
+/** 読み込んだファイルの名前 (分からなければ undefined)。 */
+export function kifuFileName(file: KifuFile): string | undefined {
+  return fileNames.get(file);
+}
+
+/** 読み込んだ棋譜にファイル名を添える。 */
+export function rememberKifuFileName(file: KifuFile, name: string | undefined): void {
+  if (name) fileNames.set(file, name);
+}
+
 /** 選ばれたファイルを読んで棋譜として解釈する。 */
 export async function readKifuFile(file: Blob): Promise<KifuFile> {
-  return parseKifu(await file.text());
+  const kifu = parseKifu(await file.text());
+  rememberKifuFileName(kifu, (file as Partial<File>).name);
+  return kifu;
 }
 
 /**

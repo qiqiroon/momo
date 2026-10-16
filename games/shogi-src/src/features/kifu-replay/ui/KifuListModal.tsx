@@ -3,6 +3,7 @@ import { t as _t } from '../../../core/i18n';
 import type { LocaleCode } from '../../../core/i18n/types';
 import { seButton } from '../../../core/audio/se-synth';
 import type { KifuFile } from '../types';
+import { kifuFileName } from '../io';
 import type { KifuMemoryState } from '../storage';
 import { kifuLabels, type SortKey } from './labels';
 
@@ -214,6 +215,7 @@ function KifuRow({
 }) {
   const t = (key: string) => _t(key, locale);
   const labels = kifuLabels(locale);
+  const fileName = kifuFileName(file);
   return (
     <div className="kcard" onClick={onPick} role="button">
       {/* 未保存の印。保存済み・読み込んだものには付けない（付録D-8 §7）。 */}
@@ -233,6 +235,8 @@ function KifuRow({
           <span>{labels.date(file)}</span>
           <span>{labels.result(file)}</span>
         </span>
+        {/* ★画面機能 v0.61: ファイル名を添える (見せるだけ・素性は上の 2 段が正)。 */}
+        {fileName && <span className="r3">{fileName}</span>}
       </span>
       {/* **保存済みでもボタンは残す**＝もう一度書き出せる（親 §9.2.3 ①）。 */}
       {onSave && (

@@ -3,7 +3,8 @@
 // 狭い画面＝横に 4 列（下家→対面→上家→自分の順＝打つ順に上から下へ流れる）＋手牌。
 
 import { LinkCopy } from './LinkCopy';
-import { Fragment, useEffect, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
+import { useFitHeight } from './useFitHeight';
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
 import { HIDDEN, type Seat } from '../engine/events';
 import { furitenOf } from '../engine/furiten';
 import { establishedYaku, yakuHints } from '../engine/hints';
@@ -213,6 +214,9 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   const [finalShown, setFinalShown] = useState(false);
   /** 保存の行き先を選ぶところを開いているか（保存のボタンは 1 つ・押した先で選ぶ） */
   const [saveOpen, setSaveOpen] = useState(false);
+  /** 卓の外枠：上端から画面の下端までの高さを --fit-h に入れ、卓をその中に収める（10-16 Q1=C） */
+  const fitRef = useRef<HTMLDivElement>(null);
+  useFitHeight(fitRef, narrow);
   useEffect(() => {
     if (view.phase !== 'gameover') {
       setFinalShown(false);
@@ -527,7 +531,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
 
   if (narrow) {
     return (
-      <div className="lanes-wrap felt" style={{ '--hand-units': narrowUnits } as CSSProperties}>
+      <div ref={fitRef} className="lanes-wrap felt" style={{ '--hand-units': narrowUnits } as CSSProperties}>
         <div className="lanes-info">
           {/* 中断とルールブックは 1 組。帯が 1 行に入りきらない狭い携帯では、残り（局・残り枚数・ドラなど）を 2 行目へ回す（利用者 Q5=A 10-14） */}
           {(menu || onQuit || onBook) && (
@@ -565,12 +569,12 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
                   {chichaMark(seat)}
                   {pointsOf(seat)}
                   {riichiMark(seat)}
-                  {seat !== me && (
+                  {(seat !== me || watching) && (
                     <span className="lane-count">
                       <Tile id={HIDDEN} rules={view.rules} className="mini" />×{dealing(view.hands[seat]).length}
                     </span>
                   )}
-                  {seat !== me && meldsOf(seat, 'lane-melds')}
+                  {(seat !== me || watching) && meldsOf(seat, 'lane-melds')}
                   {flowersOf(seat, 'lane-flowers')}
                 </div>
                 {/* 牌譜の再生：ほかの人の手牌も表向きで並べる */}
@@ -590,7 +594,9 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
             );
           })}
         </div>
-        {hand}
+        {/* 観戦者は誰の席でもないので、下の手牌の段を出さない（表でも伏せでも見せない＝10-16 利用者指示）。
+            一番下の列も、ほかの列と同じく枚数と鳴いた面子だけ */}
+        {!watching && hand}
         {callPanel}
         {chat}
         {result}
@@ -621,8 +627,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   );
 
   return (
-    <div className="square-wrap">
-      <div className={`square felt${!replay && playing && view.turn === me && (view.phase === 'draw' || view.phase === 'discard') ? ' my-turn-edge' : ''}`}>
+    <div ref={fitRef} className="square-wrap">
+      <div className={`square felt${!replay && !watching && playing && view.turn === me && (view.phase === 'draw' || view.phase === 'discard') ? ' my-turn-edge' : ''}`}>
         <div className="center-box">
           {lengthLabel && <span className="length-label">{lengthLabel}</span>}
           <span className="round-label">{roundLabel}</span>
@@ -656,7 +662,17 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
           </div>
         ))}
         <div className="seat-hand rel-0" style={cq(handWidths[0])}>
-          {hand}
+          {/* 観戦者：手前の席もほかの 3 人と同じく伏せた手牌と鳴いた面子（中身は届いていない＝10-16 利用者指示） */}
+          {watching ? (
+            <>
+              {dealing(view.hands[me]).map((id, i) => (
+                <Tile key={i} id={id} rules={view.rules} />
+              ))}
+              {meldsOf(me)}
+            </>
+          ) : (
+            hand
+          )}
         </div>
         {result}
       </div>

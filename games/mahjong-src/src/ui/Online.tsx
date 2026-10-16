@@ -278,7 +278,12 @@ export function OnlineStatus({ t, table, members, isHost }: { t: T; table: Onlin
       ) : (
         <span className="ol-watch-me">{t('olYouWatch')}</span>
       )}
-      {watchers && <span className="ol-watchers">{t('olWatchingNames', { name: watchers })}</span>}
+      {/* 帯は 1 行に固定＝長いと「…」で切れるので、全員の名前は title でも見られるようにする */}
+      {watchers && (
+        <span className="ol-watchers" title={t('olWatchingNames', { name: watchers })}>
+          {t('olWatchingNames', { name: watchers })}
+        </span>
+      )}
       {/* 一言は卓に重ねて数秒だけ出す（卓の高さを変えない＝10-15 利用者 Q15=C）。席を返す頼みだけは答えるまで出したまま */}
       {createPortal(
       <div className="ol-toasts">

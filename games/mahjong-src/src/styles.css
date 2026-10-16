@@ -583,7 +583,9 @@ body.in-game .site-header .subtitle {
 }
 
 .square {
-  --side: min(100vw - 48px, 100dvh - 100px, 980px);
+  /* 高さは「卓の外枠の上端から画面の下端まで」（--fit-h＝useFitHeight.ts が測る）から外枠の上下の余白 36px を引いた分。
+     上に行が増えても卓が小さくなって画面に収まる（前は決め打ちの 100dvh − 100px で、1 行増えると下へはみ出た＝10-16 利用者指摘） */
+  --side: max(160px, min(100vw - 48px, var(--fit-h, 100dvh - 100px) - 36px, 980px));
   width: var(--side);
   height: var(--side);
   position: relative;
@@ -733,7 +735,11 @@ body.in-game .site-header .subtitle {
   position: relative;
   width: calc(100% + 32px);
   margin: 0 -16px;
-  flex: 1;
+  /* 高さは「外枠の上端から画面の下端まで」（--fit-h＝useFitHeight.ts が測る）。上に行が増えたら 4 列が縮み、
+     それでも足りなければチャットの記録欄が縮む＝下へはみ出さない（10-16 利用者指摘 Q1=C） */
+  height: var(--fit-h, auto);
+  flex: none;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 0 8px calc(env(safe-area-inset-bottom, 0px) + 10px);
@@ -758,6 +764,7 @@ body.in-game .site-header .subtitle {
 }
 
 .lanes {
+  /* 縮むのは 4 列それぞれの下限（.lane の min-height）まで。入れ物だけ縮めると列が手牌の段に重なる（10-16 ブラウザで確認） */
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -771,7 +778,8 @@ body.in-game .site-header .subtitle {
   padding: 5px 0 4px 3px;
   border-left: 3px solid transparent;
   border-bottom: 1px solid var(--brass-soft);
-  min-height: 60px;
+  /* 縮められる下限（名札＋小さめの捨て牌 1 行）。前は 60px で、上に行が増えると下へはみ出た（10-16） */
+  min-height: 36px;
   /* 余った高さは 4 列で分ける（河が伸びても手牌の位置が動かない） */
   flex: 1 1 0;
   --tw: var(--hand-tw);
@@ -2333,9 +2341,22 @@ body.in-game .site-header .subtitle {
   font-size: 12px;
 }
 
-/* 横4列：手牌の下・横幅いっぱい */
+/* 横4列：手牌の下・横幅いっぱい。高さが足りないときは記録欄だけが 1 行まで縮む（4 列が下限まで縮んだあと）。
+   入力欄などは縮めない。枠の min-height を 0 にしないと、記録欄の決め打ちの高さが下限になって縮まなかった（10-16 ブラウザで確認） */
 .lanes-wrap .chat {
   padding: 6px 4px 0;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.lanes-wrap .chat > * {
+  flex: none;
+}
+
+.lanes-wrap .chat > .chat-log {
+  height: auto;
+  flex: 0 1 calc(3 * 1.5em + 8px);
+  min-height: calc(1.5em + 8px);
 }
 
 /* 正方形の卓：卓の横に縦長で置く（卓の高さの下半分の位置） */
@@ -2628,6 +2649,31 @@ body.in-game .site-header .subtitle {
 .ol-status {
   width: 100%;
   font-size: 13px;
+  /* 卓の上の帯は必ず 1 行・高さ固定（観戦者の名前などが増えても卓を押し下げない＝10-16 利用者指摘 Q1=C）。
+     入りきらない分は「…」で切る（観戦者の全員の名前はメニューの「観戦者」で見られる） */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 24px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ol-status > * {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ol-status > .ol-nocalls {
+  flex: none;
+}
+
+.ol-status > .ol-watchers {
+  flex: 1 1 0;
+  min-width: 4em;
 }
 
 .ol-status p {
@@ -2713,10 +2759,11 @@ body.in-game .site-header .subtitle {
 
 .lanes-wrap .call-panel {
   margin: 6px 4px 0;
-  /* 高さを決めておく＝鳴ける牌の数で欄の高さが変わっても、手牌の位置は動かない（あふれたら欄の中で送る） */
-  height: 100px;
+  /* 高さを決めておく＝鳴ける牌の数で欄の高さが変わっても、手牌の位置は動かない（あふれたら欄の中で送る）。
+     画面の高さが足りないときは 52px まで縮む（中で送れるので牌は全部見られる＝10-16） */
+  flex: 0 1 100px;
+  min-height: 52px;
   overflow-y: auto;
-  flex: 0 0 auto;
 }
 
 .call-panel h4 {

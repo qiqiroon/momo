@@ -1,7 +1,7 @@
 // 卓の画面の検査（段階2）：ドラ表示牌・ツモアガリの役と点数の表示・リーチのボタン・流局の宣言と結果。
 // アガリの局面は自動対局の打ち手で実際に回した出来事の列から作る。リーチは配る牌を指定した列から作る。
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { Envelope, GameEvent } from '../engine/events';
+import type { Envelope, GameEvent, Seat } from '../engine/events';
 import { act, legalActions, type Action } from '../engine/round';
 import { benchCpu } from '../cpu/bench';
 import { apply, initialState, viewFor } from '../engine/state';
@@ -10,6 +10,7 @@ import { playOne } from '../selfplay/run';
 import { GENERAL_RULES } from '../engine/rules';
 import { rulesOfCnSet } from '../engine/ruleSets';
 import { Table } from './Table';
+import { SeatContext } from './seatContext';
 
 /** 鳴いていない手のツモアガリで終わる局を種を替えながら探す（検査用の打ち手は 1 割ほどアガる。門前清自摸和が必ず付く形） */
 function wonLog() {
@@ -457,6 +458,37 @@ describe('槍槓で無効になった加槓の見た目（利用者 2026-10-12 Q
       expect(shown.className).toContain(robbed ? 'meld-pon' : 'meld-kakan');
       expect(shown.querySelectorAll('.tile')).toHaveLength(robbed ? 3 : 4);
       unmount();
+    }
+  });
+});
+describe('観戦者の卓（10-16 利用者指示）', () => {
+  // 観戦者は誰の席でもない＝どの手牌の中身も届かない。席 0 から見た形で描く
+  const spectatorView = () => {
+    const r = playOne('watch-0', GENERAL_RULES, benchCpu);
+    return viewFor(r.log.slice(0, 40), -1 as Seat);
+  };
+  const watch = (narrow: boolean) =>
+    render(
+      <SeatContext.Provider value={{ me: 0, names: ['A', 'B', 'C', 'D'], watching: true }}>
+        <Table narrow={narrow} view={spectatorView()} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />
+      </SeatContext.Provider>,
+    );
+
+  it('横4列：下の手牌の段を出さない（表でも伏せでも）。4 列とも枚数の印だけ', () => {
+    watch(true);
+    expect(document.querySelector('.my-hand')).toBeNull();
+    expect(document.querySelectorAll('.hand-tile')).toHaveLength(0);
+    expect(document.querySelectorAll('.lane-count')).toHaveLength(4);
+  });
+
+  it('正方形の卓：手前の席もほかの 3 人と同じく伏せた手牌だけ（押せる牌は無い）', () => {
+    watch(false);
+    expect(document.querySelector('.my-hand')).toBeNull();
+    expect(document.querySelectorAll('.hand-tile')).toHaveLength(0);
+    const near = document.querySelector('.seat-hand.rel-0')!;
+    expect(near.querySelectorAll('.tile').length).toBeGreaterThanOrEqual(13);
+    for (const rel of [1, 2, 3]) {
+      expect(document.querySelector(`.seat-hand.rel-${rel}`)!.querySelectorAll('.tile').length).toBeGreaterThanOrEqual(13);
     }
   });
 });

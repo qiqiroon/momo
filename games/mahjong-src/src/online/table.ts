@@ -37,6 +37,12 @@ import {
   type VerifyProblem,
 } from './lock';
 import { newWrapKeyPair, unwrap, validWrapKey, wrapFor, type WrapKeyPair } from './keywrap';
+import { timeoutAction } from './timeout';
+
+/** 制限時間への同意を待つ長さ（段階10の2・利用者 Q6＝60 秒）。過ぎても押さない人の席は CPU が打つ */
+export const CONSENT_MS = 60_000;
+/** ホスト：同意の返事が届かない人を待つ予備（本人の端末が自分で「同意しない」を送るはずの時刻より少し後） */
+export const CONSENT_GRACE_MS = 5_000;
 
 /**
  * 席。人の席でも proxy なら、ホストの端末の CPU が打つ（段階10・利用者決定 10-15：本人が降りた・ホストが権限を移した・
@@ -89,6 +95,8 @@ export interface TableOptions {
    * 部屋の側がサーバーに預ける（切れて戻らなかったときだけ、サーバーがホストへ渡す）
    */
   onPackage?: (no: number, blob: string) => void;
+  /** 検査用：制限時間への同意を待つ長さ（ミリ秒。既定 CONSENT_MS） */
+  consentMs?: number;
 }
 
 export interface LockerStore {
@@ -99,6 +107,9 @@ export interface LockerStore {
 /** 戻ってきた人へホストが渡すもの（それまでの出来事の列＝全員に見える形・局の山の途中） */
 export interface SyncData {
   seats: SeatKind[];
+  /** 返事の待ち・1 手の制限時間（ミリ秒。戻ってきた人も同じ長さで打つ） */
+  replyWait?: number;
+  timeLimit?: number;
   /** ホストの包む鍵 */
   wk?: string;
   wire: { env: Envelope; pos?: number[] }[];
@@ -207,6 +218,28 @@ export class OnlineTable {
   /** 返事の番が始まった時刻（その返事の番ごと。自分の端末で捨て牌を当てはめた時刻） */
   private claimSince = new Map<string, number>();
 
+  // ---- 1 手ごとの制限時間（段階10の2・利用者決定 2026-10-16） ----
+  //  - ホストが部屋で選ぶ（15 秒・30 秒・なし）。時計は本人の端末が数え、時間切れの手も本人の端末が出す
+  //    （引いた牌の中身は本人しか知らない＝ホストが代わりに切ることはできない）
+  //  - 時間のある対局は、始める前に全員へ同意を求める（60 秒・押さない／やめる人の席は CPU）
+
+  /** 1 手ごとの制限時間（ミリ秒・0＝なし） */
+  timeLimit = 0;
+  /** 自分の席の、いまの手の締め切り（Date.now() の時刻。null＝時計は動いていない） */
+  deadline: number | null = null;
+  /** 時間切れで自動の手を出した回数（画面が「ブー」を鳴らす合図） */
+  timeouts = 0;
+  private clockKey: string | null = null;
+  private clockTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 自分：同意の窓の締め切り（null＝出していない） */
+  consentDeadline: number | null = null;
+  private consentTimer: ReturnType<typeof setTimeout> | null = null;
+  /** ホスト：同意の返事（席→同意したか・null＝まだ）。対局の最初の局はそろってから配る */
+  private consents: Map<Seat, boolean | null> | null = null;
+  private consentHostTimer: ReturnType<typeof setTimeout> | null = null;
+  /** ホスト：同意がそろったら出す、対局の始まり */
+  private pendingOpen: (() => void) | null = null;
+
   /** 当てはめた出来事（全員に見える形＋配牌・ツモの位置）。ホストは戻ってきた人へこれを渡す */
   wire: { env: Envelope; pos?: number[] }[] = [];
 
@@ -274,16 +307,55 @@ export class OnlineTable {
   // ---- 外から呼ぶ ----
 
   /** ホスト：席を決めて対局を始める（人の席は入った順・空きは CPU）。rules＝ホストが選んだルール（対局の始まりの出来事で全員へ） */
-  begin(humans: { id: string; name: string }[], replyWait = 0, rules: Rules = GENERAL_RULES) {
+  begin(humans: { id: string; name: string }[], replyWait = 0, rules: Rules = GENERAL_RULES, timeLimit = 0) {
     if (!this.o.isHost) return;
     const seats: SeatKind[] = SEATS.map((i) => (humans[i] ? { kind: 'human', id: humans[i].id, name: humans[i].name } : { kind: 'cpu' }));
     this.wrapKeys = newWrapKeyPair(this.g);
-    this.broadcast({ type: 'mt-begin', seats, replyWait, wk: this.wrapKeys.y.toString(36) });
-    const seedBytes = new Uint32Array(2);
-    crypto.getRandomValues(seedBytes);
-    const seed = Array.from(seedBytes, (n) => n.toString(36)).join('');
-    this.emitAll([{ env: { seq: 0, to: 'all', ev: { type: 'gameStart', rules } } }, { env: { seq: 1, to: 'all', ev: rollForDealer(seed, 0) } }]);
-    this.beginHand({ roundIndex: 0, dealer: this.pub.chicha, honba: 0 });
+    const open = () => {
+      const seedBytes = new Uint32Array(2);
+      crypto.getRandomValues(seedBytes);
+      const seed = Array.from(seedBytes, (n) => n.toString(36)).join('');
+      this.emitAll([{ env: { seq: 0, to: 'all', ev: { type: 'gameStart', rules } } }, { env: { seq: 1, to: 'all', ev: rollForDealer(seed, 0) } }]);
+      this.beginHand({ roundIndex: 0, dealer: this.pub.chicha, honba: 0 });
+    };
+    // 時間のある対局：全員の同意がそろう（または待つ長さが過ぎる）まで、対局の始まりを出さない
+    if (timeLimit > 0) {
+      this.consents = new Map(SEATS.filter((s) => seats[s].kind === 'human').map((s) => [s, null]));
+      this.pendingOpen = open;
+      this.consentHostTimer = setTimeout(() => this.finishConsent(), (this.o.consentMs ?? CONSENT_MS) + CONSENT_GRACE_MS);
+    }
+    this.broadcast({ type: 'mt-begin', seats, replyWait, timeLimit, wk: this.wrapKeys.y.toString(36) });
+    if (timeLimit <= 0) open();
+  }
+
+  /** 画面から：制限時間に同意する（ok）／やめる。同意の窓の時間切れも「やめる」 */
+  answerConsent(ok: boolean) {
+    if (this.consentDeadline === null || this.mySeat === null) return;
+    this.consentDeadline = null;
+    if (this.consentTimer) clearTimeout(this.consentTimer);
+    this.consentTimer = null;
+    this.toHost({ type: 'mt-consent', seat: this.mySeat, id: this.o.myId, ok });
+    this.changed();
+  }
+
+  /** ホスト：同意の返事が届いた */
+  private onConsent(seat: Seat, id: string, ok: boolean) {
+    const k = this.seats[seat];
+    if (!this.o.isHost || !this.consents || k?.kind !== 'human' || k.id !== id || this.consents.get(seat) !== null) return;
+    this.consents.set(seat, ok);
+    if ([...this.consents.values()].every((x) => x !== null)) this.finishConsent();
+  }
+
+  /** ホスト：同意を締め切る。同意しなかった・返事の無い人の席は CPU にしてから、対局を始める（最初の局の錠前はホストが作る） */
+  private finishConsent() {
+    if (!this.consents) return;
+    if (this.consentHostTimer) clearTimeout(this.consentHostTimer);
+    this.consentHostTimer = null;
+    for (const [seat, ok] of this.consents) if (ok !== true) this.setProxy(seat, true);
+    this.consents = null;
+    const open = this.pendingOpen;
+    this.pendingOpen = null;
+    open?.();
   }
 
   /** ホスト：局の錠前の段取りを始める（終わったら局の始まりを配る） */
@@ -298,6 +370,8 @@ export class OnlineTable {
     const v = this.views.get(this.mySeat);
     if (!v || !legalActions(v, this.mySeat).length) return;
     this.perform(this.mySeat, a);
+    // 押したらその場で時計を止める（ホストから出来事が戻ってくるのを待たない）
+    this.updateClock();
   }
 
   /** ホストの画面から：次の局へ */
@@ -324,8 +398,12 @@ export class OnlineTable {
     switch (d.type) {
       case 'mt-begin':
         this.replyWait = Math.max(0, Number(d.replyWait) || 0);
+        this.timeLimit = Math.max(0, Number(d.timeLimit) || 0);
         this.setHostWk(d.wk);
-        return this.onBegin(d.seats as SeatKind[]);
+        this.onBegin(d.seats as SeatKind[]);
+        return this.askConsent();
+      case 'mt-consent':
+        return this.onConsent(Number(d.seat) as Seat, String(d.id), d.ok === true);
       case 'mt-seat':
         return this.onSeat(Number(d.seat) as Seat, !!d.proxy);
       case 'mt-take':
@@ -442,6 +520,15 @@ export class OnlineTable {
     this.yielded = this.mySeat !== null && this.isProxy(this.mySeat);
     this.views = new Map(this.viewSeats().map((s) => [s, initialState()]));
     this.started = true;
+    this.changed();
+  }
+
+  /** 時間のある対局の始まり：自分の席があれば同意の窓を出す（60 秒で押さなければ「やめる」を送る） */
+  private askConsent() {
+    if (this.timeLimit <= 0 || this.mySeat === null) return;
+    const ms = this.o.consentMs ?? CONSENT_MS;
+    this.consentDeadline = Date.now() + ms;
+    this.consentTimer = setTimeout(() => this.answerConsent(false), ms);
     this.changed();
   }
 
@@ -920,11 +1007,14 @@ export class OnlineTable {
     const w = (d: (bigint[] | null)[]) => d.map((x) => (x ? x.map(hex) : null));
     // 配ったがまだ当てはめていない出来事（戻ってきた人の鍵を待っているもの）も渡す
     const waiting = [...this.queue.values()].sort((a, b) => a.env.seq - b.env.seq).map((x) => ({ env: maskAll(x.env), ...(x.pos ? { pos: x.pos } : {}) }));
-    return { seats: this.seats, wk: this.hostWk?.toString(36), wire: [...this.wire, ...waiting], hand: h ? { no: h.no, shuffled: w(h.shuffled), relocked: w(h.relocked) } : null };
+    return { seats: this.seats, replyWait: this.replyWait, timeLimit: this.timeLimit, wk: this.hostWk?.toString(36), wire: [...this.wire, ...waiting], hand: h ? { no: h.no, shuffled: w(h.shuffled), relocked: w(h.relocked) } : null };
   }
 
   /** 戻ってきた人：ホストから受け取った列で局面を作り直す。自分の牌は鍵を頼み直して開け直す */
   loadSync(d: SyncData) {
+    // ★前は返事の待ちを受け取っていなかった（戻った人だけ待ちが 0 になり、迷ったかが外に出た）。制限時間と一緒に受け取る
+    this.replyWait = Math.max(0, Number(d.replyWait) || 0);
+    this.timeLimit = Math.max(0, Number(d.timeLimit) || 0);
     this.setHostWk(d.wk);
     this.onBegin(d.seats);
     if (d.hand) {
@@ -1037,6 +1127,60 @@ export class OnlineTable {
     }
     this.driveHuan3();
     for (const seat of this.controlled()) this.driveSeat(seat);
+    this.updateClock();
+  }
+
+  /**
+   * 自分の席の時計：自分が選ぶ番（画面のボタン・牌を待っている）になったら締め切りを決め、選んだら止める。
+   * 同じ手のあいだ（ほかの人の返事が届いて通し番号が進んでも）は数え直さない
+   */
+  private updateClock() {
+    const seat = this.mySeat;
+    const v = seat !== null ? this.views.get(seat) : undefined;
+    const waiting =
+      this.timeLimit > 0 && seat !== null && !!v && !this.yielded && this.queue.size === 0 && this.acted.get(seat) !== v.nextSeq && this.choices(v, seat).length > 0;
+    if (!waiting) return this.stopClock();
+    const key = this.clockKeyOf(v, seat);
+    if (key === this.clockKey) return;
+    this.stopClock();
+    this.clockKey = key;
+    this.deadline = Date.now() + this.timeLimit;
+    this.clockTimer = setTimeout(() => this.onTimeUp(key), this.timeLimit);
+    this.changed();
+  }
+
+  private stopClock() {
+    if (this.clockTimer) clearTimeout(this.clockTimer);
+    this.clockTimer = null;
+    if (this.clockKey === null && this.deadline === null) return;
+    this.clockKey = null;
+    this.deadline = null;
+    this.changed();
+  }
+
+  /** 1 つの「選ぶ番」の見分け（返事は返事の番ごと・ほかは局と段階と自分の手の形） */
+  private clockKeyOf(v: GameState, seat: Seat): string {
+    const no = this.hand?.no ?? 0;
+    if (v.phase === 'claim') return `c:${no}:${this.claimKey(v)}`;
+    if (v.phase === 'ended') return `e:${no}:${v.roundIndex}:${v.honba}`;
+    return `${v.phase}:${no}:${v.turn}:${v.discards.map((d) => d.length).join('.')}:${v.kans}:${v.melds[seat].length}:${v.drawn[seat]}`;
+  }
+
+  /** 時間切れ：本人の端末が、決まった選び方で手を出す（timeout.ts） */
+  private onTimeUp(key: string) {
+    this.clockTimer = null;
+    const seat = this.mySeat;
+    const v = seat !== null ? this.views.get(seat) : undefined;
+    if (seat === null || !v || key !== this.clockKey || this.yielded) return;
+    const a = timeoutAction(v, seat, legalActions(v, seat));
+    this.clockKey = null;
+    this.deadline = null;
+    if (a) {
+      this.timeouts++;
+      this.perform(seat, a);
+    }
+    this.changed();
+    this.drive();
   }
 
   /** 換三張の受け渡し（向きが決まったあと）。届いた知らせは向きが分かってから処理する */
@@ -1364,6 +1508,9 @@ export class OnlineTable {
     if (this.o.isHost) this.reclaims.delete(seat);
     // 打たなくなった席の局面は捨てる（自分の席は見ていられるように残す）
     if (!this.viewSeats().includes(seat)) this.views.delete(seat);
+    // 最初の局の前に CPU に替わった席（制限時間に同意しなかった）：局面はまだ空なので、ここで持つ。
+    // 局の途中で替わった席は、包みで作り直す側（adopt）が持つ（伏せた局面のまま打たせない）
+    else if (this.hand === null && !this.views.has(seat)) this.views.set(seat, this.viewFromWire(seat));
     this.changed();
     this.drive();
   }
@@ -1523,6 +1670,17 @@ export class OnlineTable {
     this.depositMine();
     this.changed();
     this.drive();
+  }
+
+  /** 卓を捨てるとき（部屋を出た・接続が切れて作り直す）：時計を止める（捨てた卓が時間切れの手を送らない） */
+  dispose() {
+    if (this.clockTimer) clearTimeout(this.clockTimer);
+    if (this.consentTimer) clearTimeout(this.consentTimer);
+    if (this.consentHostTimer) clearTimeout(this.consentHostTimer);
+    this.clockTimer = this.consentTimer = this.consentHostTimer = null;
+    this.clockKey = null;
+    this.deadline = null;
+    this.consentDeadline = null;
   }
 
   private changed() {

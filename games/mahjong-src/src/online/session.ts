@@ -98,6 +98,8 @@ export interface OnlineState {
   rules: RuleChoice;
   /** 空き席の CPU の強さ（ホストが選び、名簿と一緒に配る。CPU を打つのはホストの端末） */
   strength: Strength;
+  /** 1 手ごとの制限時間（ホストが選び、名簿と一緒に配る・段階10の2） */
+  timeLimit: TimeLimit;
   /** チャット（待合と卓で同じ記録を続けて使う） */
   chat: ChatLine[];
 }
@@ -145,6 +147,13 @@ export const CHAT_GAP_MS = 1000;
 export type ReplyWait = 'fast' | 'normal' | 'slow';
 /** 返事の待ち（利用者 10-11：はやい 1 秒・ふつう 3 秒・ゆっくり 10 秒） */
 export const REPLY_WAIT_MS: Record<ReplyWait, number> = { fast: 1000, normal: 3000, slow: 10000 };
+/** 1 手ごとの制限時間（段階10の2・利用者 Q2=C：15 秒・30 秒・なし） */
+export type TimeLimit = 'none' | '15' | '30';
+export const TIME_LIMITS: readonly TimeLimit[] = ['15', '30', 'none'];
+export const TIME_LIMIT_MS: Record<TimeLimit, number> = { none: 0, '15': 15_000, '30': 30_000 };
+const timeLimitOf = (v: unknown): TimeLimit => (v === '15' || v === '30' ? v : 'none');
+/** ホストが前に選んだ制限時間の控え（この端末だけ） */
+const TIME_LIMIT_KEY = 'momo-mahjong.online.timeLimit';
 /** 点呼の返事を待つ長さ */
 export const ROLLCALL_MS = 3000;
 /**
@@ -197,6 +206,7 @@ const INITIAL: OnlineState = {
   replyWait: 'normal',
   rules: generalChoice(),
   strength: DEFAULT_STRENGTH,
+  timeLimit: 'none',
   chat: [],
 };
 
@@ -388,6 +398,7 @@ export class OnlineSession {
   private lost() {
     const room = this.s.room;
     if (this.s.started && room && !room.isHost) {
+      this.table?.dispose();
       this.table = null;
       this.pending = { id: room.id, name: room.name, hasPassword: room.hasPassword };
       this.set({ reconnecting: true, tableRev: this.s.tableRev + 1 });
@@ -449,6 +460,14 @@ export class OnlineSession {
     this.broadcastMembers();
   }
 
+  /** ホスト：1 手ごとの制限時間を選ぶ（始める前だけ） */
+  setTimeLimit(v: TimeLimit) {
+    if (!this.s.room?.isHost || this.s.started) return;
+    this.set({ timeLimit: v });
+    writeJson(TIME_LIMIT_KEY, v);
+    this.broadcastMembers();
+  }
+
   /** ホスト：対局を始める（空いた席は CPU） */
   start() {
     if (!this.s.room?.isHost || this.s.started) return;
@@ -460,6 +479,7 @@ export class OnlineSession {
       this.s.members.filter((m) => m.online).map((m) => ({ id: m.id, name: m.name })),
       REPLY_WAIT_MS[this.s.replyWait],
       rulesOfChoice(this.s.rules),
+      TIME_LIMIT_MS[this.s.timeLimit],
     );
   }
 
@@ -600,6 +620,7 @@ export class OnlineSession {
     this.lastPkg = null;
     this.keyReady = false;
     this.pending = null;
+    this.table?.dispose();
     this.table = null;
     // 対局が終わった・部屋が閉じた＝戻る先は無い
     if (note === 'hostLeft' || note === 'hostLeftGame' || note === 'roomGone' || note === 'rejectedStarted') this.forgetSaved();
@@ -618,6 +639,8 @@ export class OnlineSession {
       rules: ruleChoiceOf(readJson<unknown>(RULES_KEY)) ?? generalChoice(),
       // 強さも、この端末で CPU と対局のときに選んだもの
       strength: loadStrength(),
+      // 制限時間も、この端末で前に部屋を作ったときに選んだもの
+      timeLimit: timeLimitOf(readJson<unknown>(TIME_LIMIT_KEY)),
     });
     this.pending = null;
     this.keyReady = false;
@@ -635,6 +658,7 @@ export class OnlineSession {
       started: back ? this.s.started : false,
       rules: back ? this.s.rules : generalChoice(),
       strength: back ? this.s.strength : DEFAULT_STRENGTH,
+      timeLimit: back ? this.s.timeLimit : 'none',
     });
     this.pending = null;
     this.keyReady = false;
@@ -643,7 +667,7 @@ export class OnlineSession {
   }
 
   private broadcastMembers() {
-    this.tr.send({ type: 'mj-members', members: this.s.members, started: this.s.started, replyWait: this.s.replyWait, rules: this.s.rules, strength: this.s.strength }, 'all');
+    this.tr.send({ type: 'mj-members', members: this.s.members, started: this.s.started, replyWait: this.s.replyWait, rules: this.s.rules, strength: this.s.strength, timeLimit: this.s.timeLimit }, 'all');
   }
 
   private receive(d: Record<string, unknown>) {
@@ -699,7 +723,7 @@ export class OnlineSession {
       const started = d.started === true;
       const rw = d.replyWait === 'fast' || d.replyWait === 'slow' ? d.replyWait : 'normal';
       // ルールは確かめてから使う（読めなければ一般ルールのまま）
-      this.set({ members: d.members as Member[], started, replyWait: rw, rules: ruleChoiceOf(d.rules) ?? this.s.rules, strength: strengthOf(d.strength) });
+      this.set({ members: d.members as Member[], started, replyWait: rw, rules: ruleChoiceOf(d.rules) ?? this.s.rules, strength: strengthOf(d.strength), timeLimit: timeLimitOf(d.timeLimit) });
       // 対局中のゲストは、開き直したときに戻れるよう控える
       if (started && this.s.room && !this.s.room.isHost) {
         const sv: SavedSeat = { roomId: this.s.room.id, roomName: this.s.room.name, hasPassword: this.s.room.hasPassword, myId: this.myId, name: this.myName, password: this.password, keySecret: this.keySecret };
@@ -720,6 +744,7 @@ export class OnlineSession {
   private receiveTable(d: Record<string, unknown>) {
     if (d.type === 'mt-sync') {
       if (d.target !== this.myId || this.s.room?.isHost) return;
+      this.table?.dispose();
       this.table = this.newTable(false);
       this.table.loadSync(d.data as SyncData);
       this.set({ tableRev: this.s.tableRev + 1 });

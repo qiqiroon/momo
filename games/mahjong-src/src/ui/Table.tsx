@@ -55,6 +55,8 @@ interface Props {
   menu?: ReactNode;
   /** チャット欄（横4列は手牌の下・正方形の卓は卓の横） */
   chat?: ReactNode;
+  /** オンライン：自分の番の残り秒数（1 手の制限時間・段階10の2）。手牌の上の操作の帯の先頭に出す */
+  clock?: ReactNode;
   /** 鳴ける牌の予告の欄（オンライン）。横4列は手牌の下・正方形の卓は右の列のチャットの上（利用者指示 10-10＝手牌をずらさない） */
   callPanel?: ReactNode;
   /** 正方形の卓の右の列の一番上に出すもの（再生の操作の帯＝右上に置く） */
@@ -72,7 +74,7 @@ interface Props {
 // 伏せた牌（中身の分からない牌＝CPU に任せている間の自分の手牌など）は後ろへ。kindOf は伏せた牌を受け付けない
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => (a < 0 || b < 0 ? Number(a < 0) - Number(b < 0) : kindOf(a) - kindOf(b) || a - b));
 
-export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, menu, chat, callPanel, sidePanel, compare = null, bookOpen = false, onBook }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, menu, chat, callPanel, sidePanel, compare = null, bookOpen = false, onBook, clock }: Props) {
   /** 配っている途中は手牌を先頭から決まった枚数だけ見せる */
   const dealing = <X,>(xs: readonly X[]): readonly X[] => (dealt === null ? xs : xs.slice(0, dealt));
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
@@ -184,7 +186,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
 
   // 狭い画面の自分の手牌の列の長さ（横幅いっぱいに収める）
   const narrowUnits = handRowUnits(view.hands[me].length, view.drawn[me] !== null, view.melds[me]);
-  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} melds={meldsOf(me)} dealt={dealt} hints={!replay && playing && dealt === null && view.rules?.family === 'jp'} />;
+  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} clock={clock} melds={meldsOf(me)} dealt={dealt} hints={!replay && playing && dealt === null && view.rules?.family === 'jp'} />;
 
   // ドラ表示牌（めくられた順）
   const indicators = view.doraIndicators.length > 0 && (
@@ -795,7 +797,7 @@ function MeldView({ meld: given, seat, rules }: { meld: OpenMeld; seat: number; 
 }
 
 /** 自分の手牌。マウスは 1 回押すと切る／指は 1 回目で浮かせ、2 回目で切る（押し間違いを防ぐ） */
-function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; melds: ReactNode; dealt: number | null; hints: boolean }) {
+function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; clock?: ReactNode; melds: ReactNode; dealt: number | null; hints: boolean }) {
   const [raised, setRaised] = useState<TileId | null>(null);
   // リーチを押したあと＝切る牌を選んでいるところ（もう一度押すとやめる）
   const [riichiPick, setRiichiPick] = useState(false);
@@ -858,8 +860,9 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: Ga
     }
   };
 
-  const tile = (id: TileId) => (
-    <button key={id} type="button" className={`hand-tile${raised === id || picked.includes(id) ? ' raised' : ''}${id === heldTile ? ' que-held' : ''}`} disabled={!usable(id)} onPointerUp={press(id)}>
+  // 伏せた牌（CPU に任せている間の自分の手牌）はどれも同じ番号なので、並び順で見分ける
+  const tile = (id: TileId, i: number) => (
+    <button key={id >= 0 ? id : `hidden${i}`} type="button" className={`hand-tile${raised === id || picked.includes(id) ? ' raised' : ''}${id === heldTile ? ' que-held' : ''}`} disabled={!usable(id)} onPointerUp={press(id)}>
       <Tile id={id} rules={view.rules} />
       {id === heldTile && <span className="que-held-tag">{translate(lang, 'queHeldTag')}</span>}
     </button>
@@ -868,6 +871,7 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: Ga
   return (
     <div className={`my-hand${myTurn ? ' my-turn' : ''}`}>
       <div className={`hand-actions${queOpts.length > 0 || queWaiting || huan3Opts.length > 0 || huan3Waiting ? ' que-actions' : ''}`}>
+        {clock}
         {queOpts.length > 0 && (
           <>
             {voidSuits.map((s) => (
@@ -979,7 +983,7 @@ function MyHand({ view, legal, lang, onChoose, melds, dealt, hints }: { view: Ga
       <div className="hand-row">
         {rest.map(tile)}
         {drawn !== null && <span className="drawn-gap" />}
-        {drawn !== null && tile(drawn)}
+        {drawn !== null && tile(drawn, -1)}
         {melds}
       </div>
     </div>

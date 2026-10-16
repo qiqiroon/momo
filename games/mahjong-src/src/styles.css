@@ -3279,3 +3279,45 @@ body.in-game .site-header .subtitle {
 .ol-toasts .ol-reclaim {
   pointer-events: auto;
 }
+
+/* ---- 1 手の制限時間（段階10の2）：同意の窓・自分の番の残り秒数 ---- */
+/* 同意の窓は卓の上の一言（z-index 110）より上 */
+.tc-backdrop {
+  z-index: 130;
+}
+
+.time-consent .tc-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.time-consent .tc-buttons button {
+  flex: 1;
+}
+
+.time-consent .tc-countdown {
+  font-weight: 700;
+  text-align: center;
+}
+
+/* 残り秒数：操作の帯の左端。残り 5 秒からオレンジ地に白い字（秒読みの音と同じ時から） */
+.move-clock {
+  margin-right: auto;
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.move-clock.urgent {
+  background: var(--orange);
+  border-color: var(--orange-mid);
+  color: #fff;
+  font-weight: 700;
+}

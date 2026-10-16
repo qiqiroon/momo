@@ -6,7 +6,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import type { BaseLang, MessageKey } from '../i18n/strings';
-import { MAX_SEATS, REPLY_WAIT_MS, type Member, type OnlineNote, type OnlineSession, type ReplyWait, type RoomInfo } from '../online/session';
+import { MAX_SEATS, REPLY_WAIT_MS, TIME_LIMIT_MS, TIME_LIMITS, type Member, type OnlineNote, type OnlineSession, type ReplyWait, type RoomInfo, type TimeLimit } from '../online/session';
 import type { OnlineTable } from '../online/table';
 import type { Seat } from '../engine/events';
 import { BackButton, ScreenHead } from './Menu';
@@ -329,6 +329,22 @@ function ReplyWaitPicker({ t, session, value, isHost, started }: { t: T; session
   );
 }
 
+/** 待合：1 手の制限時間（段階10の2・ホストだけが選べる。ゲストには選ばれた値を見せる） */
+function TimeLimitPicker({ t, session, value, isHost, started }: { t: T; session: OnlineSession; value: TimeLimit; isHost: boolean; started: boolean }) {
+  return (
+    <div className="ol-replywait ol-timelimit">
+      <span>{t('olTimeLimit')}</span>
+      <span className="seg">
+        {TIME_LIMITS.map((k) => (
+          <button type="button" key={k} className={value === k ? 'on' : ''} disabled={!isHost || started} onClick={() => session.setTimeLimit(k)}>
+            {k === 'none' ? t('olTimeNone') : t('olTimeSec', { s: TIME_LIMIT_MS[k] / 1000 })}
+          </button>
+        ))}
+      </span>
+    </div>
+  );
+}
+
 /** 待合：席は入った順。空いた席は CPU。ホストだけが始められる */
 export function WaitingRoom({ t, lang, session }: { t: T; lang: BaseLang; session: OnlineSession }) {
   const s = useOnline(session);
@@ -378,6 +394,8 @@ export function WaitingRoom({ t, lang, session }: { t: T; lang: BaseLang; sessio
         </ol>
         <ReplyWaitPicker t={t} session={session} value={s.replyWait} isHost={isHost} started={s.started} />
         <p className="guide">{t('olReplyWaitDesc')}</p>
+        <TimeLimitPicker t={t} session={session} value={s.timeLimit} isHost={isHost} started={s.started} />
+        <p className="guide">{t('olTimeLimitDesc')}</p>
         {/* 空き席の CPU の強さ：ホストだけ選べる（端末に覚える＝CPU と対局と同じ控え）。4 人そろっていても見せる */}
         <StrengthPicker
           t={t}

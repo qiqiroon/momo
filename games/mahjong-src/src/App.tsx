@@ -23,6 +23,7 @@ import { LANG_MODES, baseOf, changeMode, currentMode, initLang, translate, type 
 import { Table } from './ui/Table';
 import { Lobby, OnlineStatus, WaitingRoom, useOnline } from './ui/Online';
 import { GameMenu } from './ui/GameMenu';
+import { MoveClock, TimeConsent, TimeConsentWait } from './ui/TimeLimit';
 import { CallStrip } from './ui/CallStrip';
 import { OnlineSession } from './online/session';
 import { matchmakingTransport } from './online/transport';
@@ -270,6 +271,13 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   const inPlay = (started || onlineOn) && !replaying;
   const over = tableView.phase === 'gameover';
   const me = tbl?.mySeat ?? null;
+  /** 席を返してもらう前の、制限時間への同意の窓（段階10の2・利用者 Q7=A。時間なし・［やめる］あり） */
+  const [reclaimAsk, setReclaimAsk] = useState(false);
+  const askReclaim = () => {
+    if (!tbl) return;
+    if (tbl.timeLimit > 0) setReclaimAsk(true);
+    else tbl.requestReclaim();
+  };
   const gameMenu = inPlay ? (
     <GameMenu
       t={t}
@@ -278,7 +286,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
       onBook={() => setBookOpen(true)}
       cpu={
         onlineOn && tbl && me !== null && !over
-          ? { proxy: tbl.isProxy(me), pending: tbl.reclaimPending, onYield: () => void tbl.yieldSeat(), onReclaim: () => tbl.requestReclaim() }
+          ? { proxy: tbl.isProxy(me), pending: tbl.reclaimPending, onYield: () => void tbl.yieldSeat(), onReclaim: askReclaim }
           : undefined
       }
       take={
@@ -390,7 +398,27 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             {...bookProps}
             chat={<Chat t={t} you={t('you')} online={{ lines: ol.chat, myId: online.myId, onSend: (s) => online.sendChat(s) }} />}
             callPanel={<CallStrip t={t} table={tbl} />}
+            clock={<MoveClock t={t} deadline={tbl.deadline} timeouts={tbl.timeouts} />}
           />
+          {/* 時間のある対局：始める前の同意（60 秒）・同意したあとほかの人を待つあいだ・席を返してもらう前の同意 */}
+          {tbl.consentDeadline !== null ? (
+            <TimeConsent t={t} seconds={tbl.timeLimit / 1000} deadline={tbl.consentDeadline} note="tcCancelNote" onOk={() => tbl.answerConsent(true)} onCancel={() => tbl.answerConsent(false)} />
+          ) : (
+            tbl.timeLimit > 0 && tbl.pub.phase === 'idle' && <TimeConsentWait t={t} />
+          )}
+          {reclaimAsk && (
+            <TimeConsent
+              t={t}
+              seconds={tbl.timeLimit / 1000}
+              deadline={null}
+              note="tcReclaimNote"
+              onOk={() => {
+                setReclaimAsk(false);
+                tbl.requestReclaim();
+              }}
+              onCancel={() => setReclaimAsk(false)}
+            />
+          )}
         </main>
       ) : (
         <main className="title">

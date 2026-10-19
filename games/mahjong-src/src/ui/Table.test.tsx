@@ -206,11 +206,31 @@ describe('ロン（段階3）', () => {
   it('ロンできるときだけ「ロン」「見送る」が出て、押すとその返事を選ぶ', () => {
     const view = ronView();
     const chosen: Action[] = [];
-    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onNext={() => {}} onNewGame={() => {}} />);
+    const first = render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onNext={() => {}} onNewGame={() => {}} />);
     expect(screen.getByText('切られた牌でアガれます。ロンしますか？')).toBeInTheDocument();
     fireEvent.click(document.querySelector('.btn-ron')!);
+    expect(chosen).toEqual([{ type: 'ron' }]);
+    first.unmount();
+    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onNext={() => {}} onNewGame={() => {}} />);
     fireEvent.click(document.querySelector('.btn-pass')!);
     expect(chosen).toEqual([{ type: 'ron' }, { type: 'pass' }]);
+  });
+
+  // 利用者 2026-10-19「押したかどうかわからない」：オンラインは全員の返事がそろうまで局面が進まない
+  it('返事を押すと、局面が進む前でもそのボタンが押した形になり、ほかのボタンは押せなくなる', () => {
+    const view = ronView();
+    const chosen: Action[] = [];
+    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onNext={() => {}} onNewGame={() => {}} />);
+    const ron = document.querySelector<HTMLButtonElement>('.btn-ron')!;
+    const pass = document.querySelector<HTMLButtonElement>('.btn-pass')!;
+    fireEvent.click(pass);
+    expect(pass.classList.contains('pressed')).toBe(true);
+    expect(ron.disabled).toBe(true);
+    expect(ron.classList.contains('pressed')).toBe(false);
+    expect(screen.getByText('選びました。ほかの人の返事を待っています')).toBeInTheDocument();
+    fireEvent.click(ron);
+    fireEvent.click(pass);
+    expect(chosen).toEqual([{ type: 'pass' }]);
   });
 
   it('ロンの結果に、誰から・役・点数が出る（親の 40 符 1 翻＝2000 点）', () => {

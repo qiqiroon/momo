@@ -1022,6 +1022,22 @@ body.in-game .site-header .subtitle {
   margin-bottom: 0;
 }
 
+/* 返事を押したところ：押したボタンは沈んだ形で白い縁、ほかのボタンは押せない（全員の返事がそろうまで局面が進まないため） */
+.hand-actions .btn-primary.pressed,
+.hand-actions .btn-primary.pressed:disabled {
+  opacity: 1;
+  background: var(--orange-mid);
+  border-color: #fff;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 0 2px #fff;
+  transform: translateY(1px);
+  cursor: default;
+}
+
+.hand-actions .btn-primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* チー・ポンのボタン：手牌から出す 2 枚を小さく見せる */
 .btn-call {
   display: inline-flex;

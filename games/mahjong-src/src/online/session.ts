@@ -168,11 +168,11 @@ export const CHAT_GAP_MS = 1000;
 export type ReplyWait = 'fast' | 'normal' | 'slow';
 /** 返事の待ち（利用者 10-11：はやい 1 秒・ふつう 3 秒・ゆっくり 10 秒） */
 export const REPLY_WAIT_MS: Record<ReplyWait, number> = { fast: 1000, normal: 3000, slow: 10000 };
-/** 1 手ごとの制限時間（段階10の2・利用者 Q2=C：15 秒・30 秒・なし） */
-export type TimeLimit = 'none' | '15' | '30';
-export const TIME_LIMITS: readonly TimeLimit[] = ['15', '30', 'none'];
-export const TIME_LIMIT_MS: Record<TimeLimit, number> = { none: 0, '15': 15_000, '30': 30_000 };
-const timeLimitOf = (v: unknown): TimeLimit => (v === '15' || v === '30' ? v : 'none');
+/** 1 手ごとの制限時間（段階10の2・利用者 2026-10-19：5 秒・10 秒・なし。30 秒は長かった） */
+export type TimeLimit = 'none' | '5' | '10';
+export const TIME_LIMITS: readonly TimeLimit[] = ['5', '10', 'none'];
+export const TIME_LIMIT_MS: Record<TimeLimit, number> = { none: 0, '5': 5_000, '10': 10_000 };
+const timeLimitOf = (v: unknown): TimeLimit => (v === '5' || v === '10' ? v : 'none');
 /** ホストが前に選んだ制限時間の控え（この端末だけ） */
 const TIME_LIMIT_KEY = 'momo-mahjong.online.timeLimit';
 /** 点呼の返事を待つ長さ */

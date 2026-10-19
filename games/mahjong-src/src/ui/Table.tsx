@@ -817,6 +817,9 @@ function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints }: { v
   const [raised, setRaised] = useState<TileId | null>(null);
   // リーチを押したあと＝切る牌を選んでいるところ（もう一度押すとやめる）
   const [riichiPick, setRiichiPick] = useState(false);
+  // 返事（ロン・鳴き・見送る）を押したところ。オンラインでは全員の返事がそろうまで局面が進まないので、
+  // 押した瞬間にボタンを押した形にして、ほかのボタンは押せなくする（利用者 2026-10-19「押したかどうかわからない」）
+  const [replied, setReplied] = useState<{ seq: number; i: number } | null>(null);
   const myTurn = legal.length > 0;
   const { me } = useSeat();
   const drawn = view.drawn[me];
@@ -832,6 +835,14 @@ function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints }: { v
   const canRon = legal.some((a) => a.type === 'ron');
   const calls = legal.filter((a) => a.type === 'chi' || a.type === 'pon' || (a.type === 'kan' && a.kan === 'minkan'));
   const replying = canRon || calls.length > 0;
+  // 押したボタンの番号（ロン＝-1・鳴き＝calls の位置・見送る＝-2）。局面が進めば消える
+  const sentI = replied !== null && replied.seq === view.nextSeq ? replied.i : null;
+  const reply = (i: number, a: Action) => {
+    if (sentI !== null) return;
+    setReplied({ seq: view.nextSeq, i });
+    onChoose(a);
+  };
+  const replyClass = (i: number) => (sentI === i ? ' pressed' : '');
   // 自分の番のカン（暗槓・加槓）。押すとその場でカンする
   const ownKans = legal.filter((a) => a.type === 'kan' && a.kan !== 'minkan');
   // 流局の宣言（テンパイを隠せるときだけボタンが出る。1 つしか言えないときは自動で言う）
@@ -939,14 +950,14 @@ function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints }: { v
         {replying && (
           <>
             {canRon && (
-              <button type="button" className="btn-primary btn-ron" onClick={() => onChoose({ type: 'ron' })}>
+              <button type="button" className={`btn-primary btn-ron${replyClass(-1)}`} disabled={sentI !== null} onClick={() => reply(-1, { type: 'ron' })}>
                 {translate(lang, 'ron')}
               </button>
             )}
             {/* チー・ポン・カンは手牌から出す牌を見せる（同じ牌で組み合わせが複数あるときも選べる） */}
             {calls.map((a, i) =>
               a.type === 'chi' || a.type === 'pon' || a.type === 'kan' ? (
-                <button key={i} type="button" className={`btn-primary btn-call btn-${a.type}`} onClick={() => onChoose(a)}>
+                <button key={i} type="button" className={`btn-primary btn-call btn-${a.type}${replyClass(i)}`} disabled={sentI !== null} onClick={() => reply(i, a)}>
                   {translate(lang, a.type)}
                   <span className="call-tiles">
                     {sortTiles(a.tiles).map((id) => (
@@ -956,10 +967,10 @@ function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints }: { v
                 </button>
               ) : null,
             )}
-            <button type="button" className="btn-primary btn-pass" onClick={() => onChoose({ type: 'pass' })}>
+            <button type="button" className={`btn-primary btn-pass${replyClass(-2)}`} disabled={sentI !== null} onClick={() => reply(-2, { type: 'pass' })}>
               {translate(lang, 'pass')}
             </button>
-            <span className="hint">{translate(lang, canRon ? 'ronHint' : 'callHint')}</span>
+            <span className="hint">{translate(lang, sentI !== null ? 'replySent' : canRon ? 'ronHint' : 'callHint')}</span>
           </>
         )}
         {declaring && (

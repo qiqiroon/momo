@@ -49,3 +49,42 @@ describe('鳴ける牌の予告で見送ると決めた返事の番（利用者�
     expect(acts.map((m) => m.envs!.map((e) => e.ev.type))).toEqual([['pass']]);
   });
 });
+
+// 返事の待ちのあいだに、ほかの人の返事が届く場面（自分はポンできる・まだ返事の番が続く）
+function findOtherPassFirst() {
+  for (let i = 1; i < 400; i += 2) {
+    const log = playOne(`presetwait2-${i}`, GENERAL_RULES, benchCpu).log;
+    for (let n = 1; n < log.length; n++) {
+      const next = log[n].ev as { type: string; seat?: Seat };
+      if (next.type !== 'pass') continue;
+      for (const seat of SEATS) {
+        if (next.seat === seat) continue;
+        const v = viewFor(log.slice(0, n), seat);
+        const later = viewFor(log.slice(0, n + 1), seat);
+        if (v.phase !== 'claim' || later.phase !== 'claim') continue;
+        const legal = legalActions(v, seat);
+        if (legal.some((a) => a.type === 'pon')) return { v, later, seat: seat as Seat, legal };
+      }
+    }
+  }
+  throw new Error('場面が見つからない');
+}
+
+describe('押した返事（10-20 に発見）', () => {
+  it('★待ちのあいだにほかの人の返事が届いて通し番号が進んでも、同じ捨て牌に 2 つ目の返事を送らない', async () => {
+    const { v, later, seat, legal } = findOtherPassFirst();
+    const sent: { type: string; envs?: { ev: { type: string } }[] }[] = [];
+    const t = new OnlineTable({ send: (m) => sent.push(m as never), isHost: false, myId: 'x', cpu: benchCpu });
+    const inside = t as unknown as Inside;
+    inside.mySeat = seat;
+    inside.views.set(seat, v);
+    inside.replyWait = 300;
+    t.choose(legal.find((a) => a.type === 'pass')!);
+    inside.views.set(seat, later);
+    expect(later.nextSeq).toBeGreaterThan(v.nextSeq);
+    t.choose(legalActions(later, seat).find((a) => a.type === 'pon')!);
+    await new Promise((r) => setTimeout(r, 450));
+    const acts = sent.filter((m) => m.type === 'mt-act');
+    expect(acts.map((m) => m.envs!.map((e) => e.ev.type))).toEqual([['pass']]);
+  });
+});

@@ -13,7 +13,7 @@ import { nextStep } from '../engine/game';
 import type { Action } from '../engine/round';
 import type { ScoreResult } from '../engine/score';
 import type { CnScore } from '../engine/sichuan';
-import { liveWallLeft, PIG_PENALTY, queOn, startPoints, suitOfKind, type GameState, type OpenMeld } from '../engine/state';
+import { claimKeyOf, liveWallLeft, PIG_PENALTY, queOn, startPoints, suitOfKind, type GameState, type OpenMeld } from '../engine/state';
 import { isRed, kindOf, type TileId } from '../engine/tiles';
 import { relFrom, useSeat } from './seatContext';
 import { baseOf, translate, type Lang, type MessageKey } from '../i18n/strings';
@@ -819,7 +819,8 @@ function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints }: { v
   const [riichiPick, setRiichiPick] = useState(false);
   // 返事（ロン・鳴き・見送る）を押したところ。オンラインでは全員の返事がそろうまで局面が進まないので、
   // 押した瞬間にボタンを押した形にして、ほかのボタンは押せなくする（利用者 2026-10-19「押したかどうかわからない」）
-  const [replied, setReplied] = useState<{ seq: number; i: number } | null>(null);
+  // 覚えるのは返事の番（claimKeyOf）。通し番号で覚えると、待ちのあいだにほかの人の返事が届いたとき押した形が消え、押し直せた（10-20 に発見）
+  const [replied, setReplied] = useState<{ key: string; i: number } | null>(null);
   const myTurn = legal.length > 0;
   const { me } = useSeat();
   const drawn = view.drawn[me];
@@ -836,10 +837,11 @@ function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints }: { v
   const calls = legal.filter((a) => a.type === 'chi' || a.type === 'pon' || (a.type === 'kan' && a.kan === 'minkan'));
   const replying = canRon || calls.length > 0;
   // 押したボタンの番号（ロン＝-1・鳴き＝calls の位置・見送る＝-2）。局面が進めば消える
-  const sentI = replied !== null && replied.seq === view.nextSeq ? replied.i : null;
+  const claimKey = claimKeyOf(view);
+  const sentI = replied !== null && claimKey !== null && replied.key === claimKey ? replied.i : null;
   const reply = (i: number, a: Action) => {
-    if (sentI !== null) return;
-    setReplied({ seq: view.nextSeq, i });
+    if (sentI !== null || claimKey === null) return;
+    setReplied({ key: claimKey, i });
     onChoose(a);
   };
   const replyClass = (i: number) => (sentI === i ? ' pressed' : '');

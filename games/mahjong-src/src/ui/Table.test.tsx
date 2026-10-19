@@ -4,7 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import type { Envelope, GameEvent, Seat } from '../engine/events';
 import { act, legalActions, type Action } from '../engine/round';
 import { benchCpu } from '../cpu/bench';
-import { apply, initialState, viewFor } from '../engine/state';
+import { apply, initialState, viewFor, type GameState } from '../engine/state';
 import { finalResult } from '../engine/final';
 import { playOne } from '../selfplay/run';
 import { GENERAL_RULES } from '../engine/rules';
@@ -230,6 +230,23 @@ describe('ロン（段階3）', () => {
     expect(screen.getByText('選びました。ほかの人の返事を待っています')).toBeInTheDocument();
     fireEvent.click(ron);
     fireEvent.click(pass);
+    expect(chosen).toEqual([{ type: 'pass' }]);
+  });
+
+  // 10-20 に発見：返事の待ちのあいだにほかの人の返事が届くと通し番号が進み、押した形が消えて押し直せた
+  it('★押したあとにほかの人の返事が届いて局面が進んでも、同じ捨て牌のあいだは押した形のまま・押し直せない', () => {
+    const view = ronView();
+    const chosen: Action[] = [];
+    const ui = (v: GameState) => <Table narrow={false} view={v} legal={legalActions(v, 0)} lang="ja" onChoose={(a) => chosen.push(a)} onNext={() => {}} onNewGame={() => {}} />;
+    const r = render(ui(view));
+    fireEvent.click(document.querySelector<HTMLButtonElement>('.btn-pass')!);
+    const later = apply(view, { seq: view.nextSeq, to: 'all', ev: { type: 'pass', seat: 1 } });
+    expect(later.phase).toBe('claim');
+    expect(later.nextSeq).toBeGreaterThan(view.nextSeq);
+    r.rerender(ui(later));
+    expect(document.querySelector('.btn-pass')!.classList.contains('pressed')).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>('.btn-ron')!.disabled).toBe(true);
+    fireEvent.click(document.querySelector('.btn-ron')!);
     expect(chosen).toEqual([{ type: 'pass' }]);
   });
 

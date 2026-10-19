@@ -508,6 +508,16 @@ export function liveWallLeft(s: GameState): number {
   return s.rules ? s.wallLeft - deadWallSize(s.rules) : 0;
 }
 
+/**
+ * 返事の番の見分け（どの局・本場の、誰の何枚目の捨て牌か・何への返事か）。返事の番でなければ null。
+ * 同じ絵柄でも、別の人の捨て牌・同じ人のあとの捨て牌は別の番。ほかの人の返事が届いて通し番号が進んでも同じ番
+ */
+export function claimKeyOf(s: GameState): string | null {
+  const c = s.claim;
+  if (s.phase !== 'claim' || !c) return null;
+  return `${s.roundIndex}:${s.honba}:${c.from}:${s.discards[c.from].length}:${c.kind}:${s.kans}`;
+}
+
 const nextSeat = (seat: Seat): Seat => ((seat + 1) % 4) as Seat;
 
 /** 同じ牌の集まりか（並びは問わない） */

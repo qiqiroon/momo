@@ -16,7 +16,7 @@ import { doraIndicatorPos, uraIndicatorPos, MAX_INDICATORS } from '../engine/dor
 import { nextStep } from '../engine/game';
 import { act, advance, dealChunkPositions, drawPosition, legalActions, positionsNeeded, rollForDealer, type Action } from '../engine/round';
 import { GENERAL_RULES, type Rules } from '../engine/rules';
-import { apply, huan3DirOf, huan3From, initialState, replay, type GameState } from '../engine/state';
+import { apply, claimKeyOf, huan3DirOf, huan3From, initialState, replay, type GameState } from '../engine/state';
 import { tileSetFor, type TileId } from '../engine/tiles';
 import { callables, presetReply, prunePresets, type Presets } from './presets';
 import {
@@ -259,6 +259,8 @@ export class OnlineTable {
    * 通し番号でなく返事の番で覚える（ほかの人の返事が届いて通し番号が進んでも、また出さない）
    */
   private presetReplied = new Map<Seat, string>();
+  /** 返事を決めた返事の番（席ごとの claimKey・予告でも押したのでも） */
+  private replied = new Map<Seat, string>();
   /** ホストが手を付けた局面の番号（同じ局面で 2 度進めない） */
   private hostStep = -1;
   private nextRequested = false;
@@ -808,9 +810,16 @@ export class OnlineTable {
 
   /** 返事の番の見分け（誰の・何枚目の捨て牌か・何への返事か） */
   private claimKey(v: GameState): string | null {
-    const c = v.claim;
-    if (v.phase !== 'claim' || !c) return null;
-    return `${v.roundIndex}:${v.honba}:${c.from}:${v.discards[c.from].length}:${c.kind}:${v.kans}`;
+    return claimKeyOf(v);
+  }
+
+  /**
+   * この返事の番に、もう返事を決めたか（押した・予告・時間切れ）。返事は replyWait たってから出すので、
+   * そのあいだにほかの人の返事が届いて通し番号が進んでも、同じ番では 2 度返事をしない・時計も動かし直さない（10-20 に発見）
+   */
+  private repliedHere(v: GameState, seat: Seat): boolean {
+    const key = this.claimKey(v);
+    return key !== null && this.replied.get(seat) === key;
   }
 
   /** 返事を出すまでに、あと何ミリ秒待つか（返事の番が始まってから replyWait まで） */
@@ -832,6 +841,11 @@ export class OnlineTable {
     const v = this.views.get(seat);
     if (!v) return;
     if (this.acted.get(seat) === v.nextSeq) return;
+    if (v.phase === 'claim') {
+      if (this.repliedHere(v, seat)) return;
+      const key = this.claimKey(v);
+      if (key !== null) this.replied.set(seat, key);
+    }
     // 缺一門・換三張は 4 人が同時に選ぶ：自分の分を送って、まだ配られてこないうちは送り直さない
     if ((v.phase === 'que' && this.privateReal.has(`queHold:${seat}`)) || (v.phase === 'huan3' && this.privateReal.has(`huan3Pass:${seat}`))) return;
     this.acted.set(seat, v.nextSeq);
@@ -1144,7 +1158,7 @@ export class OnlineTable {
     const seat = this.mySeat;
     const v = seat !== null ? this.views.get(seat) : undefined;
     const waiting =
-      this.timeLimit > 0 && seat !== null && !!v && !this.yielded && this.queue.size === 0 && this.acted.get(seat) !== v.nextSeq && this.choices(v, seat).length > 0;
+      this.timeLimit > 0 && seat !== null && !!v && !this.yielded && this.queue.size === 0 && this.acted.get(seat) !== v.nextSeq && !this.repliedHere(v, seat) && this.choices(v, seat).length > 0;
     if (!waiting) return this.stopClock();
     const key = this.clockKeyOf(v, seat);
     if (key === this.clockKey) return;
@@ -1308,6 +1322,8 @@ export class OnlineTable {
     if (v.phase !== 'ended' && !this.hand?.final) return;
     const legal = legalActions(v, seat);
     if (legal.length === 0) return;
+    // この返事の番にもう返事を決めた（出すのを待っている）
+    if (v.phase === 'claim' && this.repliedHere(v, seat)) return;
     const isCpu = this.cpuSeat(seat);
     const auto = isCpu ? this.o.cpu : this.o.autoplay;
     // CPU は少し間を置く（見送るだけの返事は待たせない）

@@ -253,6 +253,12 @@ export class OnlineTable {
   private busy = false;
   /** 席ごとに、どの局面（通し番号）で打ったか（同じ局面で 2 度打たない） */
   private acted = new Map<Seat, number>();
+  /**
+   * 鳴ける牌の予告で返事を決めた返事の番（席ごとの claimKey）。返事は replyWait たってから出すので、
+   * そのあいだもボタンを出したままだと、押した鳴きが捨てられて予告の返事が出た（利用者報告 10-20・Q1=A＝予告が優先・ボタンを出さない）。
+   * 通し番号でなく返事の番で覚える（ほかの人の返事が届いて通し番号が進んでも、また出さない）
+   */
+  private presetReplied = new Map<Seat, string>();
   /** ホストが手を付けた局面の番号（同じ局面で 2 度進めない） */
   private hostStep = -1;
   private nextRequested = false;
@@ -1317,7 +1323,12 @@ export class OnlineTable {
     // 返事の番：鳴ける牌の予告で先に選んであれば、そのとおりに返す（「その場で聞く」ならボタンを待つ）
     if (v.phase === 'claim') {
       const r = presetReply(v, shown, this.presets);
-      if (r !== 'ask') this.perform(seat, r);
+      if (r !== 'ask') {
+        const key = this.claimKey(v);
+        if (key !== null) this.presetReplied.set(seat, key);
+        this.perform(seat, r);
+        this.changed();
+      }
     }
   }
 
@@ -1325,6 +1336,8 @@ export class OnlineTable {
   choices(v: GameState = this.view, seat: Seat | null = this.mySeat): Action[] {
     // CPU に任せている間は自分では選べない（手牌も伏せたままのことがある＝計算すると止まる）
     if (seat === null || this.dealing || (seat === this.mySeat && this.yielded)) return [];
+    // 予告で返事を決めた返事の番は、もう選べない（ボタンを出さない）
+    if (v.phase === 'claim' && this.presetReplied.get(seat) === this.claimKey(v)) return [];
     const legal = legalActions(v, seat);
     if (!this.noCalls || v.phase !== 'claim') return legal;
     return legal.filter((a) => a.type !== 'chi' && a.type !== 'pon' && a.type !== 'kan');

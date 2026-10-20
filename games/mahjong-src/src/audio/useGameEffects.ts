@@ -38,8 +38,11 @@ export interface Banner {
 
 const total = (xs: readonly (readonly unknown[])[]) => xs.reduce((n, x) => n + x.length, 0);
 
-/** me＝自分の席（一人用は席 0・オンラインは配られた席） */
-export function useGameEffects(view: GameState, live: boolean, me: Seat = HUMAN) {
+/**
+ * me＝自分の席（一人用は席 0・オンラインは配られた席）。
+ * restoredUpTo＝写しで作り直した卓なら、写しに入っていた出来事の数（それまでに配った局は、局の始めの演出を出さない）
+ */
+export function useGameEffects(view: GameState, live: boolean, me: Seat = HUMAN, restoredUpTo = 0) {
   const prev = useRef<GameState | null>(null);
   /** 配っている途中で見せる手牌の枚数（null＝全部見せる） */
   const [dealt, setDealt] = useState<number | null>(null);
@@ -65,6 +68,12 @@ export function useGameEffects(view: GameState, live: boolean, me: Seat = HUMAN)
     if (!live) return;
     const p = prev.current;
     prev.current = view;
+    // 写しで作り直している途中（入り直し・開き直し・ホストの交代）：作り直す前にもう起きていた出来事は、演出も音も出さない＝続きから見せる。
+    // ★前は途中で局面が一瞬「配り終えた直後」に見え、局の始めの演出（サイコロ・洗牌・配る様子）が出た（利用者 10-20 Q1=A）
+    if (view.nextSeq <= restoredUpTo) {
+      setDealt(null);
+      return;
+    }
     // 局の始め（配り終えて最初のツモの前）
     if (view.phase === 'deal' && (!p || p.phase !== 'deal')) {
       setKusudama(false);

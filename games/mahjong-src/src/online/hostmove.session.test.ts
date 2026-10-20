@@ -231,7 +231,8 @@ async function play() {
   ] as const) {
     s.open();
     s.join(ROOM, name, '');
-    await until(() => H.state.members.some((m) => m.name === name), 2000);
+    // 全部の検査を順に回すと端末が重く、2 秒では入り終わらないことがあった
+    await until(() => H.state.members.some((m) => m.name === name), 10_000);
   }
   H.start();
   await until(() => [H, A, B].every((s) => midHand(s.table)), 60_000);

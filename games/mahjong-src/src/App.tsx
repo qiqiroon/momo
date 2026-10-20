@@ -204,7 +204,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   }, [onBoard]);
   const bookProps = { bookOpen, onBook: setBookOpen };
   /** 対局の音と演出（再生中は鳴らさない） */
-  const fx = useGameEffects(tableView, (started && !replaying) || onlineOn, seatInfo.me);
+  const fx = useGameEffects(tableView, (started && !replaying) || onlineOn, seatInfo.me, onlineOn && tbl ? tbl.restoredUpTo : 0);
   /** 「音楽を再生しますか？」を出しているか・歯車の設定を開いているか */
   const [soundAsk, setSoundAsk] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);

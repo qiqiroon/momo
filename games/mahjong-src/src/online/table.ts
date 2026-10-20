@@ -386,6 +386,12 @@ export class OnlineTable {
    * 番号を使い回すと、端末に控えた前の局の錠前を読み出してしまう（その局の鍵はもう全員に明かしてある）
    */
   private baseNo = 0;
+  /**
+   * 写しで作り直した卓：写しに入っていた出来事の数（通し番号がここより前の出来事は、作り直す前にもう起きていた）。
+   * 局の始めの演出（親決めのサイコロ・洗牌・配る様子）は、これより後に配られた局だけで出す（利用者 10-20 Q1=A）。
+   * ★前は作り直しの途中で局面が一瞬「配り終えた直後」に見え、続きから再開するのにサイコロが回った
+   */
+  restoredUpTo = 0;
 
   /** 画面から：自分の席の選んだこと */
   choose(a: Action) {
@@ -1063,6 +1069,7 @@ export class OnlineTable {
     this.setHostWk(d.wk);
     this.onBegin(d.seats);
     this.baseNo = d.hand?.no ?? Math.max(0, Number(d.lastNo) || 0);
+    this.restoredUpTo = d.wire.length;
     // 局の山はあるが、まだ配牌を配っていない（次の局の錠前の段取りの途中）：それまでの出来事は全部、前の局まで＝済んだ出来事。
     // ★前は「最後の局の始まりから後ろは、いまの局の出来事」と決めつけ、前の局の配牌を新しい局に当てはめて止まった
     // （開き直したホストで見つけた。ゲストが段取りの途中で入り直したときも同じ＝前からの不具合）
@@ -1325,7 +1332,8 @@ export class OnlineTable {
       // 局の最初のツモは、全員の画面で洗牌と配る演出が終わってから
       // 対局の最初の局（親決めのサイコロを見せる局）か＝useTable の showsDice と同じ決め方
       const first = p.dealerDice !== null && p.roundIndex === 0 && p.honba === 0 && p.discards.every((x) => x.length === 0);
-      const hold = p.phase === 'deal' ? (this.o.dealHold?.(first) ?? 0) : 0;
+      // 作り直す前に配っていた局（演出はもう済んでいる・作り直した画面では出さない）は待たない
+      const hold = p.phase === 'deal' && p.nextSeq > this.restoredUpTo ? (this.o.dealHold?.(first) ?? 0) : 0;
       if (hold > 0) setTimeout(go, hold);
       else go();
       return;

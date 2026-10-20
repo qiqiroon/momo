@@ -239,6 +239,7 @@ export function OnlineStatus({
   isHost,
   hostWait = null,
   hostNew = null,
+  peerWait = {},
 }: {
   t: T;
   table: OnlineTable;
@@ -248,13 +249,16 @@ export function OnlineStatus({
   hostWait?: OnlineState['hostWait'];
   /** ホストが移った（新しいホストの名前） */
   hostNew?: string | null;
+  /** ほかのプレイヤーの接続を待っている（生存チェック・利用者 2026-10-20） */
+  peerWait?: OnlineState['peerWait'];
 }) {
   const waitLeft = useCountdown(hostWait?.kind === 'away' ? hostWait.until : null);
+  // 人ごとの待ちの残り（1 秒ごとに描き直す）
+  const peerLeftOf = useCountdownOf(Object.values(peerWait).some((w) => w.kind === 'away'));
   // 観戦者の名前（利用者指示＝観戦者名は表示される）
   const watchers = spectatorsOf(members).map((m) => m.name).join(t('listDot'));
   // CPU に任された人の席（段階10）。切れたまま CPU が打っている人は「戻るのを待っています」に出さない
   const proxyIds = new Set(table.seats.flatMap((x) => (x.kind === 'human' && x.proxy ? [x.id] : [])));
-  const away = playersOf(members).filter((m) => !m.online && !proxyIds.has(m.id)).map((m) => m.name);
   const bad = table.lastVerify !== null && table.lastVerify.length > 0;
   const me = table.mySeat;
   const proxyMe = me !== null && table.isProxy(me);
@@ -272,11 +276,9 @@ export function OnlineStatus({
     saveNoCalls(on);
     table.setNoCalls(on);
   };
-  const awayText = away.join(t('listDot'));
   const othersText = proxyOthers.join(t('listDot'));
   const msgs = [
     ...(table.dealing ? [{ key: 'dealing', text: t('olDealing') }] : []),
-    ...(away.length ? [{ key: `away:${awayText}`, text: t('olWaitBack', { name: awayText }), warn: true }] : []),
     ...(proxyMe ? [{ key: 'proxyMe', text: t(isHost ? 'olProxyMeHost' : 'olProxyMe') }] : []),
     ...(proxyOthers.length ? [{ key: `proxy:${othersText}`, text: t('olProxyOthers', { name: othersText }) }] : []),
     ...(redealt ? [{ key: `redealt:${lastStart}`, text: t('olRedealt') }] : []),
@@ -285,7 +287,17 @@ export function OnlineStatus({
     ...(hostNew ? [{ key: `hostNew:${hostNew}`, text: isHost ? t('olHostNewMe') : t('olHostNew', { name: hostNew }) }] : []),
   ];
   // ホストを待っている一言は、待ちが終わるまで出したまま（数秒で消さない）
-  const hostWaitText = hostWait === null ? null : hostWait.kind === 'away' ? t('olHostAway', { time: waitLeft }) : t('olHostGone');
+  const hostWaitText =
+    hostWait === null ? null : hostWait.kind === 'checking' ? t('olHostChecking') : hostWait.kind === 'away' ? t('olHostAway', { time: waitLeft }) : t('olHostGone');
+  // ほかのプレイヤーを待っている一言も、待ちが終わるまで出したまま（観戦者は名簿の playersOf に入らない＝出さない）。
+  // 確かめ中→「確かめています」／切れた→残り m:ss（サーバーの時計と同じ時点から）／それ以外で切れている（前のサーバーなど）→前と同じ一言
+  const peerTexts = playersOf(members)
+    .filter((m) => !proxyIds.has(m.id) && (peerWait[m.id] || !m.online))
+    .map((m) => {
+      const w = peerWait[m.id];
+      const text = w?.kind === 'checking' ? t('olPeerChecking', { name: m.name }) : w?.kind === 'away' ? t('olPeerAway', { name: m.name, time: peerLeftOf(w.until) }) : t('olWaitBack', { name: m.name });
+      return { key: m.id, text };
+    });
   const shown = useToasts(msgs);
   return (
     <div className="ol-status" role="status">
@@ -312,6 +324,11 @@ export function OnlineStatus({
             {hostWaitText}
           </p>
         )}
+        {peerTexts.map((p) => (
+          <p key={`peer:${p.key}`} className="ol-toast away ol-peerwait">
+            {p.text}
+          </p>
+        ))}
         {shown.map((m) => (
           <p key={m.key} className={`ol-toast${m.warn ? ' away' : ''}`}>
             {m.text}
@@ -342,6 +359,23 @@ export const TOAST_MS = 4000;
  * 出ている一言のうち、新しく出たものだけを TOAST_MS のあいだ見せる（同じ一言は出続けていても 1 回だけ。
  * 一度消えてまた出たら、また見せる）
  */
+/** 締め切りまでの残り（m:ss） */
+const leftText = (until: number): string => {
+  const left = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+  return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+};
+
+/** 何人ぶんかの残りを数える（数えるものがあるあいだ 1 秒ごとに描き直す） */
+function useCountdownOf(active: boolean): (until: number) => string {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  return leftText;
+}
+
 /** 締め切りまでの残り（m:ss）。1 秒ごとに数え直す。締め切りが無ければ空 */
 function useCountdown(until: number | null): string {
   const [, tick] = useState(0);

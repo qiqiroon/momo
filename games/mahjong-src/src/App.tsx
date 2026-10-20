@@ -393,7 +393,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
         </main>
       ) : onlineOn && tbl ? (
         <main className="game">
-          <OnlineStatus t={t} table={tbl} members={ol.members} isHost={!!ol.room?.isHost} hostWait={ol.hostWait} hostNew={ol.hostNew} />
+          <OnlineStatus t={t} table={tbl} members={ol.members} isHost={!!ol.room?.isHost} hostWait={ol.hostWait} hostNew={ol.hostNew} peerWait={ol.peerWait} />
           <Table
             narrow={layout === 'lanes'}
             view={tbl.view}

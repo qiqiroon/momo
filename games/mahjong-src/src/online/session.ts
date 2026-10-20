@@ -129,7 +129,13 @@ export interface OnlineState {
    * ホストを待っている（段階10の5・Q3=A）。away＝切れて戻るのを待っている（until まで）／gone＝3 分を過ぎ、ほかの人へ移している。
    * 卓はそのまま見せ、上に一言を出し続ける・1 手の時計は止める
    */
-  hostWait: { kind: 'away'; until: number } | { kind: 'gone' } | null;
+  hostWait: { kind: 'checking' } | { kind: 'away'; until: number } | { kind: 'gone' } | null;
+  /**
+   * ほかのプレイヤーの接続を待っている（生存チェック・利用者 2026-10-20）。人の ID ごと。
+   * checking＝合図が届かず、サーバーに確かめてもらっている／away＝切れた（until まで待つ＝サーバーの時計と同じ時点から 3 分）。
+   * 観戦者は入れない（待たない・追わない・一言も出さない＝利用者指示）
+   */
+  peerWait: Record<string, { kind: 'checking' } | { kind: 'away'; until: number }>;
   /** ホストが移った（新しいホストの名前・一言を 1 回出す） */
   hostNew: string | null;
 }
@@ -251,7 +257,18 @@ const INITIAL: OnlineState = {
   chat: [],
   hostWait: null,
   hostNew: null,
+  peerWait: {},
 };
+
+// ---- 生存チェック（利用者 2026-10-20・Q1=A＝クライアントどうし） ----
+/** 「ここにいます」を送る間 */
+export const ALIVE_EVERY_MS = 10_000;
+/** これだけ何も届かなければ、サーバーに確かめてもらう */
+export const SILENT_MS = 25_000;
+/** 同じ人を確かめ直すまでの間（生きていたのに、また頼み続けない） */
+export const RECHECK_MS = 30_000;
+/** 確かめを頼んでから「確かめています」を出すまで（画面を裏にしているだけの人はブラウザがすぐ答える＝ちらつかせない） */
+export const CHECK_SHOW_MS = 1500;
 
 /** ホストが 3 分戻らなかったとき：名乗り出る順の 1 人ぶんの間（下家が先・その人が名乗り出なければ次の人＝Q2=A） */
 export const CLAIM_STEP_MS = 5000;
@@ -328,6 +345,17 @@ export class OnlineSession {
   private returningHost = false;
   /** ホストが 3 分戻らなかった：自分が名乗り出る時計 */
   private claimTimer: ReturnType<typeof setTimeout> | null = null;
+  // ---- 生存チェック（利用者 2026-10-20） ----
+  /** 「ここにいます」を送り、黙っている人を見る時計 */
+  private aliveTimer: ReturnType<typeof setInterval> | null = null;
+  /** サーバーの番号（pid）ごとの、最後に何か届いた時刻 */
+  private lastSeen = new Map<string, number>();
+  /** 人の ID → いまのサーバーの番号（入り直すと変わる） */
+  private pidOf = new Map<string, string>();
+  /** 番号ごとの、最後に確かめを頼んだ時刻 */
+  private checkedAt = new Map<string, number>();
+  /** 番号ごとの、「確かめています」を出すまでの時計 */
+  private checkShow = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(
     private readonly tr: Transport,
@@ -761,6 +789,7 @@ export class OnlineSession {
     this.keyReady = false;
     this.set({ where: 'room', busy: false, reconnecting: false, tableRev: this.s.tableRev + 1 });
     this.tr.send({ type: 'mj_key_probe' }, 'host');
+    this.startAlive();
     const t = this.table;
     if (t?.started) {
       t.setPaused(false);
@@ -867,6 +896,114 @@ export class OnlineSession {
     this.set({ saved: sv });
   }
 
+  // ---- 生存チェック（利用者 2026-10-20・Q1=A） ----
+  //  - 部屋にいる全員が 10 秒ごとに「ここにいます」を送る。何か届くたびに、送った人（サーバーの番号）の時刻を覚える
+  //  - 25 秒何も届かない人がいたら、気づいた端末がサーバーに確かめを頼む。サーバーは 1 回だけ尋ね、答えなければ閉じる
+  //    （閉じたあとは、切れたときと同じ流れ＝ホストなら 3 分待って交代・ゲストなら 3 分で CPU へ）
+  //  - 画面：「○○さんの接続を確かめています」→ サーバーが閉じたら「○○さんの接続が切れました。戻るのを待っています（残り m:ss）」
+  //    （3:00 はサーバーの時計と同じ時点から）。生きていたら消す
+  //  - 観戦者は見張るのはホストだけ。待たない・追わない・一言も出さない（閉じたら一覧から消えるだけ＝利用者指示）
+
+  private startAlive() {
+    if (this.aliveTimer) return;
+    this.aliveTimer = setInterval(() => this.aliveTick(), ALIVE_EVERY_MS);
+    this.aliveTick();
+  }
+
+  private stopAlive() {
+    if (this.aliveTimer) clearInterval(this.aliveTimer);
+    this.aliveTimer = null;
+    for (const t of this.checkShow.values()) clearTimeout(t);
+    this.checkShow.clear();
+    this.lastSeen.clear();
+    this.pidOf.clear();
+    this.checkedAt.clear();
+  }
+
+  /** 10 秒ごと：「ここにいます」を送り、黙っている人を確かめてもらう */
+  aliveTick(now = Date.now()) {
+    if (this.s.where !== 'room' || !this.s.room || !this.s.wsOpen || this.returningHost || this.s.reconnecting) return;
+    this.tr.send({ type: 'mj-alive', id: this.myId }, 'all');
+    for (const m of this.s.members) {
+      if (m.id === this.myId || !m.online) continue;
+      const pid = this.pidOf.get(m.id);
+      // 合図をまだ一度も受け取っていない人（入ったばかり・前の版のアプリ）は見ない
+      if (!pid) continue;
+      if (now - (this.lastSeen.get(pid) ?? now) < SILENT_MS) continue;
+      if (now - (this.checkedAt.get(pid) ?? 0) < RECHECK_MS) continue;
+      const watcher = m.role === 'spectator';
+      // 観戦者を見張るのはホストだけ（一言は出さない）
+      if (watcher && !this.s.room.isHost) continue;
+      this.checkedAt.set(pid, now);
+      this.tr.send({ type: 'mj_peer_check', pid }, 'host');
+      if (watcher) continue;
+      const old = this.checkShow.get(pid);
+      if (old) clearTimeout(old);
+      this.checkShow.set(
+        pid,
+        setTimeout(() => {
+          this.checkShow.delete(pid);
+          if (m.id === this.hostId) {
+            if (this.s.hostWait === null) this.set({ hostWait: { kind: 'checking' } });
+          } else if (!this.s.peerWait[m.id]) this.set({ peerWait: { ...this.s.peerWait, [m.id]: { kind: 'checking' } } });
+        }, CHECK_SHOW_MS),
+      );
+    }
+  }
+
+  /** 何か届いた：送った人の時刻を覚える（ID の入った知らせなら、ID と番号を結ぶ）。戻ってきた人の待ちの一言は消す */
+  private heard(d: Record<string, unknown>, now = Date.now()) {
+    const pid = typeof d.from === 'string' ? d.from : null;
+    if (!pid) return;
+    this.lastSeen.set(pid, now);
+    const id = typeof d.id === 'string' ? d.id : null;
+    if (id && this.pidOf.get(id) !== pid) {
+      this.pidOf.set(id, pid);
+      if (this.s.peerWait[id]) this.clearPeerWait(id);
+    }
+  }
+
+  private clearPeerWait(id: string) {
+    const { [id]: _gone, ...rest } = this.s.peerWait;
+    void _gone;
+    this.set({ peerWait: rest });
+  }
+
+  private idOfPid(pid: string): string | null {
+    for (const [id, p] of this.pidOf) if (p === pid) return id;
+    return null;
+  }
+
+  /** 生存チェックのサーバーからの返事。扱ったら true */
+  private receiveAlive(d: Record<string, unknown>): boolean {
+    const pid = typeof d.pid === 'string' ? d.pid : '';
+    if (d.type === 'mj_peer_alive') {
+      // 生きていた：時刻を今にし、「確かめています」を出さない・消す
+      this.lastSeen.set(pid, Date.now());
+      const t = this.checkShow.get(pid);
+      if (t) clearTimeout(t);
+      this.checkShow.delete(pid);
+      const id = this.idOfPid(pid);
+      if (id && id === this.hostId && this.s.hostWait?.kind === 'checking') this.set({ hostWait: null });
+      else if (id && this.s.peerWait[id]?.kind === 'checking') this.clearPeerWait(id);
+      return true;
+    }
+    if (d.type === 'mj_peer_away') {
+      // ゲストが切れた：サーバーの時計と同じ時点から 3 分を数える（観戦者は何も出さない）
+      const t = this.checkShow.get(pid);
+      if (t) clearTimeout(t);
+      this.checkShow.delete(pid);
+      const id = this.idOfPid(pid);
+      const m = id ? this.s.members.find((x) => x.id === id) : undefined;
+      if (id && m && m.role !== 'spectator' && id !== this.myId) {
+        const wait = Math.max(0, Number(d.waitMs) || 0);
+        this.set({ peerWait: { ...this.s.peerWait, [id]: { kind: 'away', until: Date.now() + wait } } });
+      }
+      return true;
+    }
+    return false;
+  }
+
   /** 画面から：ホストが移った一言を出した */
   clearHostNew() {
     if (this.s.hostNew !== null) this.set({ hostNew: null });
@@ -874,6 +1011,7 @@ export class OnlineSession {
 
   private toLobby(note: OnlineNote | null) {
     this.stopRollcall();
+    this.stopAlive();
     this.stopClaim();
     this.returningHost = false;
     for (const id of [...this.keyTimers.keys()]) this.stopKeyTimer(id);
@@ -885,7 +1023,7 @@ export class OnlineSession {
     this.table = null;
     // 対局が終わった・部屋が閉じた＝戻る先は無い
     if (note === 'hostLeft' || note === 'hostLeftGame' || note === 'roomGone' || note === 'rejectedStarted') this.forgetSaved();
-    this.set({ where: 'lobby', busy: false, room: null, members: [], started: false, reconnecting: false, note, tableRev: this.s.tableRev + 1, chat: [], hostWait: null, hostNew: null });
+    this.set({ where: 'lobby', busy: false, room: null, members: [], started: false, reconnecting: false, note, tableRev: this.s.tableRev + 1, chat: [], hostWait: null, hostNew: null, peerWait: {} });
     this.tr.refresh();
   }
 
@@ -909,6 +1047,7 @@ export class OnlineSession {
     this.pending = null;
     this.keyReady = false;
     this.tr.send({ type: 'mj_key_probe' }, 'host');
+    this.startAlive();
   }
 
   private joined(id: string, name: string) {
@@ -927,6 +1066,7 @@ export class OnlineSession {
     this.pending = null;
     this.keyReady = false;
     this.tr.send({ type: 'mj_key_probe' }, 'host');
+    this.startAlive();
     this.tr.send({ type: 'mj-hello', id: this.myId, name: this.myName }, 'host');
   }
 
@@ -935,6 +1075,8 @@ export class OnlineSession {
   }
 
   private receive(d: Record<string, unknown>) {
+    // 生存チェック：誰から届いたかを覚える（どの知らせでも）
+    this.heard(d);
     // 部屋の外（一覧）で届く返事：戻るときの古い接続の追い出し
     if (d.type === 'mj_seat_reclaim_ok' || d.type === 'mj_seat_reclaim_no') {
       this.reclaimGo?.();
@@ -948,6 +1090,7 @@ export class OnlineSession {
     }
     if (this.s.where !== 'room' || !this.s.room) return;
     if (this.receiveHostMove(d)) return;
+    if (this.receiveAlive(d)) return;
     if (typeof d.type === 'string' && d.type.startsWith('mt-')) return this.receiveTable(d);
     // サーバーからの返事（鍵の預かり）。古いサーバーでは誰かの問い合わせが中継されてくるだけ＝返事は来ない
     if (d.type === 'mj_key_ready') {

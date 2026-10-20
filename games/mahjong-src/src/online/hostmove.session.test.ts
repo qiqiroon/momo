@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { benchCpu } from '../cpu/bench';
-import type { Seat } from '../engine/events';
+import type { Envelope, Seat } from '../engine/events';
 import { OnlineSession, type RoomInfo, type Transport, type TransportHandlers } from './session';
 import { OnlineTable, type LockerStore, type TableOptions, type WireLocker } from './table';
 
@@ -174,12 +174,22 @@ class Server {
 /** 錠前の控え（端末ごと）。★検査の中では全員が同じ localStorage を使ってしまい、上書きし合って作り直した卓が自分の錠前を読めなかった */
 function memStore(): LockerStore {
   const m = new Map<string, WireLocker>();
-  return { save: (no, seat, w) => void m.set(`${no}:${seat}`, w), load: (no, seat) => m.get(`${no}:${seat}`) ?? null };
+  const p = new Map<string, Envelope[]>();
+  return {
+    save: (no, seat, w) => void m.set(`${no}:${seat}`, w),
+    load: (no, seat) => m.get(`${no}:${seat}`) ?? null,
+    savePriv: (no, seat, envs) => void p.set(`${no}:${seat}`, JSON.parse(JSON.stringify(envs))),
+    loadPriv: (no, seat) => p.get(`${no}:${seat}`) ?? [],
+  };
 }
 
+/** 人（端末）ごとの控え。開き直した端末は同じ控えを使う */
+const stores = new WeakMap<OnlineSession, LockerStore>();
+const storeOf = (s: OnlineSession) => stores.get(s)!;
+
 /** 本物の卓（人の席も自動で打つ・待たない・控えは端末ごと） */
-function newSession(srv: Server) {
-  const store = memStore();
+
+function newSession(srv: Server, store: LockerStore = memStore()) {
   let s: OnlineSession;
   s = new OnlineSession(
     srv.transport(() => s),
@@ -190,6 +200,7 @@ function newSession(srv: Server) {
       return t;
     },
   );
+  stores.set(s, store);
   return s;
 }
 
@@ -273,60 +284,53 @@ describe('ホストの復帰と交代（部屋の側・段階10の5）', () => {
     await until(() => A.table!.pub.nextSeq > m + 20 && H.table?.pub.nextSeq === A.table!.pub.nextSeq, 60_000);
   }, 300_000);
 
-  it('★画面を閉じた元ホスト：開き直して「対局中の部屋に戻る」→ サーバーにすぐ「移してよい」→ 下家がホスト → プレイヤーとして戻り、席を返してもらえる', async () => {
+  it('★画面を閉じた元ホストが 3 分のうちに開き直す：ホストのまま同じ局の続きを打つ（下家に移らない・なかったことにしない）', async () => {
     const { srv, H, A, B } = await play();
-    // ホストの端末の「戻るための控え」（ホストは合言葉つき）。★検査の中では全員が同じ localStorage を使い、ゲストの控えで上書きされる＝取っておく
+    // ホストの端末の「戻るための控え」（合言葉つき）と鍵の控え。★検査の中では全員が同じ localStorage を使う＝取っておいて、開き直した端末に戻す
     const saved = H.state.saved;
     expect(saved?.hostToken).toBeTruthy();
-    // ホストが画面を閉じた（黙って切れた＝サーバーは 3 分待つ段）。H の画面はもう動かない
+    const seq = H.table!.pub.nextSeq;
     srv.cut(H, true);
-    await until(() => A.state.hostWait?.kind === 'away', 2000);
-    // 開き直した：ホストの端末の控えを戻してから、新しい画面（部屋の側）を作る
+    await until(() => A.state.hostWait?.kind === 'away' && B.state.hostWait?.kind === 'away', 2000);
     localStorage.setItem('momo-mahjong.online.seat', JSON.stringify(saved));
-    const H2 = newSession(srv);
-    expect(H2.state.saved?.hostToken).toBe(saved?.hostToken);
+    const H2 = newSession(srv, storeOf(H));
     H2.open();
     H2.rejoin();
-    // サーバーは 3 分を待たずに移す段へ → 元ホストの下家（A）が名乗り出てホスト
-    await until(() => A.state.room?.isHost === true, 10_000);
-    expect(srv.room().away).toBeNull();
-    // 元ホストはプレイヤーとして入り直し、新しいホストから写しをもらう（自分の席は CPU のまま・ホストではない）
+    // ホストの席へ戻り、ゲストの写しで卓を作り直す
+    await until(() => H2.state.room?.isHost === true && H2.table !== null && H2.table.mySeat === 0, 10_000);
+    expect(A.state.room?.isHost).toBe(false);
+    expect(H2.myId).toBe(H.myId);
+    // ゲストの待ちが終わり、同じ局の続きを打って次の局へ
+    await until(() => A.state.hostWait === null && B.state.hostWait === null, 10_000);
+    const n = H2.table!.pub.handCount;
+    await until(() => H2.table!.pub.handCount > n && midHand(H2.table) && [A, B].every((s) => s.table?.pub.nextSeq === H2.table!.pub.nextSeq), 120_000);
+    expect(H2.table!.wire.length).toBeGreaterThan(seq);
+    expect(H2.table!.wire.some((x) => x.env.ev.type === 'roundVoid')).toBe(false);
+    expect(H2.table!.isProxy(0 as Seat)).toBe(false);
+  }, 300_000);
+
+  it('★画面を閉じた元ホストが 3 分を過ぎて開き直す：ホストは下家に移っている → プレイヤーとして戻り、席を返してもらえる', async () => {
+    const { srv, H, A, B } = await play();
+    const saved = H.state.saved;
+    srv.cut(H, true);
+    await until(() => A.state.hostWait?.kind === 'away', 2000);
+    // 3 分が過ぎた → 下家（A）がホスト
+    srv.gone(srv.room());
+    await until(() => A.state.room?.isHost === true && B.state.hostWait === null, 10_000);
+    localStorage.setItem('momo-mahjong.online.seat', JSON.stringify(saved));
+    const H2 = newSession(srv, storeOf(H));
+    H2.open();
+    H2.rejoin();
+    // ホストの席へは戻れない（断られる）→ プレイヤーとして入り直し、新しいホストから写しをもらう（自分の席は CPU のまま）
     await until(() => H2.state.room?.isHost === false && H2.table !== null && H2.table.mySeat === 0, 15_000);
     expect(H2.table?.isProxy(0 as Seat)).toBe(true);
-    expect(H2.myId).toBe(H.myId);
-    // 点数などは引き継いでいる（新しいホストと同じ局面）
-    await until(() => H2.table!.pub.nextSeq === A.table!.pub.nextSeq, 15_000);
-    expect(JSON.stringify(H2.table!.pub.scores)).toBe(JSON.stringify(A.table!.pub.scores));
+    await until(() => A.state.members.find((m) => m.id === H.myId)?.online === true, 10_000);
     // 席を返してもらう（新しいホストが許可する）
     H2.table!.requestReclaim();
     await until(() => A.table!.reclaims.has(0), 5000);
     await A.table!.answerReclaim(0 as Seat, true);
     await until(() => H2.table?.isProxy(0 as Seat) === false && A.table?.isProxy(0 as Seat) === false, 30_000);
-    // そのあとも続く（B も同じ局面）
     const m = A.table!.pub.nextSeq;
     await until(() => A.table!.pub.nextSeq > m + 20 && H2.table?.pub.nextSeq === A.table!.pub.nextSeq && B.table?.pub.nextSeq === A.table!.pub.nextSeq, 60_000);
   }, 300_000);
-
-  it('★画面を閉じた元ホストが、新しいホストが決まる前に入ってしまった：ホストが決まったら名乗り直して写しをもらう', async () => {
-    const { srv, H, A } = await play();
-    const saved = H.state.saved;
-    srv.cut(H, true);
-    await until(() => A.state.hostWait?.kind === 'away', 2000);
-    // 名乗り出の受け付けを 4 秒遅らせる（元ホストは 2 秒待ってから入る＝先に入ってしまう）
-    srv.takeDelayMs = 4000;
-    localStorage.setItem('momo-mahjong.online.seat', JSON.stringify(saved));
-    const H2 = newSession(srv);
-    H2.open();
-    H2.rejoin();
-    // その場面を本当に通っている：新しいホストが決まる前に、元ホストは部屋に入った
-    await until(() => H2.state.where === 'room', 8000);
-    expect(A.state.room?.isHost).toBe(false);
-    expect(H2.table).toBeNull();
-    // ホストが決まったら名乗り直して、写しをもらう
-    await until(() => A.state.room?.isHost === true, 10_000);
-    await until(() => H2.table !== null && H2.table.mySeat === 0 && H2.table.isProxy(0 as Seat), 15_000);
-    // ★卓は新しいホストが全員へ配る写しでも作れる。名乗り直しが効くのは、新しいホストの名簿で元ホストが「つながっている」に戻ること
-    await until(() => A.state.members.find((m) => m.id === H.myId)?.online === true, 10_000);
-    srv.takeDelayMs = 0;
-  }, 120_000);
 });

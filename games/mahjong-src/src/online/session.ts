@@ -17,7 +17,7 @@ import { generalChoice, labelOf, ruleChoiceOf, rulesOfChoice, type RuleChoice } 
 import { isoLocal, type KifuSource } from '../kifu/kifu';
 import { saveLastGame } from '../kifu/store';
 import { DEAL_SHOW_MS, DICE_SHOW_MS, dealShowOn } from '../game/useTable';
-import type { Seat } from '../engine/events';
+import type { Envelope, Seat } from '../engine/events';
 import { OnlineTable, type LockerStore, type SyncData, type TableOptions, type WireLocker } from './table';
 
 /** 「鳴かない」の端末の控え（画面の Online.tsx と同じ名前） */
@@ -269,6 +269,8 @@ export const SILENT_MS = 25_000;
 export const RECHECK_MS = 30_000;
 /** 確かめを頼んでから「確かめています」を出すまで（画面を裏にしているだけの人はブラウザがすぐ答える＝ちらつかせない） */
 export const CHECK_SHOW_MS = 1500;
+/** 開き直した元ホストが、ゲストからの局の写しを待つ長さ（届いたものからいちばん先まで進んだものを使う） */
+export const RESUME_WAIT_MS = 1500;
 
 /** ホストが 3 分戻らなかったとき：名乗り出る順の 1 人ぶんの間（下家が先・その人が名乗り出なければ次の人＝Q2=A） */
 export const CLAIM_STEP_MS = 5000;
@@ -296,15 +298,27 @@ function writeJson(key: string, v: unknown) {
 
 /** 自分の錠前の控え（その部屋・その ID の、いまの局だけ） */
 function lockerStore(roomId: string, myId: string): LockerStore {
+  type Kept = { room: string; id: string; no: number; lockers: Record<string, WireLocker>; priv?: Record<string, Envelope[]> };
+  /** いまの部屋・ID・局の控え（違えば空＝局が替わったら前の局の分は捨てる） */
+  const current = (no: number): Kept => {
+    const all = readJson<Kept>(LOCK_KEY);
+    return all && all.room === roomId && all.id === myId && all.no === no ? all : { room: roomId, id: myId, no, lockers: {}, priv: {} };
+  };
   return {
     save(no, seat, w) {
-      const all = readJson<{ room: string; id: string; no: number; lockers: Record<string, WireLocker> }>(LOCK_KEY);
-      const same = all && all.room === roomId && all.id === myId && all.no === no ? all.lockers : {};
-      writeJson(LOCK_KEY, { room: roomId, id: myId, no, lockers: { ...same, [seat]: w } });
+      const k = current(no);
+      writeJson(LOCK_KEY, { ...k, lockers: { ...k.lockers, [seat]: w } });
     },
     load(no, seat) {
-      const all = readJson<{ room: string; id: string; no: number; lockers: Record<string, WireLocker> }>(LOCK_KEY);
-      return all && all.room === roomId && all.id === myId && all.no === no ? (all.lockers[seat] ?? null) : null;
+      return current(no).lockers[seat] ?? null;
+    },
+    // 本人にだけ見える出来事の本物（四川の伏せ牌・換三張）も同じ控えに（開き直したときに取り戻す・大方針 2026-10-20）
+    savePriv(no, seat, envs) {
+      const k = current(no);
+      writeJson(LOCK_KEY, { ...k, priv: { ...(k.priv ?? {}), [seat]: envs } });
+    },
+    loadPriv(no, seat) {
+      return current(no).priv?.[seat] ?? [];
     },
   };
 }
@@ -453,10 +467,26 @@ export class OnlineSession {
     this.password = sv.password;
     this.pending = { id: sv.roomId, name: sv.roomName, hasPassword: sv.hasPassword };
     this.set({ busy: true, note: null });
-    // ホストだった人（段階10の5）：鍵は端末から消えているのでホストには戻らない。サーバーにすぐ「ほかの人へ移してよい」と伝え、
-    // プレイヤーとして入り直す（サーバーには観戦として名乗る＝席の数え方の都合。自分の席は新しいホストが残している）
+    // ホストだった人（大方針 2026-10-20「３分以内ならホストもゲストも復活を待つ」）：まず合言葉でホストの席へ戻る。
+    // 戻れたら、ゲストの端末から局の写しをもらい、端末の控え（鍵・本人にだけ見える選び）と合わせてホストのまま続きを打つ（resumeHost）。
+    // 3 分を過ぎて断られたら（ほかの人へ移った）、プレイヤーとして入り直す（joinSaved）
+    if (sv.hostToken) {
+      this.resumingHost = true;
+      this.tr.send({ type: 'mj_host_return', roomId: sv.roomId, token: sv.hostToken }, 'host');
+      return;
+    }
+    this.joinSaved(sv);
+  }
+
+  /** 開き直した元ホスト：ホストの席へ戻ろうとしているところ（返事は room_created か mj_host_return_no） */
+  private resumingHost = false;
+  /** 開き直した元ホスト：ゲストから届いた局の写し（いちばん先まで進んだものを使う） */
+  private resumeState: { data: SyncData; extra: Record<string, unknown> }[] = [];
+  private resumeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** 控えた席へ、プレイヤーとして入り直す（元ホストは観戦として名乗る＝席の数え方の都合。自分の席は残っている） */
+  private joinSaved(sv: SavedSeat) {
     const role = sv.hostToken ? 'spectator' : undefined;
-    if (sv.hostToken) this.tr.send({ type: 'mj_host_giveup', roomId: sv.roomId, token: sv.hostToken }, 'host');
     // アプリが落ちた携帯の古い接続がサーバーに残っていると、席が埋まって入れない（10-15 利用者指摘）。
     // 合言葉で本人と確かめてもらい、古い接続を追い出してから入る（常時の見張りはしない＝Q14=B）
     if (!sv.keySecret) return this.tr.joinRoom(sv.roomId, sv.password, sv.name, role);
@@ -799,6 +829,70 @@ export class OnlineSession {
     this.broadcastMembers();
   }
 
+  /**
+   * 開き直した元ホストが、3 分のうちにホストの席へ戻れた（大方針 2026-10-20）。画面の中の局面は消えているので、
+   * ゲストに「いまの局の写し・名簿・設定」を頼み、いちばん先まで進んだ写しで卓を作り直す（鍵と本人にだけ見える選びは端末の控えから）。
+   * 作り直したら、全員へ写しを配り直す（ゲストも作り直す＝ホストが戻ったときと同じ）
+   */
+  private resumeHost(id: string, name: string) {
+    this.resumingHost = false;
+    this.hostId = this.myId;
+    this.hostToken = this.tr.token?.() ?? this.s.saved?.hostToken ?? null;
+    this.keyReady = false;
+    this.set({
+      where: 'room',
+      busy: false,
+      reconnecting: false,
+      room: { id, name, hasPassword: this.pending?.hasPassword ?? false, isHost: true },
+      started: true,
+      tableRev: this.s.tableRev + 1,
+    });
+    this.pending = null;
+    this.tr.send({ type: 'mj_key_probe' }, 'host');
+    this.startAlive();
+    this.resumeState = [];
+    this.askState(0);
+  }
+
+  /** 開き直した元ホスト：ゲストに局の写しを頼む。届かなければ頼み直す（3 回まで。だめなら一覧へ） */
+  private askState(tries: number) {
+    if (this.resumeTimer) clearTimeout(this.resumeTimer);
+    this.tr.send({ type: 'mt-askstate', id: this.myId }, 'all');
+    this.resumeTimer = setTimeout(() => {
+      this.resumeTimer = null;
+      if (this.resumeState.length) return this.finishResume();
+      if (tries < 2) return this.askState(tries + 1);
+      this.tr.leave();
+      this.toLobby('hostLeftGame');
+    }, RESUME_WAIT_MS);
+  }
+
+  /** 届いた写しのうち、いちばん先まで進んだもので卓を作り直し、全員へ写しを配り直す */
+  private finishResume() {
+    const best = this.resumeState.reduce((a, b) => (b.data.wire.length > a.data.wire.length ? b : a));
+    this.resumeState = [];
+    const x = best.extra;
+    const rw = x.replyWait === 'fast' || x.replyWait === 'slow' ? x.replyWait : 'normal';
+    this.set({
+      members: Array.isArray(x.members) ? (x.members as Member[]).map((m) => (m.id === this.myId ? { ...m, online: true } : m)) : this.s.members,
+      replyWait: rw,
+      rules: ruleChoiceOf(x.rules) ?? this.s.rules,
+      strength: strengthOf(x.strength),
+      timeLimit: timeLimitOf(x.timeLimit),
+      allowSpectators: x.allowSpectators !== false,
+      chat: Array.isArray(x.chat) ? (x.chat as ChatLine[]).slice(-CHAT_KEEP) : this.s.chat,
+    });
+    this.table?.dispose();
+    const t = this.newTable(true);
+    this.table = t;
+    t.resumeAsHost(best.data);
+    this.tr.send({ type: 'mt-resync', data: t.syncData() }, 'all');
+    t.rekeyMine();
+    this.broadcastMembers();
+    this.saveSeat();
+    this.set({ tableRev: this.s.tableRev + 1 });
+  }
+
   /** 元ホスト：3 分を過ぎてほかの人へ移っていた（戻るのを断られた）。プレイヤーとして入り直す */
   private hostRefused() {
     this.returningHost = false;
@@ -1029,6 +1123,7 @@ export class OnlineSession {
 
   private created(id: string, name: string) {
     if (this.returningHost && this.s.room?.id === id) return this.hostBack();
+    if (this.resumingHost && this.pending?.id === id) return this.resumeHost(id, name);
     this.hostId = this.myId;
     this.hostToken = this.tr.token?.() ?? null;
     this.set({
@@ -1086,6 +1181,11 @@ export class OnlineSession {
     // 元ホスト：ホストの席へ戻るのを断られた（3 分を過ぎてほかの人へ移った・部屋が無い）
     if (d.type === 'mj_host_return_no') {
       if (this.returningHost) this.hostRefused();
+      // 開き直した元ホスト：プレイヤーとして入り直す（部屋が無ければ一覧に「部屋が見つかりません」）
+      else if (this.resumingHost && this.s.saved) {
+        this.resumingHost = false;
+        this.joinSaved(this.s.saved);
+      }
       return;
     }
     if (this.s.where !== 'room' || !this.s.room) return;
@@ -1205,6 +1305,33 @@ export class OnlineSession {
 
   /** 卓あての知らせ。ゲストは対局の始まり（mt-begin）か、戻ったときの写し（mt-sync）で卓を作る */
   private receiveTable(d: Record<string, unknown>) {
+    // 開き直した元ホストが「いまの局の写しを送って」（大方針 2026-10-20）：ゲストは写し・名簿・設定を返す
+    if (d.type === 'mt-askstate') {
+      const t = this.table;
+      if (this.s.room?.isHost || !t?.started) return;
+      this.tr.send(
+        {
+          type: 'mt-state',
+          id: this.myId,
+          data: t.syncData(),
+          members: this.s.members,
+          replyWait: this.s.replyWait,
+          rules: this.s.rules,
+          strength: this.s.strength,
+          timeLimit: this.s.timeLimit,
+          allowSpectators: this.s.allowSpectators,
+          chat: this.s.chat,
+        },
+        'host',
+      );
+      return;
+    }
+    if (d.type === 'mt-state') {
+      if (!this.s.room?.isHost || !d.data || this.table?.started) return;
+      const { data, ...extra } = d;
+      this.resumeState.push({ data: data as SyncData, extra });
+      return;
+    }
     // ホストが戻った・新しいホストになった：全員がホストの写しで卓を作り直す（段階10の5）
     if (d.type === 'mt-resync') {
       if (this.s.room?.isHost || !d.data) return;

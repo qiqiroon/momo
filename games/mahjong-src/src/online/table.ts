@@ -102,6 +102,12 @@ export interface TableOptions {
 export interface LockerStore {
   save(no: number, seat: Seat, w: WireLocker): void;
   load(no: number, seat: Seat): WireLocker | null;
+  /**
+   * その局の、席ごとの本人にだけ見える出来事の本物（四川の伏せ牌・換三張）。開き直したときに取り戻す（大方針 2026-10-20）。
+   * ★前は控えていなかった＝伏せたあと最初に切る前に開き直すと、伏せた牌を切れずに卓が止まった
+   */
+  savePriv?(no: number, seat: Seat, envs: Envelope[]): void;
+  loadPriv?(no: number, seat: Seat): Envelope[];
 }
 
 /** 戻ってきた人へホストが渡すもの（それまでの出来事の列＝全員に見える形・局の山の途中） */
@@ -113,7 +119,8 @@ export interface SyncData {
   /** ホストの包む鍵 */
   wk?: string;
   wire: { env: Envelope; pos?: number[] }[];
-  hand: { no: number; shuffled: (string[] | null)[]; relocked: (string[] | null)[] } | null;
+  /** dealt＝この局の配牌を当てはめた回数（0＝まだ配っていない＝開き直したホストが配る局を決め直す） */
+  hand: { no: number; shuffled: (string[] | null)[]; relocked: (string[] | null)[]; dealt?: number } | null;
   /** 最後の局の番号（局を持たない写し＝ホストが移ったとき。新しいホストが番号を使い回さないため・段階10の5） */
   lastNo?: number;
 }
@@ -764,6 +771,7 @@ export class OnlineTable {
         const l = this.ownLogs.get(seat) ?? [];
         l.push(e);
         this.ownLogs.set(seat, l);
+        if (h) this.o.store?.savePriv?.(h.no, seat, l);
         if (seat === this.mySeat) this.depositMine();
       }
       this.views.set(seat, apply(v, mask(e, seat)));
@@ -1041,7 +1049,8 @@ export class OnlineTable {
       timeLimit: this.timeLimit,
       wk: this.hostWk?.toString(36),
       wire: [...this.wire, ...waiting],
-      hand: h ? { no: h.no, shuffled: w(h.shuffled), relocked: w(h.relocked) } : null,
+      // dealt は当てはめ待ち（鍵待ち）の配牌も数える。★作り直した直後の卓は配牌が当てはめ待ちで 0 になり、受け取った人が「まだ配っていない局」と取り違えた
+      hand: h ? { no: h.no, shuffled: w(h.shuffled), relocked: w(h.relocked), dealt: h.dealt + waiting.filter((x) => x.env.ev.type === 'deal').length } : null,
       lastNo: h?.no ?? this.baseNo,
     };
   }
@@ -1054,6 +1063,10 @@ export class OnlineTable {
     this.setHostWk(d.wk);
     this.onBegin(d.seats);
     this.baseNo = d.hand?.no ?? Math.max(0, Number(d.lastNo) || 0);
+    // 局の山はあるが、まだ配牌を配っていない（次の局の錠前の段取りの途中）：それまでの出来事は全部、前の局まで＝済んだ出来事。
+    // ★前は「最後の局の始まりから後ろは、いまの局の出来事」と決めつけ、前の局の配牌を新しい局に当てはめて止まった
+    // （開き直したホストで見つけた。ゲストが段取りの途中で入り直したときも同じ＝前からの不具合）
+    const undealt = !!d.hand && (d.hand.dealt ?? 0) === 0;
     if (d.hand) {
       const no = d.hand.no;
       const deck = (x: (string[] | null)[]) => x.map((a) => (a ? a.map(big) : null));
@@ -1080,8 +1093,11 @@ export class OnlineTable {
         roundSent: true,
         revealedMine: false,
       };
+      // 開き直す前に当てはめた、本人にだけ見える出来事の本物（四川の伏せ牌・換三張）を端末の控えから取り戻す。
+      // 列の中では伏せた形なので、当てはめるときにこの本物に差し替わる（送ったばかりの選びと同じ扱い）
+      for (const s of this.controlled()) for (const e of this.o.store?.loadPriv?.(no, s) ?? []) this.privateReal.set(`${e.ev.type}:${s}`, e);
       // この局の出来事だけで、自分あての配牌・ツモの位置を集めて鍵を頼み直す
-      const startAt = d.wire.map((x) => x.env.ev.type).lastIndexOf('roundStart');
+      const startAt = undealt ? d.wire.length : d.wire.map((x) => x.env.ev.type).lastIndexOf('roundStart');
       const mine = d.wire.slice(Math.max(0, startAt)).filter((x) => x.pos && this.mySeat !== null && (x.env.ev as { seat?: Seat }).seat === this.mySeat);
       const positions = mine.flatMap((x) => x.pos ?? []);
       if (this.mySeat !== null) this.broadcast({ type: 'mt-rekey', no, seat: this.mySeat, positions });
@@ -1094,7 +1110,7 @@ export class OnlineTable {
     // 戻ると通し番号が合わずに止まり、画面が暗いまま入れなかった（10-15 利用者指摘で発見）
     // 局の山が無い写し（ホストが移ったとき＝その局はなかったことにする）は、全部を済んだ出来事として当てはめる
     // （配牌・ツモを開ける鍵はもう誰も出さない＝待つと止まる）
-    const startAt = d.hand ? d.wire.map((x) => x.env.ev.type).lastIndexOf('roundStart') : d.wire.length;
+    const startAt = d.hand && !undealt ? d.wire.map((x) => x.env.ev.type).lastIndexOf('roundStart') : d.wire.length;
     d.wire.forEach((x, i) => {
       if (i < startAt) this.applyOld(x.env);
       else this.queue.set(x.env.seq, x);
@@ -1369,6 +1385,35 @@ export class OnlineTable {
     this.drive();
   }
 
+  /**
+   * 画面を開き直したホスト（3 分のうち・大方針 2026-10-20）：ゲストの端末から受け取った写し（鍵のかかった山・出来事の記録）で、
+   * ホストとして卓を作り直す。自分の席・CPU の席・引き取った席の鍵と本人にだけ見える選びは、端末の控えから読む（loadSync が読む）。
+   * 包み用の鍵は作り直す（写しを配り直すときに全員へ）。局の錠前の段取りの途中で落ちていたら、配る局を決め直す。
+   * 呼んだあと、部屋の側が写しを全員へ配り（mt-resync）、rekeyMine で鍵を頼み直す
+   */
+  resumeAsHost(d: SyncData) {
+    this.wrapKeys = newWrapKeyPair(this.g);
+    this.loadSync({ ...d, wk: this.wrapKeys.y.toString(36) });
+    const h = this.hand;
+    // 局の始まりを配る前に落ちた（次の局の錠前の段取りの途中）：どの局を配るかを、写しの列から決める。
+    // ★「終わった局」（配牌済み）と「これから配る局」（段取りの途中）を取り違えると、終わった局の山で配り直してしまう＝写しの dealt で見分ける。
+    // ★作り直した直後の局面は、鍵待ちで当てはめの途中（「配牌の途中」に見える）＝それでは決められない。列を全員に見える形で当てはめ切って決める
+    if (h && (d.hand?.dealt ?? 0) === 0) {
+      let p = initialState();
+      for (const { env } of d.wire) p = apply(p, maskAll(env));
+      if (p.phase !== 'gameover') {
+        if (p.roundIndex < 0 && p.rules) h.round = { roundIndex: 0, dealer: p.chicha, honba: 0 };
+        else if (p.phase === 'ended' && p.result) {
+          const n = nextStep(p);
+          if (n.type === 'round') h.round = { roundIndex: n.roundIndex, dealer: n.dealer, honba: n.honba };
+        }
+        if (h.round) h.roundSent = false;
+      }
+    }
+    this.changed();
+    this.drive();
+  }
+
   /** ホスト：戻ってきたとき（3 分のうち）。ゲストは写しで作り直す＝自分の席と CPU の席の牌の鍵を頼み直す */
   rekeyMine() {
     const h = this.hand;
@@ -1413,6 +1458,9 @@ export class OnlineTable {
     if (!v || this.queue.size > 0) return;
     // 局の終わり（やめるか選ぶ）以外は、山が配られてから
     if (v.phase !== 'ended' && !this.hand?.final) return;
+    // 自分の手牌がまだ伏せたまま（席を返してもらう途中：包みを開ける前・開けても手牌の鍵がまだ届いていない）は打たない。
+    // ★前は席の知らせ（mt-seat）を包み（mt-give）より先に受けて伏せた手牌で打とうとし、例外で止まった（鍵が届けば次の機会に打つ）
+    if (v.hands[seat].includes(HIDDEN)) return;
     const legal = legalActions(v, seat);
     if (legal.length === 0) return;
     // この返事の番にもう返事を決めた（出すのを待っている）
@@ -1568,6 +1616,7 @@ export class OnlineTable {
       this.views.set(seat, this.viewFromWire(seat));
       if (pkg && pkg.no === h.no) {
         h.mine.set(seat, lockerFromWire(pkg.locker));
+        this.o.store?.save(h.no, seat, pkg.locker);
         this.resumeLock();
         this.drive();
         return 'continued';
@@ -1695,6 +1744,9 @@ export class OnlineTable {
     if (missing.length) return missing;
     this.views.set(seat, v);
     this.ownLogs.set(seat, own);
+    // 引き取った・返してもらった席の錠前と本物の出来事も、端末に控える（開き直したときに取り戻す）
+    this.o.store?.save(h.no, seat, pkg.locker);
+    this.o.store?.savePriv?.(h.no, seat, own);
     return true;
   }
 
@@ -1787,8 +1839,26 @@ export class OnlineTable {
     if (!plain) return;
     const pkg = JSON.parse(plain) as SeatPackage;
     const h = this.hand;
-    if (h && !h.final && pkg.no === h.no) h.mine.set(seat, lockerFromWire(pkg.locker));
-    else this.rebuildSeat(seat, pkg);
+    if (h && !h.final && pkg.no === h.no) {
+      h.mine.set(seat, lockerFromWire(pkg.locker));
+      this.o.store?.save(h.no, seat, pkg.locker);
+    }
+    else return this.giveRetry(seat, pkg);
+    this.depositMine();
+    this.changed();
+    this.drive();
+  }
+
+  /**
+   * 返ってきた席の局面を包みで作り直す。ほかの人の鍵がまだ届いていなければ、届いてからやり直す（引き取る側の adoptRetry と同じ）。
+   * ★前は鍵待ちの返事を捨てていた＝入り直したばかりの人（頼み直した鍵が届く前）は手牌が伏せたままになり、その席が打てずに卓が止まった
+   */
+  private giveRetry(seat: Seat, pkg: SeatPackage) {
+    const r = this.rebuildSeat(seat, pkg);
+    if (Array.isArray(r)) {
+      this.waiters.push({ need: r, run: () => this.giveRetry(seat, pkg) });
+      return;
+    }
     this.depositMine();
     this.changed();
     this.drive();

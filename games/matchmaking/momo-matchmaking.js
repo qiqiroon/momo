@@ -19,6 +19,11 @@
  *   - onRoomCreated/onJoinedRoom の末尾に多人数情報 {mode,pid,role,roster} を追加引数で通知
  *   - 新コールバック onParticipantJoined / onParticipantLeft
  *   多人数の送受信は _sendMulti に集約（将来の直結経路へ差し替え可能な出入口）。
+ *
+ * v1.03 (2026-10-20): 新しい問い合わせ口 getToken() を追加（既存の口・コールバック・getState() は一切不変）。
+ *   サーバーが room_created / joined_room に入れて送る合言葉（token＝切れたあとに同じ席へ戻るためのもの）を
+ *   内側に控え、部屋にいるあいだだけ返す（部屋にいなければ null）。呼ばないアプリの動きは変わらない。
+ *   ★合言葉は診断の記録・チャット・URL などに出さないこと（設計の正本 docs に記載）。
  */
 
 const MomoMatchmaking = (() => {
@@ -42,6 +47,14 @@ const MomoMatchmaking = (() => {
   let _pid = null;         // 多人数：自分の参加者ID
   let _pRole = null;       // 多人数：'host' | 'player' | 'spectator'
   let _roster = [];        // 多人数：参加者名簿 [{pid, role, name}]
+
+  // v1.03：サーバーが部屋を作った・入ったときに送る合言葉（getToken() で返すだけ。ほかでは使わない）
+  let _token = null;
+  // サーバーの項目名は 多人数＝token／1対1のホスト＝hostToken／1対1のゲスト＝guestToken
+  function _tokenOf(d, classicName) {
+    const t = d.mode === 'multi' ? d.token : d[classicName];
+    return typeof t === 'string' ? t : null;
+  }
 
   // ===== WebSocket 接続 =====
   function _connectWS() {
@@ -103,6 +116,7 @@ const MomoMatchmaking = (() => {
       _currentRoomId = d.roomId;
       _currentRoomName = d.roomName;
       _isHost = true;
+      _token = _tokenOf(d, 'hostToken');
       if (d.mode === 'multi') {
         // 多人数：WebRTCは張らずWS中継で送受信。この時点で送受信可能。
         _mode = 'multi';
@@ -125,6 +139,7 @@ const MomoMatchmaking = (() => {
       _currentRoomId = d.roomId;
       _currentRoomName = d.roomName;
       _isHost = false;
+      _token = _tokenOf(d, 'guestToken');
       if (d.mode === 'multi') {
         _mode = 'multi';
         _pid = d.yourPid || null;
@@ -478,8 +493,17 @@ const MomoMatchmaking = (() => {
     }
   }
 
+  /**
+   * v1.03：いまの部屋の合言葉（切れたあとに同じ席へ戻るためにサーバーが渡すもの）。部屋にいなければ null。
+   * 戻るときに使うので、アプリは部屋に入った直後に控えておく。診断の記録・チャット・URL などには出さないこと。
+   * @returns {string|null}
+   */
+  function getToken() {
+    return _currentRoomId ? _token : null;
+  }
+
   // 公開API
-  return { init, createRoom, joinRoom, send, leaveRoom, refreshRooms, kickGuest, getState, changeGameType };
+  return { init, createRoom, joinRoom, send, leaveRoom, refreshRooms, kickGuest, getState, changeGameType, getToken };
 
 })();
 

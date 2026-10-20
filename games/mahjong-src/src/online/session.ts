@@ -88,6 +88,11 @@ export interface SavedSeat {
   password: string;
   /** サーバーに預けた鍵の包みの合言葉（開き直して戻ったときに預け直す・段階10） */
   keySecret?: string;
+  /**
+   * ホストだった人の、部屋の合言葉（段階10の5）。開き直したときは鍵が端末から消えているのでホストには戻らない＝
+   * サーバーにすぐ「ほかの人へ移してよい」と伝えてから、プレイヤーとして入り直す
+   */
+  hostToken?: string;
 }
 
 export interface OnlineState {
@@ -120,6 +125,13 @@ export interface OnlineState {
   allowSpectators: boolean;
   /** チャット（待合と卓で同じ記録を続けて使う） */
   chat: ChatLine[];
+  /**
+   * ホストを待っている（段階10の5・Q3=A）。away＝切れて戻るのを待っている（until まで）／gone＝3 分を過ぎ、ほかの人へ移している。
+   * 卓はそのまま見せ、上に一言を出し続ける・1 手の時計は止める
+   */
+  hostWait: { kind: 'away'; until: number } | { kind: 'gone' } | null;
+  /** ホストが移った（新しいホストの名前・一言を 1 回出す） */
+  hostNew: string | null;
 }
 
 export interface TransportHandlers {
@@ -147,6 +159,10 @@ export interface Transport {
   leave(): void;
   refresh(): void;
   setGameState(s: 'lobby' | 'playing'): void;
+  /** いまの部屋の合言葉（切れたあとにホストの席へ戻るため・共通ライブラリ v1.03 の getToken）。無ければ null */
+  token?(): string | null;
+  /** サーバーが付けた自分の番号（ホストを受け持つ人の知らせ mj_host_new が自分かを見分ける） */
+  myPid?(): string | null;
 }
 
 export const MAX_SEATS = 4;
@@ -233,7 +249,12 @@ const INITIAL: OnlineState = {
   timeLimit: 'none',
   allowSpectators: true,
   chat: [],
+  hostWait: null,
+  hostNew: null,
 };
+
+/** ホストが 3 分戻らなかったとき：名乗り出る順の 1 人ぶんの間（下家が先・その人が名乗り出なければ次の人＝Q2=A） */
+export const CLAIM_STEP_MS = 5000;
 
 const SAVED_KEY = 'momo-mahjong.online.seat';
 const LOCK_KEY = 'momo-mahjong.online.lock';
@@ -298,6 +319,15 @@ export class OnlineSession {
   table: OnlineTable | null = null;
   /** 入り直すときのパスワード */
   private password = '';
+  // ---- ホストの復帰と交代（段階10の5） ----
+  /** いまのホストの ID（作った人。ホストが移ったら新しい人）。名簿と一緒に配る */
+  private hostId = '';
+  /** ホスト：部屋の合言葉（切れて戻るときに使う） */
+  private hostToken: string | null = null;
+  /** ホスト：接続が切れて、合言葉でホストの席へ戻ろうとしている（卓は捨てずに持っている） */
+  private returningHost = false;
+  /** ホストが 3 分戻らなかった：自分が名乗り出る時計 */
+  private claimTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private readonly tr: Transport,
@@ -395,14 +425,18 @@ export class OnlineSession {
     this.password = sv.password;
     this.pending = { id: sv.roomId, name: sv.roomName, hasPassword: sv.hasPassword };
     this.set({ busy: true, note: null });
+    // ホストだった人（段階10の5）：鍵は端末から消えているのでホストには戻らない。サーバーにすぐ「ほかの人へ移してよい」と伝え、
+    // プレイヤーとして入り直す（サーバーには観戦として名乗る＝席の数え方の都合。自分の席は新しいホストが残している）
+    const role = sv.hostToken ? 'spectator' : undefined;
+    if (sv.hostToken) this.tr.send({ type: 'mj_host_giveup', roomId: sv.roomId, token: sv.hostToken }, 'host');
     // アプリが落ちた携帯の古い接続がサーバーに残っていると、席が埋まって入れない（10-15 利用者指摘）。
     // 合言葉で本人と確かめてもらい、古い接続を追い出してから入る（常時の見張りはしない＝Q14=B）
-    if (!sv.keySecret) return this.tr.joinRoom(sv.roomId, sv.password, sv.name);
+    if (!sv.keySecret) return this.tr.joinRoom(sv.roomId, sv.password, sv.name, role);
     const go = () => {
       if (!this.reclaimTimer) return;
       clearTimeout(this.reclaimTimer);
       this.reclaimTimer = null;
-      this.tr.joinRoom(sv.roomId, sv.password, sv.name);
+      this.tr.joinRoom(sv.roomId, sv.password, sv.name, role);
     };
     this.reclaimGo = go;
     // 古いサーバーは返事をしないので、少し待ってから入る
@@ -423,6 +457,16 @@ export class OnlineSession {
   /** 自分の接続が切れた：対局中のゲストは同じ部屋へ入り直す。それ以外は部屋の一覧へ */
   private lost() {
     const room = this.s.room;
+    // ホスト（段階10の5）：卓は捨てずに持ったまま、つなぎ直したら合言葉でホストの席へ戻る（サーバーは 3 分待つ）。
+    // 3 分を過ぎてほかの人へ移っていたら、断られるのでプレイヤーとして入り直す
+    if (room?.isHost && this.hostToken) {
+      this.returningHost = true;
+      this.stopRollcall();
+      this.table?.setPaused(true);
+      this.set({ reconnecting: true, tableRev: this.s.tableRev + 1 });
+      this.retryJoin();
+      return;
+    }
     if (this.s.started && room && !room.isHost) {
       this.table?.dispose();
       this.table = null;
@@ -435,6 +479,11 @@ export class OnlineSession {
   }
 
   private retryJoin() {
+    if (this.returningHost && this.s.wsOpen && this.s.room && this.hostToken) {
+      // 部屋の外からの頼み（共通ライブラリは部屋を出たと思っているので、そのままサーバーへ届く）。返事は room_created と同じ形
+      this.tr.send({ type: 'mj_host_return', roomId: this.s.room.id, token: this.hostToken }, 'host');
+      return;
+    }
     if (!this.s.reconnecting || !this.s.wsOpen || !this.pending) return;
     this.tr.joinRoom(this.pending.id, this.password, this.myName, this.myRole() === 'spectator' ? 'spectator' : 'player');
   }
@@ -564,6 +613,8 @@ export class OnlineSession {
       rulesOfChoice(this.s.rules),
       TIME_LIMIT_MS[this.s.timeLimit],
     );
+    // ホストも開き直したときに戻れるよう控える（段階10の5。ホストには戻らず、プレイヤーとして入り直す）
+    this.saveSeat();
   }
 
   private newTable(isHost: boolean): OnlineTable {
@@ -696,8 +747,135 @@ export class OnlineSession {
     }
   }
 
+  // ---- ホストの復帰と交代（段階10の5・利用者 2026-10-20） ----
+  //  - ホストが切れたら、サーバーは 3 分部屋を残す（Q1=C）。そのあいだに戻れば、ホストのまま局の続きを打つ
+  //  - 3 分を過ぎたら、元ホストの下家から順に、つながっているプレイヤーが名乗り出てホストを受け持つ（Q2=A）
+  //    新しいホストは卓を作り直し、その局はなかったことにして配り直す（鍵は元ホストの端末にしか無い）
+  //  - 元ホストが戻ってきたら、プレイヤーとして入り直し、自分の席を返してもらう（利用者指示「プレイヤーとして…引き継いで再戦」）
+  //  - 待っているあいだは卓をそのまま見せ、上に一言を出し続ける・1 手の時計は止める（Q3=A）
+
+  /** ホスト：3 分のうちに戻れた。ゲストはこちらの写しで卓を作り直す（切れていたあいだの手や鍵が届いていないため） */
+  private hostBack() {
+    this.returningHost = false;
+    this.hostToken = this.tr.token?.() ?? this.hostToken;
+    this.keyReady = false;
+    this.set({ where: 'room', busy: false, reconnecting: false, tableRev: this.s.tableRev + 1 });
+    this.tr.send({ type: 'mj_key_probe' }, 'host');
+    const t = this.table;
+    if (t?.started) {
+      t.setPaused(false);
+      this.tr.send({ type: 'mt-resync', data: t.syncData() }, 'all');
+      t.rekeyMine();
+    }
+    this.broadcastMembers();
+  }
+
+  /** 元ホスト：3 分を過ぎてほかの人へ移っていた（戻るのを断られた）。プレイヤーとして入り直す */
+  private hostRefused() {
+    this.returningHost = false;
+    const room = this.s.room;
+    this.table?.dispose();
+    this.table = null;
+    if (!room) return this.toLobby('hostLeftGame');
+    this.pending = { id: room.id, name: room.name, hasPassword: room.hasPassword };
+    this.set({ room: { ...room, isHost: false }, reconnecting: true, tableRev: this.s.tableRev + 1 });
+    // 席の数え方の都合で、サーバーには観戦として名乗る（席に着くかは新しいホストが決める＝自分の席は残っている）
+    this.tr.joinRoom(room.id, this.password, this.myName, 'spectator');
+  }
+
+  /** ホストが 3 分戻らなかった：自分が名乗り出る順番なら、その順番の分だけ待ってから名乗り出る（下家が先） */
+  private scheduleClaim() {
+    this.stopClaim();
+    const rank = this.claimRank();
+    if (rank < 0) return;
+    this.claimTimer = setTimeout(() => {
+      this.claimTimer = null;
+      this.tr.send({ type: 'mj_host_take' }, 'host');
+    }, rank * CLAIM_STEP_MS);
+  }
+
+  private stopClaim() {
+    if (this.claimTimer) clearTimeout(this.claimTimer);
+    this.claimTimer = null;
+  }
+
+  /**
+   * 名乗り出る順番（0＝最初。-1＝名乗り出ない）。元ホストの下家から順に、つながっているプレイヤー（Q2=A）。
+   * 席の順は全員の端末で同じ＝全員が同じ順番を出す。観戦者・席の無い人は名乗り出ない。待合では入った順
+   */
+  claimRank(): number {
+    const online = (id: string) => this.s.members.find((m) => m.id === id)?.online !== false;
+    const t = this.table;
+    if (this.s.started && t?.started) {
+      const me = t.mySeat;
+      if (me === null || this.myRole() === 'spectator') return -1;
+      const old = t.seats.findIndex((k) => k.kind === 'human' && k.id === this.hostId);
+      const from = old < 0 ? 0 : old;
+      const order = [1, 2, 3].map((k) => (from + k) % 4).filter((s) => {
+        const k = t.seats[s];
+        return k?.kind === 'human' && k.id !== this.hostId && online(k.id);
+      });
+      return order.indexOf(me);
+    }
+    const order = playersOf(this.s.members).filter((m) => m.id !== this.hostId && m.online);
+    return order.findIndex((m) => m.id === this.myId);
+  }
+
+  /** 新しいホストになった：卓を作り直して写しを全員へ配り、その局を配り直す（局の間なら次の局へ） */
+  private becomeHost() {
+    const room = this.s.room;
+    if (!room) return;
+    const oldHost = this.hostId;
+    this.stopClaim();
+    this.hostId = this.myId;
+    this.hostToken = this.tr.token?.() ?? null;
+    const members = this.s.started
+      ? this.s.members.map((m) => (m.id === oldHost ? { ...m, online: false } : m))
+      : this.s.members.filter((m) => m.id !== oldHost);
+    this.set({ room: { ...room, isHost: true }, members, hostWait: null, hostNew: this.myName, tableRev: this.s.tableRev + 1 });
+    const old = this.table;
+    if (this.s.started && old?.started) {
+      const away = old.seats.findIndex((k) => k.kind === 'human' && k.id === oldHost);
+      const startedAt = this.startedAt;
+      const nt = this.newTable(true);
+      this.startedAt = startedAt;
+      const sync = nt.takeoverFrom(old, away < 0 ? null : (away as Seat));
+      old.dispose();
+      this.table = nt;
+      this.tr.send({ type: 'mt-resync', data: sync }, 'all');
+      nt.afterTakeover();
+      this.saveSeat();
+    }
+    this.broadcastMembers();
+  }
+
+  /** 開き直したときに戻れるよう、席の控えを残す（ホストも＝段階10の5。ホストは合言葉も残す） */
+  private saveSeat() {
+    const room = this.s.room;
+    if (!room || !this.s.started || this.myRole() !== 'player') return;
+    const sv: SavedSeat = {
+      roomId: room.id,
+      roomName: room.name,
+      hasPassword: room.hasPassword,
+      myId: this.myId,
+      name: this.myName,
+      password: this.password,
+      keySecret: this.keySecret,
+      ...(room.isHost && this.hostToken ? { hostToken: this.hostToken } : {}),
+    };
+    writeJson(SAVED_KEY, sv);
+    this.set({ saved: sv });
+  }
+
+  /** 画面から：ホストが移った一言を出した */
+  clearHostNew() {
+    if (this.s.hostNew !== null) this.set({ hostNew: null });
+  }
+
   private toLobby(note: OnlineNote | null) {
     this.stopRollcall();
+    this.stopClaim();
+    this.returningHost = false;
     for (const id of [...this.keyTimers.keys()]) this.stopKeyTimer(id);
     this.takeovers = [];
     this.lastPkg = null;
@@ -707,11 +885,14 @@ export class OnlineSession {
     this.table = null;
     // 対局が終わった・部屋が閉じた＝戻る先は無い
     if (note === 'hostLeft' || note === 'hostLeftGame' || note === 'roomGone' || note === 'rejectedStarted') this.forgetSaved();
-    this.set({ where: 'lobby', busy: false, room: null, members: [], started: false, reconnecting: false, note, tableRev: this.s.tableRev + 1, chat: [] });
+    this.set({ where: 'lobby', busy: false, room: null, members: [], started: false, reconnecting: false, note, tableRev: this.s.tableRev + 1, chat: [], hostWait: null, hostNew: null });
     this.tr.refresh();
   }
 
   private created(id: string, name: string) {
+    if (this.returningHost && this.s.room?.id === id) return this.hostBack();
+    this.hostId = this.myId;
+    this.hostToken = this.tr.token?.() ?? null;
     this.set({
       where: 'room',
       busy: false,
@@ -750,7 +931,7 @@ export class OnlineSession {
   }
 
   private broadcastMembers() {
-    this.tr.send({ type: 'mj-members', members: this.s.members, started: this.s.started, replyWait: this.s.replyWait, rules: this.s.rules, strength: this.s.strength, timeLimit: this.s.timeLimit, allowSpectators: this.s.allowSpectators }, 'all');
+    this.tr.send({ type: 'mj-members', members: this.s.members, hostId: this.hostId, started: this.s.started, replyWait: this.s.replyWait, rules: this.s.rules, strength: this.s.strength, timeLimit: this.s.timeLimit, allowSpectators: this.s.allowSpectators }, 'all');
   }
 
   private receive(d: Record<string, unknown>) {
@@ -760,7 +941,13 @@ export class OnlineSession {
       this.reclaimGo = null;
       return;
     }
+    // 元ホスト：ホストの席へ戻るのを断られた（3 分を過ぎてほかの人へ移った・部屋が無い）
+    if (d.type === 'mj_host_return_no') {
+      if (this.returningHost) this.hostRefused();
+      return;
+    }
     if (this.s.where !== 'room' || !this.s.room) return;
+    if (this.receiveHostMove(d)) return;
     if (typeof d.type === 'string' && d.type.startsWith('mt-')) return this.receiveTable(d);
     // サーバーからの返事（鍵の預かり）。古いサーバーでは誰かの問い合わせが中継されてくるだけ＝返事は来ない
     if (d.type === 'mj_key_ready') {
@@ -815,13 +1002,12 @@ export class OnlineSession {
       const started = d.started === true;
       const rw = d.replyWait === 'fast' || d.replyWait === 'slow' ? d.replyWait : 'normal';
       // ルールは確かめてから使う（読めなければ一般ルールのまま）
-      this.set({ members: d.members as Member[], started, replyWait: rw, rules: ruleChoiceOf(d.rules) ?? this.s.rules, strength: strengthOf(d.strength), timeLimit: timeLimitOf(d.timeLimit), allowSpectators: d.allowSpectators !== false });
+      const members = d.members as Member[];
+      // いまのホスト（段階10の5で移ることがある）。前の版の名簿には無い＝先頭がホスト
+      this.hostId = typeof d.hostId === 'string' && d.hostId ? d.hostId : (members[0]?.id ?? this.hostId);
+      this.set({ members, started, replyWait: rw, rules: ruleChoiceOf(d.rules) ?? this.s.rules, strength: strengthOf(d.strength), timeLimit: timeLimitOf(d.timeLimit), allowSpectators: d.allowSpectators !== false });
       // 対局中のゲスト（席に着いている人）は、開き直したときに戻れるよう控える。観戦者は控えない（一覧から入り直せばよい）
-      if (started && this.s.room && !this.s.room.isHost && this.myRole() === 'player') {
-        const sv: SavedSeat = { roomId: this.s.room.id, roomName: this.s.room.name, hasPassword: this.s.room.hasPassword, myId: this.myId, name: this.myName, password: this.password, keySecret: this.keySecret };
-        writeJson(SAVED_KEY, sv);
-        this.set({ saved: sv });
-      }
+      this.saveSeat();
       return;
     }
     if (d.type === 'mj-reject' && d.target === this.myId) {
@@ -839,8 +1025,54 @@ export class OnlineSession {
     if (d.type === 'mj-rollcall') this.tr.send({ type: 'mj-here', id: this.myId, nonce: d.nonce }, 'host');
   }
 
+  /** ホストの復帰と交代のサーバーからの知らせ（段階10の5）。扱ったら true */
+  private receiveHostMove(d: Record<string, unknown>): boolean {
+    const room = this.s.room;
+    if (!room) return false;
+    switch (d.type) {
+      case 'mj_host_away': {
+        if (room.isHost) return true;
+        const wait = Math.max(0, Number(d.waitMs) || 0);
+        this.table?.setPaused(true);
+        this.set({ hostWait: { kind: 'away', until: Date.now() + wait } });
+        return true;
+      }
+      case 'mj_host_gone':
+        if (room.isHost) return true;
+        this.set({ hostWait: { kind: 'gone' } });
+        this.scheduleClaim();
+        return true;
+      case 'mj_host_take_no':
+        return true;
+      case 'mj_host_new': {
+        this.stopClaim();
+        if (typeof d.pid === 'string' && d.pid === this.tr.myPid?.()) {
+          this.becomeHost();
+          return true;
+        }
+        this.set({ hostNew: String(d.name ?? '?') });
+        // 卓を持っていない（ホストの席へ戻るのを断られて入り直した元ホスト）：新しいホストへ名乗り、写しをもらう
+        if (!this.table) this.tr.send({ type: 'mj-hello', id: this.myId, name: this.myName }, 'host');
+        return true;
+      }
+      default:
+        return false;
+    }
+  }
+
   /** 卓あての知らせ。ゲストは対局の始まり（mt-begin）か、戻ったときの写し（mt-sync）で卓を作る */
   private receiveTable(d: Record<string, unknown>) {
+    // ホストが戻った・新しいホストになった：全員がホストの写しで卓を作り直す（段階10の5）
+    if (d.type === 'mt-resync') {
+      if (this.s.room?.isHost || !d.data) return;
+      const startedAt = this.startedAt;
+      this.table?.dispose();
+      this.table = this.newTable(false);
+      this.startedAt = startedAt || this.startedAt;
+      this.table.loadSync(d.data as SyncData);
+      this.set({ hostWait: null, tableRev: this.s.tableRev + 1 });
+      return;
+    }
     if (d.type === 'mt-sync') {
       if (d.target !== this.myId || this.s.room?.isHost) return;
       this.table?.dispose();
@@ -913,7 +1145,8 @@ export class OnlineSession {
     const rc = this.rollcall;
     if (!rc) return;
     this.stopRollcall();
-    const gone = new Set(this.s.members.filter((m, i) => i > 0 && m.online && !rc.heard.has(m.id)).map((m) => m.id));
+    // 自分（ホスト）は点呼に答えない＝数えない。★前は「名簿の先頭がホスト」として先頭を外していたが、ホストが移ると先頭は元ホスト（段階10の5）
+    const gone = new Set(this.s.members.filter((m) => m.id !== this.myId && m.online && !rc.heard.has(m.id)).map((m) => m.id));
     if (gone.size > 0) this.dropMembers(gone);
   }
 

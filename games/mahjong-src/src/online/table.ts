@@ -114,6 +114,8 @@ export interface SyncData {
   wk?: string;
   wire: { env: Envelope; pos?: number[] }[];
   hand: { no: number; shuffled: (string[] | null)[]; relocked: (string[] | null)[] } | null;
+  /** 最後の局の番号（局を持たない写し＝ホストが移ったとき。新しいホストが番号を使い回さないため・段階10の5） */
+  lastNo?: number;
 }
 
 // 鍵と山の数は base64 で送る（16進より約3割短い＝利用者 Q14=B・本番の実測で通信の約4割が山だった）
@@ -369,8 +371,14 @@ export class OnlineTable {
   /** ホスト：局の錠前の段取りを始める（終わったら局の始まりを配る） */
   private beginHand(r: Round) {
     this.pendingRound = r;
-    this.broadcast({ type: 'mt-hand', no: (this.hand?.no ?? 0) + 1 });
+    this.broadcast({ type: 'mt-hand', no: (this.hand?.no ?? this.baseNo) + 1 });
   }
+
+  /**
+   * 局を持たないときの、最後の局の番号（ホストが移って作り直した卓・段階10の5）。
+   * 番号を使い回すと、端末に控えた前の局の錠前を読み出してしまう（その局の鍵はもう全員に明かしてある）
+   */
+  private baseNo = 0;
 
   /** 画面から：自分の席の選んだこと */
   choose(a: Action) {
@@ -1027,7 +1035,15 @@ export class OnlineTable {
     const w = (d: (bigint[] | null)[]) => d.map((x) => (x ? x.map(hex) : null));
     // 配ったがまだ当てはめていない出来事（戻ってきた人の鍵を待っているもの）も渡す
     const waiting = [...this.queue.values()].sort((a, b) => a.env.seq - b.env.seq).map((x) => ({ env: maskAll(x.env), ...(x.pos ? { pos: x.pos } : {}) }));
-    return { seats: this.seats, replyWait: this.replyWait, timeLimit: this.timeLimit, wk: this.hostWk?.toString(36), wire: [...this.wire, ...waiting], hand: h ? { no: h.no, shuffled: w(h.shuffled), relocked: w(h.relocked) } : null };
+    return {
+      seats: this.seats,
+      replyWait: this.replyWait,
+      timeLimit: this.timeLimit,
+      wk: this.hostWk?.toString(36),
+      wire: [...this.wire, ...waiting],
+      hand: h ? { no: h.no, shuffled: w(h.shuffled), relocked: w(h.relocked) } : null,
+      lastNo: h?.no ?? this.baseNo,
+    };
   }
 
   /** 戻ってきた人：ホストから受け取った列で局面を作り直す。自分の牌は鍵を頼み直して開け直す */
@@ -1037,6 +1053,7 @@ export class OnlineTable {
     this.timeLimit = Math.max(0, Number(d.timeLimit) || 0);
     this.setHostWk(d.wk);
     this.onBegin(d.seats);
+    this.baseNo = d.hand?.no ?? Math.max(0, Number(d.lastNo) || 0);
     if (d.hand) {
       const no = d.hand.no;
       const deck = (x: (string[] | null)[]) => x.map((a) => (a ? a.map(big) : null));
@@ -1075,7 +1092,9 @@ export class OnlineTable {
     // 局の始まりより前（前の局）の出来事は、全部を順番どおり、自分の牌を開けずに伏せたまま当てはめる。
     // ★以前は位置付き（配牌・ツモ）だけを先に当てはめ、ほかを後回しにしていたため、2 局目以降（配り直しのあとも）に
     // 戻ると通し番号が合わずに止まり、画面が暗いまま入れなかった（10-15 利用者指摘で発見）
-    const startAt = d.wire.map((x) => x.env.ev.type).lastIndexOf('roundStart');
+    // 局の山が無い写し（ホストが移ったとき＝その局はなかったことにする）は、全部を済んだ出来事として当てはめる
+    // （配牌・ツモを開ける鍵はもう誰も出さない＝待つと止まる）
+    const startAt = d.hand ? d.wire.map((x) => x.env.ev.type).lastIndexOf('roundStart') : d.wire.length;
     d.wire.forEach((x, i) => {
       if (i < startAt) this.applyOld(x.env);
       else this.queue.set(x.env.seq, x);
@@ -1130,7 +1149,8 @@ export class OnlineTable {
   // ---- 自動で進むところ ----
 
   private drive() {
-    if (!this.started || this.holding > 0) return;
+    // 作り直している途中（写しを配る前・段階10の5）は CPU の席も含めて動かない＝配り直しは afterTakeover が始める
+    if (!this.started || this.holding > 0 || this.takingOver) return;
     const h = this.hand;
     // 局が終わったら、自分の錠前を明かす（1 局に 1 回）
     if (h && h.final && h.dealt > 0 && (this.pub.phase === 'ended' || this.pub.phase === 'gameover') && !h.revealedMine) {
@@ -1158,7 +1178,7 @@ export class OnlineTable {
     const seat = this.mySeat;
     const v = seat !== null ? this.views.get(seat) : undefined;
     const waiting =
-      this.timeLimit > 0 && seat !== null && !!v && !this.yielded && this.queue.size === 0 && this.acted.get(seat) !== v.nextSeq && !this.repliedHere(v, seat) && this.choices(v, seat).length > 0;
+      this.timeLimit > 0 && !this.paused && seat !== null && !!v && !this.yielded && this.queue.size === 0 && this.acted.get(seat) !== v.nextSeq && !this.repliedHere(v, seat) && this.choices(v, seat).length > 0;
     if (!waiting) return this.stopClock();
     const key = this.clockKeyOf(v, seat);
     if (key === this.clockKey) return;
@@ -1248,7 +1268,12 @@ export class OnlineTable {
   private driveHost() {
     const p = this.pub;
     const h = this.hand;
-    if (!h?.final || this.queue.size > 0) return;
+    // 局を持たない（ホストが移って作り直した卓で、局の間だった）：次の局へ進むところだけ（検算する局が無い）
+    if (!h) {
+      if (this.queue.size === 0 && p.phase === 'ended' && (this.nextRequested || this.o.autoNext)) this.nextHand();
+      return;
+    }
+    if (!h.final || this.queue.size > 0) return;
     // 錠前が掛け終わったら、ドラ表示牌を表に開けて、局の始まりと配牌を配る
     if (h.round && !h.roundSent) {
       h.roundSent = true;
@@ -1290,18 +1315,86 @@ export class OnlineTable {
       return;
     }
     // 次の局へは、この局の検算が済んでから（新しい局の錠前で、この局の鍵が届かなくなるため）
-    if (p.phase === 'ended' && h.verified !== null && (this.nextRequested || this.o.autoNext)) {
-      const n = nextStep(p);
-      if (n.type === 'yame') return;
-      this.hostStep = p.nextSeq;
-      this.nextRequested = false;
-      if (n.type === 'end') {
-        this.emit({ seq: p.nextSeq, to: 'all', ev: { type: 'gameEnd', reason: n.reason } });
-        return;
-      }
-      this.beginHand({ roundIndex: n.roundIndex, dealer: n.dealer, honba: n.honba });
-    }
+    if (p.phase === 'ended' && h.verified !== null && (this.nextRequested || this.o.autoNext)) this.nextHand();
   }
+
+  /** ホスト：局が終わった局面から、次の局（または対局の終わり）へ */
+  private nextHand() {
+    const p = this.pub;
+    const n = nextStep(p);
+    if (n.type === 'yame' || this.hostStep === p.nextSeq) return;
+    this.hostStep = p.nextSeq;
+    this.nextRequested = false;
+    if (n.type === 'end') {
+      this.emit({ seq: p.nextSeq, to: 'all', ev: { type: 'gameEnd', reason: n.reason } });
+      return;
+    }
+    this.beginHand({ roundIndex: n.roundIndex, dealer: n.dealer, honba: n.honba });
+  }
+
+  // ---- ホストが移る（段階10の5・利用者 2026-10-20） ----
+  //  - 元のホストが 3 分たっても戻らないと、元ホストの下家から順に、つながっているプレイヤーがホストを受け持つ（Q2=A）
+  //  - 新しいホストは、自分が見ていた全員に見える出来事の列から卓を作り直す。元ホストの席と CPU の席の鍵は元ホストの端末にしか無い
+  //    ＝その局の続きは打てないので、その局はなかったことにして同じ局を配り直す（局の間だったら次の局へ）
+  //  - 元ホストの席は CPU に任せた席にする（戻ってきたら、ほかの人と同じく席を返してもらう＝新しいホストの許可）
+
+  /**
+   * 新しいホスト：それまでの卓（ゲストとして見ていたもの）から、この卓（ホスト）を作る。
+   * 返すのはほかの人へ配る写し（全員がこれで卓を作り直す）。配り直しは配ったあとに afterTakeover で始める
+   */
+  takeoverFrom(prev: OnlineTable, awaySeat: Seat | null): SyncData {
+    this.takingOver = true;
+    this.wrapKeys = newWrapKeyPair(this.g);
+    const seats = prev.seats.map((k, i) => (i === awaySeat && k.kind === 'human' ? { ...k, proxy: true } : k));
+    this.loadSync({ seats, replyWait: prev.replyWait, timeLimit: prev.timeLimit, wk: this.wrapKeys.y.toString(36), wire: prev.wire.slice(), hand: null, lastNo: prev.hand?.no ?? prev.baseNo });
+    const p = this.pub;
+    // 局の途中なら、その局をなかったことにする（配るのは写しを配ったあと）
+    if (p.roundIndex >= 0 && p.phase !== 'ended' && p.phase !== 'gameover') this.receive({ type: 'mt-ev', env: { seq: p.nextSeq, to: 'all', ev: { type: 'roundVoid' } } });
+    return this.syncData();
+  }
+
+  /** 新しいホスト：写しを配ったあと。なかったことにした局を配り直す・局の間なら次の局へ進められるようにする */
+  afterTakeover() {
+    this.takingOver = false;
+    const p = this.pub;
+    if (p.phase === 'gameover') return this.changed();
+    const voided = this.wire.length > 0 && this.wire[this.wire.length - 1].env.ev.type === 'roundVoid';
+    if (voided) {
+      const start = [...this.wire].reverse().find((x) => x.env.ev.type === 'roundStart')?.env.ev;
+      if (start && start.type === 'roundStart') return this.beginHand({ roundIndex: start.roundIndex, dealer: start.dealer, honba: start.honba ?? 0 });
+    }
+    // 最初の局の前（親決めのあと）に移った
+    if (p.roundIndex < 0 && p.rules) return this.beginHand({ roundIndex: 0, dealer: p.chicha, honba: 0 });
+    this.changed();
+    this.drive();
+  }
+
+  /** ホスト：戻ってきたとき（3 分のうち）。ゲストは写しで作り直す＝自分の席と CPU の席の牌の鍵を頼み直す */
+  rekeyMine() {
+    const h = this.hand;
+    if (!h || !h.final) return;
+    const startAt = this.wire.map((x) => x.env.ev.type).lastIndexOf('roundStart');
+    for (const seat of h.mine.keys()) {
+      const positions = this.wire
+        .slice(Math.max(0, startAt))
+        .filter((x) => x.pos && (x.env.ev as { seat?: Seat }).seat === seat)
+        .flatMap((x) => x.pos ?? []);
+      if (positions.length) this.broadcast({ type: 'mt-rekey', no: h.no, seat, positions });
+    }
+    // 待っている表の頼み・錠前の段取りも出し直す
+    for (const o of this.opens) this.send({ type: 'mt-open', no: h.no, positions: o }, 'all');
+  }
+
+  /** ホストを待っているあいだ（段階10の5・Q3=A）：時計を止める。待ちが終わったら動かす */
+  setPaused(on: boolean) {
+    if (this.paused === on) return;
+    this.paused = on;
+    if (on) this.stopClock();
+    this.updateClock();
+    this.changed();
+  }
+  paused = false;
+  private takingOver = false;
 
   /** ホスト：局の始まり・配牌（伏せた形＋位置）・ドラ表示牌 */
   private startRound(r: Round, dora: TileId | null) {

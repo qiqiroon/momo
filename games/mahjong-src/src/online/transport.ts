@@ -20,7 +20,9 @@ interface MomoMatchmakingApi {
   send(data: unknown, to?: string): void;
   leaveRoom(): void;
   refreshRooms(): void;
-  getState(): { currentRoomId: string | null };
+  getState(): { currentRoomId: string | null; pid?: string | null };
+  /** 共通ライブラリ v1.03 から（古い版には無い） */
+  getToken?(): string | null;
 }
 
 declare global {
@@ -107,5 +109,11 @@ export const matchmakingTransport: Transport = {
   },
   setGameState(s) {
     api().send({ type: 'game_state_update', gameState: s });
+  },
+  token() {
+    return api().getToken?.() ?? null;
+  },
+  myPid() {
+    return api().getState().pid ?? null;
   },
 };

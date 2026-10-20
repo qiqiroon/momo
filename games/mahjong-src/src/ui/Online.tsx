@@ -6,7 +6,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import type { BaseLang, MessageKey } from '../i18n/strings';
-import { joinRoleOf, MAX_SEATS, playersOf, REPLY_WAIT_MS, spectatorsOf, TIME_LIMIT_MS, TIME_LIMITS, type Member, type OnlineNote, type OnlineSession, type ReplyWait, type RoomInfo, type TimeLimit } from '../online/session';
+import { joinRoleOf, MAX_SEATS, playersOf, REPLY_WAIT_MS, spectatorsOf, TIME_LIMIT_MS, TIME_LIMITS, type Member, type OnlineNote, type OnlineSession, type OnlineState, type ReplyWait, type RoomInfo, type TimeLimit } from '../online/session';
 import type { OnlineTable } from '../online/table';
 import type { Seat } from '../engine/events';
 import { BackButton, ScreenHead } from './Menu';
@@ -232,7 +232,24 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
 }
 
 /** オンラインの卓の上に出す一言：配っている・切れた人を待っている・検算の食い違い */
-export function OnlineStatus({ t, table, members, isHost }: { t: T; table: OnlineTable; members: Member[]; isHost: boolean }) {
+export function OnlineStatus({
+  t,
+  table,
+  members,
+  isHost,
+  hostWait = null,
+  hostNew = null,
+}: {
+  t: T;
+  table: OnlineTable;
+  members: Member[];
+  isHost: boolean;
+  /** ホストを待っている（段階10の5・Q3=A＝卓の上に出し続ける） */
+  hostWait?: OnlineState['hostWait'];
+  /** ホストが移った（新しいホストの名前） */
+  hostNew?: string | null;
+}) {
+  const waitLeft = useCountdown(hostWait?.kind === 'away' ? hostWait.until : null);
   // 観戦者の名前（利用者指示＝観戦者名は表示される）
   const watchers = spectatorsOf(members).map((m) => m.name).join(t('listDot'));
   // CPU に任された人の席（段階10）。切れたまま CPU が打っている人は「戻るのを待っています」に出さない
@@ -265,7 +282,10 @@ export function OnlineStatus({ t, table, members, isHost }: { t: T; table: Onlin
     ...(redealt ? [{ key: `redealt:${lastStart}`, text: t('olRedealt') }] : []),
     ...(table.reclaimRefused ? [{ key: 'refused', text: t('olReclaimRefused'), warn: true }] : []),
     ...(bad ? [{ key: 'bad', text: t('olVerifyBad'), warn: true }] : []),
+    ...(hostNew ? [{ key: `hostNew:${hostNew}`, text: isHost ? t('olHostNewMe') : t('olHostNew', { name: hostNew }) }] : []),
   ];
+  // ホストを待っている一言は、待ちが終わるまで出したまま（数秒で消さない）
+  const hostWaitText = hostWait === null ? null : hostWait.kind === 'away' ? t('olHostAway', { time: waitLeft }) : t('olHostGone');
   const shown = useToasts(msgs);
   return (
     <div className="ol-status" role="status">
@@ -287,6 +307,11 @@ export function OnlineStatus({ t, table, members, isHost }: { t: T; table: Onlin
       {/* 一言は卓に重ねて数秒だけ出す（卓の高さを変えない＝10-15 利用者 Q15=C）。席を返す頼みだけは答えるまで出したまま */}
       {createPortal(
       <div className="ol-toasts">
+        {hostWaitText && (
+          <p key="hostWait" className="ol-toast away ol-hostwait">
+            {hostWaitText}
+          </p>
+        )}
         {shown.map((m) => (
           <p key={m.key} className={`ol-toast${m.warn ? ' away' : ''}`}>
             {m.text}
@@ -317,6 +342,19 @@ export const TOAST_MS = 4000;
  * 出ている一言のうち、新しく出たものだけを TOAST_MS のあいだ見せる（同じ一言は出続けていても 1 回だけ。
  * 一度消えてまた出たら、また見せる）
  */
+/** 締め切りまでの残り（m:ss）。1 秒ごとに数え直す。締め切りが無ければ空 */
+function useCountdown(until: number | null): string {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (until === null) return;
+    const id = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [until]);
+  if (until === null) return '';
+  const left = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+  return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+}
+
 function useToasts<M extends { key: string }>(msgs: M[]): M[] {
   const [since] = useState(() => new Map<string, number>());
   const [, tick] = useState(0);

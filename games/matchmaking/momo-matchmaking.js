@@ -1,5 +1,5 @@
 /**
- * momo-matchmaking.js  v1.02
+ * momo-matchmaking.js  v1.04
  * MOMO Works 共通マッチング・通信モジュール
  * WebSocket（シグナリング）と WebRTC（P2P通信）を内包する。
  * ゲーム側は MomoMatchmaking.init() でコールバックを登録するだけで対戦相手との通信を確立できる。
@@ -19,6 +19,11 @@
  *   - onRoomCreated/onJoinedRoom の末尾に多人数情報 {mode,pid,role,roster} を追加引数で通知
  *   - 新コールバック onParticipantJoined / onParticipantLeft
  *   多人数の送受信は _sendMulti に集約（将来の直結経路へ差し替え可能な出入口）。
+ *
+ * v1.04 (2026-10-20): サーバーからの「生きていますか」（mm_alive_q）に自動で答える（mm_alive_a）。アプリへは渡さない。
+ *   一覧に入る知らせ（enter_lobby）に「答えられる版」の印 alive:1 を添える（サーバーは印のある接続にだけ知らせで尋ねる）。
+ *   本番は Render の中継が回線の ping に代わりに答えてしまい、止まった端末も生きて見えるため（10-20 に実測）。
+ *   ほかの口・コールバック・getState() は不変。
  *
  * v1.03 (2026-10-20): 新しい問い合わせ口 getToken() を追加（既存の口・コールバック・getState() は一切不変）。
  *   サーバーが room_created / joined_room に入れて送る合言葉（token＝切れたあとに同じ席へ戻るためのもの）を
@@ -64,7 +69,8 @@ const MomoMatchmaking = (() => {
       // ロビーに入室（gameTypeを送信）
       _ws.send(JSON.stringify({
         type: 'enter_lobby',
-        gameType: _options.gameType
+        gameType: _options.gameType,
+        alive: 1 // v1.04：「生きていますか」に答えられる版の印
       }));
 
       // keepalive（25秒間隔でping送信）
@@ -105,6 +111,12 @@ const MomoMatchmaking = (() => {
 
   // ===== WebSocket メッセージハンドラ =====
   function _handleWS(d) {
+    // v1.04：サーバーからの「生きていますか」に、アプリへ渡さずに自動で答える（回線の ping は中継が代わりに答えてしまうため、知らせで尋ねる）
+    if (d.type === 'mm_alive_q') {
+      if (_ws && _ws.readyState === WebSocket.OPEN) _ws.send(JSON.stringify({ type: 'mm_alive_a', n: d.n }));
+      return;
+    }
+
     // 部屋一覧
     if (d.type === 'room_list') {
       if (_options.onRoomList) _options.onRoomList(d.rooms);
@@ -448,7 +460,8 @@ const MomoMatchmaking = (() => {
     if (!_ws || _ws.readyState !== WebSocket.OPEN) return;
     _ws.send(JSON.stringify({
       type: 'enter_lobby',
-      gameType: _options.gameType
+      gameType: _options.gameType,
+      alive: 1
     }));
   }
 
@@ -488,7 +501,8 @@ const MomoMatchmaking = (() => {
     if (_ws && _ws.readyState === WebSocket.OPEN) {
       _ws.send(JSON.stringify({
         type: 'enter_lobby',
-        gameType: gameType
+        gameType: gameType,
+        alive: 1
       }));
     }
   }

@@ -1485,8 +1485,9 @@ export class OnlineTable {
     // 花牌を表にする・補花を終える：選ぶ余地が無いので自動（オンラインは本人が出すが、ボタンは出さない）
     if (shown.length === 1 && (shown[0].type === 'flower' || shown[0].type === 'buhuaDone')) return this.perform(seat, shown[0]);
     if ((v.phase === 'claim' || v.phase === 'declare') && shown.length === 1) return this.perform(seat, shown[0]);
-    // 返事の番：鳴ける牌の予告で先に選んであれば、そのとおりに返す（「その場で聞く」ならボタンを待つ）
-    if (v.phase === 'claim') {
+    // 返事の番：鳴ける牌の予告で先に選んであれば、そのとおりに返す（「その場で聞く」ならボタンを待つ）。
+    // 「鳴かない」のあいだは予告を使わない＝ロンできるときは必ず止まる（ロンの予告は残し、「自動で鳴く」に戻すとまた効く）
+    if (v.phase === 'claim' && !this.noCalls) {
       const r = presetReply(v, shown, this.presets);
       if (r !== 'ask') {
         const key = this.claimKey(v);

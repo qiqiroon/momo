@@ -207,6 +207,16 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   const bookProps = { bookOpen, onBook: setBookOpen };
   /** 対局の音と演出（再生中は鳴らさない） */
   const fx = useGameEffects(tableView, (started && !replaying) || onlineOn, seatInfo.me, onlineOn && tbl ? tbl.restoredUpTo : 0);
+  // いまリーチした人のリーチ棒を、演出の音に合わせてたたきつける（訂正26101113）
+  // 動きを付けるのは演出のあいだだけ（あとで画面を切り替えて卓を作り直したとき、もう一度たたきつけない）
+  const [riichiSlam, setRiichiSlam] = useState<{ seat: number; key: number } | null>(null);
+  useEffect(() => {
+    const b = fx.banner;
+    if (b?.kind !== 'riichi' || b.seat === undefined) return setRiichiSlam(null);
+    setRiichiSlam({ seat: b.seat, key: b.key });
+    const id = window.setTimeout(() => setRiichiSlam(null), 1300);
+    return () => clearTimeout(id);
+  }, [fx.banner]);
   /** 「音楽を再生しますか？」を出しているか・歯車の設定を開いているか */
   const [soundAsk, setSoundAsk] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -388,6 +398,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             saveNote={note}
             dealt={fx.dealt}
             onQuit={onTitle}
+            riichiSlam={riichiSlam}
             menu={gameMenu}
             {...bookProps}
             chat={<Chat t={t} you={t('you')} />}
@@ -408,6 +419,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             {...onlineSave(tbl.view.phase === 'gameover' ? online.kifuSource() : null)}
             dealt={fx.dealt}
             onQuit={onTitle}
+            riichiSlam={riichiSlam}
             menu={gameMenu}
             {...bookProps}
             chat={<Chat t={t} you={t('you')} online={{ lines: ol.chat, myId: online.myId, onSend: (s) => online.sendChat(s), readOnly: !online.canChat() }} />}

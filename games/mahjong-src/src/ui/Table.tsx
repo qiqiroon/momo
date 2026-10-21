@@ -67,6 +67,8 @@ interface Props {
   /** ルールブック（2026-10-14 第17）。開いているかは App が持つ（正方形の卓は見出しのボタン・横4列は卓の上の帯のボタンで開く）。無ければボタンも出さない */
   bookOpen?: boolean;
   onBook?: (open: boolean) => void;
+  /** いまリーチした人（演出の番号つき）。その人のリーチ棒を、演出の「バシッ」の音に合わせてたたきつける（訂正26101113） */
+  riichiSlam?: { seat: number; key: number } | null;
 }
 
 /** 自分から見た位置（0＝自分・1＝下家・2＝対面・3＝上家） */
@@ -75,7 +77,7 @@ interface Props {
 // 伏せた牌（中身の分からない牌＝CPU に任せている間の自分の手牌など）は後ろへ。kindOf は伏せた牌を受け付けない
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => (a < 0 || b < 0 ? Number(a < 0) - Number(b < 0) : kindOf(a) - kindOf(b) || a - b));
 
-export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, menu, chat, callPanel, sidePanel, compare = null, bookOpen = false, onBook, clock }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, menu, chat, callPanel, sidePanel, compare = null, bookOpen = false, onBook, clock, riichiSlam = null }: Props) {
   /** 配っている途中は手牌を先頭から決まった枚数だけ見せる */
   const dealing = <X,>(xs: readonly X[]): readonly X[] => (dealt === null ? xs : xs.slice(0, dealt));
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
@@ -133,6 +135,14 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
     if (q !== null) return <span className="que-mark">{t('queMark', { suit: t(`suitShort${q}` as MessageKey) })}</span>;
     return view.queHeld[seat] !== null ? <span className="que-mark pending">{t('queHidden')}</span> : null;
   };
+  // リーチ棒：宣言してから局が終わるまで、その人の前に置く。宣言牌でロンされたら出さない（結果が出た時点で消える）
+  const stickShown = (seat: number) => view.riichi[seat] !== 'none' && (view.riichiStick[seat] || !view.result);
+  const riichiStick = (seat: number, cls: string) =>
+    stickShown(seat) && (
+      <span className={cls} key={`stick-${seat}`}>
+        <span className={`riichi-stick${riichiSlam?.seat === seat ? ' slam' : ''}`} key={riichiSlam?.seat === seat ? riichiSlam.key : 0} />
+      </span>
+    );
   const riichiMark = (seat: number) => (
     <>
       {view.cnOut[seat] && <span className="cn-out-mark">{t('cnOutMark')}</span>}
@@ -569,6 +579,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
                   {chichaMark(seat)}
                   {pointsOf(seat)}
                   {riichiMark(seat)}
+                  {riichiStick(seat, 'lane-stick')}
                   {(seat !== me || watching) && (
                     <span className="lane-count">
                       <Tile id={HIDDEN} rules={view.rules} className="mini" />×{dealing(view.hands[seat]).length}
@@ -647,6 +658,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
             );
           })}
         </div>
+        {[0, 1, 2, 3].map((rel) => riichiStick(seatAt(rel), `stick-pos rel-${rel}`))}
         {[0, 1, 2, 3].map((rel) => (
           <div key={rel} className={`seat-river rel-${rel}`} style={cq(riverTw)}>
             {squareRiver(seatAt(rel))}

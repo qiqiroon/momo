@@ -18,18 +18,8 @@ import { RuleSettings, saveRuleChoice } from './RuleSettings';
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
 const NAME_KEY = 'momo-mahjong.playerName';
-const NO_CALLS_KEY = 'momo-mahjong.online.noCalls';
 /** 一度作った部屋の名前（次に作るときの欄に最初から入れる＝訂正26101113。パスワードは覚えない） */
 const ROOM_NAME_KEY = 'momo-mahjong.online.roomName';
-
-/** 「鳴かない」を端末に覚える（読むのは session.ts の readNoCalls。覚えられない端末では毎回切ったまま始まる） */
-function saveNoCalls(on: boolean) {
-  try {
-    localStorage.setItem(NO_CALLS_KEY, on ? '1' : '0');
-  } catch {
-    /* 覚えられない端末 */
-  }
-}
 
 function loadName(): string {
   try {
@@ -294,10 +284,6 @@ export function OnlineStatus({
     const x = table.seats[seat];
     return x?.kind === 'human' ? x.name : '?';
   };
-  const toggle = (on: boolean) => {
-    saveNoCalls(on);
-    table.setNoCalls(on);
-  };
   const othersText = proxyOthers.join(t('listDot'));
   const msgs = [
     ...(table.dealing ? [{ key: 'dealing', text: t('olDealing') }] : []),
@@ -323,15 +309,8 @@ export function OnlineStatus({
   const shown = useToasts(msgs);
   return (
     <div className="ol-status" role="status">
-      {/* 「鳴かない」：自分の席だけに効く。チー・ポン・カンは自動で見送り、ロンのときは止まる（利用者 Q16=B） */}
-      {me !== null ? (
-        <label className="ol-check ol-nocalls">
-          <input type="checkbox" checked={table.noCalls} onChange={(e) => toggle(e.target.checked)} />
-          <span>{t('olNoCalls')}</span>
-        </label>
-      ) : (
-        <span className="ol-watch-me">{t('olYouWatch')}</span>
-      )}
+      {/* 「自動で鳴く／鳴かない」の切り替えは鳴ける牌の欄へ移した（訂正26101113 Q3=B） */}
+      {me === null && <span className="ol-watch-me">{t('olYouWatch')}</span>}
       {/* 帯は 1 行に固定＝長いと「…」で切れるので、全員の名前は title でも見られるようにする */}
       {watchers && (
         <span className="ol-watchers" title={t('olWatchingNames', { name: watchers })}>

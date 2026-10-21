@@ -93,6 +93,17 @@ describe('リーチのボタン（段階2）', () => {
     expect(document.querySelectorAll('.riichi-tile')).toHaveLength(1);
     expect(document.querySelectorAll('.riichi-mark').length).toBeGreaterThan(0);
   });
+
+  it('リーチ棒（訂正26101113）：宣言した人の前に出す。たたきつける動きは演出のあいだ（riichiSlam）だけ', () => {
+    let view = riichiView();
+    view = apply(view, { seq: view.nextSeq, to: 'all', ev: { type: 'discard', seat: 0, tile: 29 * 4 + 3, tsumogiri: true, riichi: true } });
+    const { rerender } = render(<Table narrow={false} view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} riichiSlam={{ seat: 0, key: 1 }} />);
+    expect(document.querySelectorAll('.stick-pos.rel-0 .riichi-stick.slam')).toHaveLength(1);
+    expect(document.querySelectorAll('.riichi-stick')).toHaveLength(1);
+    rerender(<Table narrow view={view} legal={[]} lang="ja" onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
+    expect(document.querySelectorAll('.lane-stick .riichi-stick')).toHaveLength(1);
+    expect(document.querySelector('.riichi-stick.slam')).toBeNull();
+  });
 });
 
 describe('フリテンの表示（段階2）', () => {

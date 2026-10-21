@@ -1062,6 +1062,59 @@ body.in-game .site-header .subtitle {
   margin-right: calc(var(--tw, 32px) * 0.18);
 }
 
+/* リーチ棒（千点棒）：白い棒の真ん中に赤い点。正方形の卓は中央の四角とその人の河の間、横4列は名札の中（訂正26101113） */
+.riichi-stick {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  /* 赤い点の直径は棒の太さの 3 分の 1（利用者指示）。closest-side＝太さの半分が 100% */
+  background: radial-gradient(circle closest-side, #cf2b28 0 33.3%, transparent 36%), #f4f1ea;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.stick-pos {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10cqw;
+  height: max(6px, 1.2cqw);
+  transform-origin: 0 0;
+  transform: rotate(var(--a)) translate(-50%, 12.85cqw);
+}
+
+.lane-stick {
+  display: inline-block;
+  width: 34px;
+  height: 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* たたきつける：演出の「バシッ」（リーチの宣言から 1 秒後に鳴る）にちょうど着く。
+   それまでは見せず、0.88 秒から上から大きく落ちて 1.0 秒で卓に着き、少し跳ねて止まる */
+.riichi-stick.slam {
+  animation: stick-slam 0.32s 0.88s both;
+}
+
+@keyframes stick-slam {
+  0% { opacity: 0; transform: translateY(-140%) scale(2.2); }
+  37% { opacity: 1; transform: translateY(0) scale(0.9, 1.2); }
+  55% { transform: translateY(-18%) scale(1.04); }
+  100% { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .riichi-stick.slam {
+    animation: stick-fade 0.12s 0.9s both;
+  }
+}
+
+@keyframes stick-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .riichi-mark {
   display: inline-block;
   margin-left: 4px;
@@ -2696,10 +2749,6 @@ body.in-game .site-header .subtitle {
   text-overflow: ellipsis;
 }
 
-.ol-status > .ol-nocalls {
-  flex: none;
-}
-
 .ol-status > .ol-watchers {
   flex: 1 1 0;
   min-width: 4em;
@@ -2763,10 +2812,6 @@ body.in-game .site-header .subtitle {
   color: var(--text-muted);
 }
 
-.ol-nocalls {
-  margin-bottom: 4px;
-}
-
 .strength-block {
   margin: 4px 0 12px;
 }
@@ -2798,6 +2843,39 @@ body.in-game .site-header .subtitle {
 .call-panel h4 {
   margin: 0;
   font-size: 12px;
+}
+
+/* 見出しの右に「自動で鳴く｜鳴かない」の切り替え（訂正26101113 Q3=B） */
+.call-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.call-mode {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px;
+  gap: 1px;
+}
+
+.call-mode button {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.call-mode button.on {
+  background: var(--orange);
+  color: #fff;
+  font-weight: 700;
 }
 
 .call-legend,

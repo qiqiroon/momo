@@ -4,6 +4,8 @@
 // チーは上家のときだけ。組み合わせが何通りもある牌は、押すと一覧が出て選ぶ（選ばなければ「その場で聞く」）。
 // 置き場所：横4列は手牌の下・正方形の卓は右の列（チャットの上）＝手牌の位置をずらさない。
 // 並べ方：牌 1 枚ごとに「牌の絵＋印」を 1 かたまりにして折り返す（横 1 行に詰めると文字がつぶれた＝利用者指摘 10-10）。
+// 見出しの右に「自動で鳴く｜鳴かない」の切り替え（訂正26101113 Q3=B＝前は卓の上の帯のチェックで、置き場所が離れていた）。
+// 鳴かない＝チー・ポン・カンは自動で見送り、ロンできるときは止まる。そのあいだは牌の一覧を出さない（決めることがない）。
 
 import { useState } from 'react';
 import type { MessageKey } from '../i18n/strings';
@@ -13,6 +15,17 @@ import { Tile } from './Tile';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
+const NO_CALLS_KEY = 'momo-mahjong.online.noCalls';
+
+/** 「鳴かない」を端末に覚える（読むのは session.ts の readNoCalls。覚えられない端末では毎回「自動で鳴く」から始まる） */
+function saveNoCalls(on: boolean) {
+  try {
+    localStorage.setItem(NO_CALLS_KEY, on ? '1' : '0');
+  } catch {
+    /* 覚えられない端末 */
+  }
+}
+
 /** 種類の牌の絵（赤5でない 1 枚） */
 const idOf = (kind: number) => kind * 4 + 1;
 
@@ -20,17 +33,35 @@ export function CallStrip({ t, table }: { t: T; table: OnlineTable }) {
   const [picking, setPicking] = useState<number | null>(null);
   const v = table.view;
   const me = table.mySeat;
-  if (me === null || table.dealing) return null;
-  // 局のあいだだけ（配り終えてから、局が終わるまで）
-  if (!['draw', 'discard', 'claim'].includes(v.phase)) return null;
-  const list = table.callables();
+  if (me === null) return null;
+  // 牌の一覧は局のあいだだけ（配り終えてから、局が終わるまで）。切り替えはいつでも
+  const inRound = !table.dealing && ['draw', 'discard', 'claim'].includes(v.phase);
+  const list = inRound && !table.noCalls ? table.callables() : [];
+  const setNoCalls = (on: boolean) => {
+    saveNoCalls(on);
+    table.setNoCalls(on);
+  };
   /** 選んだことの印：？＝その場で聞く／○＝鳴く（ポン・カンはその字）／×＝見送る */
   const mark = (p: RonPick | PonPick | ChiPick | undefined): string =>
     p === undefined || p === 'ask' ? '？' : p === 'no' ? '×' : p === 'kan' ? t('psKanShort') : p === 'pon' ? t('psPonShort') : '○';
   const state = (p: RonPick | PonPick | ChiPick | undefined) => (p === undefined || p === 'ask' ? 'ask' : p === 'no' ? 'no' : 'yes');
   return (
     <section className="call-panel" aria-label={t('psTitle')}>
-      <h4>{t('psTitle')}</h4>
+      <div className="call-head">
+        <h4>{t('psTitle')}</h4>
+        <span className="call-mode">
+          <button type="button" className={table.noCalls ? '' : 'on'} aria-pressed={!table.noCalls} onClick={() => setNoCalls(false)}>
+            {t('psAutoCall')}
+          </button>
+          <button type="button" className={table.noCalls ? 'on' : ''} aria-pressed={table.noCalls} onClick={() => setNoCalls(true)}>
+            {t('psNoCalls')}
+          </button>
+        </span>
+      </div>
+      {table.noCalls ? (
+        <p className="call-legend">{t('psNoCallsNote')}</p>
+      ) : !inRound ? null : (
+      <>
       <p className="call-legend">{t('psLegend')}</p>
       {list.length === 0 ? (
         <p className="call-none">{t('psNone')}</p>
@@ -118,6 +149,8 @@ export function CallStrip({ t, table }: { t: T; table: OnlineTable }) {
             );
           })}
         </div>
+      )}
+      </>
       )}
     </section>
   );

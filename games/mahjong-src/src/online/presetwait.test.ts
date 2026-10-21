@@ -88,3 +88,42 @@ describe('押した返事（10-20 に発見）', () => {
     expect(acts.map((m) => m.envs!.map((e) => e.ev.type))).toEqual([['pass']]);
   });
 });
+
+// ロンできる返事の番（ロンと見送るだけ）
+function findRonOnly() {
+  for (let i = 1; i < 600; i += 2) {
+    const log = playOne(`presetron-${i}`, GENERAL_RULES, benchCpu).log;
+    for (let n = 1; n <= log.length; n++) {
+      for (const seat of SEATS) {
+        const v = viewFor(log.slice(0, n), seat);
+        if (v.phase !== 'claim') continue;
+        const legal = legalActions(v, seat);
+        if (legal.some((a) => a.type === 'ron') && legal.every((a) => a.type === 'ron' || a.type === 'pass')) return { v, seat: seat as Seat };
+      }
+    }
+  }
+  throw new Error('ロンできる場面が見つからない');
+}
+
+describe('「鳴かない」とロンの予告（訂正26101113 Q3=B）', () => {
+  it('★「鳴かない」のあいだはロンの予告を使わず、必ず止まる。「自動で鳴く」に戻すと予告どおりに返す', async () => {
+    const { v, seat } = findRonOnly();
+    const sent: { type: string; envs?: { ev: { type: string } }[] }[] = [];
+    const t = new OnlineTable({ send: (m) => sent.push(m as never), isHost: false, myId: 'x', cpu: benchCpu });
+    const inside = t as unknown as Inside;
+    inside.mySeat = seat;
+    inside.views.set(seat, v);
+    inside.replyWait = 0;
+    inside.hand = { final: true };
+    t.presets.set(kindOf(v.claim!.tile), { ron: 'yes' });
+    t.noCalls = true;
+    inside.driveSeat(seat);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(sent.filter((m) => m.type === 'mt-act')).toEqual([]);
+    expect(t.choices(v, seat).map((a) => a.type)).toContain('ron');
+    t.noCalls = false;
+    inside.driveSeat(seat);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(sent.filter((m) => m.type === 'mt-act').map((m) => m.envs!.map((e) => e.ev.type))).toEqual([['ron']]);
+  });
+});

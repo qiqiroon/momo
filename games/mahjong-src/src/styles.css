@@ -3022,6 +3022,24 @@ body.in-game .site-header .subtitle {
   padding: 4px 0;
 }
 
+/* 子の項目（親の値で選べるかが決まる）：親のすぐ下に一段ずつ下げて、左に細い線（利用者 2026-10-21 Q4=A） */
+.rule-settings .set-row.child {
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
+  margin-left: 6px;
+}
+
+.rule-settings .set-row.child.depth2 {
+  margin-left: 22px;
+}
+
+/* 「細かい決まり」を開いた中の行：一段下げて、どこからが細かい決まりか分かるように */
+.rule-settings .detail-rows {
+  border-left: 2px dashed var(--border);
+  padding-left: 10px;
+  margin-left: 6px;
+}
+
 .rule-settings .set-row .lbl {
   display: flex;
   flex-direction: column;

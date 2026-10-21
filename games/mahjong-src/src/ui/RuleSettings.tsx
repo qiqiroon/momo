@@ -66,12 +66,65 @@ function groups(fam: 'jp' | 'cn'): { name: string; fold: boolean; members: Item[
       if (it) cur.members.push(it);
     }
   }
+  // 親が別のまとまりにある子は、親のまとまりへ移す（並べ方は arrange が親のすぐ下にする・利用者 2026-10-21 Q5=A）。
+  // ローカル役（畳んで「あり」の数を数えるまとまり）の役は動かさない＝役の一覧から抜けると数がずれる
+  const groupOf = (k: string) => out.find((g) => g.members.some((m) => m.k === k));
+  for (let moved = true; moved; ) {
+    moved = false;
+    for (const g of out) {
+      if (g.fold) continue;
+      for (const m of [...g.members]) {
+        const p = parentOf(m);
+        const pg = p ? groupOf(p) : undefined;
+        if (!pg || pg === g || pg.fold) continue;
+        g.members = g.members.filter((x) => x !== m);
+        pg.members.push(m);
+        moved = true;
+      }
+    }
+  }
   return out;
 }
 
 /** どのセットも同じ値の項目（細かい決まり） */
 const isDetail = (fam: 'jp' | 'cn', k: string) =>
   fam === 'cn' ? new Set(CN_SETS.map((s) => cnPresetValue(s, k as CnRuleKey))).size === 1 : new Set(JP_SETS.map((s) => presetValue(s, k as JpRuleKey))).size === 1;
+
+/** その項目が選べるかを決める親の項目（ruleTable の dep の 1 つ目）。無ければ null */
+const parentOf = (it: Item): string | null => ((it as { dep?: readonly unknown[] }).dep?.[0] as string | undefined) ?? null;
+
+/**
+ * まとまりの中の並べ方。外の段（main）は表の順に並べ、子の項目は親のすぐ下に（depth＝何段下げるか）。
+ * 「どのセットも同じ値」の子でも、親が外の段にあれば「細かい決まり」に入れず親の下に出す（利用者 2026-10-21 Q4=A。
+ * ★前は子だけが「細かい決まり」に入り、親と別の段に分かれた＝リーチ後の暗槓とその条件など）
+ */
+function arrange(fam: 'jp' | 'cn', members: readonly Item[]): { main: { it: Item; depth: number }[]; detail: Item[] } {
+  const inGroup = new Set<string>(members.map((m) => m.k));
+  const top = new Set<string>(members.filter((m) => !isDetail(fam, m.k)).map((m) => m.k));
+  // 細かい決まりの子のうち、親（またはその親）が外の段にあるものも外の段へ
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const m of members) {
+      const p = parentOf(m);
+      if (!top.has(m.k) && p && inGroup.has(p) && top.has(p)) {
+        top.add(m.k);
+        grew = true;
+      }
+    }
+  }
+  const isChild = (m: Item) => {
+    const p = parentOf(m);
+    return !!p && inGroup.has(p) && top.has(p);
+  };
+  const main: { it: Item; depth: number }[] = [];
+  const put = (it: Item, depth: number) => {
+    main.push({ it, depth });
+    for (const c of members) if (parentOf(c) === it.k && top.has(c.k)) put(c, depth + 1);
+  };
+  for (const m of members) if (top.has(m.k) && !isChild(m)) put(m, 0);
+  return { main, detail: members.filter((m) => !top.has(m.k)) };
+}
 
 /** readOnly＝見るだけ（オンラインのゲスト・始まったあと）：選んだ値だけを文字で出す。まとまりは開いて見られる */
 /** マイルールのリンク（いま開いているページの住所＋#rules=…） */
@@ -140,7 +193,7 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false, shar
   const changed = (ms: readonly Item[]) => ms.filter((m) => vals[m.k] !== presetOf(m.k)).length;
   const itemWord = (k: string) => ruleName(k, lang, fam).replace(/（.*$|\(.*$/, '');
 
-  const row = (it: Item) => {
+  const row = (it: Item, depth = 0) => {
     const why = blockedHere(it.k);
     const note = ruleNote(it.k, lang, fam);
     // 基にしたセットから変えた項目（Q38＝A：ホストもゲストも、名前と値をオレンジの文字に）
@@ -152,7 +205,7 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false, shar
       return w ? [{ v, why: w.map((x) => t('rsWhyPart', { item: itemWord(x.k), value: optLabel(x.k, x.value, lang, fam) })) }] : [];
     });
     return (
-      <div className={`set-row${changedHere ? ' changed' : ''}`} key={it.k}>
+      <div className={`set-row${changedHere ? ' changed' : ''}${depth > 0 ? ` child depth${Math.min(depth, 2)}` : ''}`} key={it.k} data-k={it.k}>
         <span className="lbl">
           {ruleName(it.k, lang, fam)}
           {suppliedHere(it.k) ? <small className="supp">{t('rsSupplied')}</small> : note ? <small>{note}</small> : null}
@@ -241,21 +294,20 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false, shar
           const count = g.fold
             ? t('rsLocalCount', { n: g.members.filter((m) => vals[m.k] === 'on').length, all: g.members.length })
             : t(g.members.length === 1 ? 'rsGroupCount1' : 'rsGroupCount', { n: g.members.length, c: changed(g.members) });
-          const main = g.fold ? g.members : g.members.filter((m) => !isDetail(fam, m.k));
-          const detail = g.fold ? [] : g.members.filter((m) => isDetail(fam, m.k));
+          const { main, detail } = g.fold ? { main: g.members.map((it) => ({ it, depth: 0 })), detail: [] as Item[] } : arrange(fam, g.members);
           const dkey = key + ':detail';
           return (
             <div key={key}>
               <button type="button" className="group fold" aria-expanded={isOpen} onClick={() => toggle(key)}>
                 {isOpen ? '▼' : '▶'} {groupName(g.name, lang)}{lang === 'en' ? ` · ${count}` : `（${count}）`}
               </button>
-              {isOpen && main.map(row)}
+              {isOpen && main.map((x) => row(x.it, x.depth))}
               {isOpen && detail.length > 0 && (
                 <>
                   <button type="button" className="group fold detail" aria-expanded={!!open[dkey]} onClick={() => toggle(dkey)}>
                     {open[dkey] ? '▼' : '▶'} {t(detail.length === 1 ? 'rsDetail1' : 'rsDetail', { n: detail.length, c: changed(detail) })}
                   </button>
-                  {open[dkey] && detail.map(row)}
+                  {open[dkey] && <div className="detail-rows">{detail.map((it) => row(it))}</div>}
                 </>
               )}
             </div>

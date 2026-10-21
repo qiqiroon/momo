@@ -628,7 +628,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
 
   return (
     <div ref={fitRef} className="square-wrap">
-      <div className={`square felt${!replay && !watching && playing && view.turn === me && (view.phase === 'draw' || view.phase === 'discard') ? ' my-turn-edge' : ''}`}>
+      {/* 番の人の辺の外に線（自分＝下の辺。他家もその辺に＝訂正26101113） */}
+      <div className={`square felt${!replay && !watching && playing && view.turn === me && (view.phase === 'draw' || view.phase === 'discard') ? ' my-turn-edge' : ''}${playing && relOf(view.turn) !== 0 ? ` turn-edge-${relOf(view.turn)}` : ''}`}>
         <div className="center-box">
           {lengthLabel && <span className="length-label">{lengthLabel}</span>}
           <span className="round-label">{roundLabel}</span>

@@ -1,7 +1,7 @@
 // 音の画面：最初の操作で出す「音楽を再生しますか？」・歯車の設定（BGM と効果音の音量・ミュート・音源クレジット）。
 // 作りは MOMO Shogi（MusicPrompt.tsx・SettingsPopup.tsx）と花札にそろえる。
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   getBgmMuted,
   getBgmVolume,
@@ -18,8 +18,8 @@ import type { MessageKey } from '../i18n/strings';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
-/** 音量のつまみとミュートの 2 行（確認の窓と歯車で同じものを使う） */
-function VolumeRows({ t }: { t: T }) {
+/** 音量のつまみとミュートの 2 行（確認の窓と歯車で同じものを使う）。onMuteTouched＝ミュートを手で切り替えたとき */
+function VolumeRows({ t, onMuteTouched }: { t: T; onMuteTouched?: (kind: 'bgm' | 'sfx') => void }) {
   const [bgmV, setBgmV] = useState(getBgmVolume);
   const [sfxV, setSfxV] = useState(getSfxVolume);
   const [bgmM, setBgmM] = useState(getBgmMuted);
@@ -37,17 +37,19 @@ function VolumeRows({ t }: { t: T }) {
   );
   return (
     <>
-      {row(t('bgmLabel'), bgmV, (n) => (setBgmV(n), setBgmVolume(n)), bgmM, (b) => (setBgmM(b), setBgmMuted(b)), 'vol-bgm')}
-      {row(t('sfxLabel'), sfxV, (n) => (setSfxV(n), setSfxVolume(n)), sfxM, (b) => (setSfxM(b), setSfxMuted(b)), 'vol-sfx')}
+      {row(t('bgmLabel'), bgmV, (n) => (setBgmV(n), setBgmVolume(n)), bgmM, (b) => (setBgmM(b), setBgmMuted(b), onMuteTouched?.('bgm')), 'vol-bgm')}
+      {row(t('sfxLabel'), sfxV, (n) => (setSfxV(n), setSfxVolume(n)), sfxM, (b) => (setSfxM(b), setSfxMuted(b), onMuteTouched?.('sfx')), 'vol-sfx')}
     </>
   );
 }
 
 /** 最初の操作で出す確認。どちらを選んでも音の出口は開ける（再生しない＝ミュート。あとで歯車から外せば鳴る） */
 export function SoundPrompt({ t, onDone }: { t: T; onDone: () => void }) {
+  // この窓で手で切り替えたミュートは「再生する」でも外さない。触っていない分は外してよい（訂正26101113）
+  const touched = useRef({ bgm: false, sfx: false });
   const choose = async (play: boolean) => {
-    setBgmMuted(!play);
-    setSfxMuted(!play);
+    if (!play || !touched.current.bgm) setBgmMuted(!play);
+    if (!play || !touched.current.sfx) setSfxMuted(!play);
     await resumeAudio();
     preloadAllSamples();
     onDone();
@@ -57,7 +59,7 @@ export function SoundPrompt({ t, onDone }: { t: T; onDone: () => void }) {
       <div className="sound-panel">
         <h2>{t('soundPromptTitle')}</h2>
         <p>{t('soundPromptBody')}</p>
-        <VolumeRows t={t} />
+        <VolumeRows t={t} onMuteTouched={(k) => (touched.current[k] = true)} />
         <div className="sound-actions">
           <button type="button" className="btn-primary sound-yes" onClick={() => void choose(true)}>
             {t('soundYes')}

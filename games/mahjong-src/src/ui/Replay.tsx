@@ -179,7 +179,7 @@ export function Replay({ events, narrow, lang, onExit, makeSameLink, bookOpen, o
       </div>
   );
   return (
-    <div className="replay">
+    <div className={`replay${narrow ? ' replay-lanes' : ''}`}>
       <Table narrow={narrow} view={view} legal={[]} lang={lang} onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} replay sidePanel={narrow ? undefined : playbar} bookOpen={bookOpen} onBook={onBook} />
       {narrow && playbar}
     </div>

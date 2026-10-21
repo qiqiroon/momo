@@ -274,17 +274,16 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false, shar
                 );
               })}
             </span>
+            {/* カスタムは日本式・中国式それぞれの段の下に置き、基にしたセットを札の右に出す（訂正26101113） */}
+            <span />
+            <span className="custom-line">
+              <span className={`custom-chip${label === 'custom' && (i === 0) === (fam === 'jp') ? ' on' : ''}`}>{t('rsCustom')}</span>
+              {label === 'custom' && (i === 0) === (fam === 'jp') && <span className="cur">{t('rsChangedFrom', { set: t(`set_${baseSet}` as MessageKey) })}</span>}
+            </span>
           </div>
         ))}
-        <div className="tier">
-          <span />
-          <span>
-            <span className={`custom-chip${label === 'custom' ? ' on' : ''}`}>{t('rsCustom')}</span>
-          </span>
-        </div>
       </div>
       )}
-      {!readOnly && label === 'custom' && <p className="cur">{t('rsChangedFrom', { set: t(`set_${baseSet}` as MessageKey) })}</p>}
       {share && <ShareLink t={t} choice={cn ? choice : { base: choice.base, values: choice.values }} />}
       <div className="indiv-head">{t(readOnly ? 'rsReadOnlyHead' : 'rsIndivHead')}</div>
       <div className="rule-rows">
@@ -298,13 +297,14 @@ export function RuleSettings({ t, lang, choice, onChange, readOnly = false, shar
           const dkey = key + ':detail';
           return (
             <div key={key}>
-              <button type="button" className="group fold" aria-expanded={isOpen} onClick={() => toggle(key)}>
+              {/* 変えた項目があるまとまりは、畳んでも見出しをオレンジに（訂正26101113） */}
+              <button type="button" className={`group fold${changed(g.members) > 0 ? ' changed' : ''}`} aria-expanded={isOpen} onClick={() => toggle(key)}>
                 {isOpen ? '▼' : '▶'} {groupName(g.name, lang)}{lang === 'en' ? ` · ${count}` : `（${count}）`}
               </button>
               {isOpen && main.map((x) => row(x.it, x.depth))}
               {isOpen && detail.length > 0 && (
                 <>
-                  <button type="button" className="group fold detail" aria-expanded={!!open[dkey]} onClick={() => toggle(dkey)}>
+                  <button type="button" className={`group fold detail${changed(detail) > 0 ? ' changed' : ''}`} aria-expanded={!!open[dkey]} onClick={() => toggle(dkey)}>
                     {open[dkey] ? '▼' : '▶'} {t(detail.length === 1 ? 'rsDetail1' : 'rsDetail', { n: detail.length, c: changed(detail) })}
                   </button>
                   {open[dkey] && <div className="detail-rows">{detail.map((it) => row(it))}</div>}

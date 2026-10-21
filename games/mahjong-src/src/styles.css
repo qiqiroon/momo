@@ -1366,6 +1366,11 @@ body.in-game .site-header .subtitle {
   gap: 8px;
 }
 
+/* 横4列の再生は対局と同じく横幅いっぱいに取る（中身に合わせて縮むと、手牌の長さで毎手幅が変わる＝訂正26101113） */
+.replay.replay-lanes {
+  width: 100%;
+}
+
 /* 再生の操作（将棋の感想戦の再生の帯にならう）：小さなボタンを 1 行に・下につまみと手の位置 */
 .playbar {
   background: var(--surface);
@@ -1625,8 +1630,12 @@ body.in-game .site-header .subtitle {
   border-top: 1px solid var(--border);
 }
 
+/* 押せないあいだの一言は同意のボタンの左に並べる（訂正26101113） */
 .agree-hint {
-  width: 100%;
+  /* 狭い画面でも次の行へ落ちず、ボタンの左で折り返す */
+  flex: 1 1 0;
+  min-width: 0;
+  align-self: center;
   margin: 0;
   font-size: 12px;
   color: var(--text);
@@ -1983,6 +1992,10 @@ body.in-game .site-header .subtitle {
 @media (max-width: 480px) {
   .sets {
     grid-template-columns: 1fr;
+  }
+
+  .tier > span:empty {
+    display: none;
   }
 
   .mode-choices {
@@ -2934,6 +2947,38 @@ body.in-game .site-header .subtitle {
   pointer-events: none;
 }
 
+/* 他家の番：その人の辺（右＝下家・上＝対面・左＝上家）の外の木の縁に同じ線 */
+.square.turn-edge-1::after,
+.square.turn-edge-2::after,
+.square.turn-edge-3::after {
+  content: '';
+  position: absolute;
+  border-radius: 3px;
+  background: var(--orange-mid);
+  pointer-events: none;
+}
+
+.square.turn-edge-1::after {
+  top: 3%;
+  bottom: 3%;
+  right: -10px;
+  width: 6px;
+}
+
+.square.turn-edge-2::after {
+  left: 3%;
+  right: 3%;
+  top: -10px;
+  height: 6px;
+}
+
+.square.turn-edge-3::after {
+  top: 3%;
+  bottom: 3%;
+  left: -10px;
+  width: 6px;
+}
+
 /* 正方形の卓：ほかの人の鳴いた面子は、手牌の列より外側（卓の縁の側）へずらして段違いにする（利用者指示 10-10）。
    手牌の列は回してあるので、列の下向き＝卓の縁の向き */
 .seat-hand:not(.rel-0) .melds {
@@ -2961,6 +3006,18 @@ body.in-game .site-header .subtitle {
   margin: 0;
   font-size: 0.8rem;
   text-align: right;
+}
+
+/* カスタムの札と、その右の「『◯◯』から変更」 */
+.rule-settings .custom-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.rule-settings .custom-line .cur {
+  text-align: left;
 }
 
 /* 見るだけ（オンラインのゲスト・始まったあと）：セットの名前と、各項目の選んだ値を文字で出す */
@@ -3114,6 +3171,10 @@ body.in-game .site-header .subtitle {
   color: var(--text-sub);
   border-top: none;
   padding: 4px 0 4px 14px;
+}
+
+.rule-settings .group.fold.changed {
+  color: var(--orange);
 }
 
 .rule-settings .fixed {

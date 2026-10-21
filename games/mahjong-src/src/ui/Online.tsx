@@ -19,6 +19,8 @@ type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
 const NAME_KEY = 'momo-mahjong.playerName';
 const NO_CALLS_KEY = 'momo-mahjong.online.noCalls';
+/** 一度作った部屋の名前（次に作るときの欄に最初から入れる＝訂正26101113。パスワードは覚えない） */
+const ROOM_NAME_KEY = 'momo-mahjong.online.roomName';
 
 /** 「鳴かない」を端末に覚える（読むのは session.ts の readNoCalls。覚えられない端末では毎回切ったまま始まる） */
 function saveNoCalls(on: boolean) {
@@ -40,6 +42,23 @@ function loadName(): string {
 function saveName(name: string) {
   try {
     localStorage.setItem(NAME_KEY, name);
+  } catch {
+    /* 覚えられない端末では毎回入れてもらう */
+  }
+}
+
+function loadRoomName(): string {
+  try {
+    return localStorage.getItem(ROOM_NAME_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function saveRoomName(name: string) {
+  if (!name) return;
+  try {
+    localStorage.setItem(ROOM_NAME_KEY, name);
   } catch {
     /* 覚えられない端末では毎回入れてもらう */
   }
@@ -98,7 +117,7 @@ function PwInput({ value, onChange, placeholder, name }: { value: string; onChan
 export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; onBack: () => void }) {
   const s = useOnline(session);
   const [name, setName] = useState(loadName);
-  const [roomName, setRoomName] = useState('');
+  const [roomName, setRoomName] = useState(loadRoomName);
   const [pw, setPw] = useState('');
   const [isPrivate, setPrivate] = useState(false);
   // 観戦を許す（Q10=A：部屋を作るときに選ぶ・最初は許す。部屋に入ってからも切り替えられる）
@@ -173,7 +192,10 @@ export function Lobby({ t, session, onBack }: { t: T; session: OnlineSession; on
           <span>{t('olAllowSpectators')}</span>
         </label>
         <div>
-          <button type="button" className="btn-primary" disabled={!s.wsOpen || s.busy} onClick={() => session.create({ hostName: name, roomName, password: pw, isPrivate, allowSpectators: allowWatch })}>
+          <button type="button" className="btn-primary" disabled={!s.wsOpen || s.busy} onClick={() => {
+              saveRoomName(roomName.trim());
+              session.create({ hostName: name, roomName, password: pw, isPrivate, allowSpectators: allowWatch });
+            }}>
             {t('olCreateBtn')}
           </button>
         </div>

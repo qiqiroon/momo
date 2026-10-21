@@ -287,6 +287,15 @@ describe('モード選択と、そこから入る画面', () => {
     expect(on()).toBeNull();
     expect(document.querySelector('.custom-chip.on')).toHaveTextContent('カスタムルール');
     expect(document.querySelector('.rule-settings .cur')).toHaveTextContent('「天鳳」から変更');
+    // カスタムの札は日本式の段の下にあり、基にしたセットはその右（訂正26101113）
+    expect(document.querySelector('.custom-chip.on')!.parentElement!.querySelector('.cur')).toHaveTextContent('「天鳳」から変更');
+    expect(document.querySelectorAll('.custom-chip')).toHaveLength(2);
+    expect(document.querySelectorAll('.custom-chip.on')).toHaveLength(1);
+    // 畳んでも、変えた項目のあるまとまりの見出しはオレンジ
+    fireEvent.click(screen.getByRole('button', { name: /ドラ・役/ }));
+    expect(screen.getByRole('button', { name: /ドラ・役/ })).toHaveClass('changed');
+    expect(screen.getByRole('button', { name: /点数/ })).not.toHaveClass('changed');
+    fireEvent.click(screen.getByRole('button', { name: /ドラ・役/ }));
     // 選んだルールは端末に覚える
     expect(JSON.parse(localStorage.getItem('momo-mahjong.rules')!).values.kuitan).toBe('off');
     expect(document.querySelector('.site-footer')).toBeNull();
@@ -406,7 +415,7 @@ describe('見出しのボタン（対局の中断・画面切替）と同意画�
     render(<App />);
     const agree = document.querySelector<HTMLButtonElement>('.btn-agree')!;
     expect(agree).toBeDisabled();
-    expect(screen.getByText('最後まで読むと、同意のボタンを押せます。')).toBeInTheDocument();
+    expect(screen.getByText('下までスクロールしてください')).toBeInTheDocument();
     const body = document.querySelector<HTMLElement>('.notice-body')!;
     body.scrollTop = 700;
     fireEvent.scroll(body);

@@ -28,6 +28,7 @@ import { CallStrip } from './ui/CallStrip';
 import { OnlineSession, spectatorsOf } from './online/session';
 import { matchmakingTransport } from './online/transport';
 import { useLayout } from './ui/useLayout';
+import { useWakeLock } from './ui/useWakeLock';
 import { APP_VERSION } from './version';
 
 /** 歯車の絵（MOMO Hanafuda・Sudoku と同じ意匠） */
@@ -197,6 +198,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
   };
   /** 卓を出している画面か（対局中・牌譜の再生中）。画面切替を出すのはここだけ */
   const onBoard = started || replaying !== null || onlineOn;
+  useWakeLock(onBoard);
   /** ルールブックを開いているか（卓の画面。卓を離れたら閉じる） */
   const [bookOpen, setBookOpen] = useState(false);
   useEffect(() => {

@@ -75,7 +75,7 @@ const ja: NoticeTexts = {
         items: [
           '山：オンライン対戦の山は、参加者全員の鍵で封をしてから混ぜます。山のデータはホストの端末にありますが、全員の鍵が掛かっているので、ホストにも中身は見えず、並び順を選ぶこともできません。',
           '手牌：各プレイヤーの手牌を開けられるのは、そのプレイヤーの端末だけです。ホストにも、他のプレイヤーにも見えません。',
-          'CPU：CPU の手牌と考えは、ホストの端末の中で動いています。ホストが端末のデータを解析すれば、CPU の手牌を見ることができます（ひとりで遊ぶときは、あなたがホストです）。',
+          'CPU：CPU（接続が切れた人や、CPU に任せた人の席も含む）の手牌と考えは、ホストの端末の中で動いています。ホストが端末のデータを解析すれば、CPU の手牌を見ることができます（ひとりで遊ぶときは、あなたがホストです）。',
           '参加者全員が示し合わせた場合など、この仕組みでは防げないこともあります。',
           '第三者の解析や改造による不正で勝敗に影響が出ても、保証はできません。',
         ],
@@ -141,7 +141,7 @@ const en: NoticeTexts = {
         items: [
           "Wall: In online play, the wall is sealed with every participant's key before it is shuffled. The wall data is kept on the host's device, but because it is locked with everyone's keys, even the host cannot see its contents or choose the order of the tiles.",
           "Hands: Each player's hand can be opened only on that player's own device. Neither the host nor the other players can see it.",
-          "CPU: The CPU players' hands and decisions run on the host's device. If the host analyzes the data on the device, the host can see the CPU players' hands (when you play alone, you are the host).",
+          "CPU: The hands and decisions of CPU players (including the seats of players who lost their connection or let the CPU play for them) run on the host's device. If the host analyzes the data on the device, the host can see the CPU players' hands (when you play alone, you are the host).",
           'Some cases, such as all participants colluding, cannot be prevented by this mechanism.',
           'If cheating by a third party through analysis or modification affects the outcome of a game, we cannot provide any guarantee.',
         ],
@@ -208,7 +208,7 @@ const zh: NoticeTexts = {
         items: [
           '牌山：在线对局的牌山在洗牌前，会用全体参与者的密钥加封。牌山数据保存在房主的设备上，但由于加上了所有人的密钥，房主也无法看到其内容，也无法选择牌的顺序。',
           '手牌：每位玩家的手牌只能在该玩家自己的设备上打开。房主和其他玩家都无法看到。',
-          '电脑玩家：电脑玩家的手牌和思考在房主的设备上运行。如果房主解析设备中的数据，就能看到电脑玩家的手牌（单人游玩时，您就是房主）。',
+          '电脑玩家：电脑玩家（包括断开连接的玩家、以及交给电脑代打的玩家的座位）的手牌和思考在房主的设备上运行。如果房主解析设备中的数据，就能看到电脑玩家的手牌（单人游玩时，您就是房主）。',
           '在全体参与者串通等情况下，本机制无法防止。',
           '如因第三方的解析或篡改等作弊行为影响胜负，我们无法提供保证。',
         ],

@@ -113,6 +113,15 @@ describe('生存チェック（部屋の側）', () => {
     expect(g.state.peerWait.K).toBeUndefined();
   });
 
+  it('★入り直して前と同じ番号になった人も、合図が来たら「戻るのを待っています」を消す（サーバーは空いた番号の小さい順に配る）', () => {
+    const { net, g } = guest();
+    net.recv({ type: 'mj_peer_away', pid: 'p2', name: 'K', waitMs: 180_000 });
+    expect(g.state.peerWait.K?.kind).toBe('away');
+    // K が入り直した（空いた p2 がまた配られた）。★前は番号が変わったときだけ消していて、残り時間が出たままだった
+    net.recv({ type: 'mj-alive', id: 'K', from: 'p2' });
+    expect(g.state.peerWait.K).toBeUndefined();
+  });
+
   it('★ホストが黙ったら確かめを頼み、「ホストの接続を確かめています」→ サーバーの「ホストが切れた」で残り時間', () => {
     const { net, g } = guest();
     for (let i = 0; i < 3; i++) {

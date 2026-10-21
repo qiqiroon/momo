@@ -1682,6 +1682,9 @@ export class OnlineTable {
       if (!proxy) {
         this.reclaimPending = false;
         this.reclaimRefused = false;
+        // 席が返ってきた：自分の錠前をすぐサーバーに預け直す（包みを開け終わる前ならまだ錠前が無い＝開け終わったときに預ける）。
+        // ★前は包みを開け終わったときにまだ「任せている」の印が立っていて預けず、切れたときの 3 分の時計が止まらなかった（10-21 見回りで発見）
+        this.depositMine();
       }
     }
     if (this.o.isHost) this.reclaims.delete(seat);

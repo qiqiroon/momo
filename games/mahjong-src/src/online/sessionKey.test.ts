@@ -1,6 +1,6 @@
 // 落ちた人の鍵の預かり（段階10・Q8=A）：部屋の側の段取り。卓は偽物（呼ばれたことだけ見る）。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { KEY_FALLBACK_MS, OnlineSession, RECLAIM_WAIT_MS, TAKE_WAIT_MS, type Transport, type TransportHandlers } from './session';
+import { KEY_FALLBACK_MS, OnlineSession, RECLAIM_WAIT_MS, SILENT_MS, TAKE_WAIT_MS, type Transport, type TransportHandlers } from './session';
 import type { OnlineTable, TableOptions } from './table';
 
 interface Sent {
@@ -133,6 +133,25 @@ describe('鍵の預かり（部屋の側）', () => {
     await vi.advanceTimersByTimeAsync(10);
     expect(tb.calls.adopt).toEqual([['B', 'PKG']]);
     expect(h.state.members.find((m) => m.id === 'B')?.online).toBe(false);
+  });
+
+  it('★ホスト：切れたあと戻ってきて合図が届いている人の包みは、切れたときの 3 分の時計で届いても受け取らない（席を引き取らない）', async () => {
+    const { net, tb } = hostStarted();
+    net.recv({ type: 'mj_key_ready' });
+    // A は切れて、入り直した（合図が届いている）
+    net.recv({ type: 'mj-bye', id: 'A' });
+    net.recv({ type: 'mj-hello', id: 'A', name: 'A', from: 'p1' });
+    await vi.advanceTimersByTimeAsync(60_000);
+    net.recv({ type: 'mj-alive', id: 'A', from: 'p1' });
+    // 切れたときにサーバーが始めた 3 分の時計で、古い包みが届いた。★前はこれで A の席を CPU が引き取った（10-21 見回りで発見）
+    net.recv({ type: 'mj_key_release', id: 'A', no: 1, blob: 'OLD' });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(tb.calls.adopt).toEqual([]);
+    // 合図が途絶えたあと（SILENT_MS を過ぎた）なら受け取る
+    await vi.advanceTimersByTimeAsync(SILENT_MS + 1000);
+    net.recv({ type: 'mj_key_release', id: 'A', no: 1, blob: 'PKG' });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(tb.calls.adopt).toEqual([['A', 'PKG']]);
   });
 
   it('ホスト：つながっている人の席を CPU に切り替える＝まず本人の端末に頼み、渡してこなければ（落ちていれば）サーバーに包みを頼む', async () => {

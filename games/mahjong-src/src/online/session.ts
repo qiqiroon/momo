@@ -1051,10 +1051,17 @@ export class OnlineSession {
     if (!pid) return;
     this.lastSeen.set(pid, now);
     const id = typeof d.id === 'string' ? d.id : null;
-    if (id && this.pidOf.get(id) !== pid) {
-      this.pidOf.set(id, pid);
-      if (this.s.peerWait[id]) this.clearPeerWait(id);
-    }
+    if (id && this.pidOf.get(id) !== pid) this.pidOf.set(id, pid);
+    // 待っている人から届いた＝戻ってきた。★前は番号が変わったときだけ消していたが、サーバーは空いた番号の小さい順に配るので、
+    // 読み込み直して戻った人は前と同じ番号になることがあり、「戻るのを待っています」が消えなかった（10-21 見回りで発見）
+    if (id && this.s.peerWait[id]) this.clearPeerWait(id);
+  }
+
+  /** いまもその人の合図が届いているか（最後に届いてから SILENT_MS のうち） */
+  private hearsFrom(id: string, now = Date.now()): boolean {
+    const pid = this.pidOf.get(id);
+    const seen = pid ? this.lastSeen.get(pid) : undefined;
+    return seen !== undefined && now - seen < SILENT_MS;
   }
 
   private clearPeerWait(id: string) {
@@ -1200,7 +1207,12 @@ export class OnlineSession {
     // ホスト：切れて戻らなかった人の包み。預かれるサーバーのときだけ受け取る（古いサーバーでは誰でも同じ形を送れてしまう）。
     // 新しいサーバーはクライアントからの mj_key_ を中継しないので、届いたものはサーバーが切れたと確かめて渡したもの
     if (d.type === 'mj_key_release') {
-      if (this.s.room.isHost && this.keyReady && typeof d.id === 'string') void this.takeOver(d.id, typeof d.blob === 'string' ? d.blob : null);
+      if (!this.s.room.isHost || !this.keyReady || typeof d.id !== 'string') return;
+      // 切れたあと戻ってきて、いまも合図が届いている人：切れたときにサーバーが始めた 3 分の時計で届いた古い包み＝受け取らない（席を引き取らない）。
+      // ★前は CPU に任せたまま戻って席を返してもらった人の席が、切れてから 3 分でホストの画面だけ CPU に戻った（10-21 見回りで発見・利用者 Q1=A）。
+      // こちらから「すぐ渡して」と頼んだとき（askedNow）は、サーバーが確かめて閉じた人なので受け取る
+      if (!this.askedNow.has(d.id) && this.hearsFrom(d.id)) return;
+      void this.takeOver(d.id, typeof d.blob === 'string' ? d.blob : null);
       return;
     }
     // ホスト：すぐ受け取りたいと頼んだが、預かりが無かった＝その局は配り直して CPU へ

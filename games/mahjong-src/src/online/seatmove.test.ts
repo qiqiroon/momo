@@ -365,6 +365,32 @@ describe('席を移す（段階10）', () => {
     for (const e of myDraws) expect(e.ev.type === 'draw' && e.ev.tile).not.toBe(HIDDEN);
   }, 90_000);
 
+  it('★席を返してもらったら、その局のうちにすぐ自分の包みを預け直す（預け直さないと、切れたときの 3 分の時計で古い包みがホストへ渡り、席がまた CPU に戻る＝10-21 見回りで発見）', async () => {
+    const { net, H, G } = start();
+    await net.until(() => midHand(H) && midHand(G), 30_000);
+    await G.yieldSeat();
+    await net.until(() => H.isProxy(1) && G.isProxy(1), 10_000);
+    net.packages.delete('G');
+    // 預けた時点（それまでに送られた知らせの数）を控える
+    const at: number[] = [];
+    const set = net.packages.set.bind(net.packages);
+    net.packages.set = (k, v) => {
+      if (k === 'G') at.push(net.types.length);
+      return set(k, v);
+    };
+    const hc = H.pub.handCount;
+    G.requestReclaim();
+    await net.until(() => H.reclaims.has(1), 10_000);
+    await H.answerReclaim(1, true);
+    const iGive = net.types.length;
+    await net.until(() => at.length > 0 || H.pub.handCount > hc, 10_000);
+    expect(H.pub.handCount).toBe(hc);
+    // ★自分で打つより前に預け直している（自分の手の出来事のついでに預けるのでは、打つ番が来ないあいだに切れると間に合わない）
+    const firstAct = net.types.findIndex((x, i) => i >= iGive && x.from === 'G' && x.type === 'mt-act');
+    expect(at[0]).toBeGreaterThanOrEqual(iGive);
+    if (firstAct >= 0) expect(at[0]).toBeLessThanOrEqual(firstAct);
+  }, 60_000);
+
   it('包みはホストにしか開けられない：ほかの人に届く知らせに錠前の中身は出ていない', async () => {
     const { net, H, G } = start();
     await net.until(() => midHand(H) && midHand(G), 30_000);

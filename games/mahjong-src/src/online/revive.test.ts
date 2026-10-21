@@ -188,8 +188,10 @@ describe('開き直して戻る（3 分以内は復活を待つ）', () => {
     expect(G2.mySeat).toBe(1);
     // 自分の手牌がすべて開いている（伏せた牌の中身も取り戻している）
     await net.until(() => G2.pub.nextSeq >= H.pub.nextSeq && G2.view.hands[1].length > 0 && !G2.view.hands[1].includes(HIDDEN), 20_000, '開き直して手牌が開く');
-    // 伏せた牌の中身も取り戻している（取り戻せないと、自分の最初の 1 枚＝伏せた牌を切れずに卓が止まった）
-    await net.until(() => G2.view.queHeld[1] !== null && G2.view.queHeld[1] !== HIDDEN, 10_000, '伏せた牌を取り戻す');
+    // 伏せた牌の中身も取り戻している（取り戻せないと、自分の最初の 1 枚＝伏せた牌を切れずに卓が止まった）。
+    // 中身が見えている／もう切って先へ進んだ（切れたのは取り戻せたから）のどちらか。★前は「まだ手にあって見える」瞬間だけを待ち、
+    // 開き直した端末が素早く伏せた牌を切ると、その瞬間が来ずに時間切れになった（ほかの検査と続けて回すと 4 回に 1 回ほど）
+    await net.until(() => (G2.view.queHeld[1] !== null && G2.view.queHeld[1] !== HIDDEN) || G2.pub.discards[1].length > 0, 10_000, '伏せた牌を取り戻す');
     // 局が終わって検算が済み、次の局に進む
     const n = H.pub.handCount;
     await net.until(() => H.pub.handCount > n && G2.pub.nextSeq === H.pub.nextSeq, 90_000, '次の局');

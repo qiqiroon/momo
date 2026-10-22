@@ -371,6 +371,15 @@ describe('あと 1 枚で付く役の表示（訂正26100917）', () => {
     render(<Table narrow={false} view={view} legal={[]} lang="ja" replay onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
     expect(document.querySelector('.yaku-hints')).toBeNull();
   });
+
+  it('アシストモードでは出さない（役の候補一覧と二重にしない・第26 Q1=A）。行の場所は残す', () => {
+    const view = riichiView();
+    render(<Table narrow={false} view={view} legal={legalActions(view, 0)} lang="ja" assist onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
+    const line = document.querySelector('.yaku-hints')!;
+    expect(line).not.toBeNull();
+    expect(line).not.toHaveTextContent('場風');
+    expect(line.querySelector('.hint-item')).toBeNull();
+  });
 });
 
 describe('四川：捨てる色の牌を伏せる（段階9の手順1）', () => {

@@ -256,6 +256,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
       melds={meldsOf(me)}
       dealt={dealt}
       hints={!replay && playing && dealt === null && view.rules?.family === 'jp'}
+      assist={assistOn}
       onFocusTile={assistOn ? setFocusTile : undefined}
       risks={assistOn ? risksOf(view, me, sus) : undefined}
       riskLabel={(r) => riskText(t, r, nameOf)}
@@ -923,7 +924,7 @@ function MeldView({ meld: given, seat, rules }: { meld: OpenMeld; seat: number; 
 }
 
 /** 自分の手牌。マウスは 1 回押すと切る／指は 1 回目で浮かせ、2 回目で切る（押し間違いを防ぐ） */
-function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints, onFocusTile, crushLine, risks, riskLabel, tip }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; clock?: ReactNode; melds: ReactNode; dealt: number | null; hints: boolean; onFocusTile?: (id: TileId | null) => void; crushLine?: ReactNode; risks?: Map<number, TileRisk>; riskLabel?: (r: TileRisk) => string; tip?: TipApi }) {
+function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints, assist = false, onFocusTile, crushLine, risks, riskLabel, tip }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; clock?: ReactNode; melds: ReactNode; dealt: number | null; hints: boolean; assist?: boolean; onFocusTile?: (id: TileId | null) => void; crushLine?: ReactNode; risks?: Map<number, TileRisk>; riskLabel?: (r: TileRisk) => string; tip?: TipApi }) {
   // アシストモード：指の長押しは危なさの説明だけ（離しても選ぶ・切るにはしない＝設計 Q6=A）
   const longPress = useRef<{ timer: ReturnType<typeof setTimeout> | null; fired: boolean }>({ timer: null, fired: false });
   const riskOf = (id: TileId) => (id >= 0 ? risks?.get(kindOf(id)) : undefined);
@@ -1182,7 +1183,8 @@ function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints, onFoc
         {raised !== null && myTurn && <span className="hint">{translate(lang, 'tapAgain')}</span>}
       </div>
       {/* アシストモードで、合わせた牌を切るとつぶれる役があれば、同じ行に出す（行を足さない＝手牌を動かさない） */}
-      {crushLine || (hints && <YakuHints view={view} legal={legal} lang={lang} />)}
+      {/* アシストモードでは、この行はつぶれる役・鳴く前の注意だけに使う（役の候補一覧と二重にしない・第26 Q1=A）。空でも行は残す */}
+      {crushLine || (hints && (assist ? <div className="yaku-hints" /> : <YakuHints view={view} legal={legal} lang={lang} />))}
       <div className="hand-row">
         {rest.map(tile)}
         {drawn !== null && <span className="drawn-gap" />}

@@ -345,6 +345,44 @@ describe('席を移す（段階10）', () => {
     expect(() => replay(full!)).not.toThrow();
   }, 270_000);
 
+  /**
+   * 預かりが無い G が、ほかの人のツモに出すはずだった鍵を出さずに切れた形を作る。
+   * stuck＝鍵を待って止まる人：K（K のツモ）か H（ホストが打つ CPU の席 3 のツモ）。どちらになるかは鳴きなどで変わるので、狙った形になるまで卓を作り直す
+   */
+  async function stuckBeforeRedeal(stuck: 'K' | 'H') {
+    for (let tries = 0; tries < 8; tries++) {
+      const { net, H, K } = start();
+      await net.until(() => midHand(H, 8) && midHand(K, 8), 30_000);
+      // 次に引くのが止めたい人の席になるところ（G＝1 が切る番なら次は K＝2、K が切る番なら次は CPU の席 3）。
+      // K の画面でもそこまで進んでから止める（K が引いた牌を開け終わる前に止めると、止まるのは K になる）
+      await net.until(() => [H, K].every((t) => t.pub.phase === 'discard' && t.pub.turn === (stuck === 'K' ? 1 : 2)), 30_000);
+      net.hold('G', 'mt-keys');
+      const before = H.pub.handCount;
+      const queued = () => [H['queue'].size, K['queue'].size];
+      // 0.5 秒動かずに並びが残っている＝鍵を待って止まった（届く途中の一瞬の並びと見分ける）
+      let last = '';
+      let since = Date.now();
+      await net.until(() => {
+        const now = JSON.stringify([H.pub.nextSeq, K.pub.nextSeq]);
+        if (now !== last) [last, since] = [now, Date.now()];
+        return (Date.now() - since > 500 && queued().some((n) => n > 0)) || H.pub.handCount > before;
+      }, 30_000);
+      const [h, k] = queued();
+      if (H.pub.handCount === before && (stuck === 'K' ? k > 0 && h === 0 : h > 0)) return { net, H, K };
+    }
+    throw new Error('狙った形にならなかった');
+  }
+
+  for (const stuck of ['K', 'H'] as const) {
+    it(`★預かりが無い人が、ほかの人のツモに出すはずだった鍵を出さずに切れた（${stuck === 'K' ? 'K が自分のツモ' : 'ホストが CPU の席のツモ'}の鍵を待って止まっている）：配り直しても止まらない（第26 で発見）`, async () => {
+      const { net, H, K } = await stuckBeforeRedeal(stuck);
+      net.cut('G');
+      expect(await H.adoptReleased('G', null)).toBe('redealt');
+      await net.until(() => H.myLog.some((e) => e.ev.type === 'roundVoid') && midHand(H, 2) && K.pub.nextSeq === H.pub.nextSeq, 30_000);
+      expect(net.problems).toEqual([]);
+    }, 270_000);
+  }
+
   it('席を返す：本人が頼み、ホストが許可すると、次の自分の番から本人が打つ（Q4=A）。断ることもできる', async () => {
     const { net, H, G, K } = start();
     await net.until(() => midHand(H) && midHand(G), 30_000);

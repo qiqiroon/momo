@@ -788,6 +788,12 @@ export class OnlineTable {
     this.drive();
   }
 
+  /** その出来事より後ろに、局をなかったことにする知らせ（roundVoid）がもう届いている */
+  private voidAhead(seq: number): boolean {
+    for (const item of this.queue.values()) if (item.env.seq > seq && item.env.ev.type === 'roundVoid') return true;
+    return false;
+  }
+
   /** 1 つ当てはめる。自分の牌を開ける鍵がまだなら false（待つ） */
   private applyOne(env: Envelope, pos?: number[]): boolean {
     const h = this.hand;
@@ -804,8 +810,14 @@ export class OnlineTable {
       if (h.mine.has(target)) {
         for (const p of pos) this.tryDecode(p);
         if (!pos.every((p) => h.tiles.has(p))) {
-          if (!this.waiters.some((w) => w.need === pos)) this.waiters.push({ need: pos, run: () => {} });
-          return false;
+          // ★この局をなかったことにする知らせがもう後ろに届いている：開ける鍵は切れた人の分で二度と来ない（預かりが無くて配り直した）。
+          // 待つと、なかったことにする知らせまで進めず卓が止まった（第26 で発見）。捨てる局なので伏せたまま当てはめて先へ進む
+          if (this.voidAhead(env.seq)) {
+            this.waiters = this.waiters.filter((w) => w.need !== pos);
+          } else {
+            if (!this.waiters.some((w) => w.need === pos)) this.waiters.push({ need: pos, run: () => {} });
+            return false;
+          }
         }
       }
     }
@@ -1855,7 +1867,10 @@ export class OnlineTable {
       return;
     }
     const r: Round = { roundIndex: p.roundIndex, dealer: p.dealer, honba: p.honba };
-    this.emit({ seq: p.nextSeq, to: 'all', ev: { type: 'roundVoid' } });
+    // 番号は出し終えた出来事の次。★ホスト自身が切れた人の鍵を待って止まっている（CPU の席のツモが開かない）と、局面の番号はもう配った出来事と同じになり、
+    // ほかの人はその番号を通り過ぎていて受け取れず卓が止まった（第26 で発見）。止まっていたツモは、後ろの roundVoid を見て伏せたまま進む（voidAhead）
+    const seq = Math.max(p.nextSeq, ...[...this.queue.keys()].map((k) => k + 1));
+    this.emit({ seq, to: 'all', ev: { type: 'roundVoid' } });
     this.beginHand(r);
   }
 

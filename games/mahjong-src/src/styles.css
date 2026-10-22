@@ -3691,3 +3691,114 @@ body.in-game .site-header .subtitle {
   top: 4px;
   z-index: 30;
 }
+
+/* 役の候補一覧（段階2）：1 行目＝役名・あと何枚・見込みの点、2 行目＝近づく牌と残りの枚数 */
+.plan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.plan-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+}
+
+.plan-row:last-child {
+  border-bottom: none;
+}
+
+.plan-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.plan-name {
+  font-weight: 700;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.plan-need {
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.plan-points {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-tiles {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.plan-tiles.all {
+  flex-wrap: wrap;
+}
+
+.plan-tile {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  --tw: 16px;
+}
+
+.plan-left {
+  font-size: 11px;
+  color: var(--text-sub);
+}
+
+.plan-more {
+  font: inherit;
+  font-size: 11px;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  color: var(--text);
+  text-decoration: underline dotted;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.plan-furiten {
+  font-size: 11px;
+  color: var(--warn);
+}
+
+/* 合わせた牌を切るとつぶれる役：赤い取り消し線 */
+.plan-row.crushed .plan-name {
+  color: var(--warn);
+  text-decoration: line-through;
+}
+
+.assist-crush {
+  color: var(--warn);
+}
+
+/* 欄が長くなったら欄の中で送る（卓より高くしない） */
+.square-wrap .assist-col .assist-body,
+.assist-over .assist-body {
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+}
+
+.lanes .assist-over .assist-body {
+  max-height: 55vh;
+}
+
+.plan-tile .tile.mini {
+  --tw: 16px;
+  margin-bottom: 0;
+}

@@ -3,8 +3,15 @@
 //  - ConsentWait：OK を押したあと、ほかの人を待つあいだ（ホストには誰を待っているか）
 //  - AssistPanel：卓の横の余白に出す欄。余白が足りなければ帯「アシスト ▲」で開け閉めする（Q8=A）
 // 見た目は制限時間の同意の窓（sound-backdrop・sound-panel）にそろえる。
-import { useEffect, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useMemo, useState, type ReactNode, type RefObject } from 'react';
+import { yakuPlan, type YakuPlan } from '../assist/yakuPlan';
+import type { Seat } from '../engine/events';
+import { roundWindOf, seatWindOf, type GameState } from '../engine/state';
+import { kindOf, type TileId } from '../engine/tiles';
+import type { YakuId } from '../engine/yaku';
 import type { MessageKey } from '../i18n/strings';
+import { visibleCounts } from '../cpu/shanten';
+import { Tile } from './Tile';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
@@ -181,3 +188,132 @@ export function AssistPanel({ t, docked, children }: { t: T; docked: boolean; ch
     </div>
   );
 }
+
+// ---- 役の候補一覧（段階2・設計 §4） ----
+
+/** 役の候補一覧を数える働き手（1 つを使い回す）。Worker の無い環境（検査）では null＝画面の側で数える */
+let worker: Worker | null | undefined;
+let workerSeq = 0;
+const workerWaits = new Map<number, (list: YakuPlan[]) => void>();
+function planWorker(): Worker | null {
+  if (worker !== undefined) return worker;
+  try {
+    worker = typeof Worker === 'undefined' ? null : new Worker(new URL('../assist/planWorker.ts', import.meta.url), { type: 'module' });
+  } catch {
+    worker = null;
+  }
+  worker?.addEventListener('message', (e: MessageEvent<{ id: number; list: (Omit<YakuPlan, 'spare'> & { spare: number[] })[] }>) => {
+    const done = workerWaits.get(e.data.id);
+    workerWaits.delete(e.data.id);
+    done?.(e.data.list.map((p) => ({ ...p, spare: new Set(p.spare) })));
+  });
+  return worker;
+}
+
+/**
+ * 役の候補一覧を数える。局面が変わる（手牌・場に見える牌・ドラ表示）たびに数え直す。
+ * 数えるのは働き手（卓を止めない・あと 6〜7 枚の段まで数えきる）。働き手が無ければ描き終えてから画面の側で（時間の上限つき）。
+ * 数え直しているあいだは前の一覧を出したまま。手牌が伏せている・日本式でないときは null
+ */
+export function useYakuPlan(view: GameState, seat: Seat, on: boolean): YakuPlan[] | null {
+  const key = useMemo(() => {
+    if (!on || !view.rules || view.rules.family !== 'jp' || view.roundIndex < 0) return null;
+    const hand = view.hands[seat];
+    if (hand.length === 0 || hand.some((t) => t < 0)) return null;
+    return JSON.stringify([seat, view.roundIndex, view.honba, view.dealer, hand, visibleCounts(view, seat), view.doraIndicators, view.melds[seat].length, view.discards[seat].length]);
+  }, [on, view, seat]);
+  const [plan, setPlan] = useState<{ key: string; list: YakuPlan[] } | null>(null);
+  useEffect(() => {
+    if (key === null) return;
+    let live = true;
+    const w = planWorker();
+    if (w) {
+      const id = ++workerSeq;
+      workerWaits.set(id, (list) => live && setPlan({ key, list }));
+      w.postMessage({ id, view, seat });
+      return () => {
+        live = false;
+        workerWaits.delete(id);
+      };
+    }
+    const id = setTimeout(() => setPlan({ key, list: yakuPlan(view, seat) }), 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  if (key === null) return null;
+  return plan?.key === key ? plan.list : (plan?.list ?? []);
+}
+
+/** 手牌が 14 枚（切る番）のとき、その牌を切ると遠くなる行（役の組み合わせの key。数え終えていない段の行は出さない） */
+export function crushedBy(plan: readonly YakuPlan[] | null, handSize: number, tile: TileId | null): Set<string> {
+  const out = new Set<string>();
+  if (!plan || tile === null || tile < 0 || handSize % 3 !== 2) return out;
+  const k = kindOf(tile);
+  for (const p of plan) if (!p.partial && !p.spare.has(k)) out.add(p.key);
+  return out;
+}
+
+/** 役の名前（場風・自風は何の風か） */
+export function yakuName(t: T, view: GameState, seat: Seat, id: YakuId): string {
+  const wind = id === 'roundWind' ? roundWindOf(view) : id === 'seatWind' ? seatWindOf(view, seat) : null;
+  return t(`yaku_${id}` as MessageKey, { wind: wind === null ? '' : t(`wind${wind - 27}` as MessageKey) });
+}
+
+/** 役の組み合わせの名前（「自風 北＋混一色」） */
+export function comboName(t: T, view: GameState, seat: Seat, p: YakuPlan): string {
+  return p.ids.map((id) => yakuName(t, view, seat, id)).join(t('asPlus'));
+}
+
+/** 1 行に出す牌の数（欄の幅 240px に、牌と残りの枚数が収まる数。あふれた分は「…ほか N 種」） */
+const TILES_PER_ROW = 6;
+
+/** 近づく牌：残りの多い順に 1 行ぶん。「…ほか N 種」を押す（合わせる）と全部 */
+function PlanTiles({ t, view, tiles }: { t: T; view: GameState; tiles: YakuPlan['tiles'] }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? tiles : tiles.slice(0, TILES_PER_ROW);
+  const more = tiles.length - shown.length;
+  return (
+    <span className={`plan-tiles${all ? ' all' : ''}`} onMouseLeave={() => setAll(false)}>
+      {shown.map((x) => (
+        <span key={x.kind} className="plan-tile">
+          <Tile id={x.kind * 4 + 3} rules={view.rules} className="mini" />
+          <span className="plan-left">({x.left})</span>
+        </span>
+      ))}
+      {more > 0 && (
+        <button type="button" className="plan-more" onMouseEnter={() => setAll(true)} onClick={() => setAll(!all)}>
+          {t('asMore', { n: more })}
+        </button>
+      )}
+    </span>
+  );
+}
+
+/** 役の候補一覧（1 行＝役の組み合わせ。あと何枚の少ない順・同じ枚数は点の高い順）。crushed＝合わせた牌を切るとつぶれる行 */
+export function YakuPlanList({ t, view, seat, plan, crushed }: { t: T; view: GameState; seat: Seat; plan: YakuPlan[] | null; crushed: ReadonlySet<string> }) {
+  if (plan === null) return <p className="assist-soon">{t('asCnSoon')}</p>;
+  if (plan.length === 0) return <p className="assist-soon">{t('asCounting')}</p>;
+  return (
+    <ul className="plan-list">
+      {plan.map((p) => (
+        <li key={p.key} className={`plan-row${crushed.has(p.key) ? ' crushed' : ''}`} data-key={p.key}>
+          <span className="plan-head">
+            <span className="plan-name">{comboName(t, view, seat, p)}</span>
+            <span className="plan-need">{p.need === 0 ? t('asWinShape') : p.need === 1 ? t('asTenpai') : t('asNeed', { n: p.need })}</span>
+            <span className="plan-points">{t('asPoints', { n: p.points })}</span>
+          </span>
+          {p.tiles.length > 0 && <PlanTiles t={t} view={view} tiles={p.tiles} />}
+          {p.furiten && <span className="plan-furiten">{t('asFuriten')}</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** 手牌の上の 1 行：合わせた牌を切るとつぶれる役 */
+export function CrushLine({ t, view, seat, plan, crushed }: { t: T; view: GameState; seat: Seat; plan: YakuPlan[] | null; crushed: ReadonlySet<string> }) {
+  if (!plan || crushed.size === 0) return null;
+  const names = plan.filter((p) => crushed.has(p.key)).map((p) => comboName(t, view, seat, p));
+  return <div className="yaku-hints assist-crush">{t('asCrush', { list: names.join(t('listDot')) })}</div>;
+}
+

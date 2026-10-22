@@ -18,7 +18,7 @@ import { isRed, kindOf, type TileId } from '../engine/tiles';
 import { relFrom, useSeat } from './seatContext';
 import { baseOf, translate, type Lang, type MessageKey } from '../i18n/strings';
 import { RuleBook } from './RuleBook';
-import { AssistOver, AssistPanel, AssistTab, useAssistDocked } from './Assist';
+import { AssistOver, AssistPanel, AssistTab, CrushLine, YakuPlanList, crushedBy, useAssistDocked, useYakuPlan } from './Assist';
 import { DraggableDialog } from './DraggableDialog';
 import { lengthName, roundName } from './roundName';
 import { Tile } from './Tile';
@@ -200,7 +200,26 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
 
   // 狭い画面の自分の手牌の列の長さ（横幅いっぱいに収める）
   const narrowUnits = handRowUnits(view.hands[me].length, view.drawn[me] !== null, view.melds[me]);
-  const hand = <MyHand view={view} legal={legal} lang={lang} onChoose={onChoose} clock={clock} melds={meldsOf(me)} dealt={dealt} hints={!replay && playing && dealt === null && view.rules?.family === 'jp'} />;
+  // アシストモード（段階2）：役の候補一覧と、合わせた牌（指は 1 回目に選んだ牌）を切るとつぶれる役
+  const assistOn = assist && !replay && !watching;
+  const plan = useYakuPlan(view, me, assistOn && dealt === null);
+  const [focusTile, setFocusTile] = useState<TileId | null>(null);
+  const crushed = crushedBy(plan, view.hands[me].length, focusTile);
+  const assistBody = assistOn ? <YakuPlanList t={t} view={view} seat={me} plan={plan} crushed={crushed} /> : undefined;
+  const hand = (
+    <MyHand
+      view={view}
+      legal={legal}
+      lang={lang}
+      onChoose={onChoose}
+      clock={clock}
+      melds={meldsOf(me)}
+      dealt={dealt}
+      hints={!replay && playing && dealt === null && view.rules?.family === 'jp'}
+      onFocusTile={assistOn ? setFocusTile : undefined}
+      crushLine={assistOn && crushed.size > 0 ? <CrushLine t={t} view={view} seat={me} plan={plan} crushed={crushed} /> : null}
+    />
+  );
 
   // ドラ表示牌（めくられた順）
   const indicators = view.doraIndicators.length > 0 && (
@@ -576,7 +595,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         </div>
         <div className="lanes">
           {/* 開いたアシストの欄：4 列の上端から重ねる（上の帯が 2 行に折り返しても、その下から） */}
-          {assist && assistOpen && <AssistOver t={t} />}
+          {assist && assistOpen && <AssistOver t={t}>{assistBody}</AssistOver>}
           {[1, 2, 3, 0].map((rel) => {
             const seat = seatAt(rel);
             return (
@@ -649,7 +668,11 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
 
   return (
     <div ref={fitRef} className="square-wrap">
-      {assist && <AssistPanel t={t} docked={assistDocked} />}
+      {assist && (
+        <AssistPanel t={t} docked={assistDocked}>
+          {assistBody}
+        </AssistPanel>
+      )}
       {/* 番の人の辺の外に線（自分＝下の辺。他家もその辺に＝訂正26101113） */}
       <div className={`square felt${!replay && !watching && playing && view.turn === me && (view.phase === 'draw' || view.phase === 'discard') ? ' my-turn-edge' : ''}${playing && relOf(view.turn) !== 0 ? ` turn-edge-${relOf(view.turn)}` : ''}`}>
         <div className="center-box">
@@ -837,7 +860,7 @@ function MeldView({ meld: given, seat, rules }: { meld: OpenMeld; seat: number; 
 }
 
 /** 自分の手牌。マウスは 1 回押すと切る／指は 1 回目で浮かせ、2 回目で切る（押し間違いを防ぐ） */
-function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; clock?: ReactNode; melds: ReactNode; dealt: number | null; hints: boolean }) {
+function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints, onFocusTile, crushLine }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; clock?: ReactNode; melds: ReactNode; dealt: number | null; hints: boolean; onFocusTile?: (id: TileId | null) => void; crushLine?: ReactNode }) {
   const [raised, setRaised] = useState<TileId | null>(null);
   // リーチを押したあと＝切る牌を選んでいるところ（もう一度押すとやめる）
   const [riichiPick, setRiichiPick] = useState(false);
@@ -905,6 +928,7 @@ function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints }: { v
     if (e.pointerType === 'mouse' || raised === id) {
       setRaised(null);
       setRiichiPick(false);
+      onFocusTile?.(null);
       if (queOpts.length > 0) {
         setVoidSuit(null);
         onChoose({ type: 'que', tile: id, suit: queSuitFor(id) });
@@ -913,12 +937,19 @@ function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints }: { v
       onChoose(picking ? { type: 'riichi', tile: id } : { type: 'discard', tile: id });
     } else {
       setRaised(id);
+      // 指：1 回目に選んだ牌を切るとつぶれる役を出す（アシストモード）
+      onFocusTile?.(id);
     }
   };
 
   // 伏せた牌（CPU に任せている間の自分の手牌）はどれも同じ番号なので、並び順で見分ける
   const tile = (id: TileId, i: number) => (
-    <button key={id >= 0 ? id : `hidden${i}`} type="button" className={`hand-tile${raised === id || picked.includes(id) ? ' raised' : ''}${id === heldTile ? ' que-held' : ''}`} disabled={!usable(id)} onPointerUp={press(id)}>
+    <button key={id >= 0 ? id : `hidden${i}`} type="button" className={`hand-tile${raised === id || picked.includes(id) ? ' raised' : ''}${id === heldTile ? ' que-held' : ''}`} disabled={!usable(id)}
+      onPointerUp={press(id)}
+      // マウス：合わせた時点で、その牌を切るとつぶれる役を出す（アシストモード・Q5=A）
+      onPointerEnter={onFocusTile ? (e) => e.pointerType === 'mouse' && onFocusTile(id) : undefined}
+      onPointerLeave={onFocusTile ? (e) => e.pointerType === 'mouse' && onFocusTile(null) : undefined}
+    >
       <Tile id={id} rules={view.rules} />
       {id === heldTile && <span className="que-held-tag">{translate(lang, 'queHeldTag')}</span>}
     </button>
@@ -1035,7 +1066,8 @@ function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints }: { v
         {picking && <span className="hint">{translate(lang, 'riichiPick')}</span>}
         {raised !== null && myTurn && <span className="hint">{translate(lang, 'tapAgain')}</span>}
       </div>
-      {hints && <YakuHints view={view} legal={legal} lang={lang} />}
+      {/* アシストモードで、合わせた牌を切るとつぶれる役があれば、同じ行に出す（行を足さない＝手牌を動かさない） */}
+      {crushLine || (hints && <YakuHints view={view} legal={legal} lang={lang} />)}
       <div className="hand-row">
         {rest.map(tile)}
         {drawn !== null && <span className="drawn-gap" />}

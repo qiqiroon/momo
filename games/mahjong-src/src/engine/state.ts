@@ -1796,14 +1796,14 @@ export function paoFromCall(s: GameState, melds: readonly OpenMeld[], from: Seat
 }
 
 /** 鳴いた面子を、役の判定が読む形にする */
-const yakuMelds = (s: GameState, seat: Seat): Meld[] =>
+export const yakuMelds = (s: GameState, seat: Seat): Meld[] =>
   s.melds[seat].map((m) => ({
     type: m.type === 'chi' || m.type === 'pon' ? m.type : 'kan',
     first: Math.min(...m.tiles.map(kindOf)),
     open: m.type !== 'ankan',
   }));
 /** 鳴いた面子の牌（ドラ・赤ドラを数えるため） */
-const meldTiles = (s: GameState, seat: Seat): TileId[] => s.melds[seat].flatMap((m) => m.tiles);
+export const meldTiles = (s: GameState, seat: Seat): TileId[] => s.melds[seat].flatMap((m) => m.tiles);
 
 /** 自風（27＝東 … 30＝北）。親が東 */
 /** サイコロの目の合計を、振った人＝1 として下家の向きへ数える（5・9 は振った人、2・6・10 は下家、3・7・11 は対面、4・8・12 は上家） */

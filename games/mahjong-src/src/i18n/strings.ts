@@ -557,6 +557,16 @@ const ja = {
   asBadge: 'アシストモード',
   asPanelTitle: 'アシスト',
   asPanelSoon: 'ここに、狙える役と行動の助言が出ます（準備中）。',
+  asCnSoon: '中国式の役の候補は準備中です。',
+  asCounting: '役を数えています…',
+  asWinShape: 'アガリの形',
+  asTenpai: 'テンパイ',
+  asNeed: 'あと{n}枚',
+  asPoints: '{n}点',
+  asMore: '…ほか{n}種',
+  asFuriten: 'フリテン（ツモのみ）',
+  asCrush: '切るとつぶれる役：{list}',
+  asPlus: '＋',
   clockLeft: '残り {n} 秒',
   olErrKicked: 'ホストにより部屋から出されました。また入ることはできます。',
   olErrNoSpectators: 'この部屋は観戦を受け付けていません。',
@@ -1210,6 +1220,16 @@ const en: Dict = {
   asBadge: 'Assist Mode',
   asPanelTitle: 'Assist',
   asPanelSoon: 'Possible yaku and advice will appear here (coming soon).',
+  asCnSoon: 'Possible fan for Chinese rules are coming soon.',
+  asCounting: 'Counting yaku…',
+  asWinShape: 'Complete',
+  asTenpai: 'Tenpai',
+  asNeed: '{n} more',
+  asPoints: '{n} pts',
+  asMore: '+{n} more',
+  asFuriten: 'Furiten (tsumo only)',
+  asCrush: 'Discarding this breaks: {list}',
+  asPlus: ' + ',
   clockLeft: '{n} s left',
   olErrKicked: 'The host removed you from the room. You can join again.',
   olErrNoSpectators: 'This room is not accepting spectators.',
@@ -1859,6 +1879,16 @@ const zh: Dict = {
   asBadge: '辅助模式',
   asPanelTitle: '辅助',
   asPanelSoon: '这里将显示可做的番种和行动建议（准备中）。',
+  asCnSoon: '中式规则的番种提示准备中。',
+  asCounting: '正在计算番种…',
+  asWinShape: '已和牌型',
+  asTenpai: '听牌',
+  asNeed: '还差{n}张',
+  asPoints: '{n}点',
+  asMore: '等{n}种',
+  asFuriten: '振听（仅限自摸）',
+  asCrush: '打出后会破坏的役：{list}',
+  asPlus: '＋',
   clockLeft: '剩余 {n} 秒',
   olErrKicked: '你已被房主移出房间，可以再次加入。',
   olErrNoSpectators: '该房间不接受观战。',
@@ -1974,7 +2004,7 @@ const DICTS: Record<BaseLang, Dict> = { ja, en, zh };
  *  - サブタイトル（全アプリ共通で猫語にしない）
  *  - 利用規約・免責・賭博禁止・公平性の説明など、意味が伝わらないと困るもの（同意画面の文面は i18n/notice.ts） */
 // 制限時間の同意の窓（tc…）は自動の操作で不利になることの説明＝利用上の注意と同じ扱いで猫語にしない
-const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['listDot', 'subtitle', 'noMoney', 'creditsModified', 'creditsShared', 'creditsBgm', 'chatRule', 'sameStartWarn', 'tcTitle', 'tcBody', 'tcCountdown', 'tcCancelNote', 'tcReclaimNote', 'asIntro', 'asHints', 'asFair', 'asCpu']);
+const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['listDot', 'subtitle', 'noMoney', 'creditsModified', 'creditsShared', 'creditsBgm', 'chatRule', 'sameStartWarn', 'tcTitle', 'tcBody', 'tcCountdown', 'tcCancelNote', 'tcReclaimNote', 'asIntro', 'asHints', 'asFair', 'asCpu', 'asPlus']);
 
 /** 攻撃的な鳴き声を返すキー（失敗・エラーの通知）。いまは無い（オンラインの段階で足す） */
 const ERROR_KEYS: ReadonlySet<MessageKey> = new Set(['olErrNoName', 'olErrNoRoomName', 'olErrWrongPw', 'olErrFull', 'olErrGone', 'olErrStarted', 'olLost', 'olBusy']);

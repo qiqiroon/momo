@@ -542,7 +542,7 @@ describe('同じ山で勝負（6e）', () => {
 });
 
 describe('アシストモード（訂正26101113 の 2）', () => {
-  it('CPU と対局：「アシストモードで始める」で案内が出る（やめるは無い）。OK で始まり、見出しに札・卓にアシストの欄（帯）。ふつうに始めると札も欄も無い', async () => {
+  it('CPU と対局：「アシストモードで始める」で案内が出る（やめるは無い）。OK で始まり、見出しに札・卓にアシストの欄（帯）＝役の候補一覧', async () => {
     render(<App startConsented />);
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'ja' } });
     startButton();
@@ -559,10 +559,13 @@ describe('アシストモード（訂正26101113 の 2）', () => {
     // 検査の窓は狭い（卓の左に余白が無い）＝帯「アシスト ▲」。押すと欄が開き、もう一度押すとたたむ
     const tab = screen.getByRole('button', { name: /アシスト ▲/ });
     fireEvent.click(tab);
-    expect(document.querySelector('.assist-over')).toHaveTextContent('準備中');
+    // 欄の中身＝役の候補一覧（あと何枚・見込みの点）。配り終えてから数える
+    await waitFor(() => expect(document.querySelector('.assist-over .plan-row')).not.toBeNull(), { timeout: 15000 });
+    expect(document.querySelector('.assist-over .plan-row .plan-need')!.textContent).toMatch(/あと\d+枚|テンパイ|アガリの形/);
+    expect(document.querySelector('.assist-over .plan-row .plan-points')!.textContent).toMatch(/\d+点/);
     fireEvent.click(screen.getByRole('button', { name: /アシスト ▼/ }));
     expect(document.querySelector('.assist-over')).toBeNull();
-  });
+  }, 30000);
 
   it('ふつうの「対局を始める」では札も欄も出ない', async () => {
     render(<App startConsented />);

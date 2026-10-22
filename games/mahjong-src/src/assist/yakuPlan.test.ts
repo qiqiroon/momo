@@ -1,6 +1,7 @@
 // アシストモードの役の候補一覧（設計 アシストモード v0.01 §4）の検査
 import type { GameEvent } from '../engine/events';
 import { GENERAL_RULES } from '../engine/rules';
+import { rulesOfCnSet } from '../engine/ruleSets';
 import { apply, initialState, type GameState } from '../engine/state';
 import { yakuPlan } from './yakuPlan';
 
@@ -83,16 +84,77 @@ describe('役の候補一覧', () => {
     expect(rows.some((p) => p.spare.has(0))).toBe(true);
   });
 
-  it('場面で付く役（立直・一発・門前清自摸和など）は出さない。中国式では空', () => {
-    const ids = Object.keys(byKey(dealt(PINFU)));
+  it('場面で付く役（立直・一発・門前清自摸和など）は出さない', () => {
+    const ids = yakuPlan(dealt(PINFU), 0, { budgetMs: 100000 }).flatMap((p) => p.ids);
     expect(ids).not.toContain('riichi');
     expect(ids).not.toContain('menzenTsumo');
-    const cn = dealt(PINFU);
-    expect(yakuPlan({ ...cn, rules: { ...cn.rules!, family: 'cn' } as never }, 0)).toEqual([]);
   });
 
   it('手牌が伏せている（CPU に任せているあいだ）なら空', () => {
     const s = dealt(PINFU);
     expect(yakuPlan({ ...s, hands: [s.hands[0].map(() => -1), [], [], []] }, 0)).toEqual([]);
+  });
+});
+
+describe('中国式の候補（四川・香港・国標）', () => {
+  /** 席 0（親）に配った中国式の局面 */
+  function cnDealt(set: 'sichuan' | 'hk' | 'mcr', kinds: number[]): GameState {
+    let s = initialState();
+    let seq = 0;
+    const push = (ev: GameEvent) => (s = apply(s, { seq: seq++, to: 'all', ev }));
+    const used = new Map<number, number>();
+    const tiles = kinds.map((k) => {
+      const n = used.get(k) ?? 0;
+      used.set(k, n + 1);
+      return k * 4 + n;
+    });
+    push({ type: 'gameStart', rules: rulesOfCnSet(set) });
+    push({ type: 'roundStart', roundIndex: 0, dealer: 0 });
+    push({ type: 'deal', seat: 0, tiles });
+    return s;
+  }
+  const rows = (s: GameState) => yakuPlan(s, 0, { budgetMs: 100000, limit: 30 });
+
+  it('四川：清一色のテンパイは番の名前の行で、番の数と待ち牌が出る。字牌は使わないので字牌の待ちは出ない', () => {
+    // 1〜9索 ＋ 1索 2索 3索 4索（索子だけ）
+    const list = rows(cnDealt('sichuan', [18, 19, 20, 21, 22, 23, 24, 25, 26, 18, 19, 20, 21]));
+    const q = list.find((p) => p.need === 1 && p.ids.includes('qingyise'))!;
+    expect(q.fan).toBeGreaterThan(0);
+    expect(q.tiles.length).toBeGreaterThan(0);
+    for (const p of list) for (const x of p.tiles) expect(x.kind).toBeLessThan(27);
+  });
+
+  it('国標：8 番に届かない形は行にしない（どの行も 8 番以上）', () => {
+    const list = rows(cnDealt('mcr', [0, 1, 2, 12, 13, 14, 24, 25, 26, 4, 5, 31, 31]));
+    expect(list.length).toBeGreaterThan(0);
+    for (const p of list) expect(p.fan).toBeGreaterThanOrEqual(8);
+  });
+
+  it('国標：あと何枚・番の数・2 番以上の番が同じで 1 番の番だけ違う行は 1 つにまとめ、入れ替えられる番を書く。待ちは代表の組み合わせのものだけ', () => {
+    // 123萬 456萬 789萬 の索の順子… 配牌のような手（1 番の形の番がいくつも付く）
+    const list = rows(cnDealt('mcr', [0, 1, 2, 9, 10, 11, 18, 19, 4, 5, 13, 14, 23]));
+    const swaps = list.filter((p) => p.swap);
+    expect(swaps.length).toBeGreaterThan(0);
+    // 代表の組み合わせの待ち＝まとめる前のその組み合わせの行の待ち
+    const plain = yakuPlan(cnDealt('mcr', [0, 1, 2, 9, 10, 11, 18, 19, 4, 5, 13, 14, 23]), 0, { budgetMs: 100000, limit: 200 });
+    for (const p of swaps) {
+      expect(p.tiles.length).toBeGreaterThan(0);
+      const same = plain.find((q) => !q.swap && q.need === p.need && [...q.ids].sort().join('+') === [...p.ids].sort().join('+'));
+      if (same) expect(p.tiles).toEqual(same.tiles);
+      expect(p.swap!.mine.length).toBeGreaterThan(0);
+      expect(p.swap!.alts.length).toBeGreaterThan(0);
+    }
+    // まとめたあとは、同じ（あと何枚・番の数・2 番以上の番）の行が 2 つ並ばない
+    const big = (p: (typeof list)[number]) => `${p.need}|${p.fan}|${p.ids.filter((id) => !(p.swap?.mine ?? []).includes(id)).sort().join('+')}`;
+    const keys = list.filter((p) => p.swap).map(big);
+    expect(new Set(keys).size).toBe(keys.length);
+    // まとめる相手が無い行は待ちを出す
+    expect(list.some((p) => !p.swap && p.tiles.length > 0)).toBe(true);
+  });
+
+  it('香港：3 番に届かない形は行にしない', () => {
+    const list = rows(cnDealt('hk', [0, 1, 2, 12, 13, 14, 24, 25, 26, 4, 5, 31, 31]));
+    expect(list.length).toBeGreaterThan(0);
+    for (const p of list) expect(p.fan).toBeGreaterThanOrEqual(3);
   });
 });

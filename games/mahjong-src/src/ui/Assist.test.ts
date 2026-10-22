@@ -2,7 +2,7 @@
 import type { YakuPlan } from '../assist/yakuPlan';
 import { crushedBy } from './Assist';
 
-const plan = (key: string, spare: number[], partial = false): YakuPlan => ({ ids: [key as YakuPlan['ids'][number]], key, need: 2, points: 1000, tiles: [], furiten: false, spare: new Set(spare), partial });
+const plan = (key: string, spare: number[], partial = false): YakuPlan => ({ ids: [key as YakuPlan['ids'][number]], key, need: 2, points: 1000, fan: 0, tiles: [], furiten: false, spare: new Set(spare), partial });
 
 describe('切るとつぶれる役', () => {
   const list = [plan('chun', [0, 4]), plan('tanyao', [33, 0]), plan('honitsu', [], true)];

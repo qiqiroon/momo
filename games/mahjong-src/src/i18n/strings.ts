@@ -557,7 +557,11 @@ const ja = {
   asBadge: 'アシストモード',
   asPanelTitle: 'アシスト',
   asPanelSoon: 'ここに、狙える役と行動の助言が出ます（準備中）。',
-  asCnSoon: '中国式の役の候補は準備中です。',
+  asNoFan: '番なし（平胡）',
+  asSwap: '{mine}は{others}に変えることも可能',
+  asOr: '・',
+  asNoneNear: 'あと6枚のうちにアガれる形はまだありません。',
+  asFan: '{n}番',
   asCounting: '役を数えています…',
   asWinShape: 'アガリの形',
   asTenpai: 'テンパイ',
@@ -1220,7 +1224,11 @@ const en: Dict = {
   asBadge: 'Assist Mode',
   asPanelTitle: 'Assist',
   asPanelSoon: 'Possible yaku and advice will appear here (coming soon).',
-  asCnSoon: 'Possible fan for Chinese rules are coming soon.',
+  asNoFan: 'No fan (basic win)',
+  asSwap: '{mine} can also be swapped for {others}',
+  asOr: ' / ',
+  asNoneNear: 'No winning hand within 6 more tiles yet.',
+  asFan: '{n} fan',
   asCounting: 'Counting yaku…',
   asWinShape: 'Complete',
   asTenpai: 'Tenpai',
@@ -1879,7 +1887,11 @@ const zh: Dict = {
   asBadge: '辅助模式',
   asPanelTitle: '辅助',
   asPanelSoon: '这里将显示可做的番种和行动建议（准备中）。',
-  asCnSoon: '中式规则的番种提示准备中。',
+  asNoFan: '无番（平胡）',
+  asSwap: '{mine}也可以换成{others}',
+  asOr: '、',
+  asNoneNear: '还差6张以内暂时没有可和的牌型。',
+  asFan: '{n}番',
   asCounting: '正在计算番种…',
   asWinShape: '已和牌型',
   asTenpai: '听牌',
@@ -2004,7 +2016,7 @@ const DICTS: Record<BaseLang, Dict> = { ja, en, zh };
  *  - サブタイトル（全アプリ共通で猫語にしない）
  *  - 利用規約・免責・賭博禁止・公平性の説明など、意味が伝わらないと困るもの（同意画面の文面は i18n/notice.ts） */
 // 制限時間の同意の窓（tc…）は自動の操作で不利になることの説明＝利用上の注意と同じ扱いで猫語にしない
-const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['listDot', 'subtitle', 'noMoney', 'creditsModified', 'creditsShared', 'creditsBgm', 'chatRule', 'sameStartWarn', 'tcTitle', 'tcBody', 'tcCountdown', 'tcCancelNote', 'tcReclaimNote', 'asIntro', 'asHints', 'asFair', 'asCpu', 'asPlus']);
+const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['listDot', 'subtitle', 'noMoney', 'creditsModified', 'creditsShared', 'creditsBgm', 'chatRule', 'sameStartWarn', 'tcTitle', 'tcBody', 'tcCountdown', 'tcCancelNote', 'tcReclaimNote', 'asIntro', 'asHints', 'asFair', 'asCpu', 'asPlus', 'asOr']);
 
 /** 攻撃的な鳴き声を返すキー（失敗・エラーの通知）。いまは無い（オンラインの段階で足す） */
 const ERROR_KEYS: ReadonlySet<MessageKey> = new Set(['olErrNoName', 'olErrNoRoomName', 'olErrWrongPw', 'olErrFull', 'olErrGone', 'olErrStarted', 'olLost', 'olBusy']);

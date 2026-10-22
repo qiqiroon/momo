@@ -3802,3 +3802,9 @@ body.in-game .site-header .subtitle {
   --tw: 16px;
   margin-bottom: 0;
 }
+
+/* 1 番の番を入れ替えられる行の書き添え */
+.plan-swap {
+  font-size: 11px;
+  color: var(--text-sub);
+}

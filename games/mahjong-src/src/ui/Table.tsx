@@ -204,7 +204,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   const assistOn = assist && !replay && !watching;
   const plan = useYakuPlan(view, me, assistOn && dealt === null);
   const [focusTile, setFocusTile] = useState<TileId | null>(null);
-  const crushed = crushedBy(plan, view.hands[me].length, focusTile);
+  const crushed = crushedBy(plan && !plan.counting ? plan.list : null, view.hands[me].length, focusTile);
   const assistBody = assistOn ? <YakuPlanList t={t} view={view} seat={me} plan={plan} crushed={crushed} /> : undefined;
   const hand = (
     <MyHand
@@ -217,7 +217,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
       dealt={dealt}
       hints={!replay && playing && dealt === null && view.rules?.family === 'jp'}
       onFocusTile={assistOn ? setFocusTile : undefined}
-      crushLine={assistOn && crushed.size > 0 ? <CrushLine t={t} view={view} seat={me} plan={plan} crushed={crushed} /> : null}
+      crushLine={assistOn && crushed.size > 0 ? <CrushLine t={t} view={view} seat={me} plan={plan?.list ?? null} crushed={crushed} /> : null}
     />
   );
 

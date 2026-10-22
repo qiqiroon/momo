@@ -213,11 +213,11 @@ function planWorker(): Worker | null {
 /**
  * 役の候補一覧を数える。局面が変わる（手牌・場に見える牌・ドラ表示）たびに数え直す。
  * 数えるのは働き手（卓を止めない・あと 6〜7 枚の段まで数えきる）。働き手が無ければ描き終えてから画面の側で（時間の上限つき）。
- * 数え直しているあいだは前の一覧を出したまま。手牌が伏せている・日本式でないときは null
+ * 数え直しているあいだは前の一覧を出したまま。手牌が伏せているときは null
  */
-export function useYakuPlan(view: GameState, seat: Seat, on: boolean): YakuPlan[] | null {
+export function useYakuPlan(view: GameState, seat: Seat, on: boolean): { list: YakuPlan[]; counting: boolean } | null {
   const key = useMemo(() => {
-    if (!on || !view.rules || view.rules.family !== 'jp' || view.roundIndex < 0) return null;
+    if (!on || !view.rules || view.roundIndex < 0) return null;
     const hand = view.hands[seat];
     if (hand.length === 0 || hand.some((t) => t < 0)) return null;
     return JSON.stringify([seat, view.roundIndex, view.honba, view.dealer, hand, visibleCounts(view, seat), view.doraIndicators, view.melds[seat].length, view.discards[seat].length]);
@@ -241,7 +241,7 @@ export function useYakuPlan(view: GameState, seat: Seat, on: boolean): YakuPlan[
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   if (key === null) return null;
-  return plan?.key === key ? plan.list : (plan?.list ?? []);
+  return plan?.key === key ? { list: plan.list, counting: false } : { list: plan?.list ?? [], counting: true };
 }
 
 /** 手牌が 14 枚（切る番）のとき、その牌を切ると遠くなる行（役の組み合わせの key。数え終えていない段の行は出さない） */
@@ -259,9 +259,16 @@ export function yakuName(t: T, view: GameState, seat: Seat, id: YakuId): string 
   return t(`yaku_${id}` as MessageKey, { wind: wind === null ? '' : t(`wind${wind - 27}` as MessageKey) });
 }
 
-/** 役の組み合わせの名前（「自風 北＋混一色」） */
+/** 役の組み合わせの名前（「自風 北＋混一色」）。中国式は番の名前、番が 1 つも付かないアガリ（四川の平胡）は「番なし」 */
 export function comboName(t: T, view: GameState, seat: Seat, p: YakuPlan): string {
-  return p.ids.map((id) => yakuName(t, view, seat, id)).join(t('asPlus'));
+  if (view.rules?.family === 'cn') return p.ids.length === 0 ? t('asNoFan') : p.ids.map((id) => t(`cnFan_${id}` as MessageKey)).join(t('asPlus'));
+  return p.ids.map((id) => yakuName(t, view, seat, id as YakuId)).join(t('asPlus'));
+}
+
+/** 「坎张は连六・喜相逢に変えることも可能」 */
+function swapNote(t: T, swap: NonNullable<YakuPlan['swap']>): string {
+  const names = (ids: string[]) => ids.map((id) => t(`cnFan_${id}` as MessageKey)).join(t('asPlus'));
+  return t('asSwap', { mine: names(swap.mine), others: swap.alts.map(names).join(t('asOr')) });
 }
 
 /** 1 行に出す牌の数（欄の幅 240px に、牌と残りの枚数が収まる数。あふれた分は「…ほか N 種」） */
@@ -290,9 +297,10 @@ function PlanTiles({ t, view, tiles }: { t: T; view: GameState; tiles: YakuPlan[
 }
 
 /** 役の候補一覧（1 行＝役の組み合わせ。あと何枚の少ない順・同じ枚数は点の高い順）。crushed＝合わせた牌を切るとつぶれる行 */
-export function YakuPlanList({ t, view, seat, plan, crushed }: { t: T; view: GameState; seat: Seat; plan: YakuPlan[] | null; crushed: ReadonlySet<string> }) {
-  if (plan === null) return <p className="assist-soon">{t('asCnSoon')}</p>;
-  if (plan.length === 0) return <p className="assist-soon">{t('asCounting')}</p>;
+export function YakuPlanList({ t, view, seat, plan: res, crushed }: { t: T; view: GameState; seat: Seat; plan: { list: YakuPlan[]; counting: boolean } | null; crushed: ReadonlySet<string> }) {
+  const plan = res?.list ?? [];
+  // 数え終えて 1 行も無い＝あと 6 枚のうちにアガれる形が無い（香港の 3 番・国標の 8 番に届く形が遠いなど）
+  if (plan.length === 0) return <p className="assist-soon">{t(res && !res.counting ? 'asNoneNear' : 'asCounting')}</p>;
   return (
     <ul className="plan-list">
       {plan.map((p) => (
@@ -300,9 +308,13 @@ export function YakuPlanList({ t, view, seat, plan, crushed }: { t: T; view: Gam
           <span className="plan-head">
             <span className="plan-name">{comboName(t, view, seat, p)}</span>
             <span className="plan-need">{p.need === 0 ? t('asWinShape') : p.need === 1 ? t('asTenpai') : t('asNeed', { n: p.need })}</span>
-            <span className="plan-points">{t('asPoints', { n: p.points })}</span>
+            {/* 中国式は番の数（点の数え方が四川・香港・国標で違うので、どれでも通じる番で出す） */}
+            {/* 番が 1 つも付かない行（番なし）は数を出さない（名前と重なる） */}
+            {(view.rules?.family !== 'cn' || p.ids.length > 0) && <span className="plan-points">{view.rules?.family === 'cn' ? t('asFan', { n: p.fan }) : t('asPoints', { n: p.points })}</span>}
           </span>
           {p.tiles.length > 0 && <PlanTiles t={t} view={view} tiles={p.tiles} />}
+          {/* 1 番の番だけ入れ替えられる組み合わせをまとめた行：入れ替えられることだけを書く（待ちは出さない＝利用者指示 10-22） */}
+          {p.swap && <span className="plan-swap">{swapNote(t, p.swap)}</span>}
           {p.furiten && <span className="plan-furiten">{t('asFuriten')}</span>}
         </li>
       ))}

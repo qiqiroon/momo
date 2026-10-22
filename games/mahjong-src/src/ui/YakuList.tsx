@@ -52,9 +52,10 @@ function Example({ ex, rules }: { ex: YakuExample; rules: Rules }) {
 }
 
 /** 一覧の 1 行：名前と値（右）・説明・補足・牌の並び。off＝いまのルールで付かない（灰色） */
-function Row({ name, value, off, text, note, ex, rules }: { name: string; value: string; off: boolean; text: string; note?: ReactNode; ex: YakuExample; rules: Rules }) {
+function Row({ ids, name, value, off, text, note, ex, rules }: { ids: readonly string[]; name: string; value: string; off: boolean; text: string; note?: ReactNode; ex: YakuExample; rules: Rules }) {
+  // data-ids＝この行の役の id（アシストモードの役名から、この行へ送るため）
   return (
-    <div className={`rb-row${off ? ' off' : ''}`}>
+    <div className={`rb-row${off ? ' off' : ''}`} data-ids={ids.join(' ')}>
       <div className="rb-row-head">
         <span className="rb-name">{name}</span>
         <span className="rb-val">{value}</span>
@@ -94,6 +95,7 @@ export function JpYakuList({ t, lang, rules }: { t: T; lang: BaseLang; rules: Ex
               return (
                 <Row
                   key={e.id}
+                  ids={membersOf(e)}
                   name={nameOf(e)}
                   value={st.off ? t('rbOff') : value(e, st.openHan)}
                   off={st.off}
@@ -149,7 +151,7 @@ export function CnFanList({ t, lang, rules, scoring }: { t: T; lang: BaseLang; r
   const rows = (es: readonly FanRow[]) =>
     es.map((e) => {
       const off = !members(e).some((id) => cnFanOn(id, v));
-      return <Row key={e.id} name={members(e).map(fanName).join(t('rbJoin'))} value={off ? t('rbOff') : value(e)} off={off} text={e.text[lang]} ex={e.ex} rules={rules} />;
+      return <Row key={e.id} ids={members(e)} name={members(e).map(fanName).join(t('rbJoin'))} value={off ? t('rbOff') : value(e)} off={off} text={e.text[lang]} ex={e.ex} rules={rules} />;
     });
   const limits = list.filter((e) => e.limit);
   return (

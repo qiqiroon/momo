@@ -3893,3 +3893,29 @@ body.in-game .site-header .subtitle {
   --tw: 16px;
   margin-bottom: 0;
 }
+
+/* ---- アシストモード 段階5：用語の説明・役名からルールブックへ ---- */
+.gloss {
+  cursor: help;
+  text-decoration: underline dotted rgba(255, 255, 255, 0.35);
+  text-underline-offset: 2px;
+}
+
+.yaku-link {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.yaku-link:hover {
+  color: var(--orange-mid);
+}
+
+/* ルールブックで送られた役の行を少しのあいだ光らせる */
+.rb-row.rb-focus {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+  border-radius: 6px;
+  transition: outline-color 0.4s;
+}

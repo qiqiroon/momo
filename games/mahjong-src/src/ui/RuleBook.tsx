@@ -3,7 +3,7 @@
 // 開く入口＝ルール選択の画面（RuleSettings）と、卓の画面（正方形は見出し・横4列は卓の上の帯）。対局中は役の一覧のタブで開く。
 // 窓は花札の役一覧と同じく、つかんで動かせて後ろを隠さない（DraggableDialog）。
 
-import { useLayoutEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { cnLabelOf, cnNearestSet, generalChoice, jpNearestSet, labelOf, type RuleChoice } from '../engine/ruleSets';
 import type { Rules } from '../engine/rules';
 import type { BaseLang, MessageKey } from '../i18n/strings';
@@ -59,8 +59,26 @@ function useFitAbove(above: string | undefined): number | null {
   return top;
 }
 
-export function RuleBook({ t, lang, rules, first = 'yaku', above, onClose }: { t: T; lang: BaseLang; rules: Rules; first?: RuleBookTab; above?: string; onClose: () => void }) {
+/**
+ * focus＝この役の行を開く（アシストモードの役名から・段階5）。役のタブにして、その行まで送り、少しのあいだ光らせる。
+ * n は同じ役をもう一度押したときも送り直すための通し番号
+ */
+export function RuleBook({ t, lang, rules, first = 'yaku', above, focus, onClose }: { t: T; lang: BaseLang; rules: Rules; first?: RuleBookTab; above?: string; focus?: { id: string; n: number } | null; onClose: () => void }) {
   const [tab, setTab] = useState<RuleBookTab>(first);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!focus) return;
+    setTab('yaku');
+    // 役のタブを描き終えてから行を探す
+    const id = setTimeout(() => {
+      const row = bodyRef.current?.querySelector<HTMLElement>(`.rb-row[data-ids~="${focus.id}"]`);
+      if (!row) return;
+      row.scrollIntoView?.({ block: 'center' });
+      row.classList.add('rb-focus');
+      setTimeout(() => row.classList.remove('rb-focus'), 2000);
+    }, 0);
+    return () => clearTimeout(id);
+  }, [focus]);
   const handTop = useFitAbove(above);
   const fitH = handTop === null ? 0 : Math.min(handTop - 16, 720);
   const fit = fitH >= FIT_MIN_PX;
@@ -78,7 +96,7 @@ export function RuleBook({ t, lang, rules, first = 'yaku', above, onClose }: { t
           </button>
         ))}
       </div>
-      <div className="rb-body" role="tabpanel" data-tab={tab}>
+      <div className="rb-body" role="tabpanel" data-tab={tab} ref={bodyRef}>
         {/* 遊び方（Q10=B）：流れの大筋に、いまのルールの値で変わる所を書き分けた文 */}
         {tab === 'howto' && (
           <div className="rb-howto">

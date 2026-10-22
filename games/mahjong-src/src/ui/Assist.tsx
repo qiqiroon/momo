@@ -3,7 +3,7 @@
 //  - ConsentWait：OK を押したあと、ほかの人を待つあいだ（ホストには誰を待っているか）
 //  - AssistPanel：卓の横の余白に出す欄。余白が足りなければ帯「アシスト ▲」で開け閉めする（Q8=A）
 // 見た目は制限時間の同意の窓（sound-backdrop・sound-panel）にそろえる。
-import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode, type RefObject } from 'react';
 import type { Reason, Suspect, TileRisk } from '../assist/danger';
 import { callLoss, type CallLoss } from '../assist/callCheck';
 import type { Action } from '../engine/round';
@@ -13,7 +13,8 @@ import type { Seat } from '../engine/events';
 import { roundWindOf, seatWindOf, type GameState } from '../engine/state';
 import { kindOf, type TileId } from '../engine/tiles';
 import type { YakuId } from '../engine/yaku';
-import type { MessageKey } from '../i18n/strings';
+import type { BaseLang, MessageKey } from '../i18n/strings';
+import { yakuDescOf } from '../rulebook/desc';
 import { visibleCounts } from '../cpu/shanten';
 import { Tile } from './Tile';
 
@@ -264,6 +265,47 @@ export function yakuName(t: T, view: GameState, seat: Seat, id: YakuId): string 
   return t(`yaku_${id}` as MessageKey, { wind: wind === null ? '' : t(`wind${wind - 27}` as MessageKey) });
 }
 
+/**
+ * 役の組み合わせの名前を、役ごとに押せる形で（押すとルールブックのその役へ・合わせる／長押しで役の条件）。段階5
+ * 番が 1 つも付かない行（番なし）は文字だけ
+ */
+function ComboName({ t, lang, view, seat, p, onYaku, tip }: { t: T; lang: BaseLang; view: GameState; seat: Seat; p: YakuPlan; onYaku?: (id: string) => void; tip?: TipApi }) {
+  if (p.ids.length === 0) return <>{comboName(t, view, seat, p)}</>;
+  return (
+    <>
+      {p.ids.map((id, i) => (
+        <span key={id}>
+          {i > 0 && t('asPlus')}
+          <YakuLink t={t} lang={lang} view={view} seat={seat} id={id} onYaku={onYaku} tip={tip} />
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** 押せる役名 1 つ */
+function YakuLink({ t, lang, view, seat, id, onYaku, tip }: { t: T; lang: BaseLang; view: GameState; seat: Seat; id: string; onYaku?: (id: string) => void; tip?: TipApi }) {
+  const name = view.rules?.family === 'cn' ? t(`cnFan_${id}` as MessageKey) : yakuName(t, view, seat, id as YakuId);
+  const handlers = useTipHandlers(tip, () => (view.rules && yakuDescOf(view.rules, id, lang)) ?? name);
+  if (!onYaku) return <span {...handlers}>{name}</span>;
+  return (
+    <button type="button" className="yaku-link" onClick={() => onYaku(id)} {...handlers}>
+      {name}
+    </button>
+  );
+}
+
+/** 卓の上の用語に付ける説明（合わせる／長押しで浮かぶ）。tip が無ければ中身だけ */
+export function Gloss({ tip, text, children, className = '' }: { tip?: TipApi; text: () => ReactNode; children: ReactNode; className?: string }) {
+  const handlers = useTipHandlers(tip, text);
+  if (!tip) return <>{children}</>;
+  return (
+    <span className={`gloss${className ? ` ${className}` : ''}`} {...handlers}>
+      {children}
+    </span>
+  );
+}
+
 /** 役の組み合わせの名前（「自風 北＋混一色」）。中国式は番の名前、番が 1 つも付かないアガリ（四川の平胡）は「番なし」 */
 export function comboName(t: T, view: GameState, seat: Seat, p: YakuPlan): string {
   if (view.rules?.family === 'cn') return p.ids.length === 0 ? t('asNoFan') : p.ids.map((id) => t(`cnFan_${id}` as MessageKey)).join(t('asPlus'));
@@ -302,7 +344,7 @@ function PlanTiles({ t, view, tiles }: { t: T; view: GameState; tiles: YakuPlan[
 }
 
 /** 役の候補一覧（1 行＝役の組み合わせ。あと何枚の少ない順・同じ枚数は点の高い順）。crushed＝合わせた牌を切るとつぶれる行 */
-export function YakuPlanList({ t, view, seat, plan: res, crushed }: { t: T; view: GameState; seat: Seat; plan: { list: YakuPlan[]; counting: boolean } | null; crushed: ReadonlySet<string> }) {
+export function YakuPlanList({ t, lang, view, seat, plan: res, crushed, onYaku, tip }: { t: T; lang: BaseLang; view: GameState; seat: Seat; plan: { list: YakuPlan[]; counting: boolean } | null; crushed: ReadonlySet<string>; onYaku?: (id: string) => void; tip?: TipApi }) {
   const plan = res?.list ?? [];
   // 数え終えて 1 行も無い＝あと 6 枚のうちにアガれる形が無い（香港の 3 番・国標の 8 番に届く形が遠いなど）
   if (plan.length === 0) return <p className="assist-soon">{t(res && !res.counting ? 'asNoneNear' : 'asCounting')}</p>;
@@ -311,7 +353,9 @@ export function YakuPlanList({ t, view, seat, plan: res, crushed }: { t: T; view
       {plan.map((p) => (
         <li key={p.key} className={`plan-row${crushed.has(p.key) ? ' crushed' : ''}`} data-key={p.key}>
           <span className="plan-head">
-            <span className="plan-name">{comboName(t, view, seat, p)}</span>
+            <span className="plan-name">
+              <ComboName t={t} lang={lang} view={view} seat={seat} p={p} onYaku={onYaku} tip={tip} />
+            </span>
             <span className="plan-need">{p.need === 0 ? t('asWinShape') : p.need === 1 ? t('asTenpai') : t('asNeed', { n: p.need })}</span>
             {/* 中国式は番の数（点の数え方が四川・香港・国標で違うので、どれでも通じる番で出す） */}
             {/* 番が 1 つも付かない行（番なし）は数を出さない（名前と重なる） */}
@@ -379,9 +423,20 @@ export function useTipHandlers(api: TipApi | undefined, content: () => ReactNode
     onPointerLeave: (e: RPointerEvent) => e.pointerType === 'mouse' && api.hide(),
     onPointerDown: (e: RPointerEvent) => {
       if (e.pointerType === 'mouse') return;
-      const el = e.currentTarget;
+      const el = e.currentTarget as HTMLElement;
       clear();
-      timer.current = setTimeout(() => api.show(el, content()), LONG_PRESS_MS);
+      timer.current = setTimeout(() => {
+        // 長押しだった印（離したあとの押した扱いを 1 回止める＝長押しは操作にならない）
+        el.dataset.lp = '1';
+        api.show(el, content());
+      }, LONG_PRESS_MS);
+    },
+    onClickCapture: (e: RMouseEvent) => {
+      const el = e.currentTarget as HTMLElement;
+      if (el.dataset.lp !== '1') return;
+      delete el.dataset.lp;
+      e.preventDefault();
+      e.stopPropagation();
     },
     onPointerUp: (e: RPointerEvent) => {
       if (e.pointerType === 'mouse') return;

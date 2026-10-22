@@ -15,10 +15,12 @@ import type { ScoreResult } from '../engine/score';
 import type { CnScore } from '../engine/sichuan';
 import { claimKeyOf, liveWallLeft, PIG_PENALTY, queOn, startPoints, suitOfKind, type GameState, type OpenMeld } from '../engine/state';
 import { isRed, kindOf, type TileId } from '../engine/tiles';
+import { doraOf } from '../engine/dora';
+import { yakuDescOf } from '../rulebook/desc';
 import { relFrom, useSeat } from './seatContext';
 import { baseOf, translate, type Lang, type MessageKey } from '../i18n/strings';
 import { RuleBook } from './RuleBook';
-import { AssistOver, AssistPanel, AssistTab, CallLine, CrushLine, DangerMark, useCallNotes, LONG_PRESS_MS, TenpaiQ, YakuPlanList, crushedBy, riskText, useAssistDocked, useTip, useYakuPlan, type TipApi } from './Assist';
+import { AssistOver, AssistPanel, AssistTab, CallLine, Gloss, CrushLine, DangerMark, useCallNotes, LONG_PRESS_MS, TenpaiQ, YakuPlanList, crushedBy, riskText, useAssistDocked, useTip, useYakuPlan, type TipApi } from './Assist';
 import { risksOf, suspectsOf, type TileRisk } from '../assist/danger';
 import { DraggableDialog } from './DraggableDialog';
 import { lengthName, roundName } from './roundName';
@@ -95,17 +97,30 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   const assistOn = assist && !replay && !watching;
   const sus = assistOn && view.phase !== 'ended' && view.phase !== 'gameover' && view.roundIndex >= 0 ? suspectsOf(view, me) : [];
   const { api: tipApi, box: tipBox } = useTip();
+  /** 用語の説明（段階5・設計 §8）：アシストモードのときだけ、合わせる（指は長押し）と浮かぶ */
+  const gl = (text: () => ReactNode, node: ReactNode) => (assistOn ? <Gloss tip={tipApi} text={text}>{node}</Gloss> : node);
+  const cnRule = view.rules?.family === 'cn';
+  const glRound = () => t(cnRule ? 'glRoundCn' : 'glRoundJp');
+  const glWind = () => t(cnRule ? 'glWindCn' : 'glWindJp');
+  /** 結果の窓の役名：合わせる（指は長押し）とルールブックと同じ条件の文（段階5） */
+  const glYaku = (id: string, node: ReactNode) => gl(() => (view.rules && yakuDescOf(view.rules, id, baseOf(lang))) ?? node, node);
+  /** ルールブックの役へ送る（アシストの一覧の役名・段階5） */
+  const [bookFocus, setBookFocus] = useState<{ id: string; n: number } | null>(null);
+  const openYaku = (id: string) => {
+    setBookFocus({ id, n: Date.now() });
+    onBook?.(true);
+  };
   const roundLabel = roundName(view, t);
   const left = Math.max(0, liveWallLeft(view));
   /** 半荘戦か東風戦か（対局の長さ。利用者指示 10-09：どちらか分かる表示）。中国式は 4圏・1圏 */
   const lengthLabel = lengthName(view, t);
   /** 持ち点（3 桁区切り） */
-  const pointsOf = (seat: number) => <span className="points">{view.scores[seat].toLocaleString('en-US')}</span>;
+  const pointsOf = (seat: number) => gl(() => t('glPoints'), <span className="points">{view.scores[seat].toLocaleString('en-US')}</span>);
   const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '±0');
   /** 最終得点の表示（千点＝1。小数は 1 桁まで） */
   const fmt = (n: number) => signed(Math.round(n * 10) / 10);
   // 本場・供託は日本式だけ（中国式に無い）
-  const sticks = view.rules?.family === 'cn' ? null : <span className="sticks">{t('honbaKyotaku', { h: view.honba, k: view.kyotaku })}</span>;
+  const sticks = view.rules?.family === 'cn' ? null : gl(() => t('glSticks'), <span className="sticks">{t('honbaKyotaku', { h: view.honba, k: view.kyotaku })}</span>);
   const playing = view.phase !== 'ended';
   // 直前に切った人（その河の最後の牌に印を付ける）
   const lastDiscarder = view.phase === 'draw' ? (view.turn + 3) % 4 : view.phase === 'claim' && view.claim ? view.claim.from : -1;
@@ -135,12 +150,12 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
       .filter(Boolean)
       .join(' ');
   /** 起家の印（親決めで最初の親になった人） */
-  const chichaMark = (seat: number) => seat === view.chicha && <span className="chicha-mark">{t('chichaMark')}</span>;
+  const chichaMark = (seat: number) => seat === view.chicha && gl(() => t('glChicha'), <span className="chicha-mark">{t('chichaMark')}</span>);
   /** 缺一門の印：宣言した色（伏せただけでまだ切っていなければ「？」）。中国式で缺一門ありのときだけ */
   const queMark = (seat: number) => {
     if (!queOn(view.rules)) return null;
     const q = view.que[seat];
-    if (q !== null) return <span className="que-mark">{t('queMark', { suit: t(`suitShort${q}` as MessageKey) })}</span>;
+    if (q !== null) return gl(() => t('glQue'), <span className="que-mark">{t('queMark', { suit: t(`suitShort${q}` as MessageKey) })}</span>);
     return view.queHeld[seat] !== null ? <span className="que-mark pending">{t('queHidden')}</span> : null;
   };
   // リーチ棒：宣言してから局が終わるまで、その人の前に置く。宣言牌でロンされたら出さない（結果が出た時点で消える）
@@ -168,8 +183,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
       {/* 血流成河：アガった回数 */}
       {view.cnLocked[seat] && <span className="cn-out-mark">{t('cnWinTimes', { n: view.cnWins.filter((w) => w.seat === seat).length })}</span>}
       {queMark(seat)}
-      {view.riichi[seat] !== 'none' && <span className="riichi-mark">{t('riichi')}</span>}
-      {seat === me && furiten && furiten.reasons.length > 0 && <span className="furiten-mark">{t('furiten')}</span>}
+      {view.riichi[seat] !== 'none' && gl(() => t('glRiichi'), <span className="riichi-mark">{t('riichi')}</span>)}
+      {seat === me && furiten && furiten.reasons.length > 0 && gl(() => t('glFuriten'), <span className="furiten-mark">{t('furiten')}</span>)}
     </>
   );
 
@@ -223,7 +238,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   // 鳴く前の注意：鳴ける牌が来たら、鳴きの選び方ごとに消える役・役なしを数える（段階4）
   const callActs = legal.filter((a) => a.type === 'chi' || a.type === 'pon' || (a.type === 'kan' && a.kan === 'minkan'));
   const callNotes = useCallNotes(view, me, callActs, plan && !plan.counting ? plan.list : null, assistOn);
-  const assistBody = assistOn ? <YakuPlanList t={t} view={view} seat={me} plan={plan} crushed={crushed} /> : undefined;
+  const assistBody = assistOn ? <YakuPlanList t={t} lang={baseOf(lang)} view={view} seat={me} plan={plan} crushed={crushed} onYaku={onBook ? openYaku : undefined} tip={tipApi} /> : undefined;
   const hand = (
     <MyHand
       view={view}
@@ -249,13 +264,23 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   );
 
   // ドラ表示牌（めくられた順）
-  const indicators = view.doraIndicators.length > 0 && (
+  const indicators = view.doraIndicators.length > 0 && gl(
+    () => (
+      <>
+        <div>{t('glDora')}</div>
+        <div className="tip-waits">
+          {view.doraIndicators.map((id) => (
+            <Tile key={id} id={doraOf(kindOf(id)) * 4 + 3} rules={view.rules} className="mini" />
+          ))}
+        </div>
+      </>
+    ),
     <span className="dora-ind">
       <span className="dora-ind-label">{t('doraIndicator')}</span>
       {view.doraIndicators.map((id) => (
         <Tile key={id} id={id} rules={view.rules} className="mini" />
       ))}
-    </span>
+    </span>,
   );
 
   // アガった人（ツモは 1 人・ロンは 1〜3 人）。手牌はアガリ牌を除いた形で並べ、アガリ牌を少し離して置く
@@ -388,7 +413,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
               ))}
             </span>
           )}
-          <ScoreView score={won.score} lang={lang} />
+          <ScoreView score={won.score} lang={lang} gloss={glYaku} />
         </Fragment>
       ))}
       {/* 中国式のアガリ（段階9）：手牌・アガリ牌・番・基本点・払い */}
@@ -405,7 +430,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
               <Tile id={w.winTile} rules={view.rules} className="win-tile" />
               {meldsOf(w.seat)}
             </div>
-            <CnScoreView score={w.score} seat={w.seat} pays={w.pays} tsumo={w.from === null} rob={!!w.rob} rules={view.rules} t={t} />
+            <CnScoreView score={w.score} seat={w.seat} pays={w.pays} tsumo={w.from === null} rob={!!w.rob} rules={view.rules} t={t} gloss={glYaku} />
           </Fragment>
         ))}
       {/* 刮风下雨：この局のカンの点（カンした人が受け取った合計。返したものは印）。アガリのあと・点の動きの前 */}
@@ -589,7 +614,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   );
 
   /** ルールブックの窓（対局中は役の一覧のタブで開く） */
-  const book = bookOpen && onBook && view.rules ? <RuleBook t={t} lang={baseOf(lang)} rules={view.rules} above={narrow ? '.my-hand' : undefined} onClose={() => onBook(false)} /> : null;
+  const book = bookOpen && onBook && view.rules ? <RuleBook t={t} lang={baseOf(lang)} rules={view.rules} above={narrow ? '.my-hand' : undefined} focus={bookFocus} onClose={() => onBook(false)} /> : null;
 
   if (narrow) {
     return (
@@ -612,9 +637,9 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
             </div>
           )}
           <div className="lanes-stats">
-            {lengthLabel && <span className="length-label">{lengthLabel}</span>}
-            <span className="round-label">{roundLabel}</span>
-            <span className="wall-left">{t('wallLeft', { n: left })}</span>
+            {lengthLabel && gl(() => t('glLength'), <span className="length-label">{lengthLabel}</span>)}
+            {gl(glRound, <span className="round-label">{roundLabel}</span>)}
+            {gl(() => t('glWall'), <span className="wall-left">{t('wallLeft', { n: left })}</span>)}
             {sticks}
             {indicators}
             {winNote}
@@ -628,7 +653,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
             return (
               <section key={rel} className={`lane${view.turn === seat && playing ? ' is-turn' : ''}`}>
                 <div className="lane-who">
-                  <span className="lane-wind">{windOf(seat)}</span>
+                  {gl(glWind, <span className="lane-wind">{windOf(seat)}</span>)}
                   <span className="lane-name">{nameOf(seat)}</span>
                   {chichaMark(seat)}
                   {pointsOf(seat)}
@@ -704,9 +729,9 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
       {/* 番の人の辺の外に線（自分＝下の辺。他家もその辺に＝訂正26101113） */}
       <div className={`square felt${!replay && !watching && playing && view.turn === me && (view.phase === 'draw' || view.phase === 'discard') ? ' my-turn-edge' : ''}${playing && relOf(view.turn) !== 0 ? ` turn-edge-${relOf(view.turn)}` : ''}`}>
         <div className="center-box">
-          {lengthLabel && <span className="length-label">{lengthLabel}</span>}
-          <span className="round-label">{roundLabel}</span>
-          <span className="wall-left">{t('wallLeft', { n: left })}</span>
+          {lengthLabel && gl(() => t('glLength'), <span className="length-label">{lengthLabel}</span>)}
+          {gl(glRound, <span className="round-label">{roundLabel}</span>)}
+          {gl(() => t('glWall'), <span className="wall-left">{t('wallLeft', { n: left })}</span>)}
           {sticks}
           {indicators}
           {winNote}
@@ -714,7 +739,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
             const seat = seatAt(rel);
             return (
               <span key={rel} className={`center-wind rel-${rel}${view.turn === seat && playing ? ' is-turn' : ''}`}>
-                <b>{windOf(seat)}</b> {nameOf(seat)} {chichaMark(seat)} {pointsOf(seat)}
+                {gl(glWind, <b>{windOf(seat)}</b>)} {nameOf(seat)} {chichaMark(seat)} {pointsOf(seat)}
                 {riichiMark(seat)}
               </span>
             );
@@ -765,11 +790,13 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
 }
 
 /** アガリの役と点数。役の名前・翻、ドラの数、符と翻（または満貫などの段階）、支払い、合計 */
-function ScoreView({ score, lang }: { score: ScoreResult; lang: Lang }) {
+/** gloss＝アシストモードで、役名に合わせる（指は長押し）とその役の条件を出す（段階5） */
+function ScoreView({ score, lang, gloss }: { score: ScoreResult; lang: Lang; gloss?: (id: string, node: ReactNode) => ReactNode }) {
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
   const yakumanName = (n: number) => (n === 1 ? t('limit_yakuman') : n === 2 ? t('yakuman2') : n === 3 ? t('yakuman3') : t('yakumanN', { n }));
   const windName = (k: number) => t(`wind${k - 27}` as MessageKey);
-  const rows: { name: string; value: string }[] = score.yaku.map((y) => ({
+  const rows: { id?: string; name: string; value: string }[] = score.yaku.map((y) => ({
+    id: y.id,
     name: t(`yaku_${y.id}` as MessageKey, { wind: '' }),
     value: y.yakuman > 0 ? yakumanName(y.yakuman) : t('hanN', { n: y.han }),
   }));
@@ -801,7 +828,7 @@ function ScoreView({ score, lang }: { score: ScoreResult; lang: Lang }) {
         <tbody>
           {rows.map((r, i) => (
             <tr key={i}>
-              <th>{r.name}</th>
+              <th>{r.id && gloss ? gloss(r.id, r.name) : r.name}</th>
               <td>{r.value}</td>
             </tr>
           ))}
@@ -818,7 +845,7 @@ function ScoreView({ score, lang }: { score: ScoreResult; lang: Lang }) {
  * 中国式のアガリの番と点。番の名前と数・合計（上限で切ったら印・香港の例牌は印）・払い・点。
  * 払いの一言は実際の点の動き（pays）から書く：3 人が同じ額＝ツモ／1 人＝放銃者（香港の搶槓はカンした人）
  */
-function CnScoreView({ score, seat, pays, tsumo, rob, rules, t }: { score: CnScore; seat: number; pays: readonly number[]; tsumo: boolean; rob: boolean; rules: Rules | null; t: (k: MessageKey, v?: Record<string, string | number>) => string }) {
+function CnScoreView({ score, seat, pays, tsumo, rob, rules, t, gloss }: { score: CnScore; seat: number; pays: readonly number[]; tsumo: boolean; rob: boolean; rules: Rules | null; t: (k: MessageKey, v?: Record<string, string | number>) => string; gloss?: (id: string, node: ReactNode) => ReactNode }) {
   const cap = rules?.family === 'cn' ? rules.values.cap : 'none';
   const hk = rules?.family === 'cn' && rules.values.scoring === 'hk';
   const payers = pays.flatMap((p, i) => (i !== seat && p < 0 ? [-p] : []));
@@ -838,7 +865,7 @@ function CnScoreView({ score, seat, pays, tsumo, rob, rules, t }: { score: CnSco
         <tbody>
           {score.fans.map((f) => (
             <tr key={f.id}>
-              <th>{t(`cnFan_${f.id}` as MessageKey)}</th>
+              <th>{gloss ? gloss(f.id, t(`cnFan_${f.id}` as MessageKey)) : t(`cnFan_${f.id}` as MessageKey)}</th>
               <td>{t('fanN', { n: f.fan })}</td>
             </tr>
           ))}

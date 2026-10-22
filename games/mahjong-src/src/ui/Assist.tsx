@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode, type RefObject } from 'react';
 import type { Reason, Suspect, TileRisk } from '../assist/danger';
 import { callLoss, type CallLoss } from '../assist/callCheck';
+import { adviceOf, type Advice } from '../assist/advice';
 import type { Action } from '../engine/round';
 import { yakuPlan, type YakuPlan } from '../assist/yakuPlan';
 import type { Job } from '../assist/planWorker';
@@ -530,4 +531,43 @@ export function CallLine({ t, view, seat, notes }: { t: T; view: GameState; seat
   ];
   if (parts.length === 0) return null;
   return <div className="yaku-hints assist-crush call-warn">{parts.join(' ／ ')}</div>;
+}
+
+// ---- 行動の助言（段階6・設計 §7） ----
+
+/** 行動の助言を数える（働き手で・局面が変わるたび）。数え直しているあいだは前の助言を出したまま */
+export function useAdvice(view: GameState, seat: Seat, legal: readonly Action[], plan: readonly YakuPlan[] | null, on: boolean): Advice | null {
+  const key = on && plan ? JSON.stringify([view.nextSeq, view.phase, legal, plan.map((p) => p.key)]) : null;
+  const [advice, setAdvice] = useState<Advice | null>(null);
+  useEffect(() => {
+    if (key === null || !plan) return;
+    return ask<Advice | null>({ kind: 'advice', view, seat, legal: [...legal], plan: [...plan] }, () => adviceOf(view, seat, legal, plan), setAdvice);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return key === null ? null : advice;
+}
+
+/** 助言の 1〜2 文（欄の一番上）。文のあとにおすすめの牌・待ちを絵で */
+export function AdviceLine({ t, view, seat, advice, nameOf }: { t: T; view: GameState; seat: Seat; advice: Advice | null; nameOf: (seat: number) => string }) {
+  if (!advice) return null;
+  const v = advice.vars;
+  const combo = advice.combo
+    ? comboName(t, view, seat, { ids: advice.combo, key: '', need: 0, points: 0, fan: 0, tiles: [], furiten: false, spare: new Set(), partial: false })
+    : '';
+  const text = t(advice.key as MessageKey, {
+    ...v,
+    ...(v.name !== undefined ? { name: nameOf(Number(v.name)) } : {}),
+    ...(typeof v.state === 'string' ? { state: t(v.state as MessageKey) } : {}),
+    ...(v.suit !== undefined ? { suit: t(`suit${v.suit}` as MessageKey) } : {}),
+    ...(v.how !== undefined ? { how: t(v.how as MessageKey) } : {}),
+    combo,
+  });
+  return (
+    <p className="assist-advice">
+      {text}
+      {advice.tiles.map((k) => (
+        <Tile key={k} id={k * 4 + 3} rules={view.rules} className="mini" />
+      ))}
+    </p>
+  );
 }

@@ -20,7 +20,7 @@ import { yakuDescOf } from '../rulebook/desc';
 import { relFrom, useSeat } from './seatContext';
 import { baseOf, translate, type Lang, type MessageKey } from '../i18n/strings';
 import { RuleBook } from './RuleBook';
-import { AssistOver, AssistPanel, AssistTab, CallLine, Gloss, CrushLine, DangerMark, useCallNotes, LONG_PRESS_MS, TenpaiQ, YakuPlanList, crushedBy, riskText, useAssistDocked, useTip, useYakuPlan, type TipApi } from './Assist';
+import { AdviceLine, AssistOver, AssistPanel, AssistTab, CallLine, Gloss, useAdvice, CrushLine, DangerMark, useCallNotes, LONG_PRESS_MS, TenpaiQ, YakuPlanList, crushedBy, riskText, useAssistDocked, useTip, useYakuPlan, type TipApi } from './Assist';
 import { risksOf, suspectsOf, type TileRisk } from '../assist/danger';
 import { DraggableDialog } from './DraggableDialog';
 import { lengthName, roundName } from './roundName';
@@ -238,7 +238,14 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   // 鳴く前の注意：鳴ける牌が来たら、鳴きの選び方ごとに消える役・役なしを数える（段階4）
   const callActs = legal.filter((a) => a.type === 'chi' || a.type === 'pon' || (a.type === 'kan' && a.kan === 'minkan'));
   const callNotes = useCallNotes(view, me, callActs, plan && !plan.counting ? plan.list : null, assistOn);
-  const assistBody = assistOn ? <YakuPlanList t={t} lang={baseOf(lang)} view={view} seat={me} plan={plan} crushed={crushed} onYaku={onBook ? openYaku : undefined} tip={tipApi} /> : undefined;
+  // 行動の助言（段階6）：欄の一番上に 1〜2 文
+  const advice = useAdvice(view, me, legal, plan && !plan.counting ? plan.list : null, assistOn && dealt === null);
+  const assistBody = assistOn ? (
+    <>
+      <AdviceLine t={t} view={view} seat={me} advice={advice} nameOf={nameOf} />
+      <YakuPlanList t={t} lang={baseOf(lang)} view={view} seat={me} plan={plan} crushed={crushed} onYaku={onBook ? openYaku : undefined} tip={tipApi} />
+    </>
+  ) : undefined;
   const hand = (
     <MyHand
       view={view}

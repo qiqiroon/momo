@@ -3919,3 +3919,20 @@ body.in-game .site-header .subtitle {
   border-radius: 6px;
   transition: outline-color 0.4s;
 }
+
+/* 行動の助言（段階6）：欄の一番上。文のあとにおすすめの牌・待ちを絵で */
+.assist-advice {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--orange);
+  background: var(--bg-selected);
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.assist-advice .tile.mini {
+  --tw: 18px;
+  margin: 0 2px;
+  vertical-align: middle;
+}

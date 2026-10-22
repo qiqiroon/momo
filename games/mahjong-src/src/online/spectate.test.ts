@@ -5,6 +5,12 @@ import { benchCpu } from '../cpu/bench';
 import { HIDDEN } from '../engine/events';
 import { OnlineTable } from './table';
 
+/**
+ * 待ちの上限の倍率。ほかの検査と同時に回ってパソコンが混むと、CPU の手も錠前の計算も遅くなり、
+ * 正しく動いていても上限に届いて「時間切れ」で落ちた（第26・席を移す検査で再現した直しを、同じ待ち方の検査にもそろえた）。正しく動くときの所要時間は変わらない
+ */
+const WAIT_SCALE = 3;
+
 class Net {
   tables: { id: string; t: OnlineTable; host: boolean }[] = [];
   problems: unknown[] = [];
@@ -54,7 +60,7 @@ class Net {
   async until(done: () => boolean, ms: number) {
     const t0 = Date.now();
     while (!done()) {
-      if (Date.now() - t0 > ms) throw new Error('時間切れ');
+      if (Date.now() - t0 > ms * WAIT_SCALE) throw new Error('時間切れ');
       await new Promise((r) => setTimeout(r, 5));
     }
   }
@@ -86,5 +92,5 @@ describe('観戦（段階10の3）', () => {
     // 観戦者は選べることが無く、卓の知らせを何も送らない
     expect(W.choices()).toEqual([]);
     expect(net.fromWatcher).toEqual([]);
-  }, 90_000);
+  }, 270_000);
 });

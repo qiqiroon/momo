@@ -5,6 +5,12 @@ import { benchCpu } from '../cpu/bench';
 import type { Envelope } from '../engine/events';
 import { OnlineTable } from './table';
 
+/**
+ * 待ちの上限の倍率。ほかの検査と同時に回ってパソコンが混むと、CPU の手も錠前の計算も遅くなり、
+ * 正しく動いていても上限に届いて「時間切れ」で落ちた（第26・席を移す検査で再現した直しを、同じ待ち方の検査にもそろえた）。正しく動くときの所要時間は変わらない
+ */
+const WAIT_SCALE = 3;
+
 class Net {
   tables: { id: string; t: OnlineTable; host: boolean }[] = [];
   problems: unknown[] = [];
@@ -58,7 +64,7 @@ class Net {
   async until(done: () => boolean, ms: number) {
     const t0 = Date.now();
     while (!done()) {
-      if (Date.now() - t0 > ms) throw new Error('時間切れ');
+      if (Date.now() - t0 > ms * WAIT_SCALE) throw new Error('時間切れ');
       await new Promise((r) => setTimeout(r, 5));
     }
   }
@@ -89,7 +95,7 @@ describe('制限時間への同意', () => {
     expect(H.consentDeadline).toBeNull();
     await net.until(() => G.pub.phase === 'discard' || G.pub.phase === 'claim', 20_000);
     expect(G.consentDeadline).toBeNull();
-  }, 30_000);
+  }, 90_000);
 
   it('全員が同意するまで配らない。そろったら配り、だれも CPU にならない', async () => {
     const { net, H, G, K } = start(60_000);
@@ -103,7 +109,7 @@ describe('制限時間への同意', () => {
     await net.until(() => H.pub.phase === 'discard' || H.pub.phase === 'claim', 20_000);
     expect([0, 1, 2].map((s) => H.isProxy(s as 0))).toEqual([false, false, false]);
     expect(net.problems).toEqual([]);
-  }, 30_000);
+  }, 90_000);
 
   it('［やめる］を押した人の席は、最初の局から CPU（本人の端末は打たない）。局も最後まで進む', async () => {
     const { net, H, G, K } = start(60_000);
@@ -115,7 +121,7 @@ describe('制限時間への同意', () => {
     await net.until(() => nextHandBegun([H, G, K]), 60_000);
     expect(net.types.filter((x) => x.from === 'G' && x.type === 'mt-act')).toEqual([]);
     expect(net.problems).toEqual([]);
-  }, 90_000);
+  }, 270_000);
 
   it('押さないまま待つ長さが過ぎた人は、本人の端末が「やめる」を送って CPU になる', async () => {
     const { net, H, G, K } = start(60_000, { consentMs: 300 });
@@ -128,7 +134,7 @@ describe('制限時間への同意', () => {
     expect(net.types.some((x) => x.from === 'G' && x.type === 'mt-consent' && x.msg.ok === false)).toBe(true);
     await net.until(() => H.pub.phase === 'discard' || H.pub.phase === 'claim', 20_000);
     expect(net.problems).toEqual([]);
-  }, 30_000);
+  }, 90_000);
 
   it('返事が届かない人（端末が止まった）は、ホストの予備の時計で CPU にして始める', async () => {
     // G の端末の時計は長く（自分で「やめる」を送らない）＝ホストの予備の時計（0.2 秒＋予備）だけで CPU になることを確かめる
@@ -141,7 +147,7 @@ describe('制限時間への同意', () => {
     // G は何も返していない（ホストの予備の時計で決まった）
     expect(net.types.some((x) => x.from === 'G' && x.type === 'mt-consent')).toBe(false);
     await net.until(() => H.pub.phase === 'discard' || H.pub.phase === 'claim', 20_000);
-  }, 30_000);
+  }, 90_000);
 });
 
 describe('1 手ごとの時計', () => {
@@ -159,7 +165,7 @@ describe('1 手ごとの時計', () => {
     const mine = firstHand.filter((e) => e.ev.type === 'discard' && e.ev.seat === 1);
     expect(mine.length).toBeGreaterThan(0);
     for (const e of mine) expect(e.ev.type === 'discard' && e.ev.tsumogiri).toBe(true);
-  }, 120_000);
+  }, 360_000);
 
   it('選んだら時計は止まり、時間切れの手は出ない', async () => {
     const { net, H, G, K } = start(5_000, { manualG: true });
@@ -175,5 +181,5 @@ describe('1 手ごとの時計', () => {
     G.choose(pick);
     await net.until(() => G.deadline === null || G.timeouts > 0, 1_000);
     expect(G.timeouts).toBe(0);
-  }, 60_000);
+  }, 180_000);
 });

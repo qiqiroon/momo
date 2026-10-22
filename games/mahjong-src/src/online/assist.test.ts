@@ -5,6 +5,12 @@ import { benchCpu } from '../cpu/bench';
 import type { Envelope } from '../engine/events';
 import { CONSENT_GRACE_MS, OnlineTable } from './table';
 
+/**
+ * 待ちの上限の倍率。ほかの検査と同時に回ってパソコンが混むと、CPU の手も錠前の計算も遅くなり、
+ * 正しく動いていても上限に届いて「時間切れ」で落ちた（第26・席を移す検査で再現した直しを、同じ待ち方の検査にもそろえた）。正しく動くときの所要時間は変わらない
+ */
+const WAIT_SCALE = 3;
+
 class Net {
   tables: { id: string; t: OnlineTable; host: boolean }[] = [];
   problems: unknown[] = [];
@@ -58,7 +64,7 @@ class Net {
   async until(done: () => boolean, ms: number) {
     const t0 = Date.now();
     while (!done()) {
-      if (Date.now() - t0 > ms) throw new Error('時間切れ');
+      if (Date.now() - t0 > ms * WAIT_SCALE) throw new Error('時間切れ');
       await new Promise((r) => setTimeout(r, 5));
     }
   }
@@ -102,7 +108,7 @@ describe('アシストモードの始まり', () => {
     await net.until(() => dealt(H) && dealt(G) && dealt(K), 20_000);
     expect([0, 1, 2].map((s) => H.isProxy(s as 0))).toEqual([false, false, false]);
     expect(net.problems).toEqual([]);
-  }, 30_000);
+  }, 90_000);
 
   it('待つ長さは無い：同意の待ちの時間（consentMs）とホストの予備の待ち（CONSENT_GRACE_MS）が過ぎても、だれも CPU にならず配らない', async () => {
     const { net, H, G, K } = start({ consentMs: 100 });
@@ -112,7 +118,7 @@ describe('アシストモードの始まり', () => {
     expect([G.consentAsk, K.consentAsk]).toEqual([true, true]);
     expect(net.types.some((x) => x.type === 'mt-consent')).toBe(false);
     expect([0, 1, 2].map((s) => H.isProxy(s as 0))).toEqual([false, false, false]);
-  }, 15_000);
+  }, 45_000);
 
   it('観戦者は案内を見るだけ（返事は送らない・待たない）。閉じれば消える', async () => {
     const { net, H, G, K, S } = start({ spectator: true });
@@ -123,7 +129,7 @@ describe('アシストモードの始まり', () => {
     expect(net.types.some((x) => x.from === 'S' && x.type === 'mt-consent')).toBe(false);
     S!.closeAssistNotice();
     expect(S!.assistNotice).toBe(false);
-  }, 30_000);
+  }, 90_000);
 
   it('返事の前に切れて戻らなかった人（サーバーが包み無しで渡す）は CPU にして、残りの OK がそろえば配る。局も進む', async () => {
     const { net, H, G, K } = start();
@@ -140,7 +146,7 @@ describe('アシストモードの始まり', () => {
     expect(net.types.filter((x) => x.type === 'mt-hand').length).toBe(1);
     await net.until(() => H.pub.handCount >= 2 || H.pub.phase === 'gameover', 60_000);
     expect(net.problems).toEqual([]);
-  }, 90_000);
+  }, 270_000);
 
   it('制限時間とアシストの両方：1 つの窓（締め切りあり）で、［やめる］を押した人の席は CPU', async () => {
     const { net, H, G, K } = start({ timeLimit: 60_000 });
@@ -152,5 +158,5 @@ describe('アシストモードの始まり', () => {
     await net.until(() => H.isProxy(1) && dealt(H), 20_000);
     expect(G.assist).toBe(true);
     expect(net.problems).toEqual([]);
-  }, 30_000);
+  }, 90_000);
 });

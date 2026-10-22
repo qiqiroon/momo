@@ -93,7 +93,8 @@ describe('時間切れだけで対局を回す', () => {
       expect(r.final.phase).toBe('gameover');
     }
     expect(afterCall).toBeGreaterThan(0);
-  });
+    // 半荘 6 回で 3 秒ほど。ほかの検査と同時に回って混むと既定の 5 秒を超えた（第26）
+  }, 30_000);
 
   it('四川：缺一門・換三張も時間切れの選び方で進む', () => {
     let que = 0;

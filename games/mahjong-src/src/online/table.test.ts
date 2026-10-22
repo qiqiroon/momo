@@ -11,6 +11,12 @@ import { HIDDEN, type Envelope } from '../engine/events';
 import { replay } from '../engine/state';
 import { OnlineTable, type LockerStore, type WireLocker } from './table';
 
+/**
+ * 待ちの上限の倍率。ほかの検査と同時に回ってパソコンが混むと、CPU の手も錠前の計算も遅くなり、
+ * 正しく動いていても上限に届いて「時間切れ」で落ちた（第26・席を移す検査で再現した直しを、同じ待ち方の検査にもそろえた）。正しく動くときの所要時間は変わらない
+ */
+const WAIT_SCALE = 3;
+
 // 偽の通信：送った順に、少し遅らせて 1 通ずつ届ける（本物の中継と同じく、送った本人には返さない）
 class FakeNet {
   tables: { id: string; t: OnlineTable; host: boolean }[] = [];
@@ -103,7 +109,7 @@ class FakeNet {
   async until(done: () => boolean, ms: number) {
     const t0 = Date.now();
     while (!done()) {
-      if (Date.now() - t0 > ms) throw new Error('時間切れ');
+      if (Date.now() - t0 > ms * WAIT_SCALE) throw new Error('時間切れ');
       await new Promise((r) => setTimeout(r, 5));
     }
   }
@@ -146,7 +152,7 @@ describe('オンラインの卓（偽の通信）', () => {
     expect(unpackKifu(packKifu(src)).events).toEqual(full);
     expect(unpackKifu(packKifu({ ...src, walls: undefined })).events).toEqual(full);
     console.log(`半荘 ${hands} 局・通信 ${net.messages} 通・${(net.bytes / 1e6).toFixed(2)} MB`);
-  }, 180_000);
+  }, 540_000);
 
   it('人 4 人で 1 局：誰の局面にも、ほかの人の牌の中身は届かない。局面は出来事の列だけで決まる', async () => {
     const net = new FakeNet();
@@ -181,7 +187,7 @@ describe('オンラインの卓（偽の通信）', () => {
     const theirs = full[0]!.flatMap((e) => (e.ev.type === 'deal' && e.ev.seat === 2 ? e.ev.tiles : []));
     expect(mine).toHaveLength(13);
     expect(mine).toEqual(theirs);
-  }, 70_000);
+  }, 210_000);
 
   it('中国式（香港・2026-10-14 第16）で 1 局：ドラを開けずに配り、局が終わって検算も通る。ほかの人の牌は届かない', async () => {
     const net = new FakeNet();
@@ -206,7 +212,7 @@ describe('オンラインの卓（偽の通信）', () => {
       expect(leaked).toEqual([]);
     }
     expect(JSON.stringify(guest.pub)).toBe(JSON.stringify(host.pub));
-  }, 70_000);
+  }, 210_000);
 
   it('中国式（四川・缺一門と血戦到底）で 1 局：伏せた牌はホストにも届かず、局が終わって検算も通る', async () => {
     const net = new FakeNet();
@@ -230,7 +236,7 @@ describe('オンラインの卓（偽の通信）', () => {
     for (const e of holds) expect(e.ev.type === 'queHold' && e.ev.tile).toBe(HIDDEN);
     // ゲスト自身の局面には本物（4 人とも捨てる色を宣言して打てた）
     expect(guest.view.que[1]).not.toBeNull();
-  }, 70_000);
+  }, 210_000);
 
   it('中国式（国標・花牌あり・144 枚）で 1 局：補花は本人が出し、局が終わって検算も通る', async () => {
     const net = new FakeNet();
@@ -261,7 +267,7 @@ describe('オンラインの卓（偽の通信）', () => {
     expect(unpackKifu(packKifu({ ...src, walls: undefined })).events).toEqual(full);
     // 花牌は表に出す（全員に見える）。手に残った花牌は無い
     for (const t of [host, guest]) for (const h of t.view.hands) expect(h.filter((x) => x >= 136)).toEqual([]);
-  }, 70_000);
+  }, 210_000);
 
   // 長い（数十秒）ので、いつもの検査と並べず別に回す（npm run onlineplay）
   it.runIf(import.meta.env.MODE === 'full')('中国式（四川の血戦到底・血流成河）で 3 局ずつ：2 人以上アガる局があり、全員の局面がそろい、検算も通る', async () => {
@@ -286,7 +292,7 @@ describe('オンラインの卓（偽の通信）', () => {
       await net.until(() => guest.pub.nextSeq === host.pub.nextSeq, 10_000);
       expect(JSON.stringify(guest.pub.scores)).toBe(JSON.stringify(host.pub.scores));
     }
-  }, 260_000);
+  }, 780_000);
 
   it('中国式の換三張（Q12=A）で 1 局：2 人の間だけで受け渡し、ゲストの 3 枚はホストにも届かない。局が終わって検算も通る', async () => {
     const net = new FakeNet();
@@ -322,7 +328,7 @@ describe('オンラインの卓（偽の通信）', () => {
     expect(full).not.toBeNull();
     const src = { seed: 'online', startedAt: '2026-10-14T12:00:00+09:00', players: [], set: 'custom', events: full!, mode: 'online' as const, walls: host.walls };
     expect(unpackKifu(packKifu(src)).events).toEqual(full);
-  }, 70_000);
+  }, 210_000);
 
   // 長い（数十秒）ので、いつもの検査と並べず別に回す（npm run onlineplay）
   it.runIf(import.meta.env.MODE === 'full')('★換三張のずる：手に無い牌を錠前に包んで渡すと、局の終わりに全員の牌で当てはめ直して見つかる。ずるが無ければ列は全部埋まる', async () => {
@@ -371,7 +377,7 @@ describe('オンラインの卓（偽の通信）', () => {
         expect(full!.some((e) => (e.ev.type === 'huan3Pass' || e.ev.type === 'huan3Take') && e.ev.tiles.includes(HIDDEN))).toBe(false);
       }
     }
-  }, 140_000);
+  }, 420_000);
 
   it('ホストが選んだルール（WRC）で 1 局：全員の局面のルールがそれになり、局が終わって検算も通る', async () => {
     const net = new FakeNet();
@@ -395,7 +401,7 @@ describe('オンラインの卓（偽の通信）', () => {
     }
     // 一般ルールとは違う値（赤ドラなし）で配られている
     expect(wrc).not.toEqual(GENERAL_RULES);
-  }, 70_000);
+  }, 210_000);
 
   it('★表に開けてよいのはドラ・裏ドラの位置だけ：山のツモ牌の位置を開けるよう頼まれても、誰も鍵を出さない', async () => {
     const net = new FakeNet();
@@ -412,7 +418,7 @@ describe('オンラインの卓（偽の通信）', () => {
     const keysFor100 = [...net.seen.values()].flat().slice(0).filter((m) => m.type === 'mt-keys' && (m.keys as [number, string][]).some(([p]) => p === 100));
     expect(keysFor100).toEqual([]);
     expect(net.messages).toBeGreaterThanOrEqual(before);
-  }, 40_000);
+  }, 120_000);
 
   it('★ゲストが局の途中で接続を切って戻っても、同じ席で続きを打てる（控えた錠前で自分の牌を開け直す）。検算も通る', async () => {
     const net = new FakeNet();
@@ -440,7 +446,7 @@ describe('オンラインの卓（偽の通信）', () => {
     await net.until(() => host.pub.phase === 'ended' && guest.pub.phase === 'ended' && host.handVerified !== null && guest.handVerified !== null, 60_000);
     expect(net.problems).toEqual([]);
     expect(JSON.stringify(guest.pub)).toBe(JSON.stringify(host.pub));
-  }, 120_000);
+  }, 360_000);
 
   it('★返事の待ち：ゲストの返事は、捨て牌が届いてから決めた長さがたつまで返事を出さない（誰が迷ったか漏れない）', async () => {
     const net = new FakeNet();
@@ -458,7 +464,7 @@ describe('オンラインの卓（偽の通信）', () => {
     expect(gaps.length).toBeGreaterThan(10);
     expect(Math.min(...gaps.map((g) => g.gap))).toBeGreaterThanOrEqual(240);
     expect(net.problems).toEqual([]);
-  }, 130_000);
+  }, 390_000);
 
   it('★局の最初のツモは、配り終えてから演出の長さ（dealHold）を待ってから出す（洗牌→配る→ツモの順に鳴る）', async () => {
     const net = new FakeNet();
@@ -480,5 +486,5 @@ describe('オンラインの卓（偽の通信）', () => {
     // ゲストにも、ツモは配牌のあとに届いている
     const seen = net.seen.get('B')!.map((m) => (m.env as Envelope | undefined)?.ev?.type);
     expect(seen.indexOf('doraReveal')).toBeLessThan(seen.indexOf('draw'));
-  }, 40_000);
+  }, 120_000);
 });

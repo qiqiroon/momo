@@ -153,7 +153,8 @@ describe('席を移す（段階10）', () => {
     const myDraws = drawsOfG();
     expect(myDraws.length).toBeGreaterThan(0);
     for (const e of myDraws) expect(e.ev.type === 'draw' && e.ev.tile).toBe(HIDDEN);
-    // 全員の局面がそろっている
+    // 全員の局面がそろっている（卓は打ち続けているので、届く途中の出来事が無い瞬間に比べる＝前は混んでいると 1 つずれて赤になった・第26）
+    await net.until(() => G.pub.nextSeq === H.pub.nextSeq, 10_000);
     expect(JSON.stringify(G.pub)).toBe(JSON.stringify(H.pub));
   }, 270_000);
 

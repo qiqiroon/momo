@@ -7,6 +7,12 @@ import { benchCpu } from '../cpu/bench';
 import type { Envelope, Seat } from '../engine/events';
 import { OnlineTable } from './table';
 
+/**
+ * 待ちの上限の倍率。ほかの検査と同時に回ってパソコンが混むと、CPU の手も錠前の計算も遅くなり、
+ * 正しく動いていても上限に届いて「時間切れ」で落ちた（第26・席を移す検査で再現した直しを、同じ待ち方の検査にもそろえた）。正しく動くときの所要時間は変わらない
+ */
+const WAIT_SCALE = 3;
+
 class Net {
   tables: { id: string; t: OnlineTable; host: boolean }[] = [];
   problems: unknown[] = [];
@@ -57,7 +63,7 @@ class Net {
   async until(done: () => boolean, ms: number) {
     const t0 = Date.now();
     while (!done()) {
-      if (Date.now() - t0 > ms) throw new Error('時間切れ');
+      if (Date.now() - t0 > ms * WAIT_SCALE) throw new Error('時間切れ');
       await new Promise((r) => setTimeout(r, 5));
     }
   }
@@ -120,7 +126,7 @@ describe('ホストが移る（段階10の5）', () => {
       const ok = NG.pub.handCount > n + 1 && midHand(NG) && NK.pub.nextSeq === NG.pub.nextSeq;
       if (ok) same = JSON.stringify(NK.pub) === JSON.stringify(NG.pub) ? 'same' : 'diff';
       return ok;
-    }, 120_000);
+    }, 360_000);
     expect(same).toBe('same');
     const redealt = NG.wire.slice(voidAt).find((x) => x.env.ev.type === 'roundStart')?.env.ev;
     expect(redealt).toMatchObject({ type: 'roundStart', roundIndex: voidedStart?.type === 'roundStart' ? voidedStart.roundIndex : -1 });
@@ -128,7 +134,7 @@ describe('ホストが移る（段階10の5）', () => {
     // 局の番号は前の続き（番号を使い回すと、前の局の錠前を控えから読み出してしまう）
     expect(NG.syncData().lastNo).toBeGreaterThan(lastNo + 1);
     expect(net.problems).toEqual([]);
-  }, 200_000);
+  }, 600_000);
 
   it('★局の間（局が終わって次へ進む前）に移る：なかったことにする局は無く、新しいホストが次の局へ進める', async () => {
     const { net, H, G } = start(false);
@@ -141,8 +147,8 @@ describe('ホストが移る（段階10の5）', () => {
       const ok = NG.pub.handCount > before && midHand(NG) && NK.pub.nextSeq === NG.pub.nextSeq;
       if (ok) same = JSON.stringify(NK.pub) === JSON.stringify(NG.pub) ? 'same' : 'diff';
       return ok;
-    }, 90_000);
+    }, 270_000);
     expect(same).toBe('same');
     expect(net.problems).toEqual([]);
-  }, 200_000);
+  }, 600_000);
 });

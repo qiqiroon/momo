@@ -9,6 +9,12 @@ import { rulesOfCnSet } from '../engine/ruleSets';
 import type { Rules } from '../engine/rules';
 import { OnlineTable, type LockerStore, type WireLocker } from './table';
 
+/**
+ * 待ちの上限の倍率。ほかの検査と同時に回ってパソコンが混むと、CPU の手も錠前の計算も遅くなり、
+ * 正しく動いていても上限に届いて「時間切れ」で落ちた（第26・席を移す検査で再現した直しを、同じ待ち方の検査にもそろえた）。正しく動くときの所要時間は変わらない
+ */
+const WAIT_SCALE = 3;
+
 class Net {
   tables: { id: string; t: OnlineTable; host: boolean }[] = [];
   problems: unknown[] = [];
@@ -64,7 +70,7 @@ class Net {
   async until(done: () => boolean, ms: number, label = '') {
     const t0 = Date.now();
     while (!done()) {
-      if (Date.now() - t0 > ms) throw new Error('時間切れ：' + label);
+      if (Date.now() - t0 > ms * WAIT_SCALE) throw new Error('時間切れ：' + label);
       await new Promise((r) => setTimeout(r, 5));
     }
   }
@@ -146,7 +152,7 @@ describe('開き直して戻る（3 分以内は復活を待つ）', () => {
     await net.until(() => NH.pub.handCount > hc && midHand(NH) && G2.pub.nextSeq === NH.pub.nextSeq, 120_000, '次の局');
     expect(NH.wire.filter((x) => x.env.ev.type === 'roundStart').length).toBe(hc + 1);
     expect(net.problems).toEqual([]);
-  }, 200_000);
+  }, 600_000);
 
   it('★ホストが局の途中で開き直す：ゲストの写しと端末の控えで、ホストのまま同じ局の続きを打つ（なかったことにしない）', async () => {
     const { net, H, G, hs, gs } = startWithHostStore();
@@ -160,7 +166,7 @@ describe('開き直して戻る（3 分以内は復活を待つ）', () => {
     expect(NH.wire.some((x) => x.env.ev.type === 'roundVoid')).toBe(false);
     expect(NH.wire.length).toBeGreaterThan(seq);
     expect(net.problems).toEqual([]);
-  }, 200_000);
+  }, 600_000);
 
   it('★ホストが局の間（終わって次へ進む前）に開き直す：終わった局の検算を済ませ、次の局を配る（終わった局を配り直さない）', async () => {
     const { net, H, G, hs, gs } = startWithHostStore(false);
@@ -174,7 +180,7 @@ describe('開き直して戻る（3 分以内は復活を待つ）', () => {
     // 次の局は新しい錠前の段取りで配った（局の番号が 1 つ進む）。★局の始まりの数だけだと、終わった局の山で配り直しても見分けられなかった
     expect(NH.syncData().lastNo).toBe(no + 1);
     expect(net.problems).toEqual([]);
-  }, 200_000);
+  }, 600_000);
 
   it('★四川：伏せる牌を決めたあとにゲストが開き直しても、伏せた牌を取り戻して続きを打てる（前は控えていなかった）', async () => {
     const { net, H, G, store } = start(rulesOfCnSet('sichuan'));
@@ -196,5 +202,5 @@ describe('開き直して戻る（3 分以内は復活を待つ）', () => {
     const n = H.pub.handCount;
     await net.until(() => H.pub.handCount > n && G2.pub.nextSeq === H.pub.nextSeq, 90_000, '次の局');
     expect(net.problems).toEqual([]);
-  }, 150_000);
+  }, 450_000);
 });

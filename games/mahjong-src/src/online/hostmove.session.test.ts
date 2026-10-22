@@ -12,6 +12,12 @@ import type { Envelope, Seat } from '../engine/events';
 import { OnlineSession, type RoomInfo, type Transport, type TransportHandlers } from './session';
 import { OnlineTable, type LockerStore, type TableOptions, type WireLocker } from './table';
 
+/**
+ * 待ちの上限の倍率。ほかの検査と同時に回ってパソコンが混むと、CPU の手も錠前の計算も遅くなり、
+ * 正しく動いていても上限に届いて「時間切れ」で落ちた（第26・席を移す検査で再現した直しを、同じ待ち方の検査にもそろえた）。正しく動くときの所要時間は変わらない
+ */
+const WAIT_SCALE = 3;
+
 interface Peer {
   h: TransportHandlers;
   pid: string;
@@ -207,7 +213,7 @@ function newSession(srv: Server, store: LockerStore = memStore()) {
 const until = async (done: () => boolean, ms: number) => {
   const t0 = Date.now();
   while (!done()) {
-    if (Date.now() - t0 > ms) throw new Error('時間切れ：' + done.toString().replace(/s+/g, ' ').slice(0, 160));
+    if (Date.now() - t0 > ms * WAIT_SCALE) throw new Error('時間切れ：' + done.toString().replace(/s+/g, ' ').slice(0, 160));
     await new Promise((r) => setTimeout(r, 5));
   }
 };
@@ -254,7 +260,7 @@ describe('ホストの復帰と交代（部屋の側・段階10の5）', () => {
     const n = H.table!.pub.handCount;
     await until(() => H.table!.pub.handCount > n && midHand(H.table) && [A, B].every((s) => s.table?.pub.nextSeq === H.table!.pub.nextSeq), 90_000);
     expect(H.state.room?.isHost).toBe(true);
-  }, 200_000);
+  }, 600_000);
 
   it('★3 分を過ぎる：元ホストの下家（A）がホストになり、局を配り直して続く。元ホストはプレイヤーとして戻り、席を返してもらえる', async () => {
     const { srv, H, A, B } = await play();
@@ -283,7 +289,7 @@ describe('ホストの復帰と交代（部屋の側・段階10の5）', () => {
     // そのあとも続く
     const m = A.table!.pub.nextSeq;
     await until(() => A.table!.pub.nextSeq > m + 20 && H.table?.pub.nextSeq === A.table!.pub.nextSeq, 60_000);
-  }, 300_000);
+  }, 900_000);
 
   it('★画面を閉じた元ホストが 3 分のうちに開き直す：ホストのまま同じ局の続きを打つ（下家に移らない・なかったことにしない）', async () => {
     const { srv, H, A, B } = await play();
@@ -308,7 +314,7 @@ describe('ホストの復帰と交代（部屋の側・段階10の5）', () => {
     expect(H2.table!.wire.length).toBeGreaterThan(seq);
     expect(H2.table!.wire.some((x) => x.env.ev.type === 'roundVoid')).toBe(false);
     expect(H2.table!.isProxy(0 as Seat)).toBe(false);
-  }, 300_000);
+  }, 900_000);
 
   it('★画面を閉じた元ホストが 3 分を過ぎて開き直す：ホストは下家に移っている → プレイヤーとして戻り、席を返してもらえる', async () => {
     const { srv, H, A, B } = await play();
@@ -333,5 +339,5 @@ describe('ホストの復帰と交代（部屋の側・段階10の5）', () => {
     await until(() => H2.table?.isProxy(0 as Seat) === false && A.table?.isProxy(0 as Seat) === false, 30_000);
     const m = A.table!.pub.nextSeq;
     await until(() => A.table!.pub.nextSeq > m + 20 && H2.table?.pub.nextSeq === A.table!.pub.nextSeq && B.table?.pub.nextSeq === A.table!.pub.nextSeq, 60_000);
-  }, 300_000);
+  }, 900_000);
 });

@@ -3603,9 +3603,19 @@ body.in-game .site-header .subtitle {
 
 /* 欄の中身（余白に置くときも、開いたときも同じ） */
 .assist-head {
+  display: flex;
+  align-items: center;
   font-weight: 700;
   padding: 6px 10px;
   border-bottom: 1px solid var(--brass-soft);
+}
+
+/* 開いた欄の中の「たたむ」（横 4 列）。帯「アシスト ▼」と同じ働き */
+.assist-head .assist-close {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  padding: 1px 8px;
 }
 
 .assist-body {
@@ -3690,6 +3700,10 @@ body.in-game .site-header .subtitle {
   right: 0;
   top: 4px;
   z-index: 30;
+  /* 下の端は自分の列（4 列の一番下＝4 分の 1）の手前で止める。自分の列の名札の行には帯「アシスト ▼」がある＝覆うと閉じられない（第26 Q1=C） */
+  max-height: calc(75% - 4px);
+  display: flex;
+  flex-direction: column;
 }
 
 /* 役の候補一覧（段階2）：1 行目＝役名・あと何枚・見込みの点、2 行目＝近づく牌と残りの枚数 */
@@ -3795,7 +3809,9 @@ body.in-game .site-header .subtitle {
 }
 
 .lanes .assist-over .assist-body {
-  max-height: 55vh;
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .plan-tile .tile.mini {

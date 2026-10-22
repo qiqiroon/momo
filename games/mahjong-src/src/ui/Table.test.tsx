@@ -382,6 +382,19 @@ describe('あと 1 枚で付く役の表示（訂正26100917）', () => {
   });
 });
 
+describe('横 4 列のアシストの欄（第26 Q1=C）', () => {
+  it('開いた欄の見出しの「たたむ ▼」で閉じられる（欄が帯「アシスト ▼」を覆っても閉じられるように）', () => {
+    const view = riichiView();
+    render(<Table narrow view={view} legal={legalActions(view, 0)} lang="ja" assist onChoose={() => {}} onNext={() => {}} onNewGame={() => {}} />);
+    expect(document.querySelector('.assist-over')).toBeNull();
+    fireEvent.click(screen.getByText('アシスト ▲'));
+    expect(document.querySelector('.assist-over')).not.toBeNull();
+    fireEvent.click(screen.getByText('たたむ ▼'));
+    expect(document.querySelector('.assist-over')).toBeNull();
+    expect(screen.getByText('アシスト ▲')).toBeInTheDocument();
+  });
+});
+
 describe('四川：捨てる色の牌を伏せる（段階9の手順1）', () => {
   /** 席 0（親）は筒子を 1 枚も持たない 14 枚（萬子 7・索子 7）。捨てる色を決める番 */
   function queView() {

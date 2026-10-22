@@ -655,7 +655,11 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         </div>
         <div className="lanes">
           {/* 開いたアシストの欄：4 列の上端から重ねる（上の帯が 2 行に折り返しても、その下から） */}
-          {assist && assistOpen && <AssistOver t={t}>{assistBody}</AssistOver>}
+          {assist && assistOpen && (
+            <AssistOver t={t} onClose={() => setAssistOpen(false)}>
+              {assistBody}
+            </AssistOver>
+          )}
           {[1, 2, 3, 0].map((rel) => {
             const seat = seatAt(rel);
             return (

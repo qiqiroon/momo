@@ -150,10 +150,17 @@ export function useAssistDocked(wrapRef: RefObject<HTMLDivElement | null>, narro
 }
 
 /** アシストの欄の中身（見出しと本文） */
-function PanelBody({ t, children }: { t: T; children?: ReactNode }) {
+function PanelBody({ t, children, onClose }: { t: T; children?: ReactNode; onClose?: () => void }) {
   return (
     <>
-      <div className="assist-head">{t('asPanelTitle')}</div>
+      <div className="assist-head">
+        {t('asPanelTitle')}
+        {onClose && (
+          <button type="button" className="assist-tab assist-close" onClick={onClose}>
+            {t('asPanelClose')}
+          </button>
+        )}
+      </div>
       <div className="assist-body">{children ?? <p className="assist-soon">{t('asPanelSoon')}</p>}</div>
     </>
   );
@@ -169,10 +176,10 @@ export function AssistTab({ t, open, onToggle, className = '' }: { t: T; open: b
 }
 
 /** 開いたときの欄（卓の上に半透明で重ねる） */
-export function AssistOver({ t, children }: { t: T; children?: ReactNode }) {
+export function AssistOver({ t, children, onClose }: { t: T; children?: ReactNode; onClose?: () => void }) {
   return (
     <aside className="assist-over">
-      <PanelBody t={t}>{children}</PanelBody>
+      <PanelBody t={t} onClose={onClose}>{children}</PanelBody>
     </aside>
   );
 }

@@ -87,11 +87,17 @@ class Net {
   async until(done: () => boolean, ms: number) {
     const t0 = Date.now();
     while (!done()) {
-      if (Date.now() - t0 > ms) throw new Error('時間切れ');
+      if (Date.now() - t0 > ms * WAIT_SCALE) throw new Error('時間切れ');
       await new Promise((r) => setTimeout(r, 5));
     }
   }
 }
+
+/**
+ * 待ちの上限の倍率。ほかの検査と同時に回ってパソコンが混むと、CPU の手も錠前の計算も遅くなり、
+ * 正しく動いていても上限に届いて「時間切れ」で落ちた（第26 で 3 つ同時に回して再現）。正しく動くときの所要時間は変わらない
+ */
+const WAIT_SCALE = 3;
 
 /** 錠前の控え（端末の localStorage の代わり。開き直しても残る） */
 function memStore(): LockerStore {
@@ -149,7 +155,7 @@ describe('席を移す（段階10）', () => {
     for (const e of myDraws) expect(e.ev.type === 'draw' && e.ev.tile).toBe(HIDDEN);
     // 全員の局面がそろっている
     expect(JSON.stringify(G.pub)).toBe(JSON.stringify(H.pub));
-  }, 90_000);
+  }, 270_000);
 
   it('ホストがつながっている人の席を CPU に移せる（本人の端末が錠前を渡す）', async () => {
     const { net, H, G, K } = start();
@@ -158,7 +164,7 @@ describe('席を移す（段階10）', () => {
     await net.until(() => H.isProxy(2) && K.isProxy(2), 10_000);
     await nextHandRuns(net, H, [G, K]);
     expect(net.problems).toEqual([]);
-  }, 90_000);
+  }, 270_000);
 
   it('切れて戻らない人：サーバーに預けた包みをホストが受け取ると、その局の続きをホストの CPU が打つ（配り直さない）', async () => {
     const { net, H, G, K } = start();
@@ -174,7 +180,7 @@ describe('席を移す（段階10）', () => {
     expect(H.myLog.some((e) => e.ev.type === 'roundVoid')).toBe(false);
     expect(H.pub.handCount).toBeGreaterThan(0);
     expect(round).toBeGreaterThanOrEqual(0);
-  }, 90_000);
+  }, 270_000);
 
   it('★落ちる直前に引いた牌の、ほかの人の鍵がまだ届いていない：届くのを待ってから続きを打つ（配り直さない）', async () => {
     const { net, H, G, K } = start();
@@ -200,7 +206,7 @@ describe('席を移す（段階10）', () => {
     await nextHandRuns(net, H, [K]);
     expect(net.problems).toEqual([]);
     expect(H.myLog.some((e) => e.ev.type === 'roundVoid')).toBe(false);
-  }, 90_000);
+  }, 270_000);
 
   it('★落ちた人が、ほかの人のツモに出すはずだった鍵をまだ出していない：ホストが代わりに出す（K のツモが開く）', async () => {
     const { net, H, G, K } = start();
@@ -221,7 +227,7 @@ describe('席を移す（段階10）', () => {
     expect(await H.adoptReleased('G', pkg.blob)).toBe('continued');
     await nextHandRuns(net, H, [K]);
     expect(net.problems).toEqual([]);
-  }, 90_000);
+  }, 270_000);
 
   it('★四川（缺一門で伏せた牌がある）：局の途中で降りても、本人だけに見える出来事の本物を渡すので、配り直さずに続く', async () => {
     const { net, H, G, K } = start(rulesOfCnSet('sichuan'));
@@ -233,7 +239,7 @@ describe('席を移す（段階10）', () => {
     await net.until(() => H.pub.handCount > n && K.pub.nextSeq === H.pub.nextSeq, 60_000);
     expect(net.problems).toEqual([]);
     expect(H.myLog.some((e) => e.ev.type === 'roundVoid')).toBe(false);
-  }, 90_000);
+  }, 270_000);
 
   it('★ホストの局面が遅れている間に届いた、先の局面の知らせは捨てずに預かる（捨てると送った人は送り直さず卓が止まる＝前からの不具合）', async () => {
     // 親の最初のツモがホストの持つ席（ホストか CPU）の局を作る（親はサイコロで決まるので、そうなるまで作り直す）
@@ -269,7 +275,7 @@ describe('席を移す（段階10）', () => {
       return;
     }
     throw new Error('親がホストの持つ席になる局が作れなかった');
-  }, 90_000);
+  }, 270_000);
 
   it('★2 局目以降に開き直して戻る：ホストが渡す列で作り直せて、続きを打てる（前は前の局の出来事の順が狂って止まり、画面が暗いまま＝10-15 利用者指摘）', async () => {
     const net = new Net();
@@ -289,7 +295,7 @@ describe('席を移す（段階10）', () => {
     await nextHandRuns(net, H, [G2]);
     expect(net.problems).toEqual([]);
     expect(JSON.stringify(G2.pub)).toBe(JSON.stringify(H.pub));
-  }, 150_000);
+  }, 450_000);
 
   it('★配り直したあとに開き直して戻る（なかったことにした局をはさんでも作り直せる）', async () => {
     const net = new Net();
@@ -312,7 +318,7 @@ describe('席を移す（段階10）', () => {
     await nextHandRuns(net, H, [G2]);
     expect(net.problems).toEqual([]);
     expect(JSON.stringify(G2.pub)).toBe(JSON.stringify(H.pub));
-  }, 150_000);
+  }, 450_000);
 
   it('預かりが無い：その局をなかったことにして、同じ局を CPU 入りで配り直す（Q5=A）', async () => {
     const { net, H, K } = start();
@@ -336,7 +342,7 @@ describe('席を移す（段階10）', () => {
     expect(full).not.toBeNull();
     expect(full!.some((e) => e.ev.type === 'roundVoid')).toBe(false);
     expect(() => replay(full!)).not.toThrow();
-  }, 90_000);
+  }, 270_000);
 
   it('席を返す：本人が頼み、ホストが許可すると、次の自分の番から本人が打つ（Q4=A）。断ることもできる', async () => {
     const { net, H, G, K } = start();
@@ -363,7 +369,7 @@ describe('席を移す（段階10）', () => {
     const lastStart = G.myLog.map((e) => e.ev.type).lastIndexOf('roundStart');
     const myDraws = G.myLog.slice(lastStart).filter((e) => e.ev.type === 'draw' && e.ev.seat === (1 as Seat));
     for (const e of myDraws) expect(e.ev.type === 'draw' && e.ev.tile).not.toBe(HIDDEN);
-  }, 90_000);
+  }, 270_000);
 
   it('★席を返してもらったら、その局のうちにすぐ自分の包みを預け直す（預け直さないと、切れたときの 3 分の時計で古い包みがホストへ渡り、席がまた CPU に戻る＝10-21 見回りで発見）', async () => {
     const { net, H, G } = start();
@@ -381,15 +387,31 @@ describe('席を移す（段階10）', () => {
     const hc = H.pub.handCount;
     G.requestReclaim();
     await net.until(() => H.reclaims.has(1), 10_000);
+    // ★預け直しを「作り始めた瞬間」に、G の手の出来事（ツモ・打牌など）がもう起きていたかを控える
+    // （自分の手の出来事のついでに預けるのでは、打つ番が来ないあいだに切れると間に合わない）。
+    // 前は「預け終わったのが最初に打つより先か」を比べていて、混んでいると預ける暗号の計算が終わる前に 1 手打ち、赤になった（第26）。
+    // 席を任せたあとの G で包みを作るのは預けるときだけ
+    const g = G as unknown as { packageOf: (seat: Seat) => unknown; ownLogs: Map<Seat, unknown[]> };
+    const own = () => g.ownLogs.get(1 as Seat)?.length ?? 0;
+    const base = own();
+    const made: boolean[] = [];
+    const packageOf = g.packageOf.bind(G);
+    g.packageOf = (seat) => {
+      const pkg = packageOf(seat);
+      if (pkg) made.push(own() > base);
+      return pkg;
+    };
+    const no = H['hand']?.no;
     await H.answerReclaim(1, true);
     const iGive = net.types.length;
     await net.until(() => at.length > 0 || H.pub.handCount > hc, 10_000);
     expect(H.pub.handCount).toBe(hc);
-    // ★自分で打つより前に預け直している（自分の手の出来事のついでに預けるのでは、打つ番が来ないあいだに切れると間に合わない）
-    const firstAct = net.types.findIndex((x, i) => i >= iGive && x.from === 'G' && x.type === 'mt-act');
     expect(at[0]).toBeGreaterThanOrEqual(iGive);
-    if (firstAct >= 0) expect(at[0]).toBeLessThanOrEqual(firstAct);
-  }, 60_000);
+    // 席を返した局の包み（次の局が始まったときに預けたのでは遅い）
+    expect(no).toBeDefined();
+    expect(net.packages.get('G')?.no).toBe(no);
+    expect(made[0]).toBe(false);
+  }, 180_000);
 
   it('包みはホストにしか開けられない：ほかの人に届く知らせに錠前の中身は出ていない', async () => {
     const { net, H, G } = start();
@@ -408,5 +430,5 @@ describe('席を移す（段階10）', () => {
     expect(seen.some((x) => x.includes('mt-yield'))).toBe(false);
     expect(seen.some((x) => x.includes(secret))).toBe(false);
     expect(net.packages.get('G')!.blob).not.toContain(secret);
-  }, 60_000);
+  }, 180_000);
 });

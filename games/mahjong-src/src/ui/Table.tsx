@@ -18,6 +18,7 @@ import { isRed, kindOf, type TileId } from '../engine/tiles';
 import { relFrom, useSeat } from './seatContext';
 import { baseOf, translate, type Lang, type MessageKey } from '../i18n/strings';
 import { RuleBook } from './RuleBook';
+import { AssistOver, AssistPanel, AssistTab, useAssistDocked } from './Assist';
 import { DraggableDialog } from './DraggableDialog';
 import { lengthName, roundName } from './roundName';
 import { Tile } from './Tile';
@@ -69,6 +70,8 @@ interface Props {
   onBook?: (open: boolean) => void;
   /** いまリーチした人（演出の番号つき）。その人のリーチ棒を、演出の「バシッ」の音に合わせてたたきつける（訂正26101113） */
   riichiSlam?: { seat: number; key: number } | null;
+  /** アシストモード（訂正26101113 の 2）：正方形の卓は左の余白に欄、余白が無ければ帯「アシスト ▲」。横 4 列はいつも帯 */
+  assist?: boolean;
 }
 
 /** 自分から見た位置（0＝自分・1＝下家・2＝対面・3＝上家） */
@@ -77,7 +80,7 @@ interface Props {
 // 伏せた牌（中身の分からない牌＝CPU に任せている間の自分の手牌など）は後ろへ。kindOf は伏せた牌を受け付けない
 const sortTiles = (tiles: readonly TileId[]) => tiles.slice().sort((a, b) => (a < 0 || b < 0 ? Number(a < 0) - Number(b < 0) : kindOf(a) - kindOf(b) || a - b));
 
-export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, menu, chat, callPanel, sidePanel, compare = null, bookOpen = false, onBook, clock, riichiSlam = null }: Props) {
+export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, nextWait, replay = false, onTop, onSaveFile, onSaveDrive, makeKifuLink, makeSameLink, saveNote, dealt = null, onQuit, menu, chat, callPanel, sidePanel, compare = null, bookOpen = false, onBook, clock, riichiSlam = null, assist = false }: Props) {
   /** 配っている途中は手牌を先頭から決まった枚数だけ見せる */
   const dealing = <X,>(xs: readonly X[]): readonly X[] => (dealt === null ? xs : xs.slice(0, dealt));
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(lang, k, v);
@@ -227,6 +230,9 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   /** 卓の外枠：上端から画面の下端までの高さを --fit-h に入れ、卓をその中に収める（10-16 Q1=C） */
   const fitRef = useRef<HTMLDivElement>(null);
   useFitHeight(fitRef, narrow);
+  const assistDocked = useAssistDocked(fitRef, narrow, assist, !!(callPanel || chat || sidePanel));
+  /** 横 4 列：アシストの欄を開いているか（帯は自分の列の名札の右端・欄は卓の上に重ねる） */
+  const [assistOpen, setAssistOpen] = useState(false);
   useEffect(() => {
     if (view.phase !== 'gameover') {
       setFinalShown(false);
@@ -569,6 +575,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
           </div>
         </div>
         <div className="lanes">
+          {/* 開いたアシストの欄：4 列の上端から重ねる（上の帯が 2 行に折り返しても、その下から） */}
+          {assist && assistOpen && <AssistOver t={t} />}
           {[1, 2, 3, 0].map((rel) => {
             const seat = seatAt(rel);
             return (
@@ -587,6 +595,8 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
                   )}
                   {(seat !== me || watching) && meldsOf(seat, 'lane-melds')}
                   {flowersOf(seat, 'lane-flowers')}
+                  {/* アシストの帯：上の帯は携帯で空きが無い（1 行増えて卓が縮む）ので、自分の列の名札の行の右端（設計 アシストモード v0.01 §9） */}
+                  {assist && rel === 0 && <AssistTab t={t} open={assistOpen} onToggle={() => setAssistOpen(!assistOpen)} className="lane-assist-tab" />}
                 </div>
                 {/* 牌譜の再生：ほかの人の手牌も表向きで並べる */}
                 {replay && seat !== me && (
@@ -639,6 +649,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
 
   return (
     <div ref={fitRef} className="square-wrap">
+      {assist && <AssistPanel t={t} docked={assistDocked} />}
       {/* 番の人の辺の外に線（自分＝下の辺。他家もその辺に＝訂正26101113） */}
       <div className={`square felt${!replay && !watching && playing && view.turn === me && (view.phase === 'draw' || view.phase === 'discard') ? ' my-turn-edge' : ''}${playing && relOf(view.turn) !== 0 ? ` turn-edge-${relOf(view.turn)}` : ''}`}>
         <div className="center-box">

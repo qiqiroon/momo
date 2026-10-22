@@ -546,6 +546,17 @@ const ja = {
   tcCancelNote: '［やめる］を押すと、あなたの席は CPU が打ちます。あとでメニューの「席を返してもらう」から戻れます。',
   tcReclaimNote: '［わかりました］を押すと、ホストに席を返してもらうよう頼みます。',
   tcWaitOthers: 'ほかの人の返事を待っています…',
+  startAssist: 'アシストモードで始める',
+  asTitle: 'アシストモード',
+  asIntro: 'この対局はアシストモードです。',
+  asHints: '全員の画面に、打ち方のヒント（狙える役、危ない牌、行動の助言など）が表示されます。',
+  asFair: 'ヒントは、場に見えている牌と自分の手牌だけから推測したものです。ほかの人の手牌や山をのぞき見ることはありません。',
+  asCpu: 'CPU による予測のため、上級者から見て最善の手ではないことがあります。',
+  asOk: 'わかりました',
+  asWaitNames: '{names}さんの確認を待っています…',
+  asBadge: 'アシストモード',
+  asPanelTitle: 'アシスト',
+  asPanelSoon: 'ここに、狙える役と行動の助言が出ます（準備中）。',
   clockLeft: '残り {n} 秒',
   olErrKicked: 'ホストにより部屋から出されました。また入ることはできます。',
   olErrNoSpectators: 'この部屋は観戦を受け付けていません。',
@@ -1188,6 +1199,17 @@ const en: Dict = {
   tcCancelNote: 'If you decline, a CPU will play your seat. You can return later with "Take my seat back" in the menu.',
   tcReclaimNote: 'Press "I understand" to ask the host to give your seat back.',
   tcWaitOthers: 'Waiting for the other players…',
+  startAssist: 'Start in Assist Mode',
+  asTitle: 'Assist Mode',
+  asIntro: 'This game is in Assist Mode.',
+  asHints: 'Everyone will see playing hints (possible yaku, dangerous tiles, advice, and more).',
+  asFair: 'Hints are guesses based only on the tiles visible on the table and your own hand. They never peek at other players’ hands or the wall.',
+  asCpu: 'Because they are predictions by the CPU, they may not be the best move from an expert’s point of view.',
+  asOk: 'I understand',
+  asWaitNames: 'Waiting for {names} to confirm…',
+  asBadge: 'Assist Mode',
+  asPanelTitle: 'Assist',
+  asPanelSoon: 'Possible yaku and advice will appear here (coming soon).',
   clockLeft: '{n} s left',
   olErrKicked: 'The host removed you from the room. You can join again.',
   olErrNoSpectators: 'This room is not accepting spectators.',
@@ -1826,6 +1848,17 @@ const zh: Dict = {
   tcCancelNote: '选择「不同意」后，你的座位将由电脑代打。之后可在菜单中选择“取回座位”返回。',
   tcReclaimNote: '选择「我知道了」后，将请求房主把座位还给你。',
   tcWaitOthers: '正在等待其他玩家确认…',
+  startAssist: '以辅助模式开始',
+  asTitle: '辅助模式',
+  asIntro: '本局为辅助模式。',
+  asHints: '所有玩家的画面上都会显示打法提示（可做的番种、危险牌、行动建议等）。',
+  asFair: '提示仅根据桌上可见的牌和自己的手牌推测，绝不会偷看其他玩家的手牌或牌山。',
+  asCpu: '由于是电脑的预测，从高手的角度看未必是最佳打法。',
+  asOk: '我知道了',
+  asWaitNames: '正在等待{names}确认…',
+  asBadge: '辅助模式',
+  asPanelTitle: '辅助',
+  asPanelSoon: '这里将显示可做的番种和行动建议（准备中）。',
   clockLeft: '剩余 {n} 秒',
   olErrKicked: '你已被房主移出房间，可以再次加入。',
   olErrNoSpectators: '该房间不接受观战。',
@@ -1941,7 +1974,7 @@ const DICTS: Record<BaseLang, Dict> = { ja, en, zh };
  *  - サブタイトル（全アプリ共通で猫語にしない）
  *  - 利用規約・免責・賭博禁止・公平性の説明など、意味が伝わらないと困るもの（同意画面の文面は i18n/notice.ts） */
 // 制限時間の同意の窓（tc…）は自動の操作で不利になることの説明＝利用上の注意と同じ扱いで猫語にしない
-const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['listDot', 'subtitle', 'noMoney', 'creditsModified', 'creditsShared', 'creditsBgm', 'chatRule', 'sameStartWarn', 'tcTitle', 'tcBody', 'tcCountdown', 'tcCancelNote', 'tcReclaimNote']);
+const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['listDot', 'subtitle', 'noMoney', 'creditsModified', 'creditsShared', 'creditsBgm', 'chatRule', 'sameStartWarn', 'tcTitle', 'tcBody', 'tcCountdown', 'tcCancelNote', 'tcReclaimNote', 'asIntro', 'asHints', 'asFair', 'asCpu']);
 
 /** 攻撃的な鳴き声を返すキー（失敗・エラーの通知）。いまは無い（オンラインの段階で足す） */
 const ERROR_KEYS: ReadonlySet<MessageKey> = new Set(['olErrNoName', 'olErrNoRoomName', 'olErrWrongPw', 'olErrFull', 'olErrGone', 'olErrStarted', 'olLost', 'olBusy']);

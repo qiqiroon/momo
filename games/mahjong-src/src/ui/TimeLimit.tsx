@@ -53,17 +53,6 @@ export function TimeConsent({ t, seconds, deadline, note, onOk, onCancel }: Time
   );
 }
 
-/** 同意したあと、ほかの人の返事を待っているあいだ */
-export function TimeConsentWait({ t }: { t: T }) {
-  return (
-    <div className="sound-backdrop tc-backdrop" role="status">
-      <div className="sound-panel time-consent">
-        <p>{t('tcWaitOthers')}</p>
-      </div>
-    </div>
-  );
-}
-
 /** 秒読みの音を鳴らす残り秒数（利用者指示＝最後の 5 秒。残り 4〜1 秒で「ぽっ」、0 秒で「ブー」） */
 const PIPS = [4, 3, 2, 1];
 

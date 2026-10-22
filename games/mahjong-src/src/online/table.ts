@@ -116,6 +116,8 @@ export interface SyncData {
   /** 返事の待ち・1 手の制限時間（ミリ秒。戻ってきた人も同じ長さで打つ） */
   replyWait?: number;
   timeLimit?: number;
+  /** アシストモードの対局か（戻ってきた人・観戦で入った人もヒントを出す） */
+  assist?: boolean;
   /** ホストの包む鍵 */
   wk?: string;
   wire: { env: Envelope; pos?: number[] }[];
@@ -249,6 +251,18 @@ export class OnlineTable {
   /** ホスト：同意がそろったら出す、対局の始まり */
   private pendingOpen: (() => void) | null = null;
 
+  // ---- アシストモード（訂正26101113 の 2・設計 アシストモード v0.01 §2） ----
+  //  - ホストが「アシストモードで始める」で選ぶ。全員の画面に打ち方のヒントを出す
+  //  - 始める前に全員へ案内を出し、全員が OK を押すまで配らない（制限時間の同意と同じ窓・同じ待ち。やめるは置かない）
+  //  - 観戦者には案内を見せるだけで待たない
+
+  /** アシストモードの対局か */
+  assist = false;
+  /** 自分：始める前の案内（アシスト・制限時間）を出しているか */
+  consentAsk = false;
+  /** 観戦者：アシストの案内を出しているか（自分で閉じる） */
+  assistNotice = false;
+
   /** 当てはめた出来事（全員に見える形＋配牌・ツモの位置）。ホストは戻ってきた人へこれを渡す */
   wire: { env: Envelope; pos?: number[] }[] = [];
 
@@ -323,8 +337,8 @@ export class OnlineTable {
 
   // ---- 外から呼ぶ ----
 
-  /** ホスト：席を決めて対局を始める（人の席は入った順・空きは CPU）。rules＝ホストが選んだルール（対局の始まりの出来事で全員へ） */
-  begin(humans: { id: string; name: string }[], replyWait = 0, rules: Rules = GENERAL_RULES, timeLimit = 0) {
+  /** ホスト：席を決めて対局を始める（人の席は入った順・空きは CPU）。rules＝ホストが選んだルール（対局の始まりの出来事で全員へ）。assist＝アシストモード */
+  begin(humans: { id: string; name: string }[], replyWait = 0, rules: Rules = GENERAL_RULES, timeLimit = 0, assist = false) {
     if (!this.o.isHost) return;
     const seats: SeatKind[] = SEATS.map((i) => (humans[i] ? { kind: 'human', id: humans[i].id, name: humans[i].name } : { kind: 'cpu' }));
     this.wrapKeys = newWrapKeyPair(this.g);
@@ -335,19 +349,21 @@ export class OnlineTable {
       this.emitAll([{ env: { seq: 0, to: 'all', ev: { type: 'gameStart', rules } } }, { env: { seq: 1, to: 'all', ev: rollForDealer(seed, 0) } }]);
       this.beginHand({ roundIndex: 0, dealer: this.pub.chicha, honba: 0 });
     };
-    // 時間のある対局：全員の同意がそろう（または待つ長さが過ぎる）まで、対局の始まりを出さない
-    if (timeLimit > 0) {
+    // 時間のある対局・アシストモード：全員の同意がそろう（時間のある対局は、待つ長さが過ぎる）まで、対局の始まりを出さない。
+    // アシストだけなら待つ長さは無い（全員が OK を押すまで始めない＝利用者 Q13=A）
+    if (timeLimit > 0 || assist) {
       this.consents = new Map(SEATS.filter((s) => seats[s].kind === 'human').map((s) => [s, null]));
       this.pendingOpen = open;
-      this.consentHostTimer = setTimeout(() => this.finishConsent(), (this.o.consentMs ?? CONSENT_MS) + CONSENT_GRACE_MS);
+      if (timeLimit > 0) this.consentHostTimer = setTimeout(() => this.finishConsent(), (this.o.consentMs ?? CONSENT_MS) + CONSENT_GRACE_MS);
     }
-    this.broadcast({ type: 'mt-begin', seats, replyWait, timeLimit, wk: this.wrapKeys.y.toString(36) });
-    if (timeLimit <= 0) open();
+    this.broadcast({ type: 'mt-begin', seats, replyWait, timeLimit, assist, wk: this.wrapKeys.y.toString(36) });
+    if (!this.consents) open();
   }
 
-  /** 画面から：制限時間に同意する（ok）／やめる。同意の窓の時間切れも「やめる」 */
+  /** 画面から：始める前の案内に同意する（ok）／やめる（時間のある対局だけ）。同意の窓の時間切れも「やめる」 */
   answerConsent(ok: boolean) {
-    if (this.consentDeadline === null || this.mySeat === null) return;
+    if (!this.consentAsk || this.mySeat === null) return;
+    this.consentAsk = false;
     this.consentDeadline = null;
     if (this.consentTimer) clearTimeout(this.consentTimer);
     this.consentTimer = null;
@@ -360,16 +376,38 @@ export class OnlineTable {
     const k = this.seats[seat];
     if (!this.o.isHost || !this.consents || k?.kind !== 'human' || k.id !== id || this.consents.get(seat) !== null) return;
     this.consents.set(seat, ok);
-    if ([...this.consents.values()].every((x) => x !== null)) this.finishConsent();
+    this.checkConsents();
+  }
+
+  /** ホスト：全員の返事がそろったら締め切る（返事の前に CPU に任された席＝ホストが引き取った席は待たない） */
+  private checkConsents() {
+    if (this.consents && [...this.consents].every(([s, x]) => x !== null || this.isProxy(s))) this.finishConsent();
+  }
+
+  /** ホスト：同意の返事をまだ出していない人の名前（ホストの画面の「○○さんの確認待ち」） */
+  get consentPending(): string[] {
+    if (!this.consents) return [];
+    return [...this.consents].flatMap(([s, x]) => {
+      const k = this.seats[s];
+      return x === null && k?.kind === 'human' && !k.proxy ? [k.name] : [];
+    });
+  }
+
+  /** 観戦者：アシストの案内を閉じる */
+  closeAssistNotice() {
+    this.assistNotice = false;
+    this.changed();
   }
 
   /** ホスト：同意を締め切る。同意しなかった・返事の無い人の席は CPU にしてから、対局を始める（最初の局の錠前はホストが作る） */
   private finishConsent() {
-    if (!this.consents) return;
+    const consents = this.consents;
+    if (!consents) return;
     if (this.consentHostTimer) clearTimeout(this.consentHostTimer);
     this.consentHostTimer = null;
-    for (const [seat, ok] of this.consents) if (ok !== true) this.setProxy(seat, true);
+    // 先に締め切りの印を消す（CPU にする知らせを自分で受け取ったとき、もう一度締め切らない）
     this.consents = null;
+    for (const [seat, ok] of consents) if (ok !== true) this.setProxy(seat, true);
     const open = this.pendingOpen;
     this.pendingOpen = null;
     open?.();
@@ -428,6 +466,7 @@ export class OnlineTable {
       case 'mt-begin':
         this.replyWait = Math.max(0, Number(d.replyWait) || 0);
         this.timeLimit = Math.max(0, Number(d.timeLimit) || 0);
+        this.assist = d.assist === true;
         this.setHostWk(d.wk);
         this.onBegin(d.seats as SeatKind[]);
         return this.askConsent();
@@ -552,12 +591,25 @@ export class OnlineTable {
     this.changed();
   }
 
-  /** 時間のある対局の始まり：自分の席があれば同意の窓を出す（60 秒で押さなければ「やめる」を送る） */
+  /**
+   * 時間のある対局・アシストモードの始まり：自分の席があれば同意の窓を出す（時間のある対局は 60 秒で押さなければ「やめる」を送る）。
+   * 観戦者はアシストの案内を見せるだけ（返事は送らない）
+   */
   private askConsent() {
-    if (this.timeLimit <= 0 || this.mySeat === null) return;
-    const ms = this.o.consentMs ?? CONSENT_MS;
-    this.consentDeadline = Date.now() + ms;
-    this.consentTimer = setTimeout(() => this.answerConsent(false), ms);
+    if (this.timeLimit <= 0 && !this.assist) return;
+    if (this.mySeat === null) {
+      if (this.assist) {
+        this.assistNotice = true;
+        this.changed();
+      }
+      return;
+    }
+    this.consentAsk = true;
+    if (this.timeLimit > 0) {
+      const ms = this.o.consentMs ?? CONSENT_MS;
+      this.consentDeadline = Date.now() + ms;
+      this.consentTimer = setTimeout(() => this.answerConsent(false), ms);
+    }
     this.changed();
   }
 
@@ -1053,6 +1105,7 @@ export class OnlineTable {
       seats: this.seats,
       replyWait: this.replyWait,
       timeLimit: this.timeLimit,
+      assist: this.assist,
       wk: this.hostWk?.toString(36),
       wire: [...this.wire, ...waiting],
       // dealt は当てはめ待ち（鍵待ち）の配牌も数える。★作り直した直後の卓は配牌が当てはめ待ちで 0 になり、受け取った人が「まだ配っていない局」と取り違えた
@@ -1066,6 +1119,7 @@ export class OnlineTable {
     // ★前は返事の待ちを受け取っていなかった（戻った人だけ待ちが 0 になり、迷ったかが外に出た）。制限時間と一緒に受け取る
     this.replyWait = Math.max(0, Number(d.replyWait) || 0);
     this.timeLimit = Math.max(0, Number(d.timeLimit) || 0);
+    this.assist = d.assist === true;
     this.setHostWk(d.wk);
     this.onBegin(d.seats);
     this.baseNo = d.hand?.no ?? Math.max(0, Number(d.lastNo) || 0);
@@ -1694,6 +1748,9 @@ export class OnlineTable {
     // 最初の局の前に CPU に替わった席（制限時間に同意しなかった）：局面はまだ空なので、ここで持つ。
     // 局の途中で替わった席は、包みで作り直す側（adopt）が持つ（伏せた局面のまま打たせない）
     else if (this.hand === null && !this.views.has(seat)) this.views.set(seat, this.viewFromWire(seat));
+    // 始める前の同意を待っているあいだにホストが引き取った席（切れて戻らなかった人など）は、もう待たない。
+    // 引き取りの処理（adopt）を終えてから締め切る（途中で対局を始めると、引き取りの続きが配り直しを重ねる）
+    if (this.o.isHost && this.consents) setTimeout(() => this.checkConsents(), 0);
     this.changed();
     this.drive();
   }
@@ -1885,6 +1942,7 @@ export class OnlineTable {
     this.clockKey = null;
     this.deadline = null;
     this.consentDeadline = null;
+    this.consentAsk = false;
   }
 
   private changed() {

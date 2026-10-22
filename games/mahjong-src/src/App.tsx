@@ -23,7 +23,8 @@ import { LANG_MODES, baseOf, changeMode, currentMode, initLang, translate, type 
 import { Table } from './ui/Table';
 import { Lobby, OnlineStatus, WaitingRoom, useOnline } from './ui/Online';
 import { GameMenu } from './ui/GameMenu';
-import { MoveClock, TimeConsent, TimeConsentWait } from './ui/TimeLimit';
+import { MoveClock, TimeConsent } from './ui/TimeLimit';
+import { AssistBadge, ConsentWait, StartConsent } from './ui/Assist';
 import { CallStrip } from './ui/CallStrip';
 import { OnlineSession, spectatorsOf } from './online/session';
 import { matchmakingTransport } from './online/transport';
@@ -259,6 +260,9 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
       setNote(t('kifuBad', { why: (err as Error).message }));
     }
   };
+  /** CPU と対局：アシストモードで打っているか（新しい対局も同じモードのまま）・始める前の案内を出しているか */
+  const [cpuAssist, setCpuAssist] = useState(false);
+  const [assistAsk, setAssistAsk] = useState(false);
   /** 新しい対局：前に選んだルール（端末に覚えたもの）で始める */
   const startGame = () => {
     setNote('');
@@ -347,6 +351,8 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
           {/* 画面切替：正方形の卓を出せない狭い画面（携帯）ではボタンごと出さない（見出しをはみ出させないため・利用者指示） */}
           {/* 対局の中断：確かめてからモード選択へ（途中までの対局は「最後に打った・開いた対局」として残る） */}
           {/* 対局中は「メニュー」（中断・CPU に任せる・ルールブック・キャンセル＝段階10・利用者指示 10-15）。横4列は卓の上の帯＝Table */}
+          {/* アシストモードの札：全員の画面に出す（設計 アシストモード v0.01 §2.3） */}
+          {((started && cpuAssist && !replaying) || (onlineOn && tbl?.assist)) && <AssistBadge t={t} />}
           {gameMenu && layout !== 'lanes' && gameMenu}
           {/* ルールブック：牌譜の再生の正方形の卓は見出しに置く（対局中はメニューの中） */}
           {replaying && layout !== 'lanes' && (
@@ -400,6 +406,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             onQuit={onTitle}
             riichiSlam={riichiSlam}
             menu={gameMenu}
+            assist={cpuAssist}
             {...bookProps}
             chat={<Chat t={t} you={t('you')} />}
           />
@@ -421,16 +428,20 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             onQuit={onTitle}
             riichiSlam={riichiSlam}
             menu={gameMenu}
+            assist={tbl.assist}
             {...bookProps}
             chat={<Chat t={t} you={t('you')} online={{ lines: ol.chat, myId: online.myId, onSend: (s) => online.sendChat(s), readOnly: !online.canChat() }} />}
             callPanel={<CallStrip t={t} table={tbl} />}
             clock={<MoveClock t={t} deadline={tbl.deadline} timeouts={tbl.timeouts} />}
           />
-          {/* 時間のある対局：始める前の同意（60 秒）・同意したあとほかの人を待つあいだ・席を返してもらう前の同意 */}
-          {tbl.consentDeadline !== null ? (
-            <TimeConsent t={t} seconds={tbl.timeLimit / 1000} deadline={tbl.consentDeadline} note="tcCancelNote" onOk={() => tbl.answerConsent(true)} onCancel={() => tbl.answerConsent(false)} />
+          {/* 時間のある対局・アシストモード：始める前の同意（時間のある対局は 60 秒）・同意したあとほかの人を待つあいだ・席を返してもらう前の同意。
+              観戦者にはアシストの案内だけ（待たない） */}
+          {tbl.consentAsk ? (
+            <StartConsent t={t} assist={tbl.assist} seconds={tbl.timeLimit / 1000} deadline={tbl.consentDeadline} onOk={() => tbl.answerConsent(true)} onCancel={() => tbl.answerConsent(false)} />
+          ) : tbl.assistNotice ? (
+            <StartConsent t={t} assist seconds={0} deadline={null} onOk={() => tbl.closeAssistNotice()} />
           ) : (
-            tbl.timeLimit > 0 && tbl.pub.phase === 'idle' && <TimeConsentWait t={t} />
+            (tbl.timeLimit > 0 || tbl.assist) && tbl.mySeat !== null && tbl.pub.phase === 'idle' && <ConsentWait t={t} names={ol.room?.isHost ? tbl.consentPending : []} />
           )}
           {reclaimAsk && (
             <TimeConsent
@@ -460,6 +471,7 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
                 setScreen('top');
                 // 同じ山（種）とルールで CPU と対局（端末のルールの控えは変えない）
                 setSameFrom(sw?.result ?? null);
+                setCpuAssist(false);
                 if (sw?.choice.cn) {
                   const values = cnValuesOf(sw.choice.cnValues, sw.choice.cn);
                   start({ family: 'cn', values }, cnLabelOf(values, sw.choice.cn), sw.seed, sw.strength, null);
@@ -486,7 +498,11 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
               lang={baseOf(lang)}
               onBack={() => setScreen('top')}
               // 選んだルールで始める（選んだルールは画面が端末に覚えている。牌譜にはセットの名前か「カスタム」を残す）
-              onStart={startGame}
+              onStart={() => {
+                setCpuAssist(false);
+                startGame();
+              }}
+              onStartAssist={() => setAssistAsk(true)}
             />
           ) : screen === 'online' ? (
             ol.where === 'room' ? (
@@ -566,6 +582,20 @@ export function App({ startConsented = false }: { startConsented?: boolean } = {
             setSoundAsk(false);
             finishAudioAsk();
             fx.syncBgm();
+          }}
+        />
+      )}
+      {/* CPU と対局をアシストモードで始める前の案内（OK で始める・やめるは置かない＝戻るときは窓の外の「戻る」ではなく、OK のあとメニューから中断） */}
+      {assistAsk && (
+        <StartConsent
+          t={t}
+          assist
+          seconds={0}
+          deadline={null}
+          onOk={() => {
+            setAssistAsk(false);
+            setCpuAssist(true);
+            startGame();
           }}
         />
       )}

@@ -658,8 +658,8 @@ export class OnlineSession {
     this.broadcastMembers();
   }
 
-  /** ホスト：対局を始める（空いた席は CPU） */
-  start() {
+  /** ホスト：対局を始める（空いた席は CPU）。assist＝アシストモードで始める（訂正26101113 の 2） */
+  start(assist = false) {
     if (!this.s.room?.isHost || this.s.started) return;
     this.set({ started: true });
     this.tr.setGameState('playing');
@@ -670,6 +670,7 @@ export class OnlineSession {
       REPLY_WAIT_MS[this.s.replyWait],
       rulesOfChoice(this.s.rules),
       TIME_LIMIT_MS[this.s.timeLimit],
+      assist,
     );
     // ホストも開き直したときに戻れるよう控える（段階10の5。ホストには戻らず、プレイヤーとして入り直す）
     this.saveSeat();

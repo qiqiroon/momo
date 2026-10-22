@@ -302,7 +302,9 @@ describe('モード選択と、そこから入る画面', () => {
     // 対局を始めるは見出しのすぐ下（ルールセットより前）、戻るはその右
     const start = document.querySelector('.btn-start')!;
     expect(start.compareDocumentPosition(document.querySelector('.gset')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(start.nextElementSibling).toHaveTextContent('戻る');
+    // 対局を始める → アシストモードで始める（訂正26101113 の 2）→ 戻る
+    expect(start.nextElementSibling).toHaveTextContent('アシストモードで始める');
+    expect(start.nextElementSibling!.nextElementSibling).toHaveTextContent('戻る');
     fireEvent.click(screen.getByRole('button', { name: '戻る' }));
     expect(document.querySelectorAll('.mode-list .mode-row')).toHaveLength(3);
     localStorage.removeItem('momo-mahjong.rules');
@@ -536,5 +538,37 @@ describe('同じ山で勝負（6e）', () => {
     history.replaceState(null, '', '#same=abc');
     render(<App startConsented />);
     expect(screen.getByText(/同じ山で勝負のリンクを読めませんでした/)).toBeInTheDocument();
+  });
+});
+
+describe('アシストモード（訂正26101113 の 2）', () => {
+  it('CPU と対局：「アシストモードで始める」で案内が出る（やめるは無い）。OK で始まり、見出しに札・卓にアシストの欄（帯）。ふつうに始めると札も欄も無い', async () => {
+    render(<App startConsented />);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'ja' } });
+    startButton();
+    fireEvent.click(screen.getByRole('button', { name: 'アシストモードで始める' }));
+    const dlg = screen.getByRole('dialog', { name: 'アシストモード' });
+    expect(dlg).toHaveTextContent('ほかの人の手牌や山をのぞき見ることはありません');
+    expect(dlg).toHaveTextContent('最善の手ではないことがあります');
+    expect(within(dlg).getAllByRole('button').map((b) => b.textContent)).toEqual(['わかりました']);
+    // 案内の間はまだ始まっていない
+    expect(document.querySelector('.square-wrap, .lanes-wrap')).toBeNull();
+    fireEvent.click(within(dlg).getByRole('button', { name: 'わかりました' }));
+    await waitFor(() => expect(document.querySelector('.square-wrap, .lanes-wrap')).not.toBeNull());
+    expect(document.querySelector('.site-header .assist-badge')).toHaveTextContent('アシストモード');
+    // 検査の窓は狭い（卓の左に余白が無い）＝帯「アシスト ▲」。押すと欄が開き、もう一度押すとたたむ
+    const tab = screen.getByRole('button', { name: /アシスト ▲/ });
+    fireEvent.click(tab);
+    expect(document.querySelector('.assist-over')).toHaveTextContent('準備中');
+    fireEvent.click(screen.getByRole('button', { name: /アシスト ▼/ }));
+    expect(document.querySelector('.assist-over')).toBeNull();
+  });
+
+  it('ふつうの「対局を始める」では札も欄も出ない', async () => {
+    render(<App startConsented />);
+    fireEvent.click(startButton());
+    await waitFor(() => expect(document.querySelector('.square-wrap, .lanes-wrap')).not.toBeNull());
+    expect(document.querySelector('.assist-badge')).toBeNull();
+    expect(document.querySelector('.assist-tab, .assist-col')).toBeNull();
   });
 });

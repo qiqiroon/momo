@@ -126,7 +126,7 @@ export function RuleLinkScreen({ t, lang, choice, onCpu, onOnline, onCancel }: {
 // ---- CPU と対局：ルールを選んで始める（段階6の6a-2・選び方は RuleSettings） ----
 
 /** CPU と対局：CPU の強さとルール（セットと個別設定）を選んでから始める。どちらも端末に覚える */
-export function CpuSetup({ t, lang, onBack, onStart }: { t: T; lang: BaseLang; onBack: () => void; onStart: (c: RuleChoice) => void }) {
+export function CpuSetup({ t, lang, onBack, onStart, onStartAssist }: { t: T; lang: BaseLang; onBack: () => void; onStart: (c: RuleChoice) => void; onStartAssist: () => void }) {
   const [choice, setChoice] = useState<RuleChoice>(loadRuleChoice);
   const [strength, setStrength] = useState<Strength>(loadStrength);
   const change = (c: RuleChoice) => {
@@ -144,6 +144,10 @@ export function CpuSetup({ t, lang, onBack, onStart }: { t: T; lang: BaseLang; o
       <div className="screen-actions">
         <button type="button" className="btn-primary btn-start" onClick={() => onStart(choice)}>
           {t('start')}
+        </button>
+        {/* アシストモード：対局を始めるの右に並べる（設計 アシストモード v0.01 §2.1） */}
+        <button type="button" className="btn-primary btn-start btn-assist" onClick={onStartAssist}>
+          {t('startAssist')}
         </button>
         <BackButton t={t} onClick={onBack} />
       </div>

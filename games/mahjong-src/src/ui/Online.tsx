@@ -485,6 +485,12 @@ export function WaitingRoom({ t, lang, session }: { t: T; lang: BaseLang; sessio
             {t('start')}
           </button>
         )}
+        {/* アシストモード：対局を始めるの右に並べる（設計 アシストモード v0.01 §2.1） */}
+        {isHost && !s.started && (
+          <button type="button" className="btn-primary btn-start btn-assist" onClick={() => session.start(true)}>
+            {t('startAssist')}
+          </button>
+        )}
         <button type="button" className="btn-secondary back-btn" onClick={() => session.leave()}>
           {t(isHost ? 'olCloseRoom' : 'olLeaveRoom')}
         </button>

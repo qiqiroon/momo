@@ -3575,3 +3575,119 @@ body.in-game .site-header .subtitle {
   font-size: 12px;
   color: var(--text);
 }
+
+/* ---- アシストモード（訂正26101113 の 2・設計 アシストモード v0.01） ---- */
+
+/* 始める前の案内：アシストと制限時間を 1 つの窓に並べるとき、制限時間は小見出し */
+.start-consent h3 {
+  margin: 14px 0 4px;
+  font-size: 15px;
+}
+
+.start-consent .as-intro {
+  font-weight: 700;
+}
+
+/* 見出しの札：全員の画面に出す（オレンジの枠に白い字＝目立たせる所） */
+.assist-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--orange);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+  align-self: center;
+}
+
+/* 欄の中身（余白に置くときも、開いたときも同じ） */
+.assist-head {
+  font-weight: 700;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--brass-soft);
+}
+
+.assist-body {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.assist-soon {
+  margin: 0;
+  color: var(--text-sub);
+}
+
+/* 正方形の卓の左の余白に置く欄（幅は Assist.tsx の ASSIST_W と同じ） */
+.square-wrap .assist-col {
+  width: 240px;
+  align-self: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+/* 余白が足りないとき：帯「アシスト ▲」。正方形の卓は左上に重ねる、横 4 列は上の帯のボタンの並び */
+.square-wrap {
+  position: relative;
+}
+
+.square-wrap > .assist-float {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 30;
+}
+
+.assist-tab {
+  font: inherit;
+  font-size: 13px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--orange);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.assist-tab.open {
+  background: var(--orange);
+}
+
+/* 横 4 列：自分の列の名札の行の右端（名札の行は少し薄く出すが、帯はいつも同じ濃さ＝行の opacity を打ち消せないので小さく目立たせる） */
+.lane-who .lane-assist-tab {
+  margin-left: auto;
+  margin-right: 6px;
+  font-size: 11px;
+  padding: 1px 8px;
+  line-height: 1;
+  /* 名札の行の高さを変えない（行が高くなると自分の列の河が狭くなる） */
+  margin-block: -3px;
+}
+
+/* 開いたときの欄：卓の上に半透明で重ねる（卓の並びは動かさない） */
+.assist-over {
+  background: rgba(10, 10, 10, 0.86);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.square-wrap .assist-over {
+  margin-top: 6px;
+  width: min(320px, calc(100vw - 40px));
+}
+
+/* 横 4 列：4 列の上端から、幅いっぱいに重ねる（入れ物は .lanes） */
+.lanes {
+  position: relative;
+}
+
+.lanes > .assist-over {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 4px;
+  z-index: 30;
+}

@@ -3808,3 +3808,88 @@ body.in-game .site-header .subtitle {
   font-size: 11px;
   color: var(--text-sub);
 }
+
+/* ---- アシストモード 段階4：危ない牌の印・テンパイ？・説明の窓 ---- */
+
+/* 手牌の牌の下の印：小さな三角の中に「！」（牌の大きさと並びは変えない＝牌に重ねて置く） */
+.hand-tile {
+  position: relative;
+}
+
+.danger-mark {
+  position: absolute;
+  left: 50%;
+  bottom: -0.2em;
+  transform: translateX(-50%);
+  width: 1.15em;
+  height: 1em;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  font-size: clamp(10px, calc(var(--tw, 32px) * 0.42), 15px);
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: center;
+  pointer-events: none;
+}
+
+.danger-mark.lv-1 {
+  background: #facc15;
+  color: #111;
+}
+
+.danger-mark.lv-2 {
+  background: #dc2626;
+  color: #fff;
+}
+
+/* テンパイ？：リーチ棒の場所に赤で（棒と同じ向き・同じ場所） */
+.tenpai-q-pos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+.tenpai-q {
+  color: #fff;
+  background: #dc2626;
+  border-radius: 999px;
+  padding: 0 0.5em;
+  font-size: max(10px, 1.6cqw);
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.lane-who .tenpai-q {
+  font-size: 10px;
+}
+
+/* 合わせる（指は長押し）と浮かぶ説明：要素の上に出す */
+.assist-tip {
+  position: fixed;
+  z-index: 200;
+  transform: translate(-50%, calc(-100% - 8px));
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(10, 10, 10, 0.94);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.tip-waits {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 3px;
+}
+
+.tip-waits .tile.mini {
+  --tw: 16px;
+  margin-bottom: 0;
+}

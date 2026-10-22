@@ -18,7 +18,8 @@ import { isRed, kindOf, type TileId } from '../engine/tiles';
 import { relFrom, useSeat } from './seatContext';
 import { baseOf, translate, type Lang, type MessageKey } from '../i18n/strings';
 import { RuleBook } from './RuleBook';
-import { AssistOver, AssistPanel, AssistTab, CrushLine, YakuPlanList, crushedBy, useAssistDocked, useYakuPlan } from './Assist';
+import { AssistOver, AssistPanel, AssistTab, CallLine, CrushLine, DangerMark, useCallNotes, LONG_PRESS_MS, TenpaiQ, YakuPlanList, crushedBy, riskText, useAssistDocked, useTip, useYakuPlan, type TipApi } from './Assist';
+import { risksOf, suspectsOf, type TileRisk } from '../assist/danger';
 import { DraggableDialog } from './DraggableDialog';
 import { lengthName, roundName } from './roundName';
 import { Tile } from './Tile';
@@ -90,6 +91,10 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   const relOf = (seat: number): number => relFrom(me, seat);
   const seatAt = (rel: number): Seat => ((rel + me) % 4) as Seat;
   const nameOf = (seat: number) => (seat === me && !watching ? t('you') : (names?.[seat] ?? t('cpu', { n: relOf(seat) })));
+  // アシストモード：テンパイしていそうな人と手牌の危なさ（段階4）・合わせる（指は長押し）と浮かぶ説明
+  const assistOn = assist && !replay && !watching;
+  const sus = assistOn && view.phase !== 'ended' && view.phase !== 'gameover' && view.roundIndex >= 0 ? suspectsOf(view, me) : [];
+  const { api: tipApi, box: tipBox } = useTip();
   const roundLabel = roundName(view, t);
   const left = Math.max(0, liveWallLeft(view));
   /** 半荘戦か東風戦か（対局の長さ。利用者指示 10-09：どちらか分かる表示）。中国式は 4圏・1圏 */
@@ -140,12 +145,23 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   };
   // リーチ棒：宣言してから局が終わるまで、その人の前に置く。宣言牌でロンされたら出さない（結果が出た時点で消える）
   const stickShown = (seat: number) => view.riichi[seat] !== 'none' && (view.riichiStick[seat] || !view.result);
-  const riichiStick = (seat: number, cls: string) =>
-    stickShown(seat) && (
-      <span className={cls} key={`stick-${seat}`}>
-        <span className={`riichi-stick${riichiSlam?.seat === seat ? ' slam' : ''}`} key={riichiSlam?.seat === seat ? riichiSlam.key : 0} />
-      </span>
+  const riichiStick = (seat: number, cls: string) => {
+    if (stickShown(seat))
+      return (
+        <span className={cls} key={`stick-${seat}`}>
+          <span className={`riichi-stick${riichiSlam?.seat === seat ? ' slam' : ''}`} key={riichiSlam?.seat === seat ? riichiSlam.key : 0} />
+        </span>
+      );
+    // アシストモード：テンパイしていそうな人（リーチしていない）は、リーチ棒の場所に赤で「テンパイ？」。リーチしたら棒に替わる
+    const x = sus.find((y) => y.seat === seat && !y.riichi);
+    return (
+      x && (
+        <span className={`${cls} tenpai-q-pos`} key={`tq-${seat}`}>
+          <TenpaiQ t={t} view={view} s={x} nameOf={nameOf} tip={tipApi} />
+        </span>
+      )
     );
+  };
   const riichiMark = (seat: number) => (
     <>
       {view.cnOut[seat] && <span className="cn-out-mark">{t('cnOutMark')}</span>}
@@ -201,10 +217,12 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
   // 狭い画面の自分の手牌の列の長さ（横幅いっぱいに収める）
   const narrowUnits = handRowUnits(view.hands[me].length, view.drawn[me] !== null, view.melds[me]);
   // アシストモード（段階2）：役の候補一覧と、合わせた牌（指は 1 回目に選んだ牌）を切るとつぶれる役
-  const assistOn = assist && !replay && !watching;
   const plan = useYakuPlan(view, me, assistOn && dealt === null);
   const [focusTile, setFocusTile] = useState<TileId | null>(null);
   const crushed = crushedBy(plan && !plan.counting ? plan.list : null, view.hands[me].length, focusTile);
+  // 鳴く前の注意：鳴ける牌が来たら、鳴きの選び方ごとに消える役・役なしを数える（段階4）
+  const callActs = legal.filter((a) => a.type === 'chi' || a.type === 'pon' || (a.type === 'kan' && a.kan === 'minkan'));
+  const callNotes = useCallNotes(view, me, callActs, plan && !plan.counting ? plan.list : null, assistOn);
   const assistBody = assistOn ? <YakuPlanList t={t} view={view} seat={me} plan={plan} crushed={crushed} /> : undefined;
   const hand = (
     <MyHand
@@ -217,7 +235,16 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
       dealt={dealt}
       hints={!replay && playing && dealt === null && view.rules?.family === 'jp'}
       onFocusTile={assistOn ? setFocusTile : undefined}
-      crushLine={assistOn && crushed.size > 0 ? <CrushLine t={t} view={view} seat={me} plan={plan?.list ?? null} crushed={crushed} /> : null}
+      risks={assistOn ? risksOf(view, me, sus) : undefined}
+      riskLabel={(r) => riskText(t, r, nameOf)}
+      tip={assistOn ? tipApi : undefined}
+      crushLine={
+        assistOn && crushed.size > 0 ? (
+          <CrushLine t={t} view={view} seat={me} plan={plan?.list ?? null} crushed={crushed} />
+        ) : assistOn && callNotes.some((n) => n.loss.none || n.loss.lost.length > 0) ? (
+          <CallLine t={t} view={view} seat={me} notes={callNotes} />
+        ) : null
+      }
     />
   );
 
@@ -641,6 +668,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         {chat}
         {result}
         {book}
+        {tipBox}
       </div>
     );
   }
@@ -724,6 +752,7 @@ export function Table({ narrow, view, legal, lang, onChoose, onNext, onNewGame, 
         {result}
       </div>
       {book}
+      {tipBox}
       {callPanel || chat || sidePanel ? (
         <div className={`side-col${sidePanel ? ' side-top' : ''}`}>
           {sidePanel}
@@ -860,7 +889,10 @@ function MeldView({ meld: given, seat, rules }: { meld: OpenMeld; seat: number; 
 }
 
 /** 自分の手牌。マウスは 1 回押すと切る／指は 1 回目で浮かせ、2 回目で切る（押し間違いを防ぐ） */
-function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints, onFocusTile, crushLine }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; clock?: ReactNode; melds: ReactNode; dealt: number | null; hints: boolean; onFocusTile?: (id: TileId | null) => void; crushLine?: ReactNode }) {
+function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints, onFocusTile, crushLine, risks, riskLabel, tip }: { view: GameState; legal: Action[]; lang: Lang; onChoose: (a: Action) => void; clock?: ReactNode; melds: ReactNode; dealt: number | null; hints: boolean; onFocusTile?: (id: TileId | null) => void; crushLine?: ReactNode; risks?: Map<number, TileRisk>; riskLabel?: (r: TileRisk) => string; tip?: TipApi }) {
+  // アシストモード：指の長押しは危なさの説明だけ（離しても選ぶ・切るにはしない＝設計 Q6=A）
+  const longPress = useRef<{ timer: ReturnType<typeof setTimeout> | null; fired: boolean }>({ timer: null, fired: false });
+  const riskOf = (id: TileId) => (id >= 0 ? risks?.get(kindOf(id)) : undefined);
   const [raised, setRaised] = useState<TileId | null>(null);
   // リーチを押したあと＝切る牌を選んでいるところ（もう一度押すとやめる）
   const [riichiPick, setRiichiPick] = useState(false);
@@ -920,6 +952,13 @@ function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints, onFoc
   const usable = (id: TileId) => (huan3Opts.length > 0 ? huan3Ok(id) : queOpts.length > 0 ? queable(id) : picking ? riichiable.has(id) : discardable.has(id));
 
   const press = (id: TileId) => (e: PointerEvent) => {
+    if (longPress.current.timer) clearTimeout(longPress.current.timer);
+    longPress.current.timer = null;
+    if (longPress.current.fired) {
+      longPress.current.fired = false;
+      tip?.hide();
+      return;
+    }
     if (!usable(id)) return;
     if (huan3Opts.length > 0) {
       setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -946,11 +985,53 @@ function MyHand({ view, legal, lang, onChoose, clock, melds, dealt, hints, onFoc
   const tile = (id: TileId, i: number) => (
     <button key={id >= 0 ? id : `hidden${i}`} type="button" className={`hand-tile${raised === id || picked.includes(id) ? ' raised' : ''}${id === heldTile ? ' que-held' : ''}`} disabled={!usable(id)}
       onPointerUp={press(id)}
-      // マウス：合わせた時点で、その牌を切るとつぶれる役を出す（アシストモード・Q5=A）
-      onPointerEnter={onFocusTile ? (e) => e.pointerType === 'mouse' && onFocusTile(id) : undefined}
-      onPointerLeave={onFocusTile ? (e) => e.pointerType === 'mouse' && onFocusTile(null) : undefined}
+      // マウス：合わせた時点で、その牌を切るとつぶれる役と危なさの説明を出す（アシストモード・Q5=A）
+      onPointerEnter={
+        onFocusTile || tip
+          ? (e) => {
+              if (e.pointerType !== 'mouse') return;
+              onFocusTile?.(id);
+              const r = riskOf(id);
+              if (tip && r && r.level > 0 && riskLabel) tip.show(e.currentTarget, riskLabel(r));
+            }
+          : undefined
+      }
+      onPointerLeave={
+        onFocusTile || tip
+          ? (e) => {
+              if (e.pointerType !== 'mouse') return;
+              onFocusTile?.(null);
+              tip?.hide();
+            }
+          : undefined
+      }
+      // 指：長押しで危なさの説明（離すと消え、選ぶ・切るにはならない）
+      onPointerDown={
+        tip
+          ? (e) => {
+              if (e.pointerType === 'mouse') return;
+              const r = riskOf(id);
+              if (!r || r.level === 0 || !riskLabel) return;
+              const el = e.currentTarget;
+              longPress.current.fired = false;
+              longPress.current.timer = setTimeout(() => {
+                longPress.current.fired = true;
+                tip.show(el, riskLabel(r));
+              }, LONG_PRESS_MS);
+            }
+          : undefined
+      }
+      onPointerCancel={() => {
+        if (longPress.current.timer) clearTimeout(longPress.current.timer);
+        longPress.current = { timer: null, fired: false };
+        tip?.hide();
+      }}
     >
       <Tile id={id} rules={view.rules} />
+      {(() => {
+        const r = riskOf(id);
+        return r && r.level > 0 ? <DangerMark level={r.level as 1 | 2} /> : null;
+      })()}
       {id === heldTile && <span className="que-held-tag">{translate(lang, 'queHeldTag')}</span>}
     </button>
   );

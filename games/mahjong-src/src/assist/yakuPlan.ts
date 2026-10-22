@@ -84,11 +84,17 @@ const now = () => (typeof performance !== 'undefined' ? performance.now() : Date
 
 /** 役の候補一覧（日本式・中国式。手牌が見えなければ空） */
 export function yakuPlan(s: GameState, seat: Seat, o: PlanOptions = {}): YakuPlan[] {
+  return yakuPlanFull(s, seat, o).rows;
+}
+
+/** 役の候補一覧と、考える時間が切れて数えきれなかったか（truncated） */
+export function yakuPlanFull(s: GameState, seat: Seat, o: PlanOptions = {}): { rows: YakuPlan[]; truncated: boolean } {
+  const done = (rows: YakuPlan[], truncated = false) => ({ rows, truncated });
   const rules = s.rules;
-  if (!rules) return [];
+  if (!rules) return done([]);
   const cn = rules.family === 'cn';
   const handIds = o.hand ?? s.hands[seat];
-  if (handIds.some((t) => t < 0)) return [];
+  if (handIds.some((t) => t < 0)) return done([]);
   const limit = o.limit ?? 10;
   // あと 7 枚より遠い形は目安にならない（配牌のままでも数えきれる長さに抑える。四川は番の種類が少なく 10 行に届かず、
   // 8 枚まで探すと毎回 1.5 秒の上限を使い切った＝2026-10-22 実測）
@@ -289,7 +295,7 @@ export function yakuPlan(s: GameState, seat: Seat, o: PlanOptions = {}): YakuPla
     if (rowsOf().length >= limit) break;
   }
 
-  return rowsOf().slice(0, limit);
+  return done(rowsOf().slice(0, limit), truncated);
 
   /** 見つけた組み合わせを行にする（中国式は 1 番の番だけ違う行をまとめる）。あと何枚の少ない順・同じなら点の高い順 */
   function rowsOf(): YakuPlan[] {

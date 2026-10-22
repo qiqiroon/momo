@@ -3,8 +3,12 @@
 //  - ConsentWait：OK を押したあと、ほかの人を待つあいだ（ホストには誰を待っているか）
 //  - AssistPanel：卓の横の余白に出す欄。余白が足りなければ帯「アシスト ▲」で開け閉めする（Q8=A）
 // 見た目は制限時間の同意の窓（sound-backdrop・sound-panel）にそろえる。
-import { useEffect, useMemo, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode, type RefObject } from 'react';
+import type { Reason, Suspect, TileRisk } from '../assist/danger';
+import { callLoss, type CallLoss } from '../assist/callCheck';
+import type { Action } from '../engine/round';
 import { yakuPlan, type YakuPlan } from '../assist/yakuPlan';
+import type { Job } from '../assist/planWorker';
 import type { Seat } from '../engine/events';
 import { roundWindOf, seatWindOf, type GameState } from '../engine/state';
 import { kindOf, type TileId } from '../engine/tiles';
@@ -191,10 +195,10 @@ export function AssistPanel({ t, docked, children }: { t: T; docked: boolean; ch
 
 // ---- 役の候補一覧（段階2・設計 §4） ----
 
-/** 役の候補一覧を数える働き手（1 つを使い回す）。Worker の無い環境（検査）では null＝画面の側で数える */
+/** アシストの数えものの働き手（1 つを使い回す）。Worker の無い環境（検査）では null＝画面の側で数える */
 let worker: Worker | null | undefined;
 let workerSeq = 0;
-const workerWaits = new Map<number, (list: YakuPlan[]) => void>();
+const workerWaits = new Map<number, (result: unknown) => void>();
 function planWorker(): Worker | null {
   if (worker !== undefined) return worker;
   try {
@@ -202,12 +206,25 @@ function planWorker(): Worker | null {
   } catch {
     worker = null;
   }
-  worker?.addEventListener('message', (e: MessageEvent<{ id: number; list: (Omit<YakuPlan, 'spare'> & { spare: number[] })[] }>) => {
+  worker?.addEventListener('message', (e: MessageEvent<{ id: number; result: unknown }>) => {
     const done = workerWaits.get(e.data.id);
     workerWaits.delete(e.data.id);
-    done?.(e.data.list.map((p) => ({ ...p, spare: new Set(p.spare) })));
+    done?.(e.data.result);
   });
   return worker;
+}
+
+/** 働き手に頼む（無ければ描き終えてから画面の側で sync を呼ぶ）。戻り値＝取り消し */
+function ask<R>(job: Job extends infer J ? (J extends Job ? Omit<J, 'id'> : never) : never, sync: () => R, done: (r: R) => void): () => void {
+  const w = planWorker();
+  if (w) {
+    const id = ++workerSeq;
+    workerWaits.set(id, (r) => done(r as R));
+    w.postMessage({ ...job, id });
+    return () => workerWaits.delete(id);
+  }
+  const t = setTimeout(() => done(sync()), 0);
+  return () => clearTimeout(t);
 }
 
 /**
@@ -225,19 +242,7 @@ export function useYakuPlan(view: GameState, seat: Seat, on: boolean): { list: Y
   const [plan, setPlan] = useState<{ key: string; list: YakuPlan[] } | null>(null);
   useEffect(() => {
     if (key === null) return;
-    let live = true;
-    const w = planWorker();
-    if (w) {
-      const id = ++workerSeq;
-      workerWaits.set(id, (list) => live && setPlan({ key, list }));
-      w.postMessage({ id, view, seat });
-      return () => {
-        live = false;
-        workerWaits.delete(id);
-      };
-    }
-    const id = setTimeout(() => setPlan({ key, list: yakuPlan(view, seat) }), 0);
-    return () => clearTimeout(id);
+    return ask<YakuPlan[]>({ kind: 'plan', view, seat }, () => yakuPlan(view, seat), (list) => setPlan({ key, list }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   if (key === null) return null;
@@ -329,3 +334,145 @@ export function CrushLine({ t, view, seat, plan, crushed }: { t: T; view: GameSt
   return <div className="yaku-hints assist-crush">{t('asCrush', { list: names.join(t('listDot')) })}</div>;
 }
 
+
+// ---- 合わせる（指は長押し）と浮かぶ説明（段階4・設計 §5・§8） ----
+
+/** 指の長押しとみなす長さ（ミリ秒） */
+export const LONG_PRESS_MS = 450;
+
+export interface TipApi {
+  show: (el: Element, content: ReactNode) => void;
+  hide: () => void;
+}
+
+/** 説明の窓の中身と位置（画面に 1 つだけ） */
+export function useTip(): { api: TipApi; box: ReactNode } {
+  const [tip, setTip] = useState<{ content: ReactNode; x: number; y: number } | null>(null);
+  const api = useMemo<TipApi>(
+    () => ({
+      show: (el, content) => {
+        const r = el.getBoundingClientRect();
+        setTip({ content, x: r.left + r.width / 2, y: r.top });
+      },
+      hide: () => setTip(null),
+    }),
+    [],
+  );
+  const box = tip && (
+    <div className="assist-tip" role="tooltip" style={{ left: Math.max(8, Math.min(window.innerWidth - 8, tip.x)), top: tip.y }}>
+      {tip.content}
+    </div>
+  );
+  return { api, box };
+}
+
+/** 説明を出す要素に付ける：マウスは合わせたとき、指は長押しのあいだ（離すと消える・操作にはならない） */
+export function useTipHandlers(api: TipApi | undefined, content: () => ReactNode) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  if (!api) return {};
+  const clear = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  return {
+    onPointerEnter: (e: RPointerEvent) => e.pointerType === 'mouse' && api.show(e.currentTarget, content()),
+    onPointerLeave: (e: RPointerEvent) => e.pointerType === 'mouse' && api.hide(),
+    onPointerDown: (e: RPointerEvent) => {
+      if (e.pointerType === 'mouse') return;
+      const el = e.currentTarget;
+      clear();
+      timer.current = setTimeout(() => api.show(el, content()), LONG_PRESS_MS);
+    },
+    onPointerUp: (e: RPointerEvent) => {
+      if (e.pointerType === 'mouse') return;
+      clear();
+      api.hide();
+    },
+    onPointerCancel: () => {
+      clear();
+      api.hide();
+    },
+  };
+}
+
+/** 理由の言葉（name は席の番号で来るので名前にする） */
+export function reasonText(t: T, why: Reason, nameOf: (seat: number) => string): string {
+  const v = why.vars ?? {};
+  return t(why.key as MessageKey, { ...v, ...(v.name !== undefined ? { name: nameOf(v.name) } : {}) });
+}
+
+/** 手牌の牌の危なさの説明（「すごく危ない：CPU 1さんに筋が通っていない真ん中の牌」） */
+export function riskText(t: T, r: TileRisk, nameOf: (seat: number) => string): string {
+  return `${t(r.level === 2 ? 'dgLv2' : 'dgLv1')}：${reasonText(t, r.why, nameOf)}`;
+}
+
+/** 手牌の牌の下の印（小さな三角の中に「！」。少し危ない＝黄・すごく危ない＝赤） */
+export function DangerMark({ level }: { level: 1 | 2 }) {
+  return (
+    <span className={`danger-mark lv-${level}`} aria-hidden="true">
+      !
+    </span>
+  );
+}
+
+/** 「テンパイ？」の札（リーチ棒の場所に赤で）。合わせる・長押しで理由とあやしい待ち */
+export function TenpaiQ({ t, view, s, nameOf, tip }: { t: T; view: GameState; s: Suspect; nameOf: (seat: number) => string; tip?: TipApi }) {
+  const handlers = useTipHandlers(tip, () => (
+    <>
+      <div>{reasonText(t, s.why, nameOf)}</div>
+      {s.waits.length > 0 && (
+        <div className="tip-waits">
+          {t('tpWaits')}
+          {s.waits.map((k) => (
+            <Tile key={k} id={k * 4 + 3} rules={view.rules} className="mini" />
+          ))}
+        </div>
+      )}
+    </>
+  ));
+  return (
+    <span className="tenpai-q" {...handlers}>
+      {t('tpLabel')}
+    </span>
+  );
+}
+
+// ---- 鳴く前の注意（段階4・設計 §6） ----
+
+/**
+ * 鳴ける牌が来たとき、鳴きの選び方ごとに「鳴くと消える役・役が無くなるか」を数える（働き手で・選び方ごとに 0.15 秒まで）。
+ * 同じ返事の番では数え直さない
+ */
+export function useCallNotes(view: GameState, seat: Seat, calls: readonly Action[], before: readonly YakuPlan[] | null, on: boolean): { a: Action; loss: CallLoss }[] {
+  const key = on && calls.length > 0 && before && view.claim ? JSON.stringify([view.claim.from, view.claim.tile, calls]) : null;
+  const [notes, setNotes] = useState<{ key: string; list: { a: Action; loss: CallLoss }[] } | null>(null);
+  useEffect(() => {
+    if (key === null || !before) return;
+    const sync = () =>
+      calls.flatMap((a) => {
+        const loss = callLoss(view, seat, a, before);
+        return loss ? [{ a, loss }] : [];
+      });
+    return ask<{ a: Action; loss: CallLoss }[]>({ kind: 'calls', view, seat, calls: [...calls], before: [...before] }, sync, (list) => setNotes({ key, list }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return key !== null && notes?.key === key ? notes.list : [];
+}
+
+/** 手牌の上の 1 行：「チーすると平和・一盃口・リーチが消えます／ポンすると役が無くなります」 */
+export function CallLine({ t, view, seat, notes }: { t: T; view: GameState; seat: Seat; notes: { a: Action; loss: CallLoss }[] }) {
+  const name = (id: string) =>
+    id === 'riichi' ? t('riichi') : view.rules?.family === 'cn' ? t(`cnFan_${id}` as MessageKey) : yakuName(t, view, seat, id as YakuId);
+  const parts = [
+    ...new Set(
+      notes.flatMap(({ a, loss }) => {
+        const call = t(a.type as MessageKey);
+        if (loss.none) return [t('cwNone', { call })];
+        if (loss.lost.length === 0) return [];
+        return [t('cwLost', { call, list: loss.lost.map(name).join(t('listDot')) })];
+      }),
+    ),
+  ];
+  if (parts.length === 0) return null;
+  return <div className="yaku-hints assist-crush call-warn">{parts.join(' ／ ')}</div>;
+}

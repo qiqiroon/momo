@@ -1,5 +1,5 @@
 /**
- * momo-matchmaking.js  v1.04
+ * momo-matchmaking.js  v1.05
  * MOMO Works 共通マッチング・通信モジュール
  * WebSocket（シグナリング）と WebRTC（P2P通信）を内包する。
  * ゲーム側は MomoMatchmaking.init() でコールバックを登録するだけで対戦相手との通信を確立できる。
@@ -19,6 +19,14 @@
  *   - onRoomCreated/onJoinedRoom の末尾に多人数情報 {mode,pid,role,roster} を追加引数で通知
  *   - 新コールバック onParticipantJoined / onParticipantLeft
  *   多人数の送受信は _sendMulti に集約（将来の直結経路へ差し替え可能な出入口）。
+ *
+ * v1.05 (2026-10-23): 対局中の切断からの復帰（従来1対1の部屋だけ・頼んだアプリにだけ効く）。
+ *   アプリが reviveBegin() を呼んだときだけ動く。呼ばないアプリ（Reversi・Darts・Hanafuda・Control・Mahjong・Shogi）は動きが変わらない。
+ *   サーバーは変えない。「切れた」はアプリどうしで判断し（10 秒ごとの mm_rv_here・25 秒届かなければ）、部屋は残った人が持つ：
+ *   残った人がホストならそのまま（居座った接続は追い出す）、ゲストなら元の部屋をのぞいてから同じ名前で作り直してホストになる。
+ *   戻る人は一覧から「同じ部屋名で、ホストが相手」の部屋を探し、合言葉（mm_rv_back）で本人と確かめてもらう。
+ *   盤面の渡し直し・CPU の引き継ぎはアプリの仕事（設計の正本 games/matchmaking/docs/reconnect-design）。
+ *   ★合言葉（secret）は端末の中だけ。診断の記録・チャット・URL に出さない。
  *
  * v1.04 (2026-10-20): サーバーからの「生きていますか」（mm_alive_q）に自動で答える（mm_alive_a）。アプリへは渡さない。
  *   一覧に入る知らせ（enter_lobby）に「答えられる版」の印 alive:1 を添える（サーバーは印のある接続にだけ知らせで尋ねる）。
@@ -61,6 +69,13 @@ const MomoMatchmaking = (() => {
     return typeof t === 'string' ? t : null;
   }
 
+  // v1.05：いまの部屋の作りの控え（切断からの復帰で、同じ名前・同じパスワードの部屋を探す／作り直すのに使う）
+  let _pendingCreate = null; // createRoom で送った中身（room_created で確定）
+  let _pendingJoinPw = '';   // joinRoom で送ったパスワード（joined_room で確定）
+  let _roomPw = '';
+  let _roomPublic = true;
+  let _roomRules = null;
+
   // ===== WebSocket 接続 =====
   function _connectWS() {
     _ws = new WebSocket(_options.signalingUrl);
@@ -93,7 +108,20 @@ const MomoMatchmaking = (() => {
     _ws.onclose = () => {
       if (_keepaliveTimer) { clearInterval(_keepaliveTimer); _keepaliveTimer = null; }
 
-      if (_currentRoomId) {
+      if (_rv) {
+        // v1.05：復帰を頼まれているあいだ
+        if (_rv.op) {
+          // 探している／作り直している途中で切れた → つなぎ直して続ける（探す・作り直すのはタイマーが続ける）
+          if (_rv.probeTimer) { clearTimeout(_rv.probeTimer); _rv.probeTimer = null; }
+          _rv.joining = null;
+          _resetConnection();
+        } else if (_currentRoomId) {
+          // 対局中に自分の接続が切れた → 戻る側になる（アプリへは onSelfReconnecting）
+          _rvSelfLost();
+        } else {
+          setTimeout(_connectWS, 1000);
+        }
+      } else if (_currentRoomId) {
         // 部屋に入っている最中の切断 → ゲーム側に通知
         if (_options.onDisconnected) {
           _options.onDisconnected('接続が切断されました。再接続中...');
@@ -117,8 +145,12 @@ const MomoMatchmaking = (() => {
       return;
     }
 
+    // v1.05：復帰の知らせ（アプリへは渡さない）
+    if (typeof d.type === 'string' && d.type.indexOf('mm_rv_') === 0) { _rvOnMsg(d); return; }
+
     // 部屋一覧
     if (d.type === 'room_list') {
+      if (_rv && _rv.op && !_rv.joining && !_currentRoomId) _rvTryRooms(d.rooms);
       if (_options.onRoomList) _options.onRoomList(d.rooms);
       return;
     }
@@ -129,6 +161,18 @@ const MomoMatchmaking = (() => {
       _currentRoomName = d.roomName;
       _isHost = true;
       _token = _tokenOf(d, 'hostToken');
+      const pc = _pendingCreate || {};
+      _pendingCreate = null;
+      _roomPw = pc.password || '';
+      _roomPublic = pc.isPublic !== false;
+      _roomRules = d.rules || pc.rules || null;
+      if (_rv && _rv.op === 'recreate' && d.mode !== 'multi') {
+        // v1.05：残ったゲストが同じ名前で作り直した部屋。アプリの画面は変えない（待っている画面のまま）
+        _mode = 'classic';
+        _initRTC(true);
+        _rvRecreated();
+        return;
+      }
       if (d.mode === 'multi') {
         // 多人数：WebRTCは張らずWS中継で送受信。この時点で送受信可能。
         _mode = 'multi';
@@ -152,6 +196,16 @@ const MomoMatchmaking = (() => {
       _currentRoomName = d.roomName;
       _isHost = false;
       _token = _tokenOf(d, 'guestToken');
+      _roomPw = _pendingJoinPw || '';
+      _pendingJoinPw = '';
+      _roomRules = d.rules || null;
+      if (_rv && _rv.joining && d.mode !== 'multi') {
+        // v1.05：戻る側（またはホストの部屋をのぞいた残ったゲスト）が入れた。本人だと確かめてもらう
+        _mode = 'classic';
+        _initRTC(false);
+        _rvJoined();
+        return;
+      }
       if (d.mode === 'multi') {
         _mode = 'multi';
         _pid = d.yourPid || null;
@@ -170,12 +224,15 @@ const MomoMatchmaking = (() => {
 
     // ゲストが入室してきた（ホスト側に通知）
     if (d.type === 'guest_joined') {
+      // v1.05：復帰を頼まれた対局中は、入ってきた人が戻ってきた相手かを合言葉で確かめる（アプリへは渡さない）
+      if (_rv && _isHost) { _rvGuestJoined(); return; }
       if (_options.onGuestJoined) _options.onGuestJoined(d.guestName);
       return;
     }
 
     // ゲストが退出した（ホスト側に通知）
     if (d.type === 'guest_left') {
+      if (_rv && _isHost) { _rvGuestLeft(); return; }
       if (_options.onGuestLeft) _options.onGuestLeft();
       return;
     }
@@ -196,6 +253,8 @@ const MomoMatchmaking = (() => {
 
     // サーバーエラー（部屋が満員、パスワード不一致など）
     if (d.type === 'error') {
+      // v1.05：探している途中の「満員」「パスワードが違う」などは自分で次を試す（アプリへは渡さない）
+      if (_rv && _rv.op) { _rvJoinError(); return; }
       if (_options.onError) {
         _options.onError(d.message);
       } else {
@@ -206,6 +265,7 @@ const MomoMatchmaking = (() => {
 
     // キックされた
     if (d.type === 'kicked') {
+      if (_rv) { _rvKicked(); return; } // v1.05：相手に「いなくなった」と思われた → 戻る側になる
       _resetConnection();
       if (_options.onKicked) _options.onKicked();
       return;
@@ -215,6 +275,7 @@ const MomoMatchmaking = (() => {
     if (d.type === 'room_closed') {
       const msg = d.reason || '接続が切断されました。';
       _resetConnection();
+      if (_rv) { _rvRoomClosed(); return; } // v1.05：ホストがいなくなった → 残ったゲストが部屋を持つ
       if (_options.onDisconnected) _options.onDisconnected(msg);
       return;
     }
@@ -234,6 +295,7 @@ const MomoMatchmaking = (() => {
         'kick_guest','game_state_update','admin_clear_all'
       ];
       if (!internalTypes.includes(d.type)) {
+        if (_rv) _rvHeard(); // v1.05：相手から何か届いた＝生きている
         _options.onMessage(d);
       }
     }
@@ -265,7 +327,9 @@ const MomoMatchmaking = (() => {
     };
 
     _pc.onconnectionstatechange = () => {
+      if (!_pc) return;
       if (_pc.connectionState === 'failed' || _pc.connectionState === 'disconnected') {
+        if (_rv) { _rvDropP2P(); return; } // v1.05：直結が切れても部屋は出ない（サーバー経由で続ける）
         const msg = '通信が切断されました。対局を中断します。';
         _resetConnection();
         if (_options.onDisconnected) _options.onDisconnected(msg);
@@ -285,10 +349,13 @@ const MomoMatchmaking = (() => {
     _dc.onmessage = e => {
       let data;
       try { data = JSON.parse(e.data); } catch { return; }
+      if (data && typeof data.type === 'string' && data.type.indexOf('mm_rv_') === 0) { _rvOnMsg(data); return; }
+      if (_rv) _rvHeard();
       if (_options.onMessage) _options.onMessage(data);
     };
 
     _dc.onclose = () => {
+      if (_rv) { _rvDropP2P(); return; } // v1.05
       if (_currentRoomId) {
         const msg = '通信が切断されました。対局を中断します。';
         _resetConnection();
@@ -357,6 +424,306 @@ const MomoMatchmaking = (() => {
   }
 
   // ===================================================
+  // ===== v1.05：対局中の切断からの復帰（reviveBegin を呼んだアプリだけ） =====
+  // ===================================================
+  // _rv が null のあいだは何もしない（呼ばないアプリの動きは変わらない）。
+  // phase: 'idle'（相手がいる）/ 'away'（相手がいなくなり、戻るのを待っている）
+  // op: null / 'probe'（残ったゲストが元のホストの部屋をのぞく）/ 'recreate'（作り直す）/ 'rejoin'（自分が戻る）
+  const RV_HERE_MS = 10000;               // 「ここにいます」を送る間隔
+  const RV_CHECK_MS = 12000;              // これだけ届かなければ「確かめています」
+  const RV_SILENT_MS = 25000;             // これだけ届かなければ「いなくなった」
+  const RV_WAIT_MS = 3 * 60 * 1000;       // 戻るのを待つ長さ（大方針の 3 分）
+  const RV_PROBE_MS = 8000;               // 部屋に入ってから本人確認の返事を待つ長さ
+  const RV_PEEK_MS = 12000;               // 残ったゲストが元のホストの部屋をのぞく長さ
+  const RV_SEARCH_MS = 60000;             // 戻る人が部屋を探す長さ
+  const RV_KEEP_MS = 6 * 60 * 60 * 1000;  // 端末の控えを使える長さ
+  let _rv = null;
+  let _rvInitPending = null; // ゲストの reviveBegin より先に届いた mm_rv_init
+
+  function _rvCall(name, ...args) {
+    const f = _options[name];
+    if (typeof f !== 'function') return;
+    try { f(...args); } catch (e) { console.error('[MomoMatchmaking] ' + name, e); }
+  }
+  function _rvId() {
+    const a = new Uint8Array(8);
+    (window.crypto || window.msCrypto).getRandomValues(a);
+    return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+  }
+  function _rvKey() { return 'momo-mm-revive.' + (_options.reviveKey || _options.gameType || 'app'); }
+  function _rvSave() {
+    if (!_rv || !_rv.info.s) return;
+    try { localStorage.setItem(_rvKey(), JSON.stringify(Object.assign({}, _rv.info, { ts: Date.now() }))); } catch (e) {}
+  }
+  function _rvLoad() {
+    try {
+      const s = JSON.parse(localStorage.getItem(_rvKey()) || 'null');
+      if (!s || !s.s || !s.g) return null;
+      if (Date.now() - (s.ts || 0) > RV_KEEP_MS) { localStorage.removeItem(_rvKey()); return null; }
+      return s;
+    } catch (e) { return null; }
+  }
+  function _rvSend(msg) {
+    if (_dc && _dc.readyState === 'open') { try { _dc.send(JSON.stringify(msg)); return; } catch (e) {} }
+    if (_ws && _ws.readyState === WebSocket.OPEN) _ws.send(JSON.stringify(msg));
+  }
+  function _rvClearTimers() {
+    if (!_rv) return;
+    ['hereTimer', 'watchTimer'].forEach(k => { if (_rv[k]) clearInterval(_rv[k]); _rv[k] = null; });
+    ['waitTimer', 'probeTimer', 'searchTimer', 'recreateTimer', 'peekTimer'].forEach(k => { if (_rv[k]) clearTimeout(_rv[k]); _rv[k] = null; });
+  }
+  function _rvDrop() {
+    _rvClearTimers();
+    _rv = null;
+    _rvInitPending = null;
+    try { localStorage.removeItem(_rvKey()); } catch (e) {}
+  }
+  function _rvNew(info) {
+    _rv = { info: info || {}, phase: 'idle', op: null, heardAt: Date.now(), checking: false, joining: null, probing: false, tried: {} };
+    _rv.hereTimer = setInterval(_rvHere, RV_HERE_MS);
+    _rv.watchTimer = setInterval(_rvWatch, 1000);
+  }
+  function _rvApplyInit(d) {
+    if (!_rv || typeof d.g !== 'string' || typeof d.s !== 'string') return;
+    _rv.info.g = d.g;
+    _rv.info.s = d.s;
+    _rv.info.isPublic = d.p !== false;
+    _rvSave();
+  }
+
+  // 10 秒ごと：相手がいるあいだ「ここにいます」（控えの時刻も更新）
+  function _rvHere() {
+    if (!_rv || _rv.phase !== 'idle' || _rv.op || !_currentRoomId) return;
+    _rvSend({ type: 'mm_rv_here' });
+    _rvSave();
+  }
+  // 1 秒ごと：相手から何も届かない時間を見る
+  function _rvWatch() {
+    if (!_rv || _rv.phase !== 'idle' || _rv.op || !_currentRoomId) return;
+    const quiet = Date.now() - _rv.heardAt;
+    if (quiet >= RV_SILENT_MS) { _rvPeerAway('silent'); return; }
+    if (quiet >= RV_CHECK_MS && !_rv.checking) {
+      _rv.checking = true;
+      _rvCall('onPeerChecking', _rv.info.oppName || '');
+    }
+  }
+  function _rvHeard() {
+    if (!_rv) return;
+    _rv.heardAt = Date.now();
+    if (_rv.checking && _rv.phase === 'idle') {
+      _rv.checking = false;
+      _rvCall('onPeerAlive');
+    }
+  }
+
+  // 直結の通り道が切れた：部屋は出ずにサーバー経由で続ける
+  function _rvDropP2P() {
+    if (_dc) { try { _dc.onclose = null; _dc.close(); } catch (e) {} _dc = null; }
+    if (_pc) { try { _pc.onconnectionstatechange = null; _pc.close(); } catch (e) {} _pc = null; }
+  }
+
+  // 自分の席を残したまま、知らせを出さずに部屋を出る（アプリの画面は変えない）
+  function _rvQuietLeave() {
+    if (_currentRoomId && _ws && _ws.readyState === WebSocket.OPEN) {
+      _ws.send(JSON.stringify({ type: _isHost ? 'host_leave' : 'guest_leave' }));
+    }
+    _resetConnection();
+  }
+
+  // 相手がいなくなった（reason: 'silent'＝黙った / 'left'＝ゲストが外れた / 'closed'＝ホストの部屋が閉じた）
+  function _rvPeerAway(reason) {
+    if (!_rv || _rv.phase === 'away') return;
+    _rv.phase = 'away';
+    _rv.checking = false;
+    const until = Date.now() + RV_WAIT_MS;
+    if (_rv.waitTimer) clearTimeout(_rv.waitTimer);
+    _rv.waitTimer = setTimeout(() => {
+      _rv.waitTimer = null;
+      if (_rv && _rv.phase === 'away') _rvCall('onPeerTimeout');
+    }, RV_WAIT_MS);
+    _rvCall('onPeerAway', _rv.info.oppName || '', until);
+    if (_isHost && _currentRoomId) {
+      // 残ったのはホスト：部屋はそのまま。居座った接続があれば外して席を空ける
+      if (reason === 'silent') kickGuest();
+      return;
+    }
+    if (reason === 'closed' || !_currentRoomId) { _rvRecreate(); return; }
+    // 残ったのはゲスト：まず元のホストの部屋をのぞく（ホストが生きていればそこへ戻る＝元のホストの部屋を優先）
+    _rvQuietLeave();
+    _rvSearch('probe');
+  }
+
+  // ホスト：ゲストが外れた
+  function _rvGuestLeft() {
+    if (_rv.probing) { _rv.probing = false; if (_rv.probeTimer) { clearTimeout(_rv.probeTimer); _rv.probeTimer = null; } return; }
+    _rvPeerAway('left');
+  }
+  // ホスト：誰かが入ってきた → 合言葉を待つ（来なければ外す）
+  function _rvGuestJoined() {
+    _rv.probing = true;
+    if (_rv.probeTimer) clearTimeout(_rv.probeTimer);
+    _rv.probeTimer = setTimeout(() => {
+      _rv.probeTimer = null;
+      if (_rv && _rv.probing) { _rv.probing = false; kickGuest(); }
+    }, RV_PROBE_MS);
+  }
+  // ゲスト：ホストの部屋が閉じた
+  function _rvRoomClosed() {
+    if (_rv.op) { _rvJoinError(); return; } // のぞいている／戻ろうとしている部屋が閉じた → 次を試す
+    _rvPeerAway('closed');
+  }
+  // 外された：相手に「いなくなった」と思われた → 戻る側になる
+  function _rvKicked() {
+    _resetConnection();
+    if (_rv.op) { _rvJoinError(); return; }
+    _rvSelfLost();
+  }
+
+  // 自分の接続が切れた → 戻る側になる
+  function _rvSelfLost() {
+    if (!_rv || _rv.op === 'rejoin') return;
+    _rv.phase = 'idle';
+    _rv.checking = false;
+    if (_rv.waitTimer) { clearTimeout(_rv.waitTimer); _rv.waitTimer = null; }
+    _rvCall('onSelfReconnecting');
+    _resetConnection(); // WS が閉じていればつなぎ直す
+    _rvSearch('rejoin');
+  }
+
+  // 一覧から「同じ部屋名で、ホストが相手」の部屋を探して入る
+  function _rvSearch(op) {
+    _rv.op = op;
+    _rv.joining = null;
+    _rv.tried = {};
+    _rv.searchUntil = Date.now() + (op === 'probe' ? RV_PEEK_MS : RV_SEARCH_MS);
+    _rvSearchStep();
+  }
+  function _rvSearchStep() {
+    if (!_rv || (_rv.op !== 'probe' && _rv.op !== 'rejoin')) return;
+    if (_rv.searchTimer) { clearTimeout(_rv.searchTimer); _rv.searchTimer = null; }
+    if (_rv.joining) return;
+    if (Date.now() > _rv.searchUntil) { _rvSearchFailed(); return; }
+    if (_ws && _ws.readyState === WebSocket.OPEN && !_currentRoomId) refreshRooms();
+    _rv.searchTimer = setTimeout(_rvSearchStep, 3000);
+  }
+  function _rvTryRooms(rooms) {
+    if (_rv.op !== 'probe' && _rv.op !== 'rejoin') return;
+    const inf = _rv.info;
+    const list = (rooms || []).filter(r => r && r.name === inf.roomName && r.hostName === inf.oppName && !r.guestConnected && (_rv.tried[r.id] || 0) < 9);
+    for (const r of list) {
+      // パスワード：元の部屋＝元のパスワード、作り直した部屋＝合言葉。どちらの部屋か分からないので順に試す
+      const pws = r.hasPassword ? [inf.s, inf.pw].filter((p, i, a) => p && a.indexOf(p) === i) : [''];
+      const n = _rv.tried[r.id] || 0;
+      if (n >= pws.length) { _rv.tried[r.id] = 9; continue; }
+      _rv.tried[r.id] = n + 1;
+      _rv.joining = { roomId: r.id };
+      _pendingJoinPw = pws[n];
+      _ws.send(JSON.stringify({ type: 'join_room', roomId: r.id, password: pws[n], guestName: inf.myName || 'ゲスト' }));
+      return;
+    }
+  }
+  // 入れなかった（満員・パスワード違い・部屋が閉じた・返事が来ない）→ 少し置いて次を試す
+  function _rvJoinError() {
+    if (!_rv) return;
+    if (_rv.op === 'recreate') { // 作り直しに失敗 → やり直す
+      if (_rv.recreateTimer) clearTimeout(_rv.recreateTimer);
+      _rv.recreateTimer = setTimeout(_rvRecreateStep, 2000);
+      return;
+    }
+    if (_rv.probeTimer) { clearTimeout(_rv.probeTimer); _rv.probeTimer = null; }
+    _rv.joining = null;
+    if (_rv.searchTimer) clearTimeout(_rv.searchTimer);
+    _rv.searchTimer = setTimeout(_rvSearchStep, 500);
+  }
+  // 入れた → 合言葉を送り、ホストの「おかえり」を待つ
+  function _rvJoined() {
+    _rvSend({ type: 'mm_rv_back', g: _rv.info.g, s: _rv.info.s });
+    if (_rv.probeTimer) clearTimeout(_rv.probeTimer);
+    _rv.probeTimer = setTimeout(() => {
+      _rv.probeTimer = null;
+      if (!_rv || !_rv.joining) return;
+      if (_rv.joining.roomId) _rv.tried[_rv.joining.roomId] = 9; // この部屋は答えない（居座った接続など）
+      _rvQuietLeave();
+      _rvJoinError();
+    }, RV_PROBE_MS);
+  }
+  function _rvSearchFailed() {
+    const op = _rv.op;
+    _rv.op = null;
+    _rv.joining = null;
+    if (op === 'probe') { _rvRecreate(); return; }
+    _rvDrop();
+    _rvCall('onReviveFailed');
+  }
+  // 戻れた（戻る側・のぞいた残ったゲスト）
+  function _rvRevived() {
+    _rvClearTimers();
+    _rv.op = null;
+    _rv.joining = null;
+    _rv.phase = 'idle';
+    _rv.checking = false;
+    _rv.heardAt = Date.now();
+    _rv.info.pw = _roomPw;
+    _rv.hereTimer = setInterval(_rvHere, RV_HERE_MS);
+    _rv.watchTimer = setInterval(_rvWatch, 1000);
+    _rvSave();
+    _rvCall('onRevived');
+  }
+
+  // 残ったゲスト：同じ名前・合言葉のパスワードで部屋を作り直してホストになる（戻るのを待つのは続ける）
+  function _rvRecreate() {
+    _rv.op = 'recreate';
+    _rvRecreateStep();
+  }
+  function _rvRecreateStep() {
+    if (!_rv || _rv.op !== 'recreate') return;
+    if (_rv.recreateTimer) { clearTimeout(_rv.recreateTimer); _rv.recreateTimer = null; }
+    if (!_ws || _ws.readyState !== WebSocket.OPEN || _currentRoomId) { _rv.recreateTimer = setTimeout(_rvRecreateStep, 500); return; }
+    const inf = _rv.info;
+    _pendingCreate = { password: inf.s, isPublic: inf.isPublic !== false, rules: inf.rules };
+    _ws.send(JSON.stringify({
+      type: 'create_room', gameType: inf.gameType || _options.gameType,
+      hostName: inf.myName || 'ホスト', name: inf.roomName, password: inf.s,
+      isPublic: inf.isPublic !== false, rules: inf.rules
+    }));
+  }
+  function _rvRecreated() {
+    _rv.op = null;
+    _rv.info.pw = _roomPw;
+    _rvSave();
+  }
+
+  // 復帰の知らせ（mm_rv_*）
+  function _rvOnMsg(d) {
+    if (d.type === 'mm_rv_init') { // ホスト → ゲスト：対局の番号と合言葉
+      if (_rv) _rvApplyInit(d); else _rvInitPending = d;
+      return;
+    }
+    if (!_rv) return;
+    if (d.type === 'mm_rv_here') { _rvHeard(); return; }
+    if (d.type === 'mm_rv_bye') { _rvDrop(); return; } // 相手が自分で出た＝待たない（このあとの知らせは今までどおりアプリへ）
+    if (d.type === 'mm_rv_back') { // ホスト：入ってきた人の合言葉
+      if (!_isHost) return;
+      _rv.probing = false;
+      if (_rv.probeTimer) { clearTimeout(_rv.probeTimer); _rv.probeTimer = null; }
+      if (d.g !== _rv.info.g || d.s !== _rv.info.s) { _rvSend({ type: 'mm_rv_ng' }); kickGuest(); return; }
+      _rvSend({ type: 'mm_rv_ok' });
+      if (_rv.waitTimer) { clearTimeout(_rv.waitTimer); _rv.waitTimer = null; }
+      _rv.phase = 'idle';
+      _rv.checking = false;
+      _rv.heardAt = Date.now();
+      _rvSave();
+      _rvCall('onPeerBack', _rv.info.oppName || '');
+      return;
+    }
+    if (d.type === 'mm_rv_ok') { if (_rv.joining) _rvRevived(); return; }
+    if (d.type === 'mm_rv_ng') {
+      if (_rv.joining) { if (_rv.joining.roomId) _rv.tried[_rv.joining.roomId] = 9; _rvQuietLeave(); _rvJoinError(); }
+      return;
+    }
+  }
+
+  // ===================================================
   // ===== 公開API =====
   // ===================================================
 
@@ -387,6 +754,7 @@ const MomoMatchmaking = (() => {
       isPublic: options.isPublic !== false,
       rules: options.rules
     };
+    _pendingCreate = { password: msg.password, isPublic: msg.isPublic, rules: msg.rules };
     // 多人数モード（指定時のみ）。未指定なら従来1対1。
     if (options.mode === 'multi') {
       msg.mode = 'multi';
@@ -411,6 +779,7 @@ const MomoMatchmaking = (() => {
       guestName: guestName || 'ゲスト'
     };
     if (role) msg.role = role; // 多人数：'player' | 'spectator'
+    _pendingJoinPw = msg.password;
     _ws.send(JSON.stringify(msg));
   }
 
@@ -441,6 +810,11 @@ const MomoMatchmaking = (() => {
    * コールバック（onDisconnected 等）は呼ばれない（ゲーム側で制御する）。
    */
   function leaveRoom() {
+    // v1.05：自分で出る＝相手に「待たなくてよい」と伝えて、復帰の控えを消す
+    if (_rv) {
+      if (_currentRoomId) _rvSend({ type: 'mm_rv_bye' });
+      _rvDrop();
+    }
     if (_currentRoomId && _ws && _ws.readyState === WebSocket.OPEN) {
       if (_mode === 'multi') {
         _ws.send(JSON.stringify({ type: 'leave' }));
@@ -516,8 +890,72 @@ const MomoMatchmaking = (() => {
     return _currentRoomId ? _token : null;
   }
 
+  /**
+   * v1.05：この部屋の対局を「切れても戻れる」ようにする（従来1対1の部屋だけ）。対局を始めるたびに両方の端末で呼ぶ。
+   * 呼んだあとは、相手が切れても onDisconnected / onGuestLeft / onKicked は呼ばれず、代わりに次が呼ばれる。
+   *   onPeerChecking(name)      相手から 12 秒何も届かない（「確かめています」）
+   *   onPeerAlive()             また届いた
+   *   onPeerAway(name, until)   相手がいなくなった（until＝3 分後の時刻）。部屋はこの端末が持つ
+   *   onPeerTimeout()           3 分たった（戻るのを待つのは続ける）
+   *   onPeerBack(name)          相手が戻ってきて本人と確かめた（盤面を渡すのはアプリ）
+   *   onSelfReconnecting()      自分の接続が切れた。部屋を探して戻ろうとしている
+   *   onRevived()               戻れた（盤面は相手から受け取る）
+   *   onReviveFailed()          戻れなかった（部屋が見つからない＝対局はもう終わっている）
+   * 自分で部屋を出る（leaveRoom）か reviveEnd を呼ぶまで続く。
+   * @param {{myName:string, oppName:string}} opt
+   * @returns {boolean} 始められたか
+   */
+  function reviveBegin(opt) {
+    if (!_currentRoomId || _mode !== 'classic') return false;
+    const o = opt || {};
+    // 前の対局の控え・探している途中のこと（別の部屋）は捨てる。同じ部屋の次の対局は番号と合言葉を続けて使う
+    if (_rv && (_rv.op || _rv.info.roomName !== _currentRoomName)) _rvDrop();
+    if (!_rv) _rvNew({});
+    const inf = _rv.info;
+    inf.roomName = _currentRoomName;
+    inf.myName = o.myName || inf.myName || '';
+    inf.oppName = o.oppName || inf.oppName || '';
+    inf.gameType = _options.gameType;
+    inf.pw = _roomPw;
+    inf.rules = _roomRules;
+    if (_isHost) {
+      if (!inf.g) { inf.g = _rvId(); inf.s = _rvId() + _rvId(); inf.isPublic = _roomPublic; }
+      _rvSend({ type: 'mm_rv_init', g: inf.g, s: inf.s, p: inf.isPublic !== false });
+    } else if (_rvInitPending) {
+      _rvApplyInit(_rvInitPending);
+      _rvInitPending = null;
+    }
+    _rv.heardAt = Date.now();
+    _rvSave();
+    return true;
+  }
+
+  /** v1.05：「切れても戻れる」をやめる（対局を終えて部屋を出るとき・相手が自分で出たとき）。端末の控えも消す。 */
+  function reviveEnd() { _rvDrop(); }
+
+  /**
+   * v1.05：開き直したときに戻れる対局の控え（無ければ null）。合言葉は返さない。
+   * @returns {{roomName:string, oppName:string, myName:string, gameType:string, ts:number}|null}
+   */
+  function reviveSaved() {
+    const s = _rvLoad();
+    return s ? { roomName: s.roomName, oppName: s.oppName, myName: s.myName, gameType: s.gameType, ts: s.ts } : null;
+  }
+
+  /** v1.05：控えの対局へ戻りにいく（開き直したとき）。結果は onRevived / onReviveFailed。 */
+  function reviveResume() {
+    const s = _rvLoad();
+    if (!s) { _rvCall('onReviveFailed'); return false; }
+    if (s.gameType && s.gameType !== _options.gameType) changeGameType(s.gameType);
+    _rvDrop();
+    _rvNew(s);
+    _rvSearch('rejoin');
+    return true;
+  }
+
   // 公開API
-  return { init, createRoom, joinRoom, send, leaveRoom, refreshRooms, kickGuest, getState, changeGameType, getToken };
+  return { init, createRoom, joinRoom, send, leaveRoom, refreshRooms, kickGuest, getState, changeGameType, getToken,
+    reviveBegin, reviveEnd, reviveSaved, reviveResume };
 
 })();
 

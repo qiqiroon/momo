@@ -25,7 +25,7 @@
 <meta property="og:locale:alternate" content="zh_CN">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
-<script src="../matchmaking/momo-matchmaking.js"></script>
+<script src="../matchmaking/momo-matchmaking.js?v=1.05"></script>
 <script src="gomoku-rules.js"></script>
 <script src="go-rules.js"></script>
 <script src="go-scoring.js"></script>
@@ -752,6 +752,29 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
 }
 .modal-title { font-family: 'Fredoka One', cursive; color: var(--orange); font-size: 18px; }
 
+/* v2.13：切断からの復帰 */
+.overlay.rv-overlay { background: var(--bg, #0a0a0a); z-index: 120; } /* 盤を見せない（透かさない） */
+.rv-card { width: min(340px, calc(100vw - 32px)); }
+.rv-body { font-size: 14px; color: var(--text, #fff); line-height: 1.6; white-space: pre-line; }
+.rv-count { font-family: 'Fredoka One', cursive; font-size: 28px; color: var(--text, #fff); text-align: center; }
+.rv-count:empty { display: none; }
+.rv-actions { display: flex; flex-direction: column; gap: 8px; }
+.rv-actions:empty { display: none; }
+.rv-banner { display: none; position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 110;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px;
+  font-size: 13px; color: var(--text, #fff); max-width: calc(100vw - 32px); }
+.rv-banner.show { display: block; }
+.rv-notice { display: none; position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 115;
+  background: var(--surface); border: 1px solid var(--orange); border-radius: 10px; padding: 10px 12px;
+  font-size: 13px; color: var(--text, #fff); width: min(420px, calc(100vw - 32px)); box-sizing: border-box;
+  align-items: center; gap: 10px; line-height: 1.5; }
+.rv-notice.show { display: flex; }
+.rv-notice span { flex: 1; }
+.stone .move-number.cpu-num { color: #ff5252 !important; font-weight: 700; }
+.stone.cpu-move { box-shadow: 0 0 0 2px #ff5252; }
+.cpu-standin-tag { font-size: 11px; color: #ff5252; margin-left: 6px; }
+.history-cpu-tag { font-size: 11px; color: #ff5252; margin-left: 6px; }
+
 /* swap panel — 三手交換（正規ルール） インライン配置版
    board-wrap 内の opp-color-badge と入れ替えで盤面下に表示する。
    表示順は status → buttons → title → description（ユーザー指定）。 */
@@ -989,7 +1012,7 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
     </g>
   </svg>
   <div class="title-block">
-    <h1><span class="momo">MOMO</span><span class="go">Go</span><span class="version-tag" id="version-tag">v2.12</span></h1>
+    <h1><span class="momo">MOMO</span><span class="go">Go</span><span class="version-tag" id="version-tag">v2.13</span></h1>
     <div class="subtitle" id="subtitle">Master the Stones, Rule the Realm</div>
   </div>
 </header>
@@ -1279,6 +1302,21 @@ label { font-size: 12px; color: var(--gray); margin-bottom: 2px; display: block;
   </div>
 </div>
 
+<!-- v2.13：切断からの復帰（待っている・戻っている・選んでいるあいだは盤を覆う） -->
+<div class="overlay rv-overlay" id="rv-overlay">
+  <div class="modal rv-card">
+    <div class="modal-title" id="rv-title"></div>
+    <div class="rv-body" id="rv-body"></div>
+    <div class="rv-count" id="rv-count"></div>
+    <div class="rv-actions" id="rv-actions"></div>
+  </div>
+</div>
+<div class="rv-banner" id="rv-banner"></div>
+<div class="rv-notice" id="rv-notice">
+  <span id="rv-notice-text"></span>
+  <button class="btn btn-primary" style="padding:6px 14px;flex:none;" onclick="rvHideNotice()">OK</button>
+</div>
+
 <!-- SEO 説明フッター（対局中は非表示） -->
 <footer class="site-footer">
   <div class="site-footer-inner">
@@ -1525,6 +1563,43 @@ let undoPhase = 'idle';
 let undoPendingSteps = 0;        // プレビュー中の戻し手数
 let undoStatusKey = null;        // i18n再描画用に保持（preparing/awaiting/rejected）
 
+// v2.13：手ごとの時計の控え（moveHistory と同じ並び）。各手を「打つ前」＝その手番が始まった時の両方の時計。
+// 待ったで戻すときは、戻した中でいちばん古い手を打つ前の時計に両方とも戻す（利用者 2026-10-23・B）。
+let clockHistory = [];
+let turnStartClock = null;
+// v2.13：CPU が代わりに打っている最中に入れた手には印を付ける（moveHistory の cpu:true）
+let cpuInjecting = false;
+
+function clockNow() {
+  return {
+    my: myTimeMs, opp: oppTimeMs,
+    myBA: myByoyomiActive, myBR: myByoyomiRemain, myBS: myByoyomiSecLeftMs,
+    oppBA: oppByoyomiActive, oppBR: oppByoyomiRemain, oppBS: oppByoyomiSecLeftMs
+  };
+}
+function clockRestore(c) {
+  if (!c) return;
+  myTimeMs = c.my; oppTimeMs = c.opp;
+  myByoyomiActive = c.myBA; myByoyomiRemain = c.myBR; myByoyomiSecLeftMs = c.myBS;
+  oppByoyomiActive = c.oppBA; oppByoyomiRemain = c.oppBR; oppByoyomiSecLeftMs = c.oppBS;
+  timeoutFired = false;
+  lastTickAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  renderTimeDisplays();
+}
+// 自分から見た時計を相手から見た時計に入れ替える（盤面一式を渡すとき）
+function clockFlip(c) {
+  if (!c) return c;
+  return { my: c.opp, opp: c.my, myBA: c.oppBA, myBR: c.oppBR, myBS: c.oppBS, oppBA: c.myBA, oppBR: c.myBR, oppBS: c.myBS };
+}
+function markTurnStart() { turnStartClock = clockNow(); }
+// 着手・パスを記録する唯一の口（時計の控えと CPU の印を一緒に残す）
+function pushHistory(e) {
+  if (e.type === 'move') e.n = moveCount;
+  if (cpuInjecting) e.cpu = true;
+  moveHistory.push(e);
+  clockHistory.push(turnStartClock || clockNow());
+}
+
 // ===== 三手交換 STATE =====
 // gamePhase: 'opening_b1' | 'opening_w1' | 'opening_b2' | 'swap_select' | 'swap_wait' | 'normal'
 // 正規ルール時のみ opening 系フェーズを使う。preset !== 'normal' なら 'normal' で始める。
@@ -1591,6 +1666,7 @@ function connectWS() {
 
     onJoinedRoom: (roomId, roomName, hostName, rules) => {
       currentRoomName = roomName;
+      oppName = hostName || '';
       // ゲストはホストから受信したルールを保持（rules が無ければデフォルト casual）
       currentRules = rules || { preset: 'casual' };
       document.getElementById('room-status').textContent = `${roomName}｜ホスト：${hostName}`;
@@ -1600,6 +1676,7 @@ function connectWS() {
     },
 
     onGuestJoined: (guestName) => {
+      oppName = guestName || '';
       waitingStatusKey = 'guestJoined';
       waitingStatusName = guestName;
       const msg = `${guestName}${t('guestJoined')}`;
@@ -1646,6 +1723,17 @@ function connectWS() {
       alert(t('kicked'));
       resetToLobby();
     },
+
+    // v2.13：対局中の切断からの復帰（共通ライブラリ v1.05・reviveBegin を呼んだ対局だけ）
+    reviveKey: 'gomoku-go',
+    onPeerChecking: (name) => rvOnPeerChecking(name),
+    onPeerAlive: () => rvOnPeerAlive(),
+    onPeerAway: (name, until) => rvOnPeerAway(name, until),
+    onPeerTimeout: () => rvOnPeerTimeout(),
+    onPeerBack: (name) => rvOnPeerBack(name),
+    onSelfReconnecting: () => rvOnSelfReconnecting(),
+    onRevived: () => rvOnRevived(),
+    onReviveFailed: () => rvOnReviveFailed(),
   });
 }
 
@@ -1992,6 +2080,7 @@ function leaveRoom() {
 }
 
 function resetToLobby() {
+  rvReset();
   // 一人用は部屋に入っていないので退出処理を呼ばない
   const wasSolo = (typeof MomoSolo !== 'undefined') && MomoSolo.isActive();
   if (typeof MomoSolo !== 'undefined') MomoSolo.stop();
@@ -2013,6 +2102,8 @@ function resetToLobby() {
   closeSwapPanel();
   // 待った状態のクリーンアップ
   moveHistory = [];
+  clockHistory = [];
+  turnStartClock = null;
   undoPhase = 'idle';
   undoPendingSteps = 0;
   undoStatusKey = null;
@@ -2206,6 +2297,8 @@ function beginGame(swapColors) {
   stopTimer();
   renderTimeDisplays();
   if (!isTimeUnlimited()) startTimer();
+  clockHistory = [];
+  markTurnStart();
   // 囲碁の状態リセット
   goPrevBoardByColor = { black: null, white: null };
   captureCount = { black: 0, white: 0 };
@@ -2240,6 +2333,7 @@ function beginGame(swapColors) {
   showScreen('game');
   renderBoard();
   updateTurnUI();
+  rvOnBeginGame();
   soloTick();
 }
 
@@ -2306,6 +2400,9 @@ function renderBoard() {
   // 終局フェーズ用: 死石セットと領域マップ（marking と finalized の両方で表示）
   const scoringActive = isScoringDisplay();
   const territoryMap = (scoringActive && scoringResult && scoringResult.territoryMap) ? scoringResult.territoryMap : null;
+  // v2.13：CPU が代わりに打った手（盤に残っているもの）＝手の番号が一致する石
+  const cpuMoveNums = new Set();
+  for (const e of moveHistory) if (e.cpu && e.type === 'move' && e.n) cpuMoveNums.add(e.y * BOARD_SIZE + e.x + ':' + e.n);
   for (let y = 0; y < BOARD_SIZE; y++) {
     for (let x = 0; x < BOARD_SIZE; x++) {
       const cell = document.createElement('div');
@@ -2353,8 +2450,17 @@ function renderBoard() {
         }
         cell.appendChild(stone);
 
+        // v2.13：CPU が代わりに打った手は、着手番号と同じ形で色を変えて必ず出す
+        const isCpuStone = stoneColor && cpuMoveNums.has(y * BOARD_SIZE + x + ':' + moveNumberMap[y][x]);
+        if (isCpuStone) {
+          stone.classList.add('cpu-move');
+          const numEl = document.createElement('span');
+          numEl.className = 'move-number cpu-num';
+          numEl.textContent = moveNumberMap[y][x];
+          stone.appendChild(numEl);
+        }
         // 着手番号表示（トグルONのみ、CATモードでは表示しない）
-        if (stoneColor && showNotation && currentLang !== 'cat') {
+        if (stoneColor && !isCpuStone && showNotation && currentLang !== 'cat') {
           const num = moveNumberMap[y][x];
           if (num > 0) {
             const numEl = document.createElement('span');
@@ -2424,7 +2530,8 @@ function updateTurnUI() {
   } else {
     frame.classList.remove('my-turn');
     indicator.className = 'turn-indicator';
-    const waitKey = (typeof MomoSolo !== 'undefined' && MomoSolo.isActive()) ? 'soloCpuTurn' : 'oppTurn';
+    const waitKey = (typeof MomoSolo !== 'undefined' && MomoSolo.isActive()) ? 'soloCpuTurn'
+                  : RV.standIn ? 'rvStandInTurn' : 'oppTurn';
     indicator.textContent = t(waitKey);
     turnIndicatorKey = waitKey;
   }
@@ -2454,6 +2561,7 @@ function phaseIndicatorKey() {
 
 function place(x, y) {
   if (!gameReady || !gameActive) return;
+  if (rvBlocksClock()) return; // v2.13：相手を待っている／戻っている途中は打てない
   // 終局フェーズ中: 石クリック=死石トグル、空点クリック=手動地マーク（自分の色方向）
   if (isScoringActive()) {
     if (board[y][x] !== null) {
@@ -2527,6 +2635,7 @@ function isForbiddenAt(x, y, color) {
 function confirmMove() {
   if (!pendingMove) return;
   if (!gameReady || !gameActive) return;
+  if (rvBlocksClock()) return;
   if (turn !== myColor) return;
   const { x, y } = pendingMove;
 
@@ -2612,7 +2721,7 @@ function applyMove(x, y, color) {
   moveCount++;
   moveNumberMap[y][x] = moveCount;
   lastMove = { x, y };
-  moveHistory.push({type: 'move', x, y, color});
+  pushHistory({type: 'move', x, y, color});
 }
 
 // ===== 囲碁の着手処理 =====
@@ -2647,7 +2756,7 @@ function applyGoMove(x, y, color) {
   moveCount++;
   moveNumberMap[y][x] = moveCount;
   lastMove = { x, y };
-  moveHistory.push({type: 'move', x, y, color});
+  pushHistory({type: 'move', x, y, color});
   // 取石数: 着手した側がオフになる相手色の石を「取った」
   captureCount[color] += r.captured.length;
   // コウ参照盤面更新（自分の手後の盤面）
@@ -2904,6 +3013,7 @@ function agreeScoring() {
   }
   // 一人用は死石の判断をあなたに任せ、コンピュータはそれに同意する
   if (typeof MomoSolo !== 'undefined' && MomoSolo.isActive()) MomoSolo.agreeScoring();
+  if (RV.standIn) rvStandInLater(() => handleMsg({ type: 'scoring_agree' }));
 }
 
 function cancelAgreeScoring() {
@@ -3068,7 +3178,8 @@ function shouldTimerTick() {
     && gamePhase !== 'swap_select'
     && gamePhase !== 'swap_wait'
     && undoPhase === 'idle'
-    && scoringPhase === 'idle';
+    && scoringPhase === 'idle'
+    && !rvBlocksClock();
 }
 
 // 1秒ごとに残時間を減算する。手番のプレイヤーの残時間が減る。
@@ -3143,6 +3254,8 @@ function timerTick() {
         } else {
           oppByoyomiSecLeftMs = 0;
           // タイムアウト判定は相手側からの time_out 受信を待つ
+          // v2.13：CPU が代わりに打っているあいだは、届く相手がいないのでこの端末で決める
+          if (RV.standIn && !timeoutFired) { timeoutFired = true; endGame(myColor, 'timeout'); renderTimeDisplays(); return; }
         }
       }
     } else {
@@ -3153,6 +3266,9 @@ function timerTick() {
           oppByoyomiActive = true;
           if (oppByoyomiRemain <= 0) oppByoyomiRemain = byoyomiCount;
           oppByoyomiSecLeftMs = byoyomiSec * 1000;
+        } else if (RV.standIn && !timeoutFired) {
+          // v2.13：CPU が代わりに打っているあいだの時間切れ
+          timeoutFired = true; endGame(myColor, 'timeout'); renderTimeDisplays(); return;
         }
       }
     }
@@ -3168,7 +3284,8 @@ function updateOppColorLabel() {
   if (!oppCl) return;
   if (!myColor) { oppCl.innerHTML = ''; return; }
   const oc = (myColor === 'black') ? 'white' : 'black';
-  oppCl.innerHTML = `${t('opponentLabel')} ${PIECE.svg(oc, '20px')}${t(oc === 'black' ? 'black' : 'white')}`;
+  oppCl.innerHTML = `${t('opponentLabel')} ${PIECE.svg(oc, '20px')}${t(oc === 'black' ? 'black' : 'white')}`
+    + (RV.standIn ? `<span class="cpu-standin-tag">${escHtml(t('rvStandInTag'))}</span>` : '');
 }
 
 // 時計表示の更新（数字、警告色、アクティブ枠のみ。ラベル文言はここでは触らない）
@@ -3358,6 +3475,8 @@ function submitUndoRequest() {
   updateTurnUI();
   // 一人用ではコンピュータは待ったを断らない
   if (typeof MomoSolo !== 'undefined' && MomoSolo.isActive()) MomoSolo.acceptUndo();
+  // v2.13：代わりに打っている CPU も受け入れる（U1=B）
+  if (RV.standIn) rvStandInLater(() => handleMsg({ type: 'undo_accept' }));
 }
 
 // 自分が同意（受信側）
@@ -3389,60 +3508,50 @@ function rejectUndo() {
 function applyUndoFinal(N) {
   if (N <= 0) return;
   if (N > moveHistory.length) N = moveHistory.length;
-  const remaining = moveHistory.slice(0, moveHistory.length - N);
+  const keep = moveHistory.length - N;
+  // v2.13：戻した中でいちばん古い手を打つ前の時計（両方とも）に戻す
+  const clockBack = clockHistory[keep] || null;
+  rebuildFromHistory(moveHistory.slice(0, keep), clockHistory.slice(0, keep));
+  pendingMove = null;
+  if (clockBack) { clockRestore(clockBack); turnStartClock = clockBack; }
+}
 
-  if (isGoRoom()) {
-    // 囲碁: 取石を伴うため moveHistory を最初からリプレイして盤面を再構築
-    board = (typeof GoRules !== 'undefined') ? GoRules.createEmptyBoard(BOARD_SIZE)
-                                              : Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(null));
-    moveNumberMap = Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(0));
-    moveCount = 0;
-    captureCount = { black: 0, white: 0 };
-    goPrevBoardByColor = { black: null, white: null };
-    moveHistory = [];
-    lastMove = null;
-    consecutivePasses = 0;
-    for (const e of remaining) {
-      if (e.type === 'move') {
-        applyGoMove(e.x, e.y, e.color);
-        consecutivePasses = 0;
-      } else if (e.type === 'pass') {
-        moveHistory.push({type: 'pass', color: e.color});
-        consecutivePasses++;
-      }
-    }
-    // リプレイ中の捕獲フラッシュ残骸をクリア（巻き戻し時はアニメ抑制）
-    captureFlashStones = [];
-    if (captureFlashTimer) { clearTimeout(captureFlashTimer); captureFlashTimer = null; }
-  } else {
-    // 五目並べ: 末尾N手を物理的に削除（取石なしのため単純に巻き戻し可能）
-    const removed = moveHistory.splice(moveHistory.length - N, N);
-    for (const e of removed) {
-      if (e.type === 'move') {
-        board[e.y][e.x] = null;
-        moveNumberMap[e.y][e.x] = 0;
-        moveCount--;
-      }
-    }
-    // lastMove 再計算
-    lastMove = null;
-    for (let i = moveHistory.length - 1; i >= 0; i--) {
-      if (moveHistory[i].type === 'move') {
-        lastMove = {x: moveHistory[i].x, y: moveHistory[i].y};
-        break;
-      }
-    }
-    // consecutivePasses 再計算
-    consecutivePasses = 0;
-    for (let i = moveHistory.length - 1; i >= 0 && moveHistory[i].type === 'pass'; i--) {
+// 手順（moveHistory の並び）から盤面を作り直す。待った・盤面一式の受け取り・切断した時点へ戻す、で使う。
+// 囲碁は取石とコウがあるので最初から打ち直す。五目並べも同じ道で作る（取石なし）。
+function rebuildFromHistory(entries, clocks) {
+  board = (isGoRoom() && typeof GoRules !== 'undefined') ? GoRules.createEmptyBoard(BOARD_SIZE)
+                                                          : Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(null));
+  moveNumberMap = Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(0));
+  moveCount = 0;
+  captureCount = { black: 0, white: 0 };
+  goPrevBoardByColor = { black: null, white: null };
+  moveHistory = [];
+  clockHistory = [];
+  lastMove = null;
+  consecutivePasses = 0;
+  const wasInjecting = cpuInjecting;
+  cpuInjecting = false;
+  for (const e of entries) {
+    if (e.type === 'move') {
+      if (isGoRoom()) applyGoMove(e.x, e.y, e.color);
+      else applyMove(e.x, e.y, e.color);
+      consecutivePasses = 0;
+    } else if (e.type === 'pass') {
       consecutivePasses++;
     }
   }
+  cpuInjecting = wasInjecting;
+  // 記録は元の並びのまま（CPU の印・手の番号を残す）
+  moveHistory = entries.map(e => Object.assign({}, e));
+  clockHistory = (clocks || []).slice(0, moveHistory.length);
+  while (clockHistory.length < moveHistory.length) clockHistory.push(null);
+  // リプレイ中の捕獲フラッシュ残骸をクリア（巻き戻し時はアニメ抑制）
+  captureFlashStones = [];
+  if (captureFlashTimer) { clearTimeout(captureFlashTimer); captureFlashTimer = null; }
   // turn 再計算（共通: 末尾の色の反対、履歴空なら 'black'）
   const last = moveHistory[moveHistory.length - 1];
   turn = last ? (last.color === 'black' ? 'white' : 'black') : 'black';
   winningLine = null;
-  pendingMove = null;
 }
 
 // 拒否通知を turn-indicator に3秒表示（idle復帰後）
@@ -3692,12 +3801,14 @@ function nextTurn() {
   updateTurnUI();
   // 持ち時間: 手番交代でタイマーの計測対象が切り替わる（lastTickAt をリセット）
   lastTickAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  markTurnStart();
   renderTimeDisplays();
   soloTick();
 }
 
 function pass() {
   if (!gameReady || !gameActive) return;
+  if (rvBlocksClock()) return;
   if (turn !== myColor) return;
   if (undoPhase !== 'idle') return; // 待った進行中はパス不可
   if (isScoringActive()) return; // 終局フェーズ中はパス不可
@@ -3707,7 +3818,7 @@ function pass() {
     myByoyomiSecLeftMs = byoyomiSec * 1000;
   }
   send(buildMoveMsg('pass'));
-  moveHistory.push({type: 'pass', color: myColor});
+  pushHistory({type: 'pass', color: myColor});
   consecutivePasses++;
   if (consecutivePasses >= 2) {
     if (isGoRoom()) {
@@ -3724,6 +3835,7 @@ function pass() {
 function resign() {
   if (!confirm(t('confirmResign'))) return;
   send({ type: 'resign' });
+  rvLastResult = { winnerColor: myColor === 'black' ? 'white' : 'black', reason: 'resign' };
   gameActive = false;
   gamePhase = 'normal';
   mySwapDecided = false;
@@ -3739,6 +3851,7 @@ function resign() {
 }
 
 function endGame(winnerColor, reason) {
+  rvLastResult = { winnerColor: winnerColor, reason: reason || null };
   gameActive = false;
   pendingMove = null;
   // 三手交換フェーズ中の終局（resign等）に備えてパネルを閉じてフェーズリセット
@@ -3792,6 +3905,10 @@ function endGame(winnerColor, reason) {
     } else {
       resultKey = 'drawMsg'; outcome = 'draw'; resultClass = 'result-draw';
     }
+  } else if (reason === 'resign') {
+    // v2.13：戻った人に「降参で終わった対局」を見せるときだけ通る
+    if (winnerColor === myColor) { resultKey = 'resignWin'; outcome = 'win'; resultClass = 'result-win'; }
+    else { resultKey = 'resignLose'; outcome = 'resign'; resultClass = 'result-lose'; }
   } else if (winnerColor === myColor) {
     resultKey = (reason === 'forbidden') ? 'forbiddenWin'
               : (reason === 'timeout')   ? 'timeoutWin'
@@ -3919,7 +4036,7 @@ function showEndScreen(result, outcome, goScoreText) {
   }
 
   if (outcome) {
-    matchHistory.push({ outcome, myColor, moves: moveCount, goScoreText: goScoreText || null });
+    matchHistory.push({ outcome, myColor, moves: moveCount, goScoreText: goScoreText || null, cpu: moveHistory.some(e => e.cpu) || undefined });
     renderHistory();
   }
 
@@ -3964,7 +4081,8 @@ function renderHistory() {
     const badgeClass = h.outcome === 'win' ? 'win' : (h.outcome === 'draw' ? 'draw' : 'lose');
     const badgeText = h.outcome === 'win' ? t('historyWin') : (h.outcome === 'draw' ? t('historyDraw') : t('historyLose'));
     // 囲碁の場合、詳細スコア（黒X-白Y / 差Z目）を併記
-    const goPart = h.goScoreText ? `<span class="history-go-score" style="font-size:11px;color:var(--text-muted);margin-left:6px;">${escHtml(h.goScoreText)}</span>` : '';
+    const goPart = (h.goScoreText ? `<span class="history-go-score" style="font-size:11px;color:var(--text-muted);margin-left:6px;">${escHtml(h.goScoreText)}</span>` : '')
+      + (h.cpu ? `<span class="history-cpu-tag">${escHtml(t('rvHistoryCpu'))}</span>` : '');
     row.innerHTML = `<span class="history-idx">${i + 1}</span><span class="history-badge ${badgeClass}">${badgeText}</span><span class="history-score" style="display:flex;align-items:center;gap:2px;flex-wrap:wrap;">${scoreText}${goPart}</span>`;
     list.appendChild(row);
   });
@@ -4024,6 +4142,9 @@ function checkEndMatch() {
 
 // ===== MESSAGES =====
 function handleMsg(m) {
+  // v2.13：切断からの復帰
+  if (m.type === 'rv_state') { rvReceiveState(m); return; }
+  if (m.type === 'rv_wait_choice') { rvShowWaitChoice(); return; }
   // chat
   if (m.type === 'chat') {
     const screens = ['waiting', 'room', 'game', 'end'];
@@ -4156,7 +4277,7 @@ function handleMsg(m) {
     if (typeof m.remainingMs === 'number') syncTimeFromMessage(m.remainingMs);
     syncByoyomiFromMessage(m);
     // 受信時 turn は相手の色（自分が直前に打った後 nextTurn で flip 済み、または初手で turn='black' = 相手が黒）
-    moveHistory.push({type: 'pass', color: turn});
+    pushHistory({type: 'pass', color: turn});
     consecutivePasses++;
     if (consecutivePasses >= 2) {
       if (isGoRoom()) {
@@ -4209,6 +4330,7 @@ function handleMsg(m) {
   }
 
   if (m.type === 'resign') {
+    rvLastResult = { winnerColor: myColor, reason: 'resign' };
     gameActive = false;
     gamePhase = 'normal';
     mySwapDecided = false;
@@ -4426,6 +4548,34 @@ const I18N = {
     footAbout: 'MOMO Go について',
     footDesc: 'MOMO Go は、ブラウザで遊べる無料の五目並べ・囲碁ゲームです。オンラインでの対人対戦と、CPU との対戦に対応しています。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。',
     footTop: 'MOMO Works トップ', footGames: 'ゲーム一覧', footTools: 'ツール一覧',
+    // v2.13：切断からの復帰
+    rvChecking: '{NAME}さんの接続を確かめています',
+    rvAwayTitle: '接続が切れました',
+    rvAwayBody: '{NAME}さんの接続が切れました。戻るのを待っています',
+    rvRemain: '残り {T}',
+    rvBtnCpu: '待たずに CPU と続ける',
+    rvBtnQuit: '対局をやめる',
+    rvConfirmQuit: '対局をやめますか？（勝敗なしで終わります）',
+    rvQuitDone: '対局をやめました（勝敗なし）',
+    rvStandInTag: '（CPU が代わりに打っています）',
+    rvStandInTurn: 'CPU が代わりに考えています...',
+    rvChooseTitle: '{NAME}さんが戻りました',
+    rvChooseBody: 'CPU が打った手を戻しますか、それともこのまま続きを打ちますか',
+    rvBtnRevert: 'CPU が打った手を戻す',
+    rvBtnContinue: 'このまま続きを打つ',
+    rvWaitChoice: '{NAME}さんが、CPU が打った手を戻すか、このまま続けるかを選んでいます',
+    rvNoticeBack: '{NAME}さんが戻りました',
+    rvNoticeSelfBack: '対局に戻りました',
+    rvNoticeContinued: 'CPU が{NAME}さんの代わりに {N} 手打ちました。打った手は盤の上に印が付いています',
+    rvNoticeReverted: 'CPU が打った手は全部戻し、プレイヤーが切断した時点に戻ります',
+    rvLostTitle: '対局に戻っています',
+    rvLostBody: '接続が切れました。対局に戻っています...',
+    rvRevivedBody: '戻りました。盤面を受け取っています...',
+    rvResumeBody: '{NAME}さんとの対局に戻っています...',
+    rvBtnGiveUp: '戻るのをやめる',
+    rvFailed: '対局はもう終わっています',
+    rvAwayNote: '{NAME}さんの接続が切れました（戻るのを待っています）',
+    rvHistoryCpu: 'CPU 代打ち',
   },
   en: {
     connecting: 'Connecting...', connected: 'Connected', reconnecting: 'Connecting...',
@@ -4575,6 +4725,34 @@ const I18N = {
     footAbout: 'About MOMO Go',
     footDesc: 'MOMO Go is a free Gomoku (Five-in-a-Row) and Go game you can play in your browser. It supports online matches against other players as well as games against the CPU. No account or installation required — just play instantly in your browser.',
     footTop: 'MOMO Works Home', footGames: 'Games', footTools: 'Tools',
+    // v2.13: returning after a disconnect
+    rvChecking: 'Checking {NAME}\'s connection',
+    rvAwayTitle: 'Connection lost',
+    rvAwayBody: '{NAME} lost the connection. Waiting for them to come back',
+    rvRemain: '{T} left',
+    rvBtnCpu: 'Continue with the CPU now',
+    rvBtnQuit: 'End the game',
+    rvConfirmQuit: 'End the game? (No winner)',
+    rvQuitDone: 'The game was ended (no winner)',
+    rvStandInTag: '(CPU playing in their place)',
+    rvStandInTurn: 'CPU is thinking in their place...',
+    rvChooseTitle: '{NAME} is back',
+    rvChooseBody: 'Take back the moves the CPU played, or keep playing from here?',
+    rvBtnRevert: 'Take back the CPU moves',
+    rvBtnContinue: 'Keep playing from here',
+    rvWaitChoice: '{NAME} is choosing whether to take back the CPU moves or keep playing',
+    rvNoticeBack: '{NAME} is back',
+    rvNoticeSelfBack: 'You are back in the game',
+    rvNoticeContinued: 'The CPU played {N} moves for {NAME}. Those moves are marked on the board',
+    rvNoticeReverted: 'All CPU moves are taken back. The game returns to when the player disconnected',
+    rvLostTitle: 'Returning to the game',
+    rvLostBody: 'Connection lost. Returning to the game...',
+    rvRevivedBody: 'Back in. Receiving the board...',
+    rvResumeBody: 'Returning to your game with {NAME}...',
+    rvBtnGiveUp: 'Stop returning',
+    rvFailed: 'The game has already ended',
+    rvAwayNote: '{NAME} lost the connection (waiting for them to come back)',
+    rvHistoryCpu: 'CPU stand-in',
   },
   zh: {
     connecting: '连接中...', connected: '已连接', reconnecting: '连接中...',
@@ -4724,6 +4902,34 @@ const I18N = {
     footAbout: '关于 MOMO Go',
     footDesc: 'MOMO Go 是一款可在浏览器中免费游玩的五子棋・围棋游戏。支持在线对战和与电脑对战。无需注册账号或安装，在浏览器中即可立即游玩。',
     footTop: 'MOMO Works 首页', footGames: '游戏列表', footTools: '工具列表',
+    // v2.13：断线后回到对局
+    rvChecking: '正在确认 {NAME} 的连接',
+    rvAwayTitle: '连接已断开',
+    rvAwayBody: '{NAME} 的连接已断开。正在等待对方回来',
+    rvRemain: '剩余 {T}',
+    rvBtnCpu: '不再等待，与电脑继续',
+    rvBtnQuit: '结束对局',
+    rvConfirmQuit: '要结束对局吗？（不分胜负）',
+    rvQuitDone: '对局已结束（不分胜负）',
+    rvStandInTag: '（电脑代为下棋）',
+    rvStandInTurn: '电脑正在代为思考...',
+    rvChooseTitle: '{NAME} 回来了',
+    rvChooseBody: '要撤回电脑下的棋，还是就这样继续下？',
+    rvBtnRevert: '撤回电脑下的棋',
+    rvBtnContinue: '就这样继续下',
+    rvWaitChoice: '{NAME} 正在选择撤回电脑下的棋还是继续',
+    rvNoticeBack: '{NAME} 回来了',
+    rvNoticeSelfBack: '已回到对局',
+    rvNoticeContinued: '电脑代替 {NAME} 下了 {N} 手。这些棋在棋盘上有标记',
+    rvNoticeReverted: '电脑下的棋已全部撤回，回到玩家断线时的局面',
+    rvLostTitle: '正在回到对局',
+    rvLostBody: '连接已断开。正在回到对局...',
+    rvRevivedBody: '已回来。正在接收棋盘...',
+    rvResumeBody: '正在回到与 {NAME} 的对局...',
+    rvBtnGiveUp: '不再回去',
+    rvFailed: '对局已经结束',
+    rvAwayNote: '{NAME} 的连接已断开（正在等待对方回来）',
+    rvHistoryCpu: '电脑代打',
   }
 };
 
@@ -5057,12 +5263,7 @@ const MomoSolo = (() => {
     if (!gameActive) return;
     // 三手交換: 白側がコンピュータのとき、あなたはその選択を待っている
     if (gamePhase === 'swap_wait' && oppSwapChoice === 'pending') {
-      schedule(() => {
-        const swap = (typeof MomoGomokuAI !== 'undefined')
-          ? MomoGomokuAI.chooseSwap(board, { size: BOARD_SIZE, preset: getCurrentPreset() })
-          : false;
-        handleMsg({ type: 'swap_choice', swap: swap });
-      });
+      schedule(() => handleMsg({ type: 'swap_choice', swap: chooseSwapNow() }));
       return;
     }
     if (gamePhase === 'swap_select') return;   // あなたが選ぶ番
@@ -5076,9 +5277,13 @@ const MomoSolo = (() => {
     if (!active || !gameActive) return;
     const c = cpuColor();
     if (turn !== c) return;
+    handleMsg(chooseFor(c, difficulty));
+  }
 
+  // c の色で打つ手を選び、相手から届いたのと同じ形の知らせにして返す（切断のあいだ代わりに打つ CPU も使う）
+  function chooseFor(c, diff) {
     if (isGoRoom()) {
-      const m = (typeof MomoGoAI !== 'undefined') ? MomoGoAI.chooseMove(board, c, difficulty, {
+      const m = (typeof MomoGoAI !== 'undefined') ? MomoGoAI.chooseMove(board, c, diff, {
         size: BOARD_SIZE,
         prevOwnBoard: goPrevBoardByColor[c],
         captures: captureCount,
@@ -5087,18 +5292,24 @@ const MomoSolo = (() => {
         oppPassed: consecutivePasses > 0,
         lastMove: lastMove
       }) : 'pass';
-      if (!m || m === 'pass') { handleMsg({ type: 'pass' }); return; }
-      handleMsg({ type: 'move', x: m.x, y: m.y });
-      return;
+      if (!m || m === 'pass') return { type: 'pass' };
+      return { type: 'move', x: m.x, y: m.y };
     }
 
-    const m = (typeof MomoGomokuAI !== 'undefined') ? MomoGomokuAI.chooseMove(board, c, difficulty, {
+    const m = (typeof MomoGomokuAI !== 'undefined') ? MomoGomokuAI.chooseMove(board, c, diff, {
       size: BOARD_SIZE,
       preset: getCurrentPreset(),
       phase: gamePhase
     }) : null;
-    if (!m) { handleMsg({ type: 'pass' }); return; }
-    handleMsg({ type: 'move', x: m.x, y: m.y });
+    if (!m) return { type: 'pass' };
+    return { type: 'move', x: m.x, y: m.y };
+  }
+
+  // 三手交換：白側としての選び（true＝入れ替え）
+  function chooseSwapNow() {
+    return (typeof MomoGomokuAI !== 'undefined')
+      ? MomoGomokuAI.chooseSwap(board, { size: BOARD_SIZE, preset: getCurrentPreset() })
+      : false;
   }
 
   // 待った: コンピュータは断らない
@@ -5113,12 +5324,13 @@ const MomoSolo = (() => {
     schedule(() => handleMsg({ type: 'scoring_agree' }));
   }
 
-  return { start, stop, isActive, onTurnChanged, acceptUndo, agreeScoring };
+  return { start, stop, isActive, onTurnChanged, acceptUndo, agreeScoring, chooseFor, chooseSwapNow };
 })();
 
 // 手番が動いたことを一人用に知らせる共通の呼び口
 function soloTick() {
   if (typeof MomoSolo !== 'undefined' && MomoSolo.isActive()) MomoSolo.onTurnChanged();
+  if (typeof rvStandInTick === 'function') rvStandInTick();
 }
 
 // ===== 一人用: ロビーでの選択状態 =====
@@ -5160,11 +5372,449 @@ function applySoloChrome() {
   if (q) q.textContent = solo ? t('soloEndQuit') : t('endQuit');
 }
 
+// ===== v2.13：対局中の切断からの復帰 =====
+// 共通ライブラリ v1.05 の reviveBegin を使う（設計の正本 games/matchmaking/docs/reconnect-design）。
+// 部屋は残った人が持つ。待つ 3 分は両方の時計を止め、盤は覆って打てない（Q2=A）。
+// 3 分たつか「待たずに CPU と続ける」で HARD の CPU が切れた人の席を引き継ぐ（Q3=A・U4=B）。
+// 戻ってきたら残った人の端末の盤面一式を渡す。CPU が打っていれば、残った人が「戻す／続ける」を選ぶ（U3）。
+let oppName = '';
+let rvLastResult = null;   // いちばん最近終わった対局の結果 {winnerColor, reason}
+const RV = {
+  peerAway: false,   // 相手がいなくなって戻るのを待っている
+  until: 0,          // 3 分の終わりの時刻
+  countTimer: null,
+  checkpoint: null,  // 切れた時点の盤面一式（「戻す」用・自分から見た形）
+  standIn: false,    // CPU が切れた人の代わりに打っている
+  standInTimer: null,
+  choosing: false,   // 戻ってきた人のために「戻す／続ける」を選んでいる
+  returning: false,  // 自分が戻ろうとしている（盤面を受け取るまで覆う）
+  backName: '',
+  backCount: 0,
+};
+const RV_STANDIN_DIFF = 'medium'; // HARD（ひとりで遊ぶの真ん中）
+
+function rvBlocksClock() { return RV.peerAway || RV.returning || RV.choosing; }
+
+function rvFmt(key, vars) {
+  let s = t(key);
+  for (const k in (vars || {})) s = s.split('{' + k + '}').join(String(vars[k]));
+  return s;
+}
+
+// --- 画面の部品（覆う窓・確かめています・お知らせ） ---
+function rvShowOverlay(title, body, buttons) {
+  const ov = document.getElementById('rv-overlay');
+  if (!ov) return;
+  rvStopCount();
+  document.getElementById('rv-title').textContent = title || '';
+  document.getElementById('rv-body').textContent = body || '';
+  document.getElementById('rv-count').textContent = '';
+  const act = document.getElementById('rv-actions');
+  act.innerHTML = '';
+  (buttons || []).forEach(b => {
+    const el = document.createElement('button');
+    el.className = 'btn ' + (b.primary ? 'btn-primary' : 'btn-secondary');
+    el.textContent = b.label;
+    el.onclick = b.onClick;
+    act.appendChild(el);
+  });
+  ov.classList.add('show');
+}
+function rvHideOverlay() {
+  rvStopCount();
+  const ov = document.getElementById('rv-overlay');
+  if (ov) ov.classList.remove('show');
+}
+function rvStartCount() {
+  rvStopCount();
+  const el = document.getElementById('rv-count');
+  const tick = () => {
+    const sec = Math.ceil(Math.max(0, RV.until - Date.now()) / 1000);
+    if (el) el.textContent = rvFmt('rvRemain', { T: Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0') });
+  };
+  tick();
+  RV.countTimer = setInterval(tick, 250);
+}
+function rvStopCount() {
+  if (RV.countTimer) { clearInterval(RV.countTimer); RV.countTimer = null; }
+}
+function rvBanner(text) {
+  const el = document.getElementById('rv-banner');
+  if (!el) return;
+  if (!text) { el.classList.remove('show'); return; }
+  el.textContent = text;
+  el.classList.add('show');
+}
+function rvNotice(text) {
+  const el = document.getElementById('rv-notice');
+  if (!el) return;
+  document.getElementById('rv-notice-text').textContent = text;
+  el.classList.add('show');
+}
+function rvHideNotice() {
+  const el = document.getElementById('rv-notice');
+  if (el) el.classList.remove('show');
+}
+
+// --- 対局の始まり・ロビーへ戻る ---
+function rvOnBeginGame() {
+  rvLastResult = null;
+  rvStopStandIn();
+  RV.checkpoint = null;
+  // 復帰の途中の印と覆いは片付ける（新しい対局は止めない）
+  RV.peerAway = false;
+  RV.choosing = false;
+  RV.returning = false;
+  rvHideOverlay();
+  rvBanner(null);
+  if (typeof MomoSolo !== 'undefined' && MomoSolo.isActive()) return;
+  if (MomoMatchmaking.reviveBegin) MomoMatchmaking.reviveBegin({ myName: myName, oppName: oppName });
+}
+function rvReset() {
+  rvStopStandIn();
+  rvHideOverlay();
+  rvBanner(null);
+  rvHideNotice();
+  RV.peerAway = false;
+  RV.choosing = false;
+  RV.returning = false;
+  RV.checkpoint = null;
+  rvLastResult = null;
+}
+
+// --- 残った側 ---
+function rvOnPeerChecking(name) {
+  if (!RV.peerAway && !RV.standIn) rvBanner(rvFmt('rvChecking', { NAME: name || oppName }));
+}
+function rvOnPeerAlive() { rvBanner(null); }
+function rvOnPeerAway(name, until) {
+  rvBanner(null);
+  const nm = name || oppName;
+  if (!gameActive) {
+    // 対局の外（結果の表示・終局画面）：盤は止めない。戻ってきたら盤面を渡す
+    ['game', 'end'].forEach(sc => addChat(sc, rvFmt('rvAwayNote', { NAME: nm })));
+    return;
+  }
+  rvStopStandIn();
+  RV.choosing = false;
+  // 待ったの途中なら取り下げ（渡さない）、仮置きも消す
+  if (undoPhase !== 'idle') { undoPhase = 'idle'; undoPendingSteps = 0; undoStatusKey = null; }
+  pendingMove = null;
+  RV.checkpoint = rvBuildState();
+  RV.peerAway = true;
+  RV.until = until || (Date.now() + 180000);
+  rvShowOverlay(t('rvAwayTitle'), rvFmt('rvAwayBody', { NAME: nm }), [
+    { label: t('rvBtnCpu'), primary: true, onClick: rvStartStandIn },
+    { label: t('rvBtnQuit'), onClick: rvQuitGame },
+  ]);
+  rvStartCount();
+  renderBoard();
+  updateTurnUI();
+  renderTimeDisplays();
+}
+function rvOnPeerTimeout() {
+  if (RV.peerAway) rvStartStandIn();
+}
+// 3 分たった／「待たずに CPU と続ける」：CPU が切れた人の席を引き継ぐ。時計はここから動く
+function rvStartStandIn() {
+  if (!RV.peerAway) return;
+  RV.peerAway = false;
+  rvHideOverlay();
+  RV.standIn = true;
+  lastTickAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  updateOppColorLabel();
+  updateTurnUI();
+  renderTimeDisplays();
+  rvStandInTick();
+}
+// 「対局をやめる」：勝敗なしで終わる（U4=B）
+function rvQuitGame() {
+  if (!confirm(t('rvConfirmQuit'))) return;
+  RV.peerAway = false;
+  rvHideOverlay();
+  alert(t('rvQuitDone'));
+  resetToLobby();
+}
+function rvStopStandIn() {
+  if (RV.standInTimer) { clearTimeout(RV.standInTimer); RV.standInTimer = null; }
+  if (RV.standIn) {
+    RV.standIn = false;
+    updateOppColorLabel();
+  }
+}
+// 考えているように少し待ってから、相手から届いたのと同じ形で入れる（入れた手には CPU の印）
+function rvStandInLater(fn) {
+  if (RV.standInTimer) clearTimeout(RV.standInTimer);
+  const wait = 450 + Math.random() * 700;
+  RV.standInTimer = setTimeout(() => {
+    RV.standInTimer = null;
+    if (!RV.standIn) return;
+    cpuInjecting = true;
+    try { fn(); } finally { cpuInjecting = false; }
+  }, wait);
+}
+function rvStandInTick() {
+  if (!RV.standIn || !gameActive) return;
+  const c = myColor === 'black' ? 'white' : 'black';
+  // 三手交換：白側が CPU なら、ひとりで遊ぶのと同じく CPU が選ぶ
+  if (gamePhase === 'swap_wait' && oppSwapChoice === 'pending') {
+    rvStandInLater(() => handleMsg({ type: 'swap_choice', swap: MomoSolo.chooseSwapNow() }));
+    return;
+  }
+  if (gamePhase === 'swap_select') return;
+  if (undoPhase !== 'idle') return;
+  if (scoringPhase !== 'idle') return;
+  if (turn !== c) return;
+  rvStandInLater(() => {
+    if (!gameActive || turn !== c) return;
+    handleMsg(MomoSolo.chooseFor(c, RV_STANDIN_DIFF));
+  });
+}
+
+// 相手が戻ってきた（本人と確かめ済み）
+function rvOnPeerBack(name) {
+  rvBanner(null);
+  const nm = name || oppName;
+  if (RV.peerAway) { RV.peerAway = false; rvHideOverlay(); }
+  const stoodIn = RV.standIn;
+  rvStopStandIn();
+  const n = RV.checkpoint ? moveHistory.slice(RV.checkpoint.history.length).filter(e => e.cpu).length : 0;
+  if (stoodIn && n > 0 && RV.checkpoint) {
+    // CPU が打った手がある：残った人が「戻す／続ける」を選ぶ。そのあいだ時計は止める
+    RV.choosing = true;
+    RV.backName = nm;
+    RV.backCount = n;
+    send({ type: 'rv_wait_choice' });
+    rvShowOverlay(rvFmt('rvChooseTitle', { NAME: nm }), t('rvChooseBody'), [
+      { label: t('rvBtnRevert'), onClick: () => rvChoose(true) },
+      { label: t('rvBtnContinue'), primary: true, onClick: () => rvChoose(false) },
+    ]);
+    renderTimeDisplays();
+    return;
+  }
+  RV.checkpoint = null;
+  rvSendState('back', 0);
+  rvNotice(rvFmt('rvNoticeBack', { NAME: nm }));
+  rvResumeAfterBack();
+}
+function rvChoose(revert) {
+  if (!RV.choosing) return;
+  RV.choosing = false;
+  rvHideOverlay();
+  const nm = RV.backName, n = RV.backCount;
+  if (revert && RV.checkpoint) {
+    // CPU が打った手は全部戻し、切れた時点（盤も時計も）に戻す
+    rvApplyState(RV.checkpoint, false);
+    rvSendState('reverted', 0);
+    rvNotice(t('rvNoticeReverted'));
+  } else {
+    rvSendState('continued', n);
+    rvNotice(rvFmt('rvNoticeContinued', { NAME: nm, N: n }));
+  }
+  RV.checkpoint = null;
+  rvResumeAfterBack();
+}
+function rvResumeAfterBack() {
+  lastTickAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  renderBoard();
+  updateTurnUI();
+  renderTimeDisplays();
+}
+function rvSendState(kind, n) {
+  send({ type: 'rv_state', st: rvBuildState(), notice: { kind: kind, n: n } });
+}
+
+// --- 戻る側 ---
+function rvOnSelfReconnecting() {
+  rvBanner(null);
+  RV.peerAway = false;
+  RV.choosing = false;
+  rvStopStandIn();
+  RV.returning = true;
+  rvShowOverlay(t('rvLostTitle'), t('rvLostBody'), [{ label: t('rvBtnGiveUp'), onClick: rvGiveUpReturn }]);
+  renderTimeDisplays();
+}
+function rvOnRevived() {
+  RV.peerAway = false;
+  RV.choosing = false;
+  rvStopStandIn();
+  RV.returning = true;
+  rvShowOverlay(t('rvLostTitle'), t('rvRevivedBody'), [{ label: t('rvBtnGiveUp'), onClick: rvGiveUpReturn }]);
+}
+function rvOnReviveFailed() {
+  RV.returning = false;
+  rvHideOverlay();
+  alert(t('rvFailed'));
+  resetToLobby();
+}
+function rvGiveUpReturn() {
+  RV.returning = false;
+  rvHideOverlay();
+  resetToLobby();
+}
+function rvShowWaitChoice() {
+  RV.returning = true;
+  rvShowOverlay(t('rvLostTitle'), rvFmt('rvWaitChoice', { NAME: oppName }), []);
+}
+function rvReceiveState(m) {
+  if (!m || !m.st) return;
+  RV.returning = false;
+  RV.peerAway = false;
+  RV.choosing = false;
+  RV.checkpoint = null;
+  rvHideOverlay();
+  rvBanner(null);
+  currentRoomName = MomoMatchmaking.getState().currentRoomName || currentRoomName;
+  rvApplyState(m.st, true);
+  const nt = m.notice || {};
+  if (nt.kind === 'continued') rvNotice(rvFmt('rvNoticeContinued', { NAME: myName, N: nt.n || 0 }));
+  else if (nt.kind === 'reverted') rvNotice(t('rvNoticeReverted'));
+  else rvNotice(t('rvNoticeSelfBack'));
+}
+// 開き直したとき：控えの対局があれば戻りにいく
+function rvBootResume() {
+  if (!MomoMatchmaking.reviveSaved) return;
+  const sv = MomoMatchmaking.reviveSaved();
+  if (!sv) return;
+  if (sv.myName) myName = sv.myName;
+  oppName = sv.oppName || '';
+  if (sv.gameType && sv.gameType !== currentGameType) selectGameType(sv.gameType);
+  RV.returning = true;
+  rvShowOverlay(t('rvLostTitle'), rvFmt('rvResumeBody', { NAME: oppName }), [{ label: t('rvBtnGiveUp'), onClick: rvGiveUpReturn }]);
+  MomoMatchmaking.reviveResume();
+}
+
+// --- 盤面一式（残った人の端末がそのまま正本） ---
+function rvBuildState() {
+  return {
+    gameType: currentGameType,
+    rules: currentRules,
+    myColor: myColor,
+    initialMyColor: initialMyColor,
+    history: moveHistory.map(e => Object.assign({}, e)),
+    clocks: clockHistory.slice(),
+    now: clockNow(),
+    turnStart: turnStartClock,
+    gamePhase: gamePhase,
+    oppSwapChoice: oppSwapChoice,
+    lastSwapResult: lastSwapResult,
+    mySwapDecided: mySwapDecided,
+    scoringPhase: scoringPhase,
+    deadStones: deadStones.map(p => ({ x: p.x, y: p.y })),
+    forcedTerritory: Object.assign({}, forcedTerritory),
+    myScoringAgreed: myScoringAgreed,
+    oppScoringAgreed: oppScoringAgreed,
+    gameActive: gameActive,
+    result: rvLastResult,
+    recorded: !!rvLastResult && !pendingEndScreen, // 終わった対局を成績に記録済みか
+    matchHistory: matchHistory.map(h => Object.assign({}, h)),
+    myEndChoice: myEndChoice,
+    oppEndChoice: oppEndChoice,
+  };
+}
+function rvFlipHistory(h) {
+  const out = { win: 'lose', lose: 'win', resign: 'win', draw: 'draw' };
+  return Object.assign({}, h, { myColor: h.myColor === 'black' ? 'white' : 'black', outcome: out[h.outcome] || h.outcome });
+}
+// flip＝相手の端末から届いた（相手から見た形を自分から見た形に入れ替える）
+function rvApplyState(st, flip) {
+  const fc = c => (flip && c) ? (c === 'black' ? 'white' : 'black') : c;
+  const fk = c => (flip ? clockFlip(c) : c);
+  rvStopStandIn();
+  if (st.gameType && st.gameType !== currentGameType) {
+    currentGameType = st.gameType;
+    document.querySelectorAll('#game-tabs .game-tab').forEach(el => el.classList.toggle('active', el.dataset.game === currentGameType));
+  }
+  currentRules = st.rules || currentRules;
+  myColor = fc(st.myColor);
+  initialMyColor = fc(st.initialMyColor);
+  // 持ち時間・秒読みの決まり（beginGame と同じ）
+  const tMin = (currentRules && Number.isFinite(currentRules.timeLimitMin)) ? currentRules.timeLimitMin : 0;
+  timeLimitMs = tMin > 0 ? tMin * 60 * 1000 : 0;
+  byoyomiSec = (currentRules && Number.isFinite(currentRules.byoyomiSec)) ? currentRules.byoyomiSec : 0;
+  byoyomiCount = (currentRules && Number.isFinite(currentRules.byoyomiCount)) ? currentRules.byoyomiCount : 0;
+  gameReady = true;
+  pendingEndScreen = null;
+  hideResultOkButton();
+  initBoard();
+  rebuildFromHistory(st.history || [], (st.clocks || []).map(fk));
+  clockRestore(fk(st.now));
+  turnStartClock = fk(st.turnStart);
+  // 三手交換（白側＝選ぶ側・黒側＝待つ側が入れ替わる）
+  let gp = st.gamePhase || 'normal';
+  if (flip && gp === 'swap_select') {
+    gp = 'swap_wait';
+    oppSwapChoice = st.mySwapDecided ? (st.lastSwapResult || 'pending') : 'pending';
+    mySwapDecided = false;
+    lastSwapResult = st.mySwapDecided ? st.lastSwapResult : null;
+  } else if (flip && gp === 'swap_wait') {
+    gp = 'swap_select';
+    mySwapDecided = st.oppSwapChoice !== 'pending';
+    oppSwapChoice = 'pending';
+    lastSwapResult = mySwapDecided ? st.oppSwapChoice : null;
+  } else {
+    oppSwapChoice = st.oppSwapChoice;
+    mySwapDecided = st.mySwapDecided;
+    lastSwapResult = st.lastSwapResult;
+  }
+  gamePhase = gp;
+  undoPhase = 'idle';
+  undoPendingSteps = 0;
+  undoStatusKey = null;
+  // 終局の手続き
+  deadStones = (st.deadStones || []).map(p => ({ x: p.x, y: p.y }));
+  forcedTerritory = Object.assign({}, st.forcedTerritory || {});
+  myScoringAgreed = flip ? !!st.oppScoringAgreed : !!st.myScoringAgreed;
+  oppScoringAgreed = flip ? !!st.myScoringAgreed : !!st.oppScoringAgreed;
+  scoringPhase = st.scoringPhase || 'idle';
+  const bf = document.getElementById('board-frame');
+  if (bf && bf.parentElement) bf.parentElement.classList.toggle('scoring-active', scoringPhase !== 'idle');
+  if (scoringPhase !== 'idle') recomputeScoring(); else scoringResult = null;
+  // 部屋の中の成績（終わった対局は、結果の OK で記録し直す）
+  const hist = (st.matchHistory || []).map(h => flip ? rvFlipHistory(h) : Object.assign({}, h));
+  if (st.recorded && st.result) hist.pop();
+  const own = matchHistory;
+  if (flip && own.length && own.length <= hist.length) hist.splice(0, own.length, ...own.map(h => Object.assign({}, h)));
+  matchHistory = hist;
+  myEndChoice = null;
+  oppEndChoice = flip ? (st.myEndChoice || null) : (st.oppEndChoice || null);
+  gameActive = !!st.gameActive;
+  rvLastResult = st.result ? { winnerColor: fc(st.result.winnerColor), reason: st.result.reason } : null;
+  // 画面
+  document.getElementById('my-color-label').innerHTML =
+    `${t('youAre')} ${PIECE.svg(myColor, '20px')}${t(myColor === 'black' ? 'black' : 'white')}`;
+  updateOppColorLabel();
+  showScreen('game');
+  const sp = document.getElementById('swap-overlay');
+  if (sp) sp.style.display = (gamePhase === 'swap_select' || gamePhase === 'swap_wait') ? '' : 'none';
+  updateSwapPanelUI();
+  stopTimer();
+  if (!isTimeUnlimited()) startTimer();
+  renderCaptureDisplays();
+  renderScoreDisplay();
+  if (scoringPhase === 'marking') updateScoringActions();
+  if (!gameActive && rvLastResult) {
+    // 終わった対局：結果を盤の下に出して OK を待つ（五目並べは並んだ 5 つも光らせる）
+    if (!isGoRoom() && lastMove && typeof GomokuRules !== 'undefined' && rvLastResult.reason !== 'resign') {
+      const r = GomokuRules.checkWinByPreset(board, lastMove.x, lastMove.y, board[lastMove.y][lastMove.x], getCurrentPreset(), BOARD_SIZE);
+      if (r && r.result === 'win') winningLine = r.line;
+    }
+    if (rvLastResult.reason === 'go-final') softExitScoringPhase();
+    endGame(rvLastResult.winnerColor, rvLastResult.reason);
+  } else {
+    renderBoard();
+    updateTurnUI();
+    renderTimeDisplays();
+  }
+  soloTick();
+}
+
 // ===== BOOT =====
 connectWS();
 applyLang();
 updateSoloOptUI();
 restoreInputs();
+rvBootResume();
 </script>
 </body>
 </html>

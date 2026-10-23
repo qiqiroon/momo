@@ -27,6 +27,9 @@
  *   戻る人は一覧から「同じ部屋名で、ホストが相手」の部屋を探し、合言葉（mm_rv_back）で本人と確かめてもらう。
  *   盤面の渡し直し・CPU の引き継ぎはアプリの仕事（設計の正本 games/matchmaking/docs/reconnect-design）。
  *   ★合言葉（secret）は端末の中だけ。診断の記録・チャット・URL に出さない。
+ *   あわせて（全アプリに効く）：部屋にいないときに届いた room_closed はアプリへ渡さない。ホストが自分で退出すると
+ *   サーバーは本人にも room_closed を送り、Go・Reversi などで本人に「相手との接続が切断されました」が出ていた（利用者 2026-10-23・Q=A）。
+ *   Hanafuda（intentionalLeave）・Shogi（入るたびに intentionallyLeft を下ろす）・Mahjong（inRoom）は、この知らせに頼っていないことを確認済み。
  *
  * v1.04 (2026-10-20): サーバーからの「生きていますか」（mm_alive_q）に自動で答える（mm_alive_a）。アプリへは渡さない。
  *   一覧に入る知らせ（enter_lobby）に「答えられる版」の印 alive:1 を添える（サーバーは印のある接続にだけ知らせで尋ねる）。
@@ -273,6 +276,9 @@ const MomoMatchmaking = (() => {
 
     // 部屋が閉じられた（ホスト切断など）
     if (d.type === 'room_closed') {
+      // v1.05：部屋にいないときに届いた「閉じた」は、自分で出た部屋のこと（ホストが退出するとサーバーは本人にも送る）。
+      //   アプリへ渡すと「相手との接続が切断されました」と出てしまうので渡さない
+      if (!_currentRoomId) return;
       const msg = d.reason || '接続が切断されました。';
       _resetConnection();
       if (_rv) { _rvRoomClosed(); return; } // v1.05：ホストがいなくなった → 残ったゲストが部屋を持つ

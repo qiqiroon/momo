@@ -323,7 +323,7 @@ const BilliardsI18N = (() => {
       'audio.title': '音を鳴らしますか？', 'audio.desc': 'BGMと効果音を再生します。あとから設定で変えられます。',
       'audio.yes': '再生する', 'audio.no': '鳴らさない',
       'set.title': '設定', 'set.bgm': 'BGM', 'set.sfx': '効果音', 'set.mute': 'ミュート',
-      'set.speed': '玉の転がる速さ',
+      'set.speed': '玉の転がる速さ', 'set.credits': '音源クレジット',
       'set.speedNote': '玉が転がる見た目の速さだけが変わります。キューの動きや画面の切り替わり、勝ち負けは変わりません。',
 
       'rules.title': 'ルール確認',
@@ -655,7 +655,7 @@ const BilliardsI18N = (() => {
       'audio.title': 'Play sound?', 'audio.desc': 'Music and effects. You can change this later in settings.',
       'audio.yes': 'Play', 'audio.no': 'Stay silent',
       'set.title': 'Settings', 'set.bgm': 'Music', 'set.sfx': 'Effects', 'set.mute': 'Mute',
-      'set.speed': 'Ball rolling speed',
+      'set.speed': 'Ball rolling speed', 'set.credits': 'Sound credits',
       'set.speedNote': 'Changes only how fast the balls appear to roll. Cue movement, screen changes and the outcome stay the same.',
 
       'rules.title': 'Rules',
@@ -987,7 +987,7 @@ const BilliardsI18N = (() => {
       'audio.title': '要播放声音吗？', 'audio.desc': '播放背景音乐与音效，之后可在设置中更改。',
       'audio.yes': '播放', 'audio.no': '静音',
       'set.title': '设置', 'set.bgm': '音乐', 'set.sfx': '音效', 'set.mute': '静音',
-      'set.speed': '球滚动的速度',
+      'set.speed': '球滚动的速度', 'set.credits': '音源版权',
       'set.speedNote': '只改变球滚动的视觉速度。球杆动作、画面切换与胜负都不受影响。',
 
       'rules.title': '规则',

@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <!-- 公開のたびに ?v= を版に合わせる（古いファイルが残って新旧が混ざるのを防ぐ） -->
-<link rel="stylesheet" href="css/cosmos.css?v=0.03">
+<link rel="stylesheet" href="css/cosmos.css?v=0.04">
 <!-- 共通言語ルーチン（defer 不可・本体スクリプトより前） -->
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
@@ -207,6 +207,23 @@
   </div>
 </div>
 
+<!-- 音の許可パネル（第16.3節。他のアプリと同じ。最初に音を出す操作と、1時間以上離れて戻ったあとの操作で出す） -->
+<div class="mdl" id="musicModal" role="dialog" aria-modal="true">
+  <div class="mdl-card">
+    <h2 data-t="musicTitle"></h2>
+    <p class="mdl-text" data-t="musicBody"></p>
+    <div class="srow">
+      <div class="srow-head"><span data-t="setSe"></span><span class="v" id="mSeV"></span></div>
+      <div class="vline"><input type="range" id="mSeVol" min="0" max="100" step="1"><label class="mute"><input type="checkbox" id="mSeMute"><span data-t="setMute"></span></label></div>
+    </div>
+    <div class="srow">
+      <div class="srow-head"><span data-t="setBgm"></span><span class="v" id="mBgmV"></span></div>
+      <div class="vline"><input type="range" id="mBgmVol" min="0" max="100" step="1"><label class="mute"><input type="checkbox" id="mBgmMute"><span data-t="setMute"></span></label></div>
+    </div>
+    <div class="mdl-btns"><button type="button" id="musicNo" data-t="musicNo"></button><button type="button" id="musicYes" class="primary" data-t="musicYes"></button></div>
+  </div>
+</div>
+
 <!-- クレジット（第18.5節）。猫語のときも系統言語で出す -->
 <div class="mdl" id="creditsPanel" role="dialog" aria-modal="true">
   <div class="mdl-card credits">
@@ -240,6 +257,8 @@ THE SOFTWARE.</pre>
       <h3 data-tb="credImages"></h3>
       <p><span data-tb="credImgGen"></span><br><span data-tb="credImgDir"></span></p>
       <p data-tb="credImagesBody"></p>
+      <h3 data-tb="credBgm"></h3>
+      <p data-tb="credBgmBody"></p>
       <h3 data-tb="credFonts"></h3>
       <p>Fredoka One / Noto Sans JP / Noto Sans SC — SIL Open Font License 1.1<br><a href="https://fonts.google.com/" target="_blank" rel="noopener">Google Fonts</a></p>
       <p class="note" data-tb="credSoundNote"></p>
@@ -262,12 +281,13 @@ THE SOFTWARE.</pre>
   <div id="dbgInfo"></div>
 </div>
 
-<script src="js/vendor/matter.min.js?v=0.03"></script>
-<script src="js/config.js?v=0.03"></script>
-<script src="js/i18n.js?v=0.03"></script>
-<script src="js/game.js?v=0.03"></script>
-<script src="js/render.js?v=0.03"></script>
-<script src="js/input.js?v=0.03"></script>
-<script src="js/main.js?v=0.03"></script>
+<script src="js/vendor/matter.min.js?v=0.04"></script>
+<script src="js/config.js?v=0.04"></script>
+<script src="js/i18n.js?v=0.04"></script>
+<script src="js/game.js?v=0.04"></script>
+<script src="js/render.js?v=0.04"></script>
+<script src="js/input.js?v=0.04"></script>
+<script src="js/sound.js?v=0.04"></script>
+<script src="js/main.js?v=0.04"></script>
 </body>
 </html>

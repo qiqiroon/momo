@@ -1,0 +1,112 @@
+/*
+ * MOMO Cosmos — 音（仕様書 第16章）
+ * BGM は共通の assets/bgm/ から目録（manifest.json）を読んで選ぶ。曲の性格ごとのフォルダ：
+ *   lobby（タイトル・全アプリ共通）／game-cosmos（通常期とブラックホール期）／ending-cosmos（M3 のエンディング）
+ * 音量は Web Audio の GainNode でかける（iPhone は audio 要素の volume が効かないため）。
+ * 効果音は M5 の残り（素材の試聴待ち）。
+ */
+(function (root) {
+  'use strict';
+
+  const BGM_BASE = '../../assets/bgm/';
+  const FADE_SEC = 0.8;
+
+  class CosmosSound {
+    /** getSet：設定（se, bgm, seMute, bgmMute）を返す関数 */
+    constructor(getSet) {
+      this.getSet = getSet;
+      this.ac = null; this.bgmGain = null;
+      this.pool = null;          // 目録：{ フォルダ名: [ファイル名…] }
+      this.folder = null;        // 鳴らしたいフォルダ
+      this.cur = null;           // 鳴っている曲：{ el, gain, folder, file }
+      this.last = {};            // フォルダごとの直前の曲（同じ曲を続けない）
+      this._loadPool();
+    }
+
+    async _loadPool() {
+      try {
+        const r = await fetch(BGM_BASE + 'manifest.json', { cache: 'no-cache' });
+        this.pool = await r.json();
+      } catch (e) { console.warn('[cosmos] BGM の目録を読めません', e); this.pool = {}; }
+      if (this.ac && this.folder) this._play(this.folder);
+    }
+
+    /** 利用者の操作の中で呼ぶ（音の許可パネルの「再生する／再生しない」） */
+    unlock() {
+      const AC = root.AudioContext || root.webkitAudioContext;
+      if (!AC) return;
+      if (!this.ac) {
+        this.ac = new AC();
+        this.bgmGain = this.ac.createGain();
+        this.bgmGain.connect(this.ac.destination);
+        this.applyGain(true);
+      }
+      this.resume();   // 1時間以上離れて戻ったとき：止めていた曲もここで再開する
+      if (this.folder && !this.cur) this._play(this.folder);
+    }
+
+    get unlocked() { return !!this.ac; }
+
+    /** 設定パネルの音量・ミュートを反映 */
+    applyGain(now) {
+      if (!this.ac) return;
+      const S = this.getSet(), v = S.bgmMute ? 0 : S.bgm / 100 * 0.9;
+      this.bgmGain.gain.setTargetAtTime(v, this.ac.currentTime, now ? 0.001 : 0.03);
+    }
+
+    /** 場面に合わせて鳴らすフォルダを選ぶ（同じなら何もしない） */
+    setFolder(folder) {
+      if (folder === this.folder) return;
+      this.folder = folder;
+      if (!this.ac) return;          // 許可パネルの前は鳴らさない
+      this._play(folder);
+    }
+
+    // ページが隠れている間は曲そのものも止める。音の出口（AudioContext）だけ止めると、
+    // 曲は無音のまま先へ進み、戻ったときに途中や別の曲から鳴って「勝手に切り替わった」ように聞こえる
+    suspend() {
+      if (this.cur) this.cur.el.pause();
+      if (this.ac && this.ac.state === 'running') this.ac.suspend();
+    }
+    resume() {
+      if (this.ac && this.ac.state === 'suspended') this.ac.resume();
+      if (this.cur && this.cur.el.paused) this.cur.el.play().catch(() => {});
+    }
+
+    _pick(folder) {
+      const list = (this.pool && this.pool[folder]) || [];
+      if (!list.length) return null;
+      const cand = list.length > 1 ? list.filter(f => f !== this.last[folder]) : list;
+      const f = cand[Math.floor(Math.random() * cand.length)];
+      this.last[folder] = f;
+      return f;
+    }
+
+    _play(folder) {
+      if (!this.pool) return;        // 目録を読み終えたら鳴らし直す
+      this._fadeOut(this.cur);
+      this.cur = null;
+      const file = folder && this._pick(folder);
+      if (!file) return;
+      const el = new Audio(BGM_BASE + folder + '/' + file);
+      el.preload = 'auto';
+      const src = this.ac.createMediaElementSource(el), g = this.ac.createGain();
+      g.gain.value = 0;
+      src.connect(g).connect(this.bgmGain);
+      g.gain.setTargetAtTime(1, this.ac.currentTime, FADE_SEC / 3);
+      const track = { el, gain: g, folder, file };
+      // 曲が終わったら同じフォルダの別の曲へ
+      el.addEventListener('ended', () => { if (this.cur === track) this._play(this.folder); });
+      el.play().catch(e => console.warn('[cosmos] BGM を再生できません', e));
+      this.cur = track;
+    }
+
+    _fadeOut(track) {
+      if (!track) return;
+      track.gain.gain.setTargetAtTime(0, this.ac.currentTime, FADE_SEC / 3);
+      setTimeout(() => { track.el.pause(); track.el.src = ''; }, FADE_SEC * 1000 + 200);
+    }
+  }
+
+  root.CosmosSound = CosmosSound;
+})(window);

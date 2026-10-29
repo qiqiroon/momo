@@ -44,5 +44,8 @@ Fredoka One / Noto Sans JP / Noto Sans SC — SIL Open Font License 1.1（Google
 ## 共通ライブラリ
 `lib/momo-lang/momo-lang.js`（言語）、`lib/momo-analytics.js`（アクセス解析） — MOMO Works
 
-## 効果音・BGM
-M5（サウンド）で記入する。出所は MOMO_Cosmos_Sound_List と、MOMO Works 音源ライセンス一覧（台帳）に従う。
+## BGM
+共通の `assets/bgm/`（lobby・game-cosmos・ending-cosmos）。すべて作者本人が作った曲（Mureka・SUNO）。表示義務なし。
+
+## 効果音
+まだ無い。入れるときに出所を記入する（MOMO_Cosmos_Sound_List と、MOMO Works 音源ライセンス一覧（台帳）に従う）。

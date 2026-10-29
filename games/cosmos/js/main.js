@@ -92,9 +92,14 @@
     // ---- 設定パネル（第18.4節）。開いてもゲームは進め、落下操作だけ止める ----
     const SET = Object.assign({}, C.settingsDefault, store.get(C.storageKeys.settings, {}));
     const saveSet = () => store.set(C.storageKeys.settings, SET);
+    const sound = new CosmosSound(() => SET);
     function syncSetUI() {
-      $('seVol').value = SET.se; $('seV').textContent = SET.se + '%'; $('seMute').checked = SET.seMute;
-      $('bgmVol').value = SET.bgm; $('bgmV').textContent = SET.bgm + '%'; $('bgmMute').checked = SET.bgmMute;
+      for (const p of ['', 'm']) {
+        const id = k => $(p ? p + k[0].toUpperCase() + k.slice(1) : k);
+        id('seVol').value = SET.se; id('seV').textContent = SET.se + '%'; id('seMute').checked = SET.seMute;
+        id('bgmVol').value = SET.bgm; id('bgmV').textContent = SET.bgm + '%'; id('bgmMute').checked = SET.bgmMute;
+      }
+      sound.applyGain();
       $('eventsChk').checked = SET.events;
       $('debugChk').checked = SET.debugPanel;
       if (DEBUG) $('debugPanel').hidden = !SET.debugPanel;
@@ -105,11 +110,13 @@
     }
     bindVol('seVol', 'seMute', 'se', 'seMute');
     bindVol('bgmVol', 'bgmMute', 'bgm', 'bgmMute');
+    bindVol('mSeVol', 'mSeMute', 'se', 'seMute');
+    bindVol('mBgmVol', 'mBgmMute', 'bgm', 'bgmMute');
     $('eventsChk').addEventListener('change', e => { SET.events = e.target.checked; saveSet(); });
     $('debugChk').addEventListener('change', e => { SET.debugPanel = e.target.checked; saveSet(); syncSetUI(); });
     $('debugRow').hidden = !DEBUG;
 
-    const modalOpen = () => $('setPanel').classList.contains('show') || $('creditsPanel').classList.contains('show');
+    const modalOpen = () => ['setPanel', 'creditsPanel', 'musicModal'].some(id => $(id).classList.contains('show'));
     function openModal(id) { syncSetUI(); ['setPanel', 'creditsPanel'].forEach(m => $(m).classList.toggle('show', m === id)); }
     function closeModals() { $('setPanel').classList.remove('show'); $('creditsPanel').classList.remove('show'); }
     $('gearBtn').onclick = () => { $('setPanel').classList.contains('show') ? closeModals() : openModal('setPanel'); };
@@ -119,6 +126,46 @@
     $('creditsClose').onclick = () => openModal('setPanel');
     ['setPanel', 'creditsPanel'].forEach(id => $(id).addEventListener('pointerdown', e => { if (e.target === $(id)) closeModals(); }));
     syncSetUI();
+
+    // ---- 音の許可パネル（第16.3節）。回答は保存せず、ページを開くたびに最初の1回だけ聞く ----
+    const LONG_MS = 60 * 60 * 1000;
+    let audioAsked = false, pendingAct = null, hiddenAt = 0;
+    function closeMusic(play) {
+      SET.seMute = SET.bgmMute = !play;
+      saveSet();
+      sound.unlock();
+      syncSetUI();
+      audioAsked = true;
+      $('musicModal').classList.remove('show');
+      const a = pendingAct; pendingAct = null; if (a) a();
+    }
+    $('musicYes').onclick = () => closeMusic(true);
+    $('musicNo').onclick = () => closeMusic(false);
+    // 音を出す操作（START・もう一度・再開）の最初のクリックを止めてパネルを出す
+    document.addEventListener('click', e => {
+      if (audioAsked) return;
+      const b = e.target.closest && e.target.closest('#startBtn, #retryBtn, #bhRetryBtn, #resumeBtn');
+      if (!b) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      pendingAct = () => b.click();
+      syncSetUI();
+      $('musicModal').classList.add('show');
+    }, true);
+    // 場面ごとの BGM（ブラックホール期も通常の曲。2026-10-29 作者の回答）
+    function bgmForState(st) {
+      if (st === 'TITLE') return 'lobby';
+      if (st === 'GAMEOVER' || st === 'BH_SUPER_DONE') return sound.folder; // そのまま流す
+      return 'game-cosmos';
+    }
+    game.on('state', st => sound.setFolder(bgmForState(st)));
+    sound.setFolder('lobby');
+
+    // ページが隠れたら音を止める。1時間以上たって戻ったら、次の操作でもう一度聞く（第16.3節）
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { hiddenAt = Date.now(); sound.suspend(); return; }
+      if (audioAsked && hiddenAt && Date.now() - hiddenAt >= LONG_MS) audioAsked = false;
+      else if (audioAsked) sound.resume();
+    });
 
     const input = new CosmosInput($('board'), game, board, C, {
       togglePause: () => { if (modalOpen()) closeModals(); else togglePause(); }
@@ -200,7 +247,7 @@
     refreshTitle();
     show('title');
     requestAnimationFrame(frame);
-    window.cosmos = { game, board, C, settings: SET }; // コンソールからの確認用
+    window.cosmos = { game, board, C, settings: SET, sound }; // コンソールからの確認用
   }
 
   // ---- デバッグ用パネル ----

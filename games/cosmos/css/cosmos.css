@@ -175,6 +175,8 @@ body.hide-top #topCtl { display: none; }   /* BIGBANG〜ENDROLL（M3） */
   padding: 18px 18px 16px; box-shadow: 0 10px 40px rgba(0,0,0,.6); overflow-y: auto; touch-action: pan-y;
 }
 .mdl-card h2 { margin: 0 0 12px; font-family: var(--font-title); font-weight: 400; font-size: 19px; }
+.mdl-text { margin: 0 0 14px; font-size: 13px; line-height: 1.7; color: #b5b5b5; }
+.mdl-text + .srow { border-top: none; }
 .srow { padding: 10px 0; border-top: 1px solid var(--line); font-size: 13px; }
 .mdl-card h2 + .srow { border-top: none; }
 .srow-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }

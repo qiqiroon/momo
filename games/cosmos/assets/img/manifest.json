@@ -1,0 +1,246 @@
+{
+ "moon": {
+  "type": "body",
+  "blend": "source-over",
+  "bodyRadiusPx": 69,
+  "centerX": 74.0,
+  "centerY": 74.0,
+  "source": "画像2",
+  "file": "assets/img/moon.webp",
+  "width": 148,
+  "height": 148
+ },
+ "mars": {
+  "type": "body",
+  "blend": "source-over",
+  "bodyRadiusPx": 74,
+  "centerX": 79.0,
+  "centerY": 79.0,
+  "source": "画像2",
+  "file": "assets/img/mars.webp",
+  "width": 158,
+  "height": 158
+ },
+ "venus": {
+  "type": "body",
+  "blend": "source-over",
+  "bodyRadiusPx": 74,
+  "centerX": 79.0,
+  "centerY": 79.0,
+  "source": "画像2",
+  "file": "assets/img/venus.webp",
+  "width": 158,
+  "height": 158
+ },
+ "mercury": {
+  "type": "body",
+  "blend": "source-over",
+  "bodyRadiusPx": 66,
+  "centerX": 71.0,
+  "centerY": 71.0,
+  "source": "画像2",
+  "file": "assets/img/mercury.webp",
+  "width": 142,
+  "height": 142
+ },
+ "neptune": {
+  "type": "body",
+  "blend": "source-over",
+  "bodyRadiusPx": 77,
+  "centerX": 82.0,
+  "centerY": 82.0,
+  "source": "画像2",
+  "file": "assets/img/neptune.webp",
+  "width": 164,
+  "height": 164
+ },
+ "jupiter": {
+  "type": "body",
+  "blend": "source-over",
+  "bodyRadiusPx": 80,
+  "centerX": 85.0,
+  "centerY": 85.0,
+  "source": "画像2",
+  "file": "assets/img/jupiter.webp",
+  "width": 170,
+  "height": 170
+ },
+ "uranus": {
+  "type": "body",
+  "blend": "source-over",
+  "bodyRadiusPx": 69,
+  "centerX": 106,
+  "centerY": 74,
+  "source": "画像2",
+  "note": "輪は当たり判定外",
+  "file": "assets/img/uranus.webp",
+  "width": 214,
+  "height": 150
+ },
+ "saturn": {
+  "type": "body",
+  "blend": "source-over",
+  "bodyRadiusPx": 68,
+  "centerX": 142,
+  "centerY": 75,
+  "source": "画像2",
+  "note": "輪は当たり判定外",
+  "file": "assets/img/saturn.webp",
+  "width": 283,
+  "height": 150
+ },
+ "sun": {
+  "type": "body",
+  "blend": "lighter",
+  "source": "画像2",
+  "bodyRadiusPx": 80,
+  "centerX": 88,
+  "centerY": 88,
+  "file": "assets/img/sun.webp",
+  "width": 176,
+  "height": 176
+ },
+ "supernova": {
+  "type": "body",
+  "blend": "lighter",
+  "source": "画像2",
+  "file": "assets/img/supernova.webp",
+  "width": 255,
+  "height": 182
+ },
+ "neutronstar": {
+  "type": "body",
+  "blend": "lighter",
+  "source": "画像2",
+  "file": "assets/img/neutronstar.webp",
+  "width": 257,
+  "height": 180
+ },
+ "blackhole": {
+  "type": "body",
+  "blend": "source-over",
+  "source": "画像2",
+  "coreRadiusPx": 36,
+  "centerX": 145,
+  "centerY": 82,
+  "note": "中心の黒は不透明。lighterではなくsource-overで描画",
+  "file": "assets/img/blackhole.webp",
+  "width": 280,
+  "height": 174
+ },
+ "meteor": {
+  "type": "event",
+  "blend": "source-over",
+  "source": "画像2",
+  "file": "assets/img/meteor.webp",
+  "width": 190,
+  "height": 172
+ },
+ "asteroid": {
+  "type": "event",
+  "blend": "source-over",
+  "source": "画像2",
+  "file": "assets/img/asteroid.webp",
+  "width": 220,
+  "height": 168
+ },
+ "galaxy": {
+  "type": "bg",
+  "blend": "lighter",
+  "source": "画像2",
+  "file": "assets/img/galaxy.webp",
+  "width": 277,
+  "height": 154
+ },
+ "nebula": {
+  "type": "bg",
+  "blend": "lighter",
+  "source": "画像2",
+  "file": "assets/img/nebula.webp",
+  "width": 320,
+  "height": 154
+ },
+ "cosmic_dust": {
+  "type": "bg",
+  "blend": "lighter",
+  "source": "画像2",
+  "file": "assets/img/cosmic_dust.webp",
+  "width": 286,
+  "height": 154
+ },
+ "stars_bg": {
+  "type": "bg",
+  "blend": "lighter",
+  "source": "画像2",
+  "file": "assets/img/stars_bg.webp",
+  "width": 292,
+  "height": 154
+ },
+ "galaxy_bg": {
+  "type": "bg",
+  "blend": "lighter",
+  "source": "画像2",
+  "file": "assets/img/galaxy_bg.webp",
+  "width": 254,
+  "height": 154
+ },
+ "fx_merge": {
+  "type": "effect",
+  "blend": "lighter",
+  "source": "画像2",
+  "file": "assets/img/fx_merge.webp",
+  "width": 212,
+  "height": 131
+ },
+ "fx_absorb": {
+  "type": "effect",
+  "blend": "lighter",
+  "source": "画像2",
+  "file": "assets/img/fx_absorb.webp",
+  "width": 212,
+  "height": 131
+ },
+ "fx_bigbang": {
+  "type": "effect",
+  "blend": "lighter",
+  "source": "画像2",
+  "file": "assets/img/fx_bigbang.webp",
+  "width": 193,
+  "height": 131
+ },
+ "bg_expansion": {
+  "type": "background",
+  "blend": "source-over",
+  "source": "画像2",
+  "file": "assets/img/bg_expansion.webp",
+  "width": 197,
+  "height": 131
+ },
+ "bg_travel": {
+  "type": "background",
+  "blend": "source-over",
+  "source": "画像2",
+  "file": "assets/img/bg_travel.webp",
+  "width": 204,
+  "height": 131
+ },
+ "bg_space": {
+  "type": "background",
+  "blend": "source-over",
+  "source": "画像2",
+  "file": "assets/img/bg_space.webp",
+  "width": 209,
+  "height": 131
+ },
+ "earth": {
+  "type": "body",
+  "blend": "source-over",
+  "bodyRadiusPx": 250.2,
+  "centerX": 256,
+  "centerY": 256,
+  "source": "画像3",
+  "file": "assets/img/earth.webp",
+  "width": 512,
+  "height": 512
+ }
+}

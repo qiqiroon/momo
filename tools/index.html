@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Tools 内部バージョン: v1.18
+<!-- MOMO Tools 内部バージョン: v1.19
      変更履歴:
        v1.11 - MOMO Lyrics カードを追加
        v1.12 - MOMO Explorer カードを追加、猫語(CAT)対応、言語切替をプルダウンに変更
@@ -9,7 +9,8 @@
        v1.15 - MOMO KJCards カードを Management Tools に追加
        v1.16 - 猫語のときもサブタイトルは鳴き声にせず、元が中国語なら中国語・日本語/英語なら英語で出す
        v1.17 - 猫語を選ぶ直前の言語を共通ライブラリから読む（開き直しても中国語のサブタイトルが出る）
-       v1.18 - 日本語のときのページの副題を英語で出す -->
+       v1.18 - 日本語のときのページの副題を英語で出す
+       v1.19 - MOMO Remaster カードを Music Tools に追加 -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -522,6 +523,26 @@
         <div class="card-btn" id="karaoke-open">今すぐ使う</div>
       </a>
 
+      <!-- MOMO Remaster card (v1.19 で追加) -->
+      <a class="tool-card" href="remaster/" style="animation-delay:0.60s">
+        <div class="card-head">
+          <img class="card-icon" src="remaster/favicon.svg" alt="" aria-hidden="true">
+          <div class="card-headtext">
+            <div class="card-title">MOMO <span style="color:var(--orange);">Remaster</span></div>
+            <div class="card-subtitle" id="remaster-subtitle">Your Sound Lives Again</div>
+          </div>
+        </div>
+        <p class="card-desc" id="remaster-desc">カセットやレコードから取り込んだ音声を、ブラウザの中だけで整えるツール。区間の編集・EQ・ゲイン・フェードをかけ、処理前後を聴き比べて、WAV・FLAC・MP3 など7形式で書き出せます。</p>
+        <div class="card-meta">
+          <span class="meta-tag" id="remaster-meta1">🎚️ 音声を整える</span>
+          <span class="meta-tag" id="remaster-meta2">💾 7形式で書き出し</span>
+        </div>
+        <div class="platform-row">
+          <span class="platform-tag" id="remaster-pc">💻 PC</span>
+        </div>
+        <div class="card-btn" id="remaster-open">今すぐ使う</div>
+      </a>
+
     </div>
   </div>
 
@@ -586,6 +607,12 @@
       karaokeMeta2:    '📄 同期歌詞表示',
       karaokeOpen:     '今すぐ使う',
       karaokePc:       '💻 PC',
+      remasterSubtitle:'Your Sound Lives Again',
+      remasterDesc:    'カセットやレコードから取り込んだ音声を、ブラウザの中だけで整えるツール。区間の編集・EQ・ゲイン・フェードをかけ、処理前後を聴き比べて、WAV・FLAC・MP3 など7形式で書き出せます。',
+      remasterMeta1:   '🎚️ 音声を整える',
+      remasterMeta2:   '💾 7形式で書き出し',
+      remasterOpen:    '今すぐ使う',
+      remasterPc:      '💻 PC',
       linksSubtitle:   'Tab-Based Bookmark Manager',
       linksDesc:       'タグで整理するブックマーク管理ツール。データはあなたのブラウザにのみ保存されます。',
       linksMeta1:      '🔖 ブックマーク',
@@ -640,6 +667,12 @@
       karaokeMeta2:    '📄 Synced Lyrics',
       karaokeOpen:     'Open Now',
       karaokePc:       '💻 PC',
+      remasterSubtitle:'Your Sound Lives Again',
+      remasterDesc:    'Clean up audio captured from cassettes and records, right in your browser. Edit regions, apply EQ, gain and fades, compare before and after, and export to 7 formats including WAV, FLAC and MP3.',
+      remasterMeta1:   '🎚️ Restore Audio',
+      remasterMeta2:   '💾 Export to 7 Formats',
+      remasterOpen:    'Open Now',
+      remasterPc:      '💻 PC',
       linksSubtitle:   'Tab-Based Bookmark Manager',
       linksDesc:       'A bookmark manager that organizes links with tags. Your data stays local in your browser.',
       linksMeta1:      '🔖 Bookmarks',
@@ -694,6 +727,12 @@
       karaokeMeta2:    '📄 同步歌词',
       karaokeOpen:     '立即使用',
       karaokePc:       '💻 PC',
+      remasterSubtitle:'旧声再度鲜活',
+      remasterDesc:    '在浏览器中整理从磁带或唱片录入的音频。可编辑片段、使用 EQ・增益・淡入淡出，对比处理前后，并导出为 WAV・FLAC・MP3 等 7 种格式。',
+      remasterMeta1:   '🎚️ 整理音频',
+      remasterMeta2:   '💾 导出 7 种格式',
+      remasterOpen:    '立即使用',
+      remasterPc:      '💻 PC',
       linksSubtitle:   '標簽式書簽管理',
       linksDesc:       '用标签整理书签的管理工具。数据仅保存在您的浏览器中。',
       linksMeta1:      '🔖 书签管理',
@@ -818,6 +857,11 @@
     document.getElementById('karaoke-meta2').textContent    = t('karaokeMeta2');
     document.getElementById('karaoke-open').textContent     = t('karaokeOpen');
     document.getElementById('karaoke-pc').textContent       = t('karaokePc');
+    document.getElementById('remaster-desc').textContent    = t('remasterDesc');
+    document.getElementById('remaster-meta1').textContent   = t('remasterMeta1');
+    document.getElementById('remaster-meta2').textContent   = t('remasterMeta2');
+    document.getElementById('remaster-open').textContent    = t('remasterOpen');
+    document.getElementById('remaster-pc').textContent      = t('remasterPc');
     // 各ツール サブタイトル: 猫語非対応のため cat 時は catBase 言語のテキスト
     const subtitleLang = currentLang === 'cat' ? catBase : currentLang;
     const subtitleDict = I18N[subtitleLang] || I18N.ja;
@@ -828,6 +872,7 @@
       ['player-subtitle',   subtitleDict.playerSubtitle],
       ['lyrics-subtitle',   subtitleDict.lyricsSubtitle],
       ['karaoke-subtitle',  subtitleDict.karaokeSubtitle],
+      ['remaster-subtitle', subtitleDict.remasterSubtitle],
       ['noise-subtitle',    subtitleDict.noiseSubtitle],
     ].forEach(([id, text]) => {
       const el = document.getElementById(id);

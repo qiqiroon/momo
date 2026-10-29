@@ -1,0 +1,47 @@
+MOMO Remaster — プログラム版 ⇔ 文書版 対応の目印
+（バージョン管理ルール v1.0 準拠。新しい版を公開する節目に書き換える）
+
+プログラム v0.01  ⇔  下の仕様書の版   2026-10-29
+  文書の置き場所（非公開・ローカル）: L:\momo\tools\remaster\spec\output\
+emaster\spec\output\
+    MOMO_Remaster_フェーズ1実装計画_v0_15.md
+    MOMO_Remaster_概要仕様書_v0_18.md
+    MOMO_Remaster_詳細仕様書_DSP仕様編_第1-3章_v0_06.md
+    MOMO_Remaster_詳細仕様書_DSP仕様編_第10-11章_v0_03.md
+    MOMO_Remaster_詳細仕様書_DSP仕様編_第12章_v0_05.md
+    MOMO_Remaster_詳細仕様書_DSP仕様編_第13章_v0_01.md
+    MOMO_Remaster_詳細仕様書_DSP仕様編_第14章_付録A-B_v0_04.md
+    MOMO_Remaster_詳細仕様書_DSP仕様編_第4-5章_v0_05.md
+    MOMO_Remaster_詳細仕様書_DSP仕様編_第6-7章_v0_01.md
+    MOMO_Remaster_詳細仕様書_DSP仕様編_第8章_v0_02.md
+    MOMO_Remaster_詳細仕様書_DSP仕様編_第9章_v0_02.md
+    MOMO_Remaster_詳細仕様書_UI設計編_付録A-1_v0_33.md
+    MOMO_Remaster_詳細仕様書_UI設計編_付録A-2_v0_13.md
+    MOMO_Remaster_詳細仕様書_UI設計編_付録A-3_v0_18.md
+    MOMO_Remaster_詳細仕様書_UI設計編_付録B_v0_56.md
+    MOMO_Remaster_詳細仕様書_UI設計編_付録C_v0_13.md
+    MOMO_Remaster_詳細仕様書_UI設計編_第1-3章_v0_15.md
+    MOMO_Remaster_詳細仕様書_UI設計編_第11章_v0_06.md
+    MOMO_Remaster_詳細仕様書_UI設計編_第4-5章_v0_24.md
+    MOMO_Remaster_詳細仕様書_UI設計編_第6章_v0_26.md
+    MOMO_Remaster_詳細仕様書_UI設計編_第7章_v0_45.md
+    MOMO_Remaster_詳細仕様書_UI設計編_第8章_v0_10.md
+    MOMO_Remaster_詳細仕様書_UI設計編_第9章_v0_16.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_付録B_v0_04.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_付録C_v0_11.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_付録D_v0_10.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_第1-4章_v0_18.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_第11章_v0_10.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_第12章_v0_10.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_第13章_v0_09.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_第14章_v0_07.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_第15章_v0_08.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_第16章_v0_19.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_第17-18章_v0_29.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_第5-6章_v0_18.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_第7-8章_v0_10.md
+    MOMO_Remaster_詳細仕様書_機能仕様編_第9-10章_v0_12.md
+    MOMO_Remaster_詳細仕様書_目次案_v0_29.md
+
+※ 以後の小修正で、仕様書と差がある可能性があります。
+※ 文書は公開リポジトリ(github/momo)には置かない。この versions.txt は版対応の目印のみ。

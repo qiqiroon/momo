@@ -1,8 +1,8 @@
 /*
  * MOMO Cosmos — ゲーム処理（物理・落下・合体・出現・ゲームオーバー）
  * DOM に触れない。描画と操作は render.js / input.js が担う。
- * 状態：TITLE / PLAY / PAUSE / GAMEOVER / BH_STANDBY / BH_BIRTH / BH / BH_SUPER / BH_SUPER_DONE
- *       BH_SUPER_DONE は M3（最終吸収）ができるまでの仮の終点
+ * 状態：TITLE / PLAY / PAUSE / GAMEOVER / BH_STANDBY / BH_BIRTH / BH / BH_SUPER
+ *       / FINAL_ABSORB / SILENCE / BIGBANG / ENDROLL（第12章・第13章。演出は ending.js）
  */
 (function (root) {
   'use strict';
@@ -17,6 +17,7 @@
       this.speed = 1;          // デバッグ用のゲーム速度
       this.forcedStage = 0;    // デバッグ：次に落とす段階を固定（0 = 固定しない）
       this.highScore = 0;
+      this.clearCount = 0;     // クリア回数（main.js が保存から読む）
       this._newGame();
     }
 
@@ -66,6 +67,11 @@
       this.bh = null;           // ブラックホール：{ x, y, r, growth, tier, pulse, from, spin }
       this.absorbing = [];      // 吸収の演出中：{ stage, x, y, angle, r, t }
       this.superT = 0;
+      this.endT = 0;            // エンディングの各状態に入ってからの秒
+      this.playTime = 0;        // 超巨大に達するまでのプレイ時間（秒）
+      this.rollSkippable = false;
+      this.rollDone = false;
+      this._ev = {};            // エンディングで一度だけ起こすことの済み印
     }
 
     _setState(st) { this.state = st; this.emit('state', st); }
@@ -74,7 +80,9 @@
     /** 落下操作を受け付ける状態（通常期と餌やり） */
     get controllable() { return this.state === 'PLAY' || this.state === 'BH'; }
     /** 時間が進む状態 */
-    get running() { return ['PLAY', 'BH_STANDBY', 'BH_BIRTH', 'BH', 'BH_SUPER'].includes(this.state); }
+    get running() { return ['PLAY', 'BH_STANDBY', 'BH_BIRTH', 'BH', 'BH_SUPER', 'FINAL_ABSORB', 'SILENCE', 'BIGBANG', 'ENDROLL'].includes(this.state); }
+    /** 最終吸収より後（物理を動かさない）。ENDROLL の後半も含む */
+    get afterAbsorb() { return ['SILENCE', 'BIGBANG', 'ENDROLL'].includes(this.state); }
     pause() { if (this.controllable) { this.resumeState = this.state; this._setState('PAUSE'); } }
     resume() { if (this.state === 'PAUSE') this._setState(this.resumeState); }
 
@@ -176,11 +184,12 @@
 
     _step(step) {
       const M = this.M;
+      if (this.afterAbsorb) { this._updateEnding(step); return; }
       this._pairs.length = 0;
       this._mergedThisStep = 0;
       // BH_BIRTH の最初は物理をスローにする（第11.1節）
       this.engine.timing.timeScale = (this.state === 'BH_BIRTH' && this.birth.t < this.C.bh.gatherSec) ? this.C.bh.slowScale : 1;
-      if (this.bh && (this.state === 'BH' || this.state === 'BH_SUPER')) this._suction();
+      if (this.bh && this._sucking) this._suction();
       M.Engine.update(this.engine, this.C.physics.stepMs);
       this.time += step;
       this._rollingResistance();
@@ -190,7 +199,10 @@
       else if (this.state === 'BH_STANDBY') this._updateStandby(step);
       else if (this.state === 'BH_BIRTH') this._updateBirth(step);
       if (this.bh) this._updateBH(step);
+      if (this.state === 'FINAL_ABSORB') this._updateFinal(step);
     }
+
+    get _sucking() { return this.state === 'BH' || this.state === 'BH_SUPER' || this.state === 'FINAL_ABSORB'; }
 
     // 接触中の天体だけ角速度を減らす（第7.2節 転がり抵抗）
     _rollingResistance() {
@@ -345,7 +357,7 @@
     _suction() {
       const BH = this.C.bh, h = this.bh, M = this.M;
       const g = this.engine.gravity.scale * this.engine.gravity.y;
-      const whole = this.state === 'BH_SUPER';
+      const whole = this.state === 'BH_SUPER' || this.state === 'FINAL_ABSORB';
       for (const b of this.bodies()) {
         const dx = h.x - b.position.x, dy = h.y - b.position.y;
         const d = Math.hypot(dx, dy) || 1e-6;
@@ -373,35 +385,83 @@
         h.y = h.from.y + (BH.home.y - h.from.y) * e;
       }
       // 吸収（第11.5節）
-      if (this.state === 'BH' || this.state === 'BH_SUPER') {
+      if (this._sucking) {
         for (const b of this.bodies()) {
           if (Math.hypot(h.x - b.position.x, h.y - b.position.y) >= h.r * BH.absorbR) continue;
-          const c = b.plugin.cosmos;
-          M.Composite.remove(this.engine.world, b);
-          this.absorbing.push({ stage: c.stage, x: b.position.x, y: b.position.y, angle: b.angle, r: b.circleRadius, t: 0 });
-          const add = c.stage * BH.absorbScorePerStage;
-          this.score += add;
-          h.pulse = 1;
-          if (this.state === 'BH') this._grow(c.stage * c.stage);
-          this.emit('absorb', { stage: c.stage, x: h.x, y: h.y, add });
+          this._absorb(b);
         }
         if (this.state === 'BH') this._grow(BH.growthPerSec * step);
       }
       for (const a of this.absorbing) a.t += step;
       this.absorbing = this.absorbing.filter(a => a.t < BH.absorbSec);
-      // 超巨大に到達（第11.8節）。M3 までは文字を見せてから仮の終点で止める
+      // 超巨大に到達（第11.8節）。文字を見せてから最終吸収へ
       if (this.state === 'BH' && h.growth >= BH.superGrowth) {
         this.superT = 0;
+        this.playTime = this.time;
         this._setState('BH_SUPER');
         this.emit('supermassive');
       } else if (this.state === 'BH_SUPER') {
         this.superT += step;
-        if (this.superT >= BH.superHoldSec) {
-          this._finishScore();
-          this._setState('BH_SUPER_DONE');
-          this.emit('superDone', { score: this.score, high: this.highScore, newRecord: this.newRecord });
-        }
+        if (this.superT >= BH.superHoldSec) this._enter('FINAL_ABSORB');
       }
+    }
+
+    _absorb(b) {
+      const h = this.bh, c = b.plugin.cosmos;
+      this.M.Composite.remove(this.engine.world, b);
+      this.absorbing.push({ stage: c.stage, x: b.position.x, y: b.position.y, angle: b.angle, r: b.circleRadius, t: 0 });
+      const add = c.stage * this.C.bh.absorbScorePerStage;
+      this.score += add;
+      h.pulse = 1;
+      if (this.state === 'BH') this._grow(c.stage * c.stage);
+      this.emit('absorb', { stage: c.stage, x: h.x, y: h.y, add });
+    }
+
+    // ---- エンディング（第12章・第13章） ------------------------------------
+    _enter(st) { this.endT = 0; this._ev = {}; this._setState(st); }
+
+    /** 時刻 at を初めて過ぎたときだけ true（一度だけ起こすこと） */
+    _once(key, at) {
+      if (this._ev[key] || this.endT < at) return false;
+      return (this._ev[key] = true);
+    }
+
+    // 最終吸収：残りの天体をすべて吸い込む。箱と UI のゆがみは ending.js が描く
+    _updateFinal(step) {
+      const E = this.C.ending;
+      this.endT += step;
+      if (this._once('walls', E.wallsAt[0])) {
+        // 盤面の箱も吸い込まれ始めるので、壁と床の当たり判定を外す
+        this.M.Composite.remove(this.engine.world, this.M.Composite.allBodies(this.engine.world).filter(b => b.isStatic));
+      }
+      if (this._once('sweep', E.sweepAt)) this.bodies().forEach(b => this._absorb(b));
+      E.pulseAt.forEach((t, i) => { if (this._once('pulse' + i, t)) { this.bh.pulse = 1; this.emit('bhPulse', i); } });
+      if (this.endT >= E.absorbSec && !this.absorbing.length) {
+        this._finishScore();
+        this.rollSkippable = this.clearCount > 0; // 一度クリアしたことがあればスキップできる（第3.2節）
+        this.clearCount++;
+        this.emit('clear', { count: this.clearCount, score: this.score, high: this.highScore, newRecord: this.newRecord, playTime: this.playTime });
+        this._enter('SILENCE');
+      }
+    }
+
+    _updateEnding(step) {
+      const E = this.C.ending;
+      this.endT += step;
+      if (this.bh) this.bh.spin += step;
+      if (this.state === 'SILENCE' && this.endT >= E.silenceSec) this._enter('BIGBANG');
+      else if (this.state === 'BIGBANG') {
+        if (this._once('flash', E.flashAt)) this.emit('bigbangFlash');
+        if (this.endT >= E.bigbangSec) this._enter('ENDROLL');
+      } else if (this.state === 'ENDROLL' && !this.rollDone && this.endT >= E.rollSec) {
+        this.rollDone = true;
+        this.emit('rollDone');
+      }
+    }
+
+    /** エンドロールを飛ばす（一度クリアしたことがあるときだけ。第3.2節） */
+    skipRoll() {
+      if (this.state === 'ENDROLL' && this.rollSkippable && !this.rollDone) this.endT = this.C.ending.rollSec;
     }
 
     // ---- ゲームオーバー（第10章） -----------------------------------------
@@ -450,6 +510,12 @@
 
     /** 成長値を足す（デバッグ） */
     debugGrow(v) { if (this.bh && this.state === 'BH') this._grow(v); }
+
+    /** 超巨大まで一気に育てる（エンディングの確認用） */
+    debugToEnding() {
+      if (this.state === 'PLAY') this.debugToBH();
+      if (this.state === 'BH') this._grow(this.C.bh.superGrowth - this.bh.growth);
+    }
   }
 
   root.CosmosGame = CosmosGame;

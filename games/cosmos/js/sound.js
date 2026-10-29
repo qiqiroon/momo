@@ -1,7 +1,7 @@
 /*
  * MOMO Cosmos — 音（仕様書 第16章）
  * BGM は共通の assets/bgm/ から目録（manifest.json）を読んで選ぶ。曲の性格ごとのフォルダ：
- *   lobby（タイトル・全アプリ共通）／game-cosmos（通常期とブラックホール期）／ending-cosmos（M3 のエンディング）
+ *   lobby（タイトル・全アプリ共通）／game-cosmos（通常期とブラックホール期）／ending-cosmos（エンディング）
  * 音量は Web Audio の GainNode でかける（iPhone は audio 要素の volume が効かないため）。
  * 効果音は M5 の残り（素材の試聴待ち）。
  */
@@ -16,6 +16,8 @@
     constructor(getSet) {
       this.getSet = getSet;
       this.ac = null; this.bgmGain = null;
+      this.sceneGain = null;     // 場面の音量（最終吸収でだんだん小さくする。第12.1節）。利用者の音量とは別
+      this.sceneLevel = 1;
       this.pool = null;          // 目録：{ フォルダ名: [ファイル名…] }
       this.folder = null;        // 鳴らしたいフォルダ
       this.cur = null;           // 鳴っている曲：{ el, gain, folder, file }
@@ -39,6 +41,9 @@
         this.ac = new AC();
         this.bgmGain = this.ac.createGain();
         this.bgmGain.connect(this.ac.destination);
+        this.sceneGain = this.ac.createGain();
+        this.sceneGain.gain.value = this.sceneLevel;
+        this.sceneGain.connect(this.bgmGain);
         this.applyGain(true);
       }
       this.resume();   // 1時間以上離れて戻ったとき：止めていた曲もここで再開する
@@ -54,7 +59,17 @@
       this.bgmGain.gain.setTargetAtTime(v, this.ac.currentTime, now ? 0.001 : 0.03);
     }
 
-    /** 場面に合わせて鳴らすフォルダを選ぶ（同じなら何もしない） */
+    /** 場面の音量を sec 秒かけて v（0〜1）にする */
+    scene(v, sec) {
+      this.sceneLevel = v;
+      if (!this.ac) return;
+      const g = this.sceneGain.gain, now = this.ac.currentTime;
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(g.value, now);
+      if (sec > 0) g.linearRampToValueAtTime(v, now + sec); else g.setValueAtTime(v, now);
+    }
+
+    /** 場面に合わせて鳴らすフォルダを選ぶ（同じなら何もしない。null で止める） */
     setFolder(folder) {
       if (folder === this.folder) return;
       this.folder = folder;
@@ -92,7 +107,7 @@
       el.preload = 'auto';
       const src = this.ac.createMediaElementSource(el), g = this.ac.createGain();
       g.gain.value = 0;
-      src.connect(g).connect(this.bgmGain);
+      src.connect(g).connect(this.sceneGain);
       g.gain.setTargetAtTime(1, this.ac.currentTime, FADE_SEC / 3);
       const track = { el, gain: g, folder, file };
       // 曲が終わったら同じフォルダの別の曲へ

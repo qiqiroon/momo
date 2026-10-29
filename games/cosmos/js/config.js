@@ -6,7 +6,7 @@
   'use strict';
 
   const CONFIG = {
-    version: 'v0.05', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
+    version: 'v0.06', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
 
     // 第4章 盤面（論理座標）
     board: { width: 600, height: 900, dropY: 90, deadlineY: 150, wallThickness: 200 },
@@ -56,7 +56,26 @@
       growthPerSec: 1,       // 止まらないよう1秒ごとに足す
       superGrowth: 600,      // 超巨大
       absorbScorePerStage: 20,
-      superHoldSec: 2.5      // 「SUPERMASSIVE BLACK HOLE」を見せてから次へ（M3 までは仮の画面）
+      superHoldSec: 2.5      // 「SUPERMASSIVE BLACK HOLE」を見せてから最終吸収へ
+    },
+
+    // 第12章・第13章 エンディング（時刻は各状態の開始からの秒）
+    ending: {
+      absorbSec: 7.0,        // FINAL_ABSORB 全体
+      wallsAt: [1.0, 3.5],   // 盤面の箱（地・壁・床）を吸い込む時間帯
+      hudAt: [2.5, 5.0],     // 情報ヘッダー・成長ゲージ・一時停止ボタンを吸い込む時間帯
+      sweepAt: 5.0,          // 吸い残しの天体をまとめて吸い込む
+      pulseAt: [5.2, 6.2],   // ブラックホールの最後の脈動
+      bgmFadeSec: 6.5,       // BGM を徐々に小さくする長さ
+      cellPx: 16,            // ゆがませる格子の一辺（画面の px）
+      silenceSec: 3.0,       // SILENCE
+      bigbangSec: 10.0,      // BIGBANG 全体
+      collapseSec: 0.8,      // 収縮して点になる
+      flashAt: 1.3, flashSec: 0.3, // 白い閃光（光過敏に配慮して短く1回）
+      formAt: 4.0,           // 星・星雲・銀河の形成
+      expandAt: 8.0,         // 宇宙の膨張へ
+      rollSec: 80,           // エンドロール（60〜90秒。曲は約3分20秒あるので途中まで。2026-10-30 作者の回答 Q2=A）
+      bgAlpha: 0.3           // エンドロールの背景画像の濃さ（第13.1節）
     },
 
     // 第6.3節 出現テーブル：到達した最高段階 → 出現範囲 [下限, 上限]

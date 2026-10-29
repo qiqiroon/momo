@@ -1,6 +1,7 @@
 /*
  * MOMO Cosmos — 起動と画面の切り替え
  * M1 後半：共通の画面の枠（タイトル画面・右上の歯車と言語・設定パネル・クレジット・4言語）
+ * M3：エンディング（最終吸収・静寂・ビッグバン・エンドロール。演出は ending.js）
  */
 (function () {
   'use strict';
@@ -25,12 +26,14 @@
 
     const game = new CosmosGame(C, Matter);
     game.highScore = Number(store.get(C.storageKeys.highScore, 0)) || 0;
+    game.clearCount = Number(store.get(C.storageKeys.clearCount, 0)) || 0;
     const board = new CosmosRender.BoardRenderer($('board'), game, sprites, C);
     const stars = new CosmosRender.StarField($('bg'), C);
+    const ending = new CosmosEnding($('fx'), game, board, $('board'), sprites, C);
 
     // ---- 画面（オーバーレイ） ----
     // タイトル画面は全面（#home）、それ以外は盤面の中央に出す
-    const overlays = ['pausePanel', 'gameOverPanel', 'bhPanel', 'confirmPanel'];
+    const overlays = ['pausePanel', 'gameOverPanel', 'confirmPanel'];
     function show(id) {
       document.body.classList.toggle('at-title', id === 'title');
       overlays.forEach(o => { $(o).hidden = o !== id; });
@@ -38,6 +41,8 @@
 
     function refreshTitle() {
       $('titleHigh').textContent = game.highScore.toLocaleString();
+      $('titleClear').hidden = !game.clearCount;     // クリアの印（第13.3節）
+      $('titleClearN').textContent = game.clearCount;
     }
 
     let confirmAction = null, confirmKey = '';
@@ -64,8 +69,6 @@
     $('titleBtn').onclick = () => confirm('confirmTitle', toTitle);
     $('retryBtn').onclick = startGame;
     $('goTitleBtn').onclick = toTitle;
-    $('bhRetryBtn').onclick = startGame;
-    $('bhTitleBtn').onclick = toTitle;
 
     game.on('highScore', v => store.set(C.storageKeys.highScore, v));
     let goMaxStage = 1;
@@ -77,12 +80,50 @@
       $('goRecord').hidden = !e.newRecord;
       show('gameOverPanel');
     });
-    game.on('superDone', e => {
-      $('bhScore').textContent = e.score.toLocaleString();
-      $('bhHigh').textContent = e.high.toLocaleString();
-      $('bhRecord').hidden = !e.newRecord;
-      show('bhPanel');
+
+    // ---- エンディング（第12章・第13章） ----
+    const fmtTime = sec => { sec = Math.round(sec); const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s2 = String(sec % 60).padStart(2, '0');
+      return h ? h + ':' + String(m).padStart(2, '0') + ':' + s2 : m + ':' + s2; };
+    game.on('clear', e => {
+      store.set(C.storageKeys.clearCount, e.count);
+      $('endScore').textContent = e.score.toLocaleString();
+      $('endTime').textContent = fmtTime(e.playTime);
+      $('endClears').textContent = e.count;
+      $('endRecord').hidden = !e.newRecord;
     });
+    game.on('state', st => {
+      const B = document.body;
+      if (st === 'FINAL_ABSORB') {
+        // 情報ヘッダーと一時停止ボタンを Canvas に描き写してから隠す。盤面の箱も ending.js が描く
+        ending.reset();
+        ending.capture([$('hud'), $('pauseBar')]);
+        board.bare = true;
+        B.classList.add('ui-gone');
+      } else if (st === 'BIGBANG') {
+        closeModals();
+        B.classList.add('bare');
+      } else if (st === 'ENDROLL') {
+        B.classList.add('rolling');
+        $('rollEnd').hidden = true;
+        $('rollHint').hidden = !game.rollSkippable;
+      } else if (st === 'TITLE' || st === 'PLAY') {
+        B.classList.remove('ui-gone', 'bare', 'rolling');
+        ending.reset();
+      }
+    });
+    game.on('rollDone', () => { $('rollEnd').hidden = false; $('rollHint').hidden = true; });
+    // エンドロールのタップ：流れている間はスキップ（2回目のクリアから）、終わったらタイトルへ
+    function tapRoll() {
+      if (game.state !== 'ENDROLL') return;
+      if (game.rollDone) toTitle(); else game.skipRoll();
+    }
+    $('endroll').addEventListener('click', tapRoll);
+    document.addEventListener('keydown', e => { if (game.state === 'ENDROLL' && /^(Enter| |Escape)$/.test(e.key)) { e.preventDefault(); tapRoll(); } });
+    // クレジットを下から上へ流す（終わる少し前に流し終える）
+    function scrollRoll() {
+      const el = $('rollText'), H = innerHeight, k = Math.min(1, game.endT / (C.ending.rollSec * 0.94));
+      el.style.transform = 'translateY(' + (H - (H + el.offsetHeight) * k).toFixed(1) + 'px)';
+    }
 
     // ページが隠れたら自動で一時停止（第3.1節）
     document.addEventListener('visibilitychange', () => {
@@ -144,7 +185,7 @@
     // 音を出す操作（START・もう一度・再開）の最初のクリックを止めてパネルを出す
     document.addEventListener('click', e => {
       if (audioAsked) return;
-      const b = e.target.closest && e.target.closest('#startBtn, #retryBtn, #bhRetryBtn, #resumeBtn');
+      const b = e.target.closest && e.target.closest('#startBtn, #retryBtn, #resumeBtn');
       if (!b) return;
       e.preventDefault(); e.stopImmediatePropagation();
       pendingAct = () => b.click();
@@ -152,12 +193,19 @@
       $('musicModal').classList.add('show');
     }, true);
     // 場面ごとの BGM（ブラックホール期も通常の曲。2026-10-29 作者の回答）
+    // 最終吸収で徐々に小さくし、静寂とビッグバンは無音。エンディングの曲はエンドロールの始まりから鳴らす（2026-10-30 作者の回答 Q1=B）
     function bgmForState(st) {
       if (st === 'TITLE') return 'lobby';
-      if (st === 'GAMEOVER' || st === 'BH_SUPER_DONE') return sound.folder; // そのまま流す
+      if (st === 'GAMEOVER' || st === 'FINAL_ABSORB') return sound.folder; // そのまま流す
+      if (st === 'ENDROLL') return 'ending-cosmos';
+      if (st === 'SILENCE' || st === 'BIGBANG') return null;
       return 'game-cosmos';
     }
-    game.on('state', st => sound.setFolder(bgmForState(st)));
+    game.on('state', st => {
+      if (st === 'TITLE' || st === 'PLAY' || st === 'ENDROLL') sound.scene(1, 0);
+      if (st === 'FINAL_ABSORB') sound.scene(0, C.ending.bgmFadeSec);
+      sound.setFolder(bgmForState(st));
+    });
     sound.setFolder('lobby');
 
     // ページが隠れたら音を止める。1時間以上たって戻ったら、次の操作でもう一度聞く（第16.3節）
@@ -219,6 +267,7 @@
       $('boardFrame').style.width = w + 'px';
       $('boardFrame').style.height = h + 'px';
       stars.resize();
+      ending.resize();
       updateHud(true);
     }
     function applyOrientation() {
@@ -240,6 +289,8 @@
       game.update(dt);
       stars.draw(now / 1000, reducedMotion);
       board.draw();
+      ending.draw(game.running ? dt * game.speed : 0);
+      if (game.state === 'ENDROLL') scrollRoll();
       updateHud(false);
       if (DEBUG) { fpsAcc += dt; fpsN++; if (fpsAcc > 0.5) { debugInfo(game, fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; } }
       requestAnimationFrame(frame);
@@ -275,6 +326,7 @@
     });
     $('dbgToBH').onclick = () => game.debugToBH();
     $('dbgGrow').onclick = () => game.debugGrow(100);
+    $('dbgToEnd').onclick = () => game.debugToEnding();
   }
   function debugInfo(game, fps) {
     const [lo, hi] = game.spawnRange();

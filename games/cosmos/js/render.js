@@ -57,6 +57,27 @@
     ctx.restore();
   }
 
+  // ---- 盤面の箱（地・壁・床）。最終吸収で ending.js も同じ絵を描き写す ----------
+  function drawGround(ctx, C) {
+    const B = C.board, grad = ctx.createLinearGradient(0, 0, 0, B.height);
+    grad.addColorStop(0, 'rgba(14,16,34,0.55)');
+    grad.addColorStop(1, 'rgba(6,6,14,0.78)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, B.width, B.height);
+  }
+  function drawWalls(ctx, C) {
+    const B = C.board;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(251,146,60,0.75)';
+    ctx.shadowColor = 'rgba(251,146,60,0.9)';
+    ctx.shadowBlur = 12;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(1.5, 0); ctx.lineTo(1.5, B.height - 1.5); ctx.lineTo(B.width - 1.5, B.height - 1.5); ctx.lineTo(B.width - 1.5, 0);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // ---- 盤面 ----------------------------------------------------------------
   class BoardRenderer {
     constructor(canvas, game, sprites, C) {
@@ -68,6 +89,7 @@
       this.t = k => k;           // 文言（main.js が言語の関数に差し替える）
       this.banner = null;        // 演出の文字：{ main, subKey, t0, dur }
       this.flash = null;         // 白い閃光：{ t0, dur }
+      this.bare = false;         // 最終吸収から：箱は ending.js が描くので、ここでは描かない
       game.on('merge', e => this._onMerge(e));
       game.on('bhAppear', e => {
         const now = performance.now() / 1000;
@@ -86,7 +108,11 @@
         this.banner = { main: 'SUPERMASSIVE BLACK HOLE', subKey: 'bhSuperSub', t0: performance.now() / 1000, dur: 99 };
         this.shake = Math.max(this.shake, 12);
       });
-      game.on('state', st => { if (st === 'PLAY' || st === 'TITLE') { this.banner = null; this.flash = null; } });
+      game.on('state', st => {
+        if (st === 'PLAY' || st === 'TITLE') { this.banner = null; this.flash = null; this.bare = false; }
+        // 最終吸収に入ったら「SUPERMASSIVE BLACK HOLE」を 0.6 秒で消す
+        if (st === 'FINAL_ABSORB' && this.banner) this.banner.dur = performance.now() / 1000 - this.banner.t0 + 0.6;
+      });
     }
 
     resize(cssW, cssH) {
@@ -117,11 +143,7 @@
       ctx.setTransform(this.scale, 0, 0, this.scale, sx * this.scale, sy * this.scale);
 
       // 盤面の地（背景の星が少し透ける）
-      const grad = ctx.createLinearGradient(0, 0, 0, B.height);
-      grad.addColorStop(0, 'rgba(14,16,34,0.55)');
-      grad.addColorStop(1, 'rgba(6,6,14,0.78)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, B.width, B.height);
+      if (!this.bare) drawGround(ctx, C);
 
       // デッドライン（警告中は赤く点滅）。ブラックホールが生まれたら消す
       if (!g.bh) {
@@ -214,15 +236,7 @@
       ctx.restore();
 
       // 壁と床（細い光の線）
-      ctx.save();
-      ctx.strokeStyle = 'rgba(251,146,60,0.75)';
-      ctx.shadowColor = 'rgba(251,146,60,0.9)';
-      ctx.shadowBlur = 12;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(1.5, 0); ctx.lineTo(1.5, B.height - 1.5); ctx.lineTo(B.width - 1.5, B.height - 1.5); ctx.lineTo(B.width - 1.5, 0);
-      ctx.stroke();
-      ctx.restore();
+      if (!this.bare) drawWalls(ctx, C);
 
       // 白い閃光（光過敏に配慮して短く1回。第11.1節 2）
       if (this.flash) {
@@ -342,5 +356,5 @@
     }
   }
 
-  root.CosmosRender = { loadSprites, drawBody, BoardRenderer, StarField };
+  root.CosmosRender = { loadSprites, drawBody, drawGround, drawWalls, BoardRenderer, StarField };
 })(window);

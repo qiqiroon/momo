@@ -28,7 +28,7 @@
       return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
     }
 
-    _playable() { return this.g.state === 'PLAY' && this.enabled(); }
+    _playable() { return this.g.controllable && this.enabled(); }
 
     _bind() {
       const cv = this.cv, I = this.C.input;

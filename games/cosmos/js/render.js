@@ -23,11 +23,17 @@
   }
 
   // ---- 天体1個の描画（共通） ------------------------------------------------
-  function drawBody(ctx, sprites, C, stage, x, y, r, angle, alpha) {
+  function drawBody(ctx, sprites, C, stage, x, y, r, angle, alpha, squash) {
     const st = C.stages[stage];
     const sp = sprites[st.spriteKey];
     ctx.save();
     ctx.translate(x, y);
+    if (squash && squash.sq) {
+      // ぶつかった向きに縮め、直角の向きにふくらませる（やわらかさの見た目）
+      ctx.rotate(squash.sqAng);
+      ctx.scale(1 - squash.sq, 1 + squash.sq * C.squash.bulge);
+      ctx.rotate(-squash.sqAng);
+    }
     if (C.render.rotateSprites && angle) ctx.rotate(angle);
     if (alpha != null) ctx.globalAlpha = alpha;
     if (sp) {
@@ -59,7 +65,28 @@
       this.fx = []; this.popups = []; this.shake = 0;
       this.aimVisible = false;
       this.scale = 1;
+      this.t = k => k;           // 文言（main.js が言語の関数に差し替える）
+      this.banner = null;        // 演出の文字：{ main, subKey, t0, dur }
+      this.flash = null;         // 白い閃光：{ t0, dur }
       game.on('merge', e => this._onMerge(e));
+      game.on('bhAppear', e => {
+        const now = performance.now() / 1000;
+        this.flash = { t0: now, dur: C.bh.flashSec };
+        this.shake = Math.max(this.shake, 16);
+        this.banner = { main: 'BLACK HOLE', subKey: 'bhBornSub', t0: now, dur: 3.2 };
+        this.popups.push({ x: e.x, y: e.y, text: '+' + e.add.toLocaleString(), t0: now, dur: 1.6 });
+      });
+      game.on('absorb', e => {
+        const now = performance.now() / 1000;
+        this.fx.push({ x: e.x, y: e.y, r: game.bh.r * 1.5, t0: now, dur: 0.45, key: 'fx_absorb' });
+        this.popups.push({ x: e.x + (Math.random() - 0.5) * 60, y: e.y - game.bh.r, text: '+' + e.add, t0: now, dur: 0.9 });
+      });
+      game.on('bhTier', () => { this.shake = Math.max(this.shake, 8); });
+      game.on('supermassive', () => {
+        this.banner = { main: 'SUPERMASSIVE BLACK HOLE', subKey: 'bhSuperSub', t0: performance.now() / 1000, dur: 99 };
+        this.shake = Math.max(this.shake, 12);
+      });
+      game.on('state', st => { if (st === 'PLAY' || st === 'TITLE') { this.banner = null; this.flash = null; } });
     }
 
     resize(cssW, cssH) {
@@ -96,7 +123,8 @@
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, B.width, B.height);
 
-      // デッドライン（警告中は赤く点滅）
+      // デッドライン（警告中は赤く点滅）。ブラックホールが生まれたら消す
+      if (!g.bh) {
       ctx.save();
       ctx.setLineDash([10, 10]);
       ctx.lineWidth = 2;
@@ -106,9 +134,25 @@
       } else ctx.strokeStyle = 'rgba(251,146,60,0.35)';
       ctx.beginPath(); ctx.moveTo(0, B.deadlineY); ctx.lineTo(B.width, B.deadlineY); ctx.stroke();
       ctx.restore();
+      }
+
+      // 誕生：待機中の2個に光を集める（第11.1節 1）
+      if (g.state === 'BH_BIRTH' && g.birth && !g.bh) {
+        const k = Math.min(1, g.birth.t / C.bh.appearAt);
+        const rr = 60 + 220 * k;
+        const gl = ctx.createRadialGradient(g.birth.x, g.birth.y, 0, g.birth.x, g.birth.y, rr);
+        gl.addColorStop(0, 'rgba(255,255,255,' + (0.25 + 0.6 * k).toFixed(3) + ')');
+        gl.addColorStop(0.4, 'rgba(165,243,252,' + (0.25 * k).toFixed(3) + ')');
+        gl.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gl;
+        ctx.fillRect(g.birth.x - rr, g.birth.y - rr, rr * 2, rr * 2); ctx.restore();
+      }
+
+      // ブラックホール本体（天体より奥に描く。天体は手前を通り抜けて吸い込まれる）
+      if (g.bh) this._drawBH(ctx, g.bh, now);
 
       // 照準
-      if (g.state === 'PLAY' && this.aimVisible) {
+      if (g.controllable && this.aimVisible) {
         const stg = g.nextStage, r = C.stages[stg].radius, x = g.clampX(g.aimX, stg);
         ctx.save();
         ctx.strokeStyle = 'rgba(229,229,229,0.28)';
@@ -121,13 +165,26 @@
 
       // 天体
       for (const b of g.bodies()) {
-        drawBody(ctx, this.sprites, C, b.plugin.cosmos.stage, b.position.x, b.position.y, b.circleRadius, b.angle);
+        drawBody(ctx, this.sprites, C, b.plugin.cosmos.stage, b.position.x, b.position.y, b.circleRadius, b.angle, null, b.plugin.cosmos);
       }
 
-      // 合体の光
-      const fxs = this.sprites.fx_merge;
+      // 吸い込まれていく天体（第11.5節：引き伸ばされながら縮み、0.3秒で消える）
+      if (g.bh) {
+        for (const a of g.absorbing) {
+          const k = Math.min(1, a.t / C.bh.absorbSec), e = k * k;
+          const x = a.x + (g.bh.x - a.x) * e, y = a.y + (g.bh.y - a.y) * e;
+          const dir = Math.atan2(g.bh.y - a.y, g.bh.x - a.x), sc = 1 - k;
+          ctx.save();
+          ctx.translate(x, y); ctx.rotate(dir); ctx.scale(sc * (1 + 1.6 * k), sc * (1 - 0.5 * k)); ctx.rotate(-dir);
+          drawBody(ctx, this.sprites, C, a.stage, 0, 0, a.r, a.angle, 1 - 0.4 * k);
+          ctx.restore();
+        }
+      }
+
+      // 合体・吸収の光
       this.fx = this.fx.filter(f => now - f.t0 < f.dur);
       for (const f of this.fx) {
+        const fxs = this.sprites[f.key || 'fx_merge'];
         const k = (now - f.t0) / f.dur;
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
@@ -165,6 +222,75 @@
       ctx.beginPath();
       ctx.moveTo(1.5, 0); ctx.lineTo(1.5, B.height - 1.5); ctx.lineTo(B.width - 1.5, B.height - 1.5); ctx.lineTo(B.width - 1.5, 0);
       ctx.stroke();
+      ctx.restore();
+
+      // 白い閃光（光過敏に配慮して短く1回。第11.1節 2）
+      if (this.flash) {
+        const k = (now - this.flash.t0) / this.flash.dur;
+        if (k >= 1) this.flash = null;
+        else { ctx.save(); ctx.fillStyle = 'rgba(255,255,255,' + (0.85 * (1 - k)).toFixed(3) + ')'; ctx.fillRect(0, 0, B.width, B.height); ctx.restore(); }
+      }
+
+      // 演出の文字（英語のまま。下に表示言語の小さな訳。第24.5節）
+      if (this.banner) {
+        const bn = this.banner, k = (now - bn.t0) / bn.dur;
+        if (k >= 1) this.banner = null;
+        else {
+          const el = now - bn.t0, a = Math.min(1, el / 0.4) * Math.min(1, (bn.dur - el) / 0.6);
+          const y = B.height * 0.22;
+          ctx.save();
+          ctx.globalAlpha = a;
+          ctx.textAlign = 'center';
+          const big = bn.main.length > 12 ? 40 : 58;
+          ctx.font = big + 'px "Fredoka One", sans-serif';
+          ctx.shadowColor = 'rgba(168,85,247,0.9)'; ctx.shadowBlur = 24;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(bn.main, B.width / 2, y);
+          const sub = this.t(bn.subKey);
+          if (sub) {
+            ctx.shadowBlur = 8;
+            ctx.font = '20px "Noto Sans JP", "Noto Sans SC", sans-serif';
+            ctx.fillStyle = '#fb923c';
+            ctx.fillText(sub, B.width / 2, y + 34);
+          }
+          ctx.restore();
+        }
+      }
+    }
+
+    // ブラックホール：周りの光（重力エフェクト）・渦・本体の絵（第11.1節・第11.6節）
+    _drawBH(ctx, h, now) {
+      const r = h.r * (1 + 0.08 * h.pulse);
+      const power = 0.55 + 0.15 * h.tier;   // 成長段階が上がるほど強く
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      // 吸い込みの範囲をぼんやり見せる
+      const halo = ctx.createRadialGradient(h.x, h.y, r * 0.8, h.x, h.y, r * 3.2);
+      halo.addColorStop(0, 'rgba(168,85,247,' + (0.32 * power).toFixed(3) + ')');
+      halo.addColorStop(0.45, 'rgba(234,88,12,' + (0.12 * power).toFixed(3) + ')');
+      halo.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = halo;
+      ctx.fillRect(h.x - r * 3.2, h.y - r * 3.2, r * 6.4, r * 6.4);
+      // 渦（ゆっくり回る光の弧）
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 6; i++) {
+        const a0 = h.spin * (0.9 + 0.15 * i) + i * Math.PI / 3;
+        const rr = r * (1.25 + 0.28 * i);
+        ctx.strokeStyle = i % 2 ? 'rgba(251,146,60,' + (0.22 * power).toFixed(3) + ')' : 'rgba(196,181,253,' + (0.26 * power).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1.5, r * 0.05);
+        ctx.beginPath(); ctx.arc(h.x, h.y, rr, a0, a0 + 1.1); ctx.stroke();
+      }
+      ctx.restore();
+      // 本体の絵（中心の黒い円が Rb になるよう合わせる）。絵がなければ黒い円
+      const sp = this.sprites.blackhole;
+      ctx.save();
+      if (sp && sp.meta.coreRadiusPx) {
+        const m = sp.meta, s = r / m.coreRadiusPx;
+        ctx.drawImage(sp.img, h.x - m.centerX * s, h.y - m.centerY * s, m.width * s, m.height * s);
+      } else {
+        ctx.fillStyle = '#000'; ctx.strokeStyle = 'rgba(251,146,60,0.8)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(h.x, h.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
       ctx.restore();
     }
 

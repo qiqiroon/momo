@@ -6,19 +6,22 @@
   'use strict';
 
   const CONFIG = {
-    version: 'v0.02', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
+    version: 'v0.03', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
 
     // 第4章 盤面（論理座標）
     board: { width: 600, height: 900, dropY: 90, deadlineY: 150, wallThickness: 200 },
 
     // 第5章 天体進化表（spriteKey は assets/img/manifest.json のキー）
+    // 並びは本当の大きさ（平均半径）の順。月 1,737 km < 水星 2,440 < 火星 3,390 < 金星 6,052 < 地球 6,371
+    //   < 海王星 24,622 < 天王星 25,362 < 土星 58,232 < 木星 69,911 < 太陽 695,700。太陽より上は順を問わない
+    //   （2026-10-29 作者の指示で地球と水星を入れ替えた。半径とスコアは段階ごとのまま）
     stages: [
       null,
       { name: '月',         spriteKey: 'moon',        radius: 20,  score: 0,   color: '#bdbdbd' },
-      { name: '地球',       spriteKey: 'earth',       radius: 24,  score: 30,  color: '#3b82f6' },
+      { name: '水星',       spriteKey: 'mercury',     radius: 24,  score: 30,  color: '#9ca3af' },
       { name: '火星',       spriteKey: 'mars',        radius: 29,  score: 60,  color: '#dc6b3a' },
       { name: '金星',       spriteKey: 'venus',       radius: 35,  score: 100, color: '#e8c27a' },
-      { name: '水星',       spriteKey: 'mercury',     radius: 41,  score: 150, color: '#9ca3af' },
+      { name: '地球',       spriteKey: 'earth',       radius: 41,  score: 150, color: '#3b82f6' },
       { name: '海王星',     spriteKey: 'neptune',     radius: 50,  score: 210, color: '#2563eb' },
       { name: '天王星',     spriteKey: 'uranus',      radius: 60,  score: 280, color: '#7dd3fc' },
       { name: '土星',       spriteKey: 'saturn',      radius: 72,  score: 360, color: '#d6b47a' },
@@ -28,7 +31,33 @@
       { name: '中性子星',   spriteKey: 'neutronstar', radius: 149, score: 780, color: '#a5f3fc' },
       { name: 'ブラックホール', spriteKey: 'blackhole', radius: 36, score: 10000, color: '#000000' }
     ],
-    maxMergeStage: 12, // 中性子星どうしはブラックホール誕生へ（M2）
+    maxMergeStage: 12, // 中性子星どうしはブラックホール誕生へ（第11章）
+
+    // 第8.1節・第11章 ブラックホール
+    bh: {
+      standbyMaxSec: 3,      // BH_STANDBY の最長
+      stableSec: 0.5,        // 「全天体の速さが stableSpeed 未満」がこの時間続いたら安定
+      stableSpeed: 0.5,      // px/step
+      birthSec: 3.0,         // BH_BIRTH 全体
+      gatherSec: 0.5,        // 光を集め、物理をスローにする時間
+      slowScale: 0.3,        // スローの倍率
+      appearAt: 0.6,         // 閃光ののち出現する時刻（誕生開始から）
+      flashSec: 0.35,        // 白い閃光の長さ（光過敏に配慮して短く1回）
+      home: { x: 300, y: 520 }, // 出現後に移る位置
+      // 成長値 → 本体半径 Rb（間は直線でつなぎ、急に変えない。第11.6節）
+      sizeCurve: [[0, 50], [100, 70], [300, 95], [600, 130]],
+      tierAt: [0, 100, 300, 600], // 小型・中型・大型・超巨大の始まり
+      absorbR: 0.6,          // Rb × 0.6 未満で吸収
+      nearR: 2.5, nearG: 3,  // 近距離：Rb × 2.5 まで、重力の3倍
+      farR: 8, farGmax: 1.5, farGmin: 1.2, // 中距離：Rb × 8 まで、重力の1.5→1.2倍（距離で減衰）。仕様書は Rb×5・1→0.5倍。
+                             // 重力に勝てず床に落ちて吸われないため強めた（2026-10-29 作者の回答 B）
+      swirl: 0.2,            // 回る向きの成分（全体の約20%）
+      absorbSec: 0.3,        // 吸収の演出
+      growthPerSec: 1,       // 止まらないよう1秒ごとに足す
+      superGrowth: 600,      // 超巨大
+      absorbScorePerStage: 20,
+      superHoldSec: 2.5      // 「SUPERMASSIVE BLACK HOLE」を見せてから次へ（M3 までは仮の画面）
+    },
 
     // 第6.3節 出現テーブル：到達した最高段階 → 出現範囲 [下限, 上限]
     spawnTable: [
@@ -52,17 +81,28 @@
     // 第7.2節 物理
     physics: {
       gravityY: 1,
-      restitution: 0.2,
-      friction: 0.3,
-      frictionStatic: 0.4,
+      // ゴムボールのような手触り（2026-10-29 作者の要望）：少し弾み、表面がよく噛んで押されると回る
+      restitution: 0.7,       // 仕様書の初期値 0.2。0.35 → 0.7（2026-10-29 作者「弾みを今の倍くらい」）
+      friction: 0.6,          // 0.3。噛みを強くして、押された勢いで回るようにする
+      frictionStatic: 0.5,    // 0.4
+      floorRestitution: 0,    // 底板に当たったときは弾まない（2026-10-29 作者の指示）。天体どうし・左右の壁は restitution
       frictionAir: 0.01,
       density: 0.001,
-      rollingDamping: 0.97,
+      rollingDamping: 0.99,   // 0.97。回転を長く残す（1 に近いほど回り続ける）
       positionIterations: 10,
       velocityIterations: 8,
       stepMs: 1000 / 60,
       maxStepsPerFrame: 8,
       mergeBounceVy: -2.5 // 合体後に加える上向きの速度（px/step）
+    },
+
+    // やわらかさ（見た目だけ。当たり判定は円のまま）。ぶつかった向きに縮み、ばねで戻る
+    squash: {
+      gain: 0.0036,    // ぶつかる速さ（px/step）1 あたりの縮み。0.018 → 1/5（2026-10-29 作者「やわらかさを5分の1」）
+      max: 0.04,       // 縮みの上限（半径に対する割合）。0.2 → 1/5
+      stiffness: 0.25, // ばねの強さ（大きいほど速く戻る）
+      damping: 0.78,   // 揺れの残り方（小さいほどすぐ収まる）
+      bulge: 0.6       // 縮んだ分の横へのふくらみ
     },
 
     // 第10章 ゲームオーバー

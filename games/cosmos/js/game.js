@@ -1,7 +1,8 @@
 /*
  * MOMO Cosmos — ゲーム処理（物理・落下・合体・出現・ゲームオーバー）
  * DOM に触れない。描画と操作は render.js / input.js が担う。
- * 状態：TITLE / PLAY / PAUSE / GAMEOVER / BH_PENDING（M2 で BH_STANDBY 以降に置き換える）
+ * 状態：TITLE / PLAY / PAUSE / GAMEOVER / BH_STANDBY / BH_BIRTH / BH / BH_SUPER / BH_SUPER_DONE
+ *       BH_SUPER_DONE は M3（最終吸収）ができるまでの仮の終点
  */
 (function (root) {
   'use strict';
@@ -36,11 +37,15 @@
       M.Composite.add(this.engine.world, [
         M.Bodies.rectangle(-t / 2, H / 2 - H, t, H * 3, opt),          // 左（上に高く伸ばす）
         M.Bodies.rectangle(W + t / 2, H / 2 - H, t, H * 3, opt),       // 右
-        M.Bodies.rectangle(W / 2, H + t / 2, W + t * 2, t, opt)        // 床
+        M.Bodies.rectangle(W / 2, H + t / 2, W + t * 2, t, Object.assign({}, opt, { label: 'floor' })) // 床
       ]);
       this._pairs = [];
       const collect = ev => { for (const p of ev.pairs) this._pairs.push(p); };
-      M.Events.on(this.engine, 'collisionStart', collect);
+      M.Events.on(this.engine, 'collisionStart', ev => {
+        // このイベントは衝突を解く前に来る。床との組だけ反発を差し替える（組の反発は2つの大きい方になるため）
+        for (const p of ev.pairs) if (p.bodyA.label === 'floor' || p.bodyB.label === 'floor') p.restitution = P.floorRestitution;
+        collect(ev); this._impact(ev.pairs);
+      });
       M.Events.on(this.engine, 'collisionActive', collect);
 
       this.time = 0;            // シミュレーション時間（秒）
@@ -55,12 +60,23 @@
       this.aimX = B.width / 2;
       this.queue = [this._rollStage(), this._rollStage()];
       this.newRecord = false;
+      this.resumeState = 'PLAY';
+      this.standby = null;      // BH_STANDBY：{ a, b, link, t, calm }
+      this.birth = null;        // BH_BIRTH：{ t, x, y }
+      this.bh = null;           // ブラックホール：{ x, y, r, growth, tier, pulse, from, spin }
+      this.absorbing = [];      // 吸収の演出中：{ stage, x, y, angle, r, t }
+      this.superT = 0;
     }
 
-    start() { this._newGame(); this.state = 'PLAY'; this.emit('state', this.state); }
-    toTitle() { this._newGame(); this.state = 'TITLE'; this.emit('state', this.state); }
-    pause() { if (this.state === 'PLAY') { this.state = 'PAUSE'; this.emit('state', this.state); } }
-    resume() { if (this.state === 'PAUSE') { this.state = 'PLAY'; this.emit('state', this.state); } }
+    _setState(st) { this.state = st; this.emit('state', st); }
+    start() { this._newGame(); this._setState('PLAY'); }
+    toTitle() { this._newGame(); this._setState('TITLE'); }
+    /** 落下操作を受け付ける状態（通常期と餌やり） */
+    get controllable() { return this.state === 'PLAY' || this.state === 'BH'; }
+    /** 時間が進む状態 */
+    get running() { return ['PLAY', 'BH_STANDBY', 'BH_BIRTH', 'BH', 'BH_SUPER'].includes(this.state); }
+    pause() { if (this.controllable) { this.resumeState = this.state; this._setState('PAUSE'); } }
+    resume() { if (this.state === 'PAUSE') this._setState(this.resumeState); }
 
     // ---- 出現テーブル（第6.3節） ----------------------------------------
     spawnRange() {
@@ -101,7 +117,7 @@
     }
 
     canDrop() {
-      return this.state === 'PLAY' && (this.time - this.lastDropAt) * 1000 >= this.C.input.dropCooldownMs;
+      return this.controllable && (this.time - this.lastDropAt) * 1000 >= this.C.input.dropCooldownMs;
     }
 
     setAim(x) { this.aimX = this.clampX(x); }
@@ -132,7 +148,8 @@
         frictionAir: P.frictionAir, density: P.density, label: 'body'
       });
       b.plugin = b.plugin || {};
-      b.plugin.cosmos = { stage, born: this.time, merging: false, dropped: false };
+      // sq：やわらかさの縮み量、sqV：その速さ、sqAng：縮む向き（ぶつかった向き）
+      b.plugin.cosmos = { stage, born: this.time, merging: false, dropped: false, sq: 0, sqV: 0, sqAng: 0 };
       this.M.Composite.add(this.engine.world, b);
       return b;
     }
@@ -145,14 +162,14 @@
 
     // ---- 更新 ------------------------------------------------------------
     update(dtSec) {
-      if (this.state !== 'PLAY') return;
+      if (!this.running) return;
       const P = this.C.physics, step = P.stepMs / 1000;
       this._acc += Math.min(dtSec, 0.1) * this.speed;
       let n = 0;
       while (this._acc >= step && n < P.maxStepsPerFrame * Math.max(1, this.speed)) {
         this._acc -= step; n++;
         this._step(step);
-        if (this.state !== 'PLAY') { this._acc = 0; break; }
+        if (!this.running) { this._acc = 0; break; }
       }
       if (n >= P.maxStepsPerFrame * Math.max(1, this.speed)) this._acc = 0; // 処理落ち時は追いかけない
     }
@@ -160,11 +177,19 @@
     _step(step) {
       const M = this.M;
       this._pairs.length = 0;
+      this._mergedThisStep = 0;
+      // BH_BIRTH の最初は物理をスローにする（第11.1節）
+      this.engine.timing.timeScale = (this.state === 'BH_BIRTH' && this.birth.t < this.C.bh.gatherSec) ? this.C.bh.slowScale : 1;
+      if (this.bh && (this.state === 'BH' || this.state === 'BH_SUPER')) this._suction();
       M.Engine.update(this.engine, this.C.physics.stepMs);
       this.time += step;
       this._rollingResistance();
+      this._squashSpring();
       this._processMerges();
       if (this.state === 'PLAY') this._checkGameOver(step);
+      else if (this.state === 'BH_STANDBY') this._updateStandby(step);
+      else if (this.state === 'BH_BIRTH') this._updateBirth(step);
+      if (this.bh) this._updateBH(step);
     }
 
     // 接触中の天体だけ角速度を減らす（第7.2節 転がり抵抗）
@@ -177,6 +202,35 @@
         if (!p.bodyB.isStatic) touched.add(p.bodyB);
       }
       touched.forEach(b => this.M.Body.setAngularVelocity(b, b.angularVelocity * k));
+    }
+
+    // ぶつかった瞬間：相対速度の法線成分に応じて、その向きに縮ませる
+    _impact(pairs) {
+      const S = this.C.squash;
+      for (const p of pairs) {
+        const a = p.bodyA, b = p.bodyB, n = p.collision.normal;
+        const v = Math.abs((a.velocity.x - b.velocity.x) * n.x + (a.velocity.y - b.velocity.y) * n.y);
+        const amt = Math.min(S.max, v * S.gain);
+        if (amt < 0.01) continue;
+        const ang = Math.atan2(n.y, n.x);
+        for (const o of [a, b]) {
+          const c = o.plugin && o.plugin.cosmos;
+          if (!c) continue;
+          if (amt > c.sq) { c.sqV = 0; c.sq = amt; c.sqAng = ang; }
+        }
+      }
+    }
+
+    // 縮みをばねで戻す（行き過ぎて少し伸び、ぷるんと収まる）
+    _squashSpring() {
+      const S = this.C.squash;
+      for (const b of this.bodies()) {
+        const c = b.plugin.cosmos;
+        if (!c.sq && !c.sqV) continue;
+        c.sqV = (c.sqV - S.stiffness * c.sq) * S.damping;
+        c.sq += c.sqV;
+        if (Math.abs(c.sq) < 0.001 && Math.abs(c.sqV) < 0.001) c.sq = c.sqV = 0;
+      }
     }
 
     // ---- 合体（第8章） ----------------------------------------------------
@@ -192,14 +246,11 @@
         if (seen.has(key)) continue;
         seen.add(key);
         const stage = ca.stage;
+        if (ca.pending || cb.pending) continue;
         if (stage >= C.maxMergeStage) {
-          // 中性子星どうし：M2 で BH_STANDBY へ。M1 では仮の画面を出して止める
-          ca.merging = cb.merging = true;
-          this.state = 'BH_PENDING';
-          this._finishScore();
-          this.emit('bhPending', { x: (a.position.x + b.position.x) / 2, y: (a.position.y + b.position.y) / 2 });
-          this.emit('state', this.state);
-          return;
+          // 中性子星どうし：通常期だけブラックホール誕生へ。待機中の3個目・BH 期は合体させない（吸われる）
+          if (this.state === 'PLAY') this._enterStandby(a, b);
+          continue;
         }
         ca.merging = cb.merging = true;
         const x = (a.position.x + b.position.x) / 2, y = (a.position.y + b.position.y) / 2;
@@ -215,7 +266,141 @@
         const add = C.stages[ns].score;
         this.score += add;
         this._noteStage(ns);
+        this._mergedThisStep++;
         this.emit('merge', { stage: ns, x, y, add });
+      }
+    }
+
+    // ---- ブラックホール誕生（第8.1節・第11.1節） --------------------------
+    _enterStandby(a, b) {
+      const M = this.M;
+      a.plugin.cosmos.pending = b.plugin.cosmos.pending = true;
+      // 2個は消さず、位置関係を保つように結ぶ
+      const link = M.Constraint.create({ bodyA: a, bodyB: b, stiffness: 1, damping: 0.1,
+        length: Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y) });
+      M.Composite.add(this.engine.world, link);
+      this.standby = { a, b, link, t: 0, calm: 0 };
+      if (this.warning) { this.warning = false; this.emit('warning', false); }
+      this.overTime = 0;
+      this._setState('BH_STANDBY');
+    }
+
+    _updateStandby(step) {
+      const S = this.standby, BH = this.C.bh;
+      S.t += step;
+      const still = !this._mergedThisStep && this.bodies().every(b => b.speed < BH.stableSpeed);
+      S.calm = still ? S.calm + step : 0;
+      if (S.calm >= BH.stableSec || S.t >= BH.standbyMaxSec) {
+        this.birth = { t: 0, x: (S.a.position.x + S.b.position.x) / 2, y: (S.a.position.y + S.b.position.y) / 2 };
+        this._setState('BH_BIRTH');
+        this.emit('bhBirth', { x: this.birth.x, y: this.birth.y });
+      }
+    }
+
+    _updateBirth(step) {
+      const BH = this.C.bh, B = this.birth, S = this.standby;
+      B.t += step;
+      if (S) { B.x = (S.a.position.x + S.b.position.x) / 2; B.y = (S.a.position.y + S.b.position.y) / 2; }
+      if (S && B.t >= BH.appearAt) {
+        // 中性子星2個が消え、中間地点にブラックホールが出現する
+        this.M.Composite.remove(this.engine.world, [S.a, S.b, S.link]);
+        this.standby = null;
+        this._spawnBH(B.x, B.y);
+        const add = this.C.stages[13].score;
+        this.score += add;
+        this._noteStage(13);
+        this.emit('bhAppear', { x: B.x, y: B.y, add });
+      }
+      if (B.t >= BH.birthSec) {
+        this.bh.x = BH.home.x; this.bh.y = BH.home.y;
+        this.birth = null;
+        this._setState('BH');
+      }
+    }
+
+    _spawnBH(x, y) {
+      this.bh = { x, y, r: this.C.bh.sizeCurve[0][1], growth: 0, tier: 0, pulse: 0, from: { x, y }, spin: 0 };
+    }
+
+    /** 成長値 → 本体半径（第11.6節。間は直線でつなぐ） */
+    bhRadius(growth) {
+      const c = this.C.bh.sizeCurve;
+      if (growth <= c[0][0]) return c[0][1];
+      for (let i = 1; i < c.length; i++) {
+        if (growth <= c[i][0]) { const [g0, r0] = c[i - 1], [g1, r1] = c[i]; return r0 + (r1 - r0) * (growth - g0) / (g1 - g0); }
+      }
+      return c[c.length - 1][1];
+    }
+
+    _grow(v) {
+      const h = this.bh;
+      h.growth += v;
+      h.r = this.bhRadius(h.growth);
+      let tier = 0;
+      this.C.bh.tierAt.forEach((g, i) => { if (h.growth >= g) tier = i; });
+      if (tier > h.tier) { h.tier = tier; this.emit('bhTier', tier); }
+    }
+
+    // 吸引（第11.4節）。力は重力（質量×重力の大きさ）の倍数で与える
+    _suction() {
+      const BH = this.C.bh, h = this.bh, M = this.M;
+      const g = this.engine.gravity.scale * this.engine.gravity.y;
+      const whole = this.state === 'BH_SUPER';
+      for (const b of this.bodies()) {
+        const dx = h.x - b.position.x, dy = h.y - b.position.y;
+        const d = Math.hypot(dx, dy) || 1e-6;
+        let k = 0;
+        if (whole || d < h.r * BH.nearR) k = BH.nearG;
+        else if (d < h.r * BH.farR) k = BH.farGmax - (BH.farGmax - BH.farGmin) * (d - h.r * BH.nearR) / (h.r * (BH.farR - BH.nearR));
+        if (!k) continue;
+        const f = k * g * b.mass, ux = dx / d, uy = dy / d;
+        // 中心へ向かう成分と、回る向きの成分（渦を巻いて吸い込まれる）
+        M.Body.applyForce(b, b.position, {
+          x: f * ((1 - BH.swirl) * ux - BH.swirl * uy),
+          y: f * ((1 - BH.swirl) * uy + BH.swirl * ux)
+        });
+      }
+    }
+
+    _updateBH(step) {
+      const BH = this.C.bh, h = this.bh, M = this.M;
+      h.spin += step;
+      h.pulse = Math.max(0, h.pulse - step * 3);
+      // 誕生後、盤面中央付近へゆっくり移る
+      if (this.state === 'BH_BIRTH') {
+        const k = Math.min(1, (this.birth.t - BH.appearAt) / (BH.birthSec - BH.appearAt)), e = k * k * (3 - 2 * k);
+        h.x = h.from.x + (BH.home.x - h.from.x) * e;
+        h.y = h.from.y + (BH.home.y - h.from.y) * e;
+      }
+      // 吸収（第11.5節）
+      if (this.state === 'BH' || this.state === 'BH_SUPER') {
+        for (const b of this.bodies()) {
+          if (Math.hypot(h.x - b.position.x, h.y - b.position.y) >= h.r * BH.absorbR) continue;
+          const c = b.plugin.cosmos;
+          M.Composite.remove(this.engine.world, b);
+          this.absorbing.push({ stage: c.stage, x: b.position.x, y: b.position.y, angle: b.angle, r: b.circleRadius, t: 0 });
+          const add = c.stage * BH.absorbScorePerStage;
+          this.score += add;
+          h.pulse = 1;
+          if (this.state === 'BH') this._grow(c.stage * c.stage);
+          this.emit('absorb', { stage: c.stage, x: h.x, y: h.y, add });
+        }
+        if (this.state === 'BH') this._grow(BH.growthPerSec * step);
+      }
+      for (const a of this.absorbing) a.t += step;
+      this.absorbing = this.absorbing.filter(a => a.t < BH.absorbSec);
+      // 超巨大に到達（第11.8節）。M3 までは文字を見せてから仮の終点で止める
+      if (this.state === 'BH' && h.growth >= BH.superGrowth) {
+        this.superT = 0;
+        this._setState('BH_SUPER');
+        this.emit('supermassive');
+      } else if (this.state === 'BH_SUPER') {
+        this.superT += step;
+        if (this.superT >= BH.superHoldSec) {
+          this._finishScore();
+          this._setState('BH_SUPER_DONE');
+          this.emit('superDone', { score: this.score, high: this.highScore, newRecord: this.newRecord });
+        }
       }
     }
 
@@ -246,11 +431,25 @@
 
     // ---- デバッグ（第9.4節） ----------------------------------------------
     debugSpawn(stage, x) {
-      if (this.state !== 'PLAY') return;
+      if (!this.controllable) return;
       const b = this._addBody(stage, this.clampX(x == null ? this.aimX : x, stage), this.C.board.dropY);
       b.plugin.cosmos.dropped = true;
       this._noteStage(stage);
     }
+
+    /** 誕生の演出を飛ばして BH 期へ（第9.4節） */
+    debugToBH() {
+      if (this.state !== 'PLAY') return;
+      if (this.warning) { this.warning = false; this.emit('warning', false); }
+      this.overTime = 0;
+      this._spawnBH(this.C.bh.home.x, this.C.bh.home.y);
+      this.score += this.C.stages[13].score;
+      this._noteStage(13);
+      this._setState('BH');
+    }
+
+    /** 成長値を足す（デバッグ） */
+    debugGrow(v) { if (this.bh && this.state === 'BH') this._grow(v); }
   }
 
   root.CosmosGame = CosmosGame;

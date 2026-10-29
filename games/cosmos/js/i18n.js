@@ -37,8 +37,10 @@
       confirmTitle: 'タイトルに戻りますか？（このプレイは記録されません）',
       yes: 'はい', no: 'いいえ',
       gameOver: 'GAME OVER', retry: 'もう一度', maxReached: '到達した天体', newRecord: 'ハイスコア更新',
-      bhPending: '中性子星どうしが接触しました',
-      bhPendingNote: 'ブラックホール誕生以降は開発中です。',
+      superDone: 'ブラックホールが超巨大に育ちました',
+      superDoneNote: '最終吸収・ビッグバン・エンドロールは開発中です。',
+      bhBornSub: 'ブラックホール誕生', bhSuperSub: '超巨大ブラックホール',
+      bhGauge: 'ブラックホール', bhTier0: '小型', bhTier1: '中型', bhTier2: '大型', bhTier3: '超巨大',
       board: '盤面',
       // 設定パネル（第18.4節）
       setTitle: '設定', setSe: '効果音', setBgm: 'BGM', setMute: 'ミュート',
@@ -57,7 +59,7 @@
       footAbout: 'MOMO Cosmos について',
       footDesc: '月から中性子星まで、同じ天体どうしをぶつけて育てる落ち物パズルです。中性子星がふたつそろうとブラックホールが生まれ、やがて宇宙の誕生へ。ブラウザだけで遊べ、登録もインストールもいりません。',
       footTop: 'MOMO Works トップ', footGames: 'ゲーム一覧', footTools: 'ツール一覧',
-      stages: ['', '月', '地球', '火星', '金星', '水星', '海王星', '天王星', '土星', '木星', '太陽', '超新星', '中性子星', 'ブラックホール']
+      stages: ['', '月', '水星', '火星', '金星', '地球', '海王星', '天王星', '土星', '木星', '太陽', '超新星', '中性子星', 'ブラックホール']
     },
     en: {
       subtitle: 'Merge the Stars, Birth a Universe',
@@ -70,8 +72,10 @@
       confirmTitle: 'Return to the title? (This game will not be recorded.)',
       yes: 'Yes', no: 'No',
       gameOver: 'GAME OVER', retry: 'Play again', maxReached: 'Reached', newRecord: 'New high score!',
-      bhPending: 'Two neutron stars collided',
-      bhPendingNote: 'The black hole and beyond are still in development.',
+      superDone: 'Your black hole became supermassive',
+      superDoneNote: 'The final absorption, the Big Bang and the ending are still in development.',
+      bhBornSub: '', bhSuperSub: '',
+      bhGauge: 'Black hole', bhTier0: 'Small', bhTier1: 'Medium', bhTier2: 'Large', bhTier3: 'Supermassive',
       board: 'Board',
       setTitle: 'Settings', setSe: 'Sound effects', setBgm: 'BGM', setMute: 'Mute',
       setSoundNote: 'Sound is not added yet (only the volume settings are saved).',
@@ -87,7 +91,7 @@
       footAbout: 'About MOMO Cosmos',
       footDesc: 'A falling-block puzzle where you merge matching celestial bodies, from the Moon up to neutron stars. Two neutron stars give birth to a black hole, and in the end, to a new universe. Plays in your browser — no sign-up, no install.',
       footTop: 'MOMO Works Home', footGames: 'Games', footTools: 'Tools',
-      stages: ['', 'Moon', 'Earth', 'Mars', 'Venus', 'Mercury', 'Neptune', 'Uranus', 'Saturn', 'Jupiter', 'Sun', 'Supernova', 'Neutron star', 'Black hole']
+      stages: ['', 'Moon', 'Mercury', 'Mars', 'Venus', 'Earth', 'Neptune', 'Uranus', 'Saturn', 'Jupiter', 'Sun', 'Supernova', 'Neutron star', 'Black hole']
     },
     zh: {
       subtitle: '合并星辰，孕育宇宙',
@@ -100,8 +104,10 @@
       confirmTitle: '要返回标题吗？（本局不会被记录）',
       yes: '是', no: '否',
       gameOver: 'GAME OVER', retry: '再来一次', maxReached: '到达的天体', newRecord: '刷新最高分',
-      bhPending: '两颗中子星相撞了',
-      bhPendingNote: '黑洞诞生之后的内容仍在开发中。',
+      superDone: '黑洞成长为超大质量黑洞',
+      superDoneNote: '最终吸收、宇宙大爆炸和片尾仍在开发中。',
+      bhBornSub: '黑洞诞生', bhSuperSub: '超大质量黑洞',
+      bhGauge: '黑洞', bhTier0: '小型', bhTier1: '中型', bhTier2: '大型', bhTier3: '超大质量',
       board: '棋盘',
       setTitle: '设置', setSe: '音效', setBgm: 'BGM', setMute: '静音',
       setSoundNote: '尚未加入声音（只会保存音量设置）',
@@ -117,7 +123,7 @@
       footAbout: '关于 MOMO Cosmos',
       footDesc: '让相同的天体相撞、从月球一路合成到中子星的下落式益智游戏。两颗中子星会诞生黑洞，最终迎来宇宙的诞生。在浏览器中即可游玩，无需注册和安装。',
       footTop: 'MOMO Works 首页', footGames: '游戏列表', footTools: '工具列表',
-      stages: ['', '月球', '地球', '火星', '金星', '水星', '海王星', '天王星', '土星', '木星', '太阳', '超新星', '中子星', '黑洞']
+      stages: ['', '月球', '水星', '火星', '金星', '地球', '海王星', '天王星', '土星', '木星', '太阳', '超新星', '中子星', '黑洞']
     }
   };
 

@@ -53,7 +53,7 @@
     function startGame() { game.start(); show(null); updateHud(true); }
     function toTitle() { game.toTitle(); refreshTitle(); show('title'); updateHud(true); }
     function togglePause() {
-      if (game.state === 'PLAY') { game.pause(); show('pausePanel'); }
+      if (game.controllable) { game.pause(); show('pausePanel'); }
       else if (game.state === 'PAUSE' && $('confirmPanel').hidden) { game.resume(); show(null); }
     }
 
@@ -77,11 +77,16 @@
       $('goRecord').hidden = !e.newRecord;
       show('gameOverPanel');
     });
-    game.on('bhPending', () => { $('bhScore').textContent = game.score.toLocaleString(); show('bhPanel'); });
+    game.on('superDone', e => {
+      $('bhScore').textContent = e.score.toLocaleString();
+      $('bhHigh').textContent = e.high.toLocaleString();
+      $('bhRecord').hidden = !e.newRecord;
+      show('bhPanel');
+    });
 
     // ページが隠れたら自動で一時停止（第3.1節）
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden && game.state === 'PLAY') { game.pause(); show('pausePanel'); }
+      if (document.hidden && game.controllable) { game.pause(); show('pausePanel'); }
     });
 
     // ---- 設定パネル（第18.4節）。開いてもゲームは進め、落下操作だけ止める ----
@@ -133,7 +138,9 @@
     }
     $('langSelect').addEventListener('change', e => L.setMode(e.target.value));
     L.onChange(applyLang);
+    L.onChange(() => updateHud(true));
     applyLang();
+    board.t = L.t;
 
     // ---- 情報ヘッダー ----
     let last = {};
@@ -143,7 +150,14 @@
       if (force || last.h !== h) $('hudHigh').textContent = h.toLocaleString();
       if (force || last.n !== n) board.drawIcon($('nextIcon'), n);
       if (force || last.nn !== nn) board.drawIcon($('nextNextIcon'), nn);
-      last = { s, h, n, nn };
+      // 成長ゲージ（超巨大＝成長値 600 で満タン）
+      const bh = game.bh, gw = bh ? Math.min(1, bh.growth / C.bh.superGrowth) : -1, tier = bh ? bh.tier : -1;
+      if (force || last.gw !== gw) {
+        $('bhGauge').hidden = !bh;
+        if (bh) $('bhFill').style.width = (gw * 100).toFixed(1) + '%';
+      }
+      if (force || last.tier !== tier) { if (bh) $('bhTier').textContent = L.t('bhTier' + tier); }
+      last = { s, h, n, nn, gw, tier };
     }
 
     // ---- 配置（盤面は 2:3 で、使える領域に収める） ----
@@ -212,12 +226,15 @@
       b.onclick = () => { game.speed = v; speedRow.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); };
       speedRow.appendChild(b);
     });
+    $('dbgToBH').onclick = () => game.debugToBH();
+    $('dbgGrow').onclick = () => game.debugGrow(100);
   }
   function debugInfo(game, fps) {
     const [lo, hi] = game.spawnRange();
     $('dbgInfo').textContent =
       'fps ' + fps.toFixed(0) + ' / bodies ' + game.bodies().length + ' / t ' + game.time.toFixed(0) + 's / drops ' + game.dropCount +
-      ' / max ' + game.maxStage + ' / range ' + lo + '-' + hi + ' / over ' + game.overTime.toFixed(1) + 's';
+      ' / max ' + game.maxStage + ' / range ' + lo + '-' + hi + ' / over ' + game.overTime.toFixed(1) + 's' +
+      ' / ' + game.state + (game.bh ? ' / growth ' + game.bh.growth.toFixed(0) + ' r ' + game.bh.r.toFixed(0) : '');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

@@ -49,6 +49,13 @@ body.at-title #topbar .mini-head { visibility: hidden; }   /* タイトル画面
 .hud-next { flex-direction: row; gap: 4px; }
 .icon-next { width: 44px; height: 44px; border: 1px solid var(--orange); border-radius: 50%; background: rgba(17,17,17,0.6); }
 .icon-nextnext { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; background: rgba(17,17,17,0.6); }
+#hud { flex-wrap: wrap; }
+.hud-gauge { flex: 1 0 100%; display: flex; align-items: center; gap: 8px; }
+.hud-gauge[hidden] { display: none; }
+.hud-gauge .hud-label { white-space: nowrap; }
+.hud-gauge b { color: #c4b5fd; font-weight: 700; }
+.gauge { flex: 1; height: 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: rgba(17,17,17,.7); overflow: hidden; }
+.gauge-fill { height: 100%; width: 0; background: linear-gradient(90deg, #7c3aed, #ea580c); transition: width .25s; }
 
 #boardFrame { position: relative; }
 #board { display: block; touch-action: none; cursor: crosshair; }
@@ -69,6 +76,8 @@ body.wide .hud-next { flex-direction: column; gap: 4px; }
 body.wide .hud-value { font-size: 26px; }
 body.wide .icon-next { width: 64px; height: 64px; }
 body.wide .icon-nextnext { width: 44px; height: 44px; }
+body.wide .hud-gauge { flex-direction: column; align-items: flex-start; width: 160px; flex: none; }
+body.wide .gauge { width: 160px; flex: none; }
 body.wide #pauseBar { justify-content: flex-start; padding: 0; }
 body.wide .mini-head .cat-icon { width: 34px; height: 37px; }
 body.wide .mh-t { font-size: 20px; }

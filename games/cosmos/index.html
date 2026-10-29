@@ -9,17 +9,21 @@
 <title>MOMO Cosmos</title>
 <meta name="description" content="月から中性子星まで、同じ天体どうしをぶつけて育てる落ち物パズル。中性子星がふたつそろうとブラックホールが生まれ、やがて宇宙の誕生へ。ブラウザだけで遊べます。">
 <link rel="canonical" href="https://qiqiroon.github.io/momo/games/cosmos/">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <!-- 公開のたびに ?v= を版に合わせる（古いファイルが残って新旧が混ざるのを防ぐ） -->
-<link rel="stylesheet" href="css/cosmos.css?v=0.04">
+<link rel="stylesheet" href="css/cosmos.css?v=0.05">
 <!-- 共通言語ルーチン（defer 不可・本体スクリプトより前） -->
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 </head>
 <body class="at-title">
-<!-- 猫のマーク＋右下に土星（第25章。アイコン4点は M6 で同じ絵から作る） -->
+<!-- 猫のマーク＋右下に土星（第25章。アイコン4点 favicon.* はこの絵から作る：L:\momo\claude\cosmos-icon\make_icons.mjs） -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="momoCat" viewBox="-46 -50 100 110">
     <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
@@ -47,15 +51,16 @@
     <line x1="0" y1="11.3" x2="0" y2="13.3" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
     <path d="M0,13.3 Q5,17.3  8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
-    <!-- 右下に重ねる MOMO Cosmos の絵柄（土星）。輪の奥→本体→輪の手前の順に描く -->
-    <g id="cosmos-overlay" transform="rotate(-18,27,22)">
-      <path d="M10,22 A17,5 0 0 1 44,22" fill="none" stroke="#000" stroke-width="4.2"/>
-      <path d="M10,22 A17,5 0 0 1 44,22" fill="none" stroke="#fde68a" stroke-width="2.2"/>
-      <circle cx="27" cy="22" r="10" fill="#d6a95c" stroke="#000" stroke-width="1.2"/>
-      <path d="M19,18.5 Q27,16.5 35,18.5" fill="none" stroke="#b07a35" stroke-width="1.3"/>
-      <path d="M18.5,25 Q27,27 35.5,25" fill="none" stroke="#b07a35" stroke-width="1.3"/>
-      <path d="M10,22 A17,5 0 0 0 44,22" fill="none" stroke="#000" stroke-width="4.2"/>
-      <path d="M10,22 A17,5 0 0 0 44,22" fill="none" stroke="#fde68a" stroke-width="2.2"/>
+    <!-- 右下に重ねる MOMO Cosmos の絵柄（土星）。輪の奥→本体→輪の手前の順に描く。
+         大きさは他のアプリの重ね絵（中心 26,22 付近・一辺約50）に揃える -->
+    <g id="cosmos-overlay" transform="rotate(-18,26,23)">
+      <path d="M-2,23 A28,7.5 0 0 1 54,23" fill="none" stroke="#000" stroke-width="5.5"/>
+      <path d="M-2,23 A28,7.5 0 0 1 54,23" fill="none" stroke="#fde68a" stroke-width="3.2"/>
+      <circle cx="26" cy="23" r="20" fill="#d6a95c" stroke="#000" stroke-width="1.6"/>
+      <path d="M10,15.8 Q26,11.8 42,15.8" fill="none" stroke="#b07a35" stroke-width="2.2"/>
+      <path d="M9,29.5 Q26,33.5 43,29.5" fill="none" stroke="#b07a35" stroke-width="2.2"/>
+      <path d="M-2,23 A28,7.5 0 0 0 54,23" fill="none" stroke="#000" stroke-width="5.5"/>
+      <path d="M-2,23 A28,7.5 0 0 0 54,23" fill="none" stroke="#fde68a" stroke-width="3.2"/>
     </g>
   </symbol>
 </svg>
@@ -281,13 +286,13 @@ THE SOFTWARE.</pre>
   <div id="dbgInfo"></div>
 </div>
 
-<script src="js/vendor/matter.min.js?v=0.04"></script>
-<script src="js/config.js?v=0.04"></script>
-<script src="js/i18n.js?v=0.04"></script>
-<script src="js/game.js?v=0.04"></script>
-<script src="js/render.js?v=0.04"></script>
-<script src="js/input.js?v=0.04"></script>
-<script src="js/sound.js?v=0.04"></script>
-<script src="js/main.js?v=0.04"></script>
+<script src="js/vendor/matter.min.js?v=0.05"></script>
+<script src="js/config.js?v=0.05"></script>
+<script src="js/i18n.js?v=0.05"></script>
+<script src="js/game.js?v=0.05"></script>
+<script src="js/render.js?v=0.05"></script>
+<script src="js/input.js?v=0.05"></script>
+<script src="js/sound.js?v=0.05"></script>
+<script src="js/main.js?v=0.05"></script>
 </body>
 </html>

@@ -1,12 +1,12 @@
 /*
  * MOMO Cosmos — 設定値（調整はこのファイルだけで行う）
- * 出典の節番号は MOMO_Cosmos_Specification_v2_01.md（第6.2〜6.4節は v2_00 から復元）
+ * 出典の節番号は MOMO_Cosmos_Specification_v2_02.md
  */
 (function (root) {
   'use strict';
 
   const CONFIG = {
-    version: 'v0.04', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
+    version: 'v0.05', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
 
     // 第4章 盤面（論理座標）
     board: { width: 600, height: 900, dropY: 90, deadlineY: 150, wallThickness: 200 },

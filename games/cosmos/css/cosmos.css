@@ -237,13 +237,13 @@ body.rolling #endroll { display: block; }
 }
 #rollText { position: absolute; left: 0; right: 0; top: 0; text-align: center; padding: 0 16px; will-change: transform; }
 #rollText p, #rollText h3 { margin: 0; }
-#rollText h3 { margin-top: 26vh; font-family: var(--font-body); font-weight: 700; font-size: 13px; letter-spacing: .12em; color: #a3a3a3; }
+#rollText h3 { margin-top: 15vh; font-family: var(--font-body); font-weight: 700; font-size: 13px; letter-spacing: .12em; color: #a3a3a3; }
 .roll-title { font-family: "Fredoka One", cursive; font-size: 40px; color: #fff; }
 .roll-title b { font-weight: 400; color: var(--orange-mid); }
 .roll-sub { font-family: var(--font-title); font-size: 15px; color: #d4d4d4; margin-top: 6px !important; }
 #rollText .roll-name { font-family: var(--font-title); font-weight: 700; font-size: 20px; color: #fff; margin-top: 8px; }
-#rollText .roll-sub + .roll-name { margin-top: 26vh; }
-.roll-thanks { margin-top: 34vh !important; font-family: var(--font-title); font-weight: 800; font-size: 24px; color: var(--orange-light); position: relative; z-index: 1; }
+#rollText .roll-sub + .roll-name { margin-top: 16vh; }
+.roll-thanks { margin-top: 22vh !important; font-family: var(--font-title); font-weight: 800; font-size: 24px; color: var(--orange-light); position: relative; z-index: 1; }
 #rollEnd {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   width: min(88%, 340px); padding: 22px 20px; text-align: center;

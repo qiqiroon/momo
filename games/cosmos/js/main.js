@@ -107,7 +107,7 @@
         $('endroll').classList.remove('results');
         $('rollEnd').hidden = true;
         $('rollHint').hidden = !game.rollSkippable;
-        recipeAt = -1;
+        recipeAt = -1; recipeEnded = false;
       } else if (st === 'TITLE' || st === 'PLAY') {
         B.classList.remove('ui-gone', 'bare', 'rolling');
         ending.reset();
@@ -143,21 +143,24 @@
       $('rollRecipe').style.top = (leadY + lead.offsetHeight + H * 0.06).toFixed(0) + 'px';
       showRecipe();
     }
-    // 曲の時刻（秒）と長さ。音を出せない環境では、ENDROLL の時刻と仮の長さで数える
+    // 曲の時刻（秒）・長さ・何周目か。周は sound.js が曲の終わりで数える（画面が止まっていても数え漏れない）。
+    // 音を出せない環境では、曲が鳴り始めてからの時刻（ビッグバンの途中から）と仮の長さで数える
     function songClock() {
       const cur = sound.cur, el = cur && cur.folder === 'ending-cosmos' && cur.el;
-      if (el && isFinite(el.duration) && el.duration > 0) return { t: el.currentTime, d: el.duration };
-      const d = C.ending.songSecFallback;
-      return { t: game.endT % d, d };
+      if (el && isFinite(el.duration) && el.duration > 0) return { t: el.currentTime, d: el.duration, loop: sound.loops + 1 };
+      const E = C.ending, d = E.songSecFallback, tt = E.bigbangSec - E.musicAt + game.endT;
+      return { t: tt % d, d, loop: Math.floor(tt / d) + 1 };
     }
-    // レシピ：曲の終わり近くに、ブロックを1つずつ（interval 秒ごとに）浮かび上がらせ、曲の終わりで消す
-    let recipeAt = -1;
+    // レシピ：曲の2周目の終わり近くに1回だけ、ブロックを1つずつ（interval 秒ごとに）浮かび上がらせる。
+    // 最後の締めの言葉は、出たらそのまま残す（2026-10-30 作者の指示）
+    let recipeAt = -1, recipeEnded = false;
     function showRecipe() {
       const E = C.ending, blocks = $('rollRecipe').children, n = blocks.length;
-      let idx = -1;
-      if (game.rollDone) {
-        const { t, d } = songClock(), start = d - n * E.recipeIntervalSec;
-        if (t >= start && t < d - E.recipeFadeSec) idx = Math.min(n - 1, Math.floor((t - start) / E.recipeIntervalSec));
+      let idx = recipeEnded ? n - 1 : -1;
+      if (game.rollDone && !recipeEnded) {
+        const { t, d, loop } = songClock(), start = d - n * E.recipeIntervalSec;
+        if (loop === E.recipeLoop && t >= start) idx = Math.min(n - 1, Math.floor((t - start) / E.recipeIntervalSec));
+        if (idx === n - 1) recipeEnded = true;
       }
       if (idx === recipeAt) return;
       recipeAt = idx;

@@ -387,18 +387,28 @@
       if (rollT > 2 && rollT > this.nextDrift && this.drift.length < 3) {
         this.nextDrift = rollT + rand(5, 9);
         const keys = ['galaxy', 'nebula', 'cosmic_dust'], a = rand(0, Math.PI * 2);
-        this.drift.push({ key: keys[Math.floor(Math.random() * 3)], x: Math.cos(a) * rand(0.1, 0.3), y: Math.sin(a) * rand(0.1, 0.3), z: 1, rot: rand(-0.5, 0.5) });
+        this.drift.push({ key: keys[Math.floor(Math.random() * 3)], a, r: rand(0.06, 0.16), s: 1, age: 0, fade: 1, rot: rand(-0.5, 0.5) });
       }
+      // 中央近くに現れ、少しずつ大きくなりながら、だんだん速く外へ流れて画面の外へ出ていく（宇宙の膨張と同じ、
+      // 一定の割合で広がる動き）。大きくなりすぎても画面の中に残りそうなときだけ、薄くして消す
+      // （星と同じ 1/z で動かすと、消える前に急に横へ滑って見えた。2026-10-30 作者の指摘）
+      const rate = 0.16 * (speed / 0.32);            // 外へ広がる割合（1秒あたり）。星の流れが始まるのに合わせて速くなる
+      const minWH = Math.min(W, H), maxSize = minWH * 0.95;
       for (const d of this.drift) {
-        d.z -= speed * 0.22 * dt;
+        d.age += dt;
+        d.r *= Math.exp(rate * dt);                   // 中心からの距離（画面の大きい辺に対する割合）
+        d.s *= Math.exp(rate * 0.8 * dt);             // 大きさも距離に近い速さで大きくする（出るまでに 2.4〜5 倍。作者の希望）
         const sp = this.sprites[d.key]; if (!sp) continue;
-        const m = sp.meta, size = Math.min(W, H) * 0.12 / Math.max(0.12, d.z), sc = size / Math.max(m.width, m.height);
-        ctx.globalAlpha = smooth((1 - d.z) / 0.25) * smooth(d.z / 0.25) * 0.75;
-        ctx.save(); ctx.translate(cx + d.x / d.z * md * 0.5, cy + d.y / d.z * md * 0.5); ctx.rotate(d.rot);
+        const m = sp.meta, size = minWH * 0.14 * d.s, sc = size / Math.max(m.width, m.height);
+        const x = cx + Math.cos(d.a) * d.r * md * 2, y = cy + Math.sin(d.a) * d.r * md * 2;
+        d.off = x + size / 2 < 0 || x - size / 2 > W || y + size / 2 < 0 || y - size / 2 > H;
+        if (size > maxSize) d.fade = Math.max(0, d.fade - dt / 2);   // 外へ出る前に大きくなりすぎたら、2秒で薄くする
+        ctx.globalAlpha = smooth(d.age / 2) * d.fade * 0.75;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(d.rot);
         ctx.drawImage(sp.img, -m.width * sc / 2, -m.height * sc / 2, m.width * sc, m.height * sc);
         ctx.restore();
       }
-      this.drift = this.drift.filter(d => d.z > 0.05);
+      this.drift = this.drift.filter(d => !d.off && d.fade > 0);
       ctx.restore();
     }
   }

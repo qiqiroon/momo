@@ -28,6 +28,7 @@
       this.folder = null;        // 鳴らしたいフォルダ
       this.cur = null;           // 鳴っている曲：{ el, gain, folder, file }
       this.last = {};            // フォルダごとの直前の曲（同じ曲を続けない）
+      this.loops = 0;            // 今のフォルダで、曲が終わって次を鳴らした回数（エンドロールのレシピに使う）
       this._loadPool();
     }
 
@@ -141,6 +142,7 @@
     setFolder(folder) {
       if (folder === this.folder) return;
       this.folder = folder;
+      this.loops = 0;
       if (!this.ac) return;          // 許可パネルの前は鳴らさない
       this._play(folder);
     }
@@ -179,7 +181,7 @@
       g.gain.setTargetAtTime(1, this.ac.currentTime, FADE_SEC / 3);
       const track = { el, gain: g, folder, file };
       // 曲が終わったら同じフォルダの別の曲へ
-      el.addEventListener('ended', () => { if (this.cur === track) this._play(this.folder); });
+      el.addEventListener('ended', () => { if (this.cur === track) { this.loops++; this._play(this.folder); } });
       el.play().catch(e => console.warn('[cosmos] BGM を再生できません', e));
       this.cur = track;
     }

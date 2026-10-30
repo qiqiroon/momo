@@ -93,6 +93,7 @@
     });
     game.on('state', st => {
       const B = document.body;
+      if (st === 'BH_SUPER') hudEnglish();
       if (st === 'FINAL_ABSORB') {
         // 情報ヘッダーと一時停止ボタンを Canvas に描き写してから隠す。盤面の箱も ending.js が描く
         ending.reset();
@@ -110,6 +111,7 @@
         recipeAt = -1; recipeEnded = false;
       } else if (st === 'TITLE' || st === 'PLAY') {
         B.classList.remove('ui-gone', 'bare', 'rolling');
+        applyLang();   // エンディングで英語にした情報ヘッダーを、表示言語に戻す
         ending.reset();
       }
     });
@@ -226,7 +228,8 @@
     bindVol('bgmVol', 'bgmMute', 'bgm', 'bgmMute');
     bindVol('mSeVol', 'mSeMute', 'se', 'seMute');
     bindVol('mBgmVol', 'mBgmMute', 'bgm', 'bgmMute');
-    $('eventsChk').addEventListener('change', e => { SET.events = e.target.checked; saveSet(); });
+    $('eventsChk').addEventListener('change', e => { SET.events = e.target.checked; game.eventsOn = SET.events; saveSet(); });
+    game.eventsOn = SET.events;
     $('debugChk').addEventListener('change', e => { SET.debugPanel = e.target.checked; saveSet(); syncSetUI(); });
     $('debugRow').hidden = !DEBUG;
 
@@ -291,6 +294,9 @@
     game.on('bhTier', () => sound.se('bhTier'));
     game.on('absorb', () => sound.se('absorb'));
     game.on('warning', on => { if (on) sound.se('warn'); });
+    game.on('eventWarn', () => sound.se('event'));        // 特殊イベントの予告（第14.1節）
+    game.on('collision', () => sound.se('event'));        // 惑星衝突は予告できないので、起きたときに鳴らす
+    game.on('cometAbsorb', () => sound.se('absorb'));
     game.on('bigbangFlash', () => { sound.se('bigbang'); sound.rumble(); });   // 白い点と線のあとの爆発
     // ボタンの音（一時停止ボタンは一時停止の音。デバッグ用パネルは鳴らさない）
     document.addEventListener('click', e => {
@@ -322,6 +328,13 @@
       if (confirmKey) $('confirmMsg').textContent = L.t(confirmKey);
       $('goMax').textContent = L.stageName(goMaxStage, C);
       $('langSelect').value = L.mode;
+      if (endingEnglish()) hudEnglish();
+    }
+    // エンディング中（超巨大ブラックホールから）は、言語によらず英語で出す（2026-10-30 作者の指示）
+    function endingEnglish() { return ['BH_SUPER', 'FINAL_ABSORB', 'SILENCE', 'BIGBANG', 'ENDROLL'].includes(game.state); }
+    function hudEnglish() {
+      $('hud').querySelectorAll('[data-t]').forEach(el => { const v = L.en(el.dataset.t); if (v) el.textContent = v; });
+      if (game.bh) $('bhTier').textContent = L.en('bhTier' + game.bh.tier);
     }
     $('langSelect').addEventListener('change', e => L.setMode(e.target.value));
     L.onChange(applyLang);
@@ -343,7 +356,7 @@
         $('bhGauge').hidden = !bh;
         if (bh) $('bhFill').style.width = (gw * 100).toFixed(1) + '%';
       }
-      if (force || last.tier !== tier) { if (bh) $('bhTier').textContent = L.t('bhTier' + tier); }
+      if (force || last.tier !== tier) { if (bh) $('bhTier').textContent = endingEnglish() ? L.en('bhTier' + tier) : L.t('bhTier' + tier); }
       last = { s, h, n, nn, gw, tier };
     }
 
@@ -390,6 +403,7 @@
     refreshTitle();
     show('title');
     requestAnimationFrame(frame);
+    document.body.classList.add('booted');   // ここで START が押せるようになるので、表示する
     window.cosmos = { game, board, C, settings: SET, sound }; // コンソールからの確認用
   }
 
@@ -419,13 +433,21 @@
     $('dbgToBH').onclick = () => game.debugToBH();
     $('dbgGrow').onclick = () => game.debugGrow(100);
     $('dbgToEnd').onclick = () => game.debugToEnding();
+    // 特殊イベントを起こす（確率と間隔は見ない。条件を満たさないときは何も起きない）
+    const evRow = $('dbgEvents');
+    [['flare', 'フレア'], ['comet', '彗星'], ['meteor', '流星群'], ['storm', '重力嵐'], ['wormhole', 'ワーム'], ['collision', '衝突']].forEach(([type, label]) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.onclick = () => { if (!game.debugEvent(type)) { b.classList.add('on'); setTimeout(() => b.classList.remove('on'), 300); } };
+      evRow.appendChild(b);
+    });
   }
   function debugInfo(game, fps) {
     const [lo, hi] = game.spawnRange();
     $('dbgInfo').textContent =
       'fps ' + fps.toFixed(0) + ' / bodies ' + game.bodies().length + ' / t ' + game.time.toFixed(0) + 's / drops ' + game.dropCount +
       ' / max ' + game.maxStage + ' / range ' + lo + '-' + hi + ' / over ' + game.overTime.toFixed(1) + 's' +
-      ' / ' + game.state + (game.bh ? ' / growth ' + game.bh.growth.toFixed(0) + ' r ' + game.bh.r.toFixed(0) : '');
+      ' / ' + game.state + ' / ev ' + (game.ev.cur ? game.ev.cur.type : game.ev.warn ? '予告 ' + game.ev.warn.type : game.ev.timer.toFixed(0) + '/' + (game.ev.wait == null ? '-' : game.ev.wait.toFixed(0)) + 's') + (game.ev.calm ? ' / 猶予中' : '') + (game.bh ? ' / growth ' + game.bh.growth.toFixed(0) + ' r ' + game.bh.r.toFixed(0) : '');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

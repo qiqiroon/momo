@@ -105,11 +105,64 @@
       });
       game.on('bhTier', () => { this.shake = Math.max(this.shake, 8); });
       game.on('supermassive', () => {
-        this.banner = { main: 'SUPERMASSIVE BLACK HOLE', subKey: 'bhSuperSub', t0: performance.now() / 1000, dur: 99 };
+        // エンディングの始まりなので、言語によらず英語だけ（訳は出さない。2026-10-30 作者の指示）
+        this.banner = { main: 'SUPERMASSIVE BLACK HOLE', subKey: null, t0: performance.now() / 1000, dur: 99 };
         this.shake = Math.max(this.shake, 12);
       });
+      // ---- 特殊イベント（第14章） ----
+      this.parts = [];           // 火花・破片・光の粒：{ x, y, vx, vy, t0, dur, size, color, rock, rot, vr }
+      this.rings = [];           // 広がる光の輪：{ x, y, r0, r1, t0, dur, color }
+      this._lastDraw = performance.now() / 1000;
+      const EVN = { flare: 'SOLAR FLARE', comet: 'COMET', meteor: 'METEOR SHOWER', storm: 'GRAVITY STORM', wormhole: 'WORMHOLE' };
+      game.on('eventWarn', e => {
+        this.banner = { main: EVN[e.type], subKey: 'ev_' + e.type, t0: performance.now() / 1000, dur: C.events.warnSec + 1.3, event: true };
+      });
+      game.on('eventCancel', () => {
+        const bn = this.banner;
+        if (bn && bn.event) bn.dur = Math.min(bn.dur, performance.now() / 1000 - bn.t0 + 0.6);
+      });
+      game.on('eventStart', e => {
+        const now = performance.now() / 1000;
+        if (e.type === 'flare') {
+          // 衝撃波（押す範囲 R まで届く輪）を3重に。続いて _drawFlare が炎の弧を描く
+          this.rings.push({ x: e.x, y: e.y, r0: e.r, r1: e.R, t0: now, dur: 0.9, color: '251,146,60' });
+          this.rings.push({ x: e.x, y: e.y, r0: e.r * 0.8, r1: e.R * 0.8, t0: now + 0.12, dur: 0.8, color: '253,224,71' });
+          this.rings.push({ x: e.x, y: e.y, r0: e.r, r1: e.R * 1.1, t0: now + 0.3, dur: 0.9, color: '254,215,170' });
+          for (let i = 0; i < 48; i++) {
+            const a = Math.random() * Math.PI * 2, s = 250 + Math.random() * 380;
+            this.parts.push({ x: e.x + Math.cos(a) * e.r, y: e.y + Math.sin(a) * e.r, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t0: now, dur: 0.6 + Math.random() * 0.6, size: 3 + Math.random() * 4, color: '253,186,116' });
+          }
+          this.shake = Math.max(this.shake, 10);
+        }
+        if (e.type === 'storm') this.shake = Math.max(this.shake, 5);
+      });
+      game.on('warp', e => {
+        const now = performance.now() / 1000;
+        this.rings.push({ x: e.from.x, y: e.from.y, r0: 10, r1: 70, t0: now, dur: 0.45, color: '216,180,254' });
+        this.rings.push({ x: e.to.x, y: e.to.y, r0: 70, r1: 10, t0: now, dur: 0.45, color: '165,243,252' });
+      });
+      game.on('cometHit', e => this._sparks(e.x, e.y, 8, '253,186,116', 220));
+      game.on('cometBounce', e => {   // 山の重心で跳ね返った所に衝撃
+        this._sparks(e.x, e.y, 30, '253,224,71', 480);
+        this.rings.push({ x: e.x, y: e.y, r0: 20, r1: 150, t0: performance.now() / 1000, dur: 0.5, color: '251,146,60' });
+        this.shake = Math.max(this.shake, 12);
+      });
+      game.on('collision', e => {
+        const now = performance.now() / 1000;
+        this.banner = { main: 'PLANET COLLISION', subKey: 'ev_collision', t0: now, dur: 2.4, event: true };
+        this.shake = Math.max(this.shake, 22);
+        // 当たった所に白い閃光の玉を一瞬（ゲームの側では同時に一瞬スローになる）
+        this.rings.push({ x: e.x, y: e.y, r0: 90, r1: 10, t0: now, dur: 0.45, color: '255,255,255', fill: true });
+        this.rings.push({ x: e.x, y: e.y, r0: 10, r1: 240, t0: now, dur: 0.7, color: '255,237,213' });
+        this.rings.push({ x: e.x, y: e.y, r0: 10, r1: 150, t0: now + 0.12, dur: 0.6, color: '251,146,60' });
+        this._sparks(e.x, e.y, 60, '253,224,71', 620);
+        for (let i = 0; i < 16; i++) {   // 小惑星の破片（見た目だけ）
+          const a = Math.random() * Math.PI * 2, s = 160 + Math.random() * 300;
+          this.parts.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 140, t0: now, dur: 1.4 + Math.random() * 0.6, size: 10 + Math.random() * 16, rock: true, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 10 });
+        }
+      });
       game.on('state', st => {
-        if (st === 'PLAY' || st === 'TITLE') { this.banner = null; this.flash = null; this.bare = false; }
+        if (st === 'PLAY' || st === 'TITLE') { this.banner = null; this.flash = null; this.bare = false; this.parts = []; this.rings = []; }
         // 最終吸収に入ったら「SUPERMASSIVE BLACK HOLE」を 0.6 秒で消す
         if (st === 'FINAL_ABSORB' && this.banner) this.banner.dur = performance.now() / 1000 - this.banner.t0 + 0.6;
       });
@@ -122,6 +175,137 @@
       this.canvas.width = Math.round(cssW * dpr);
       this.canvas.height = Math.round(cssH * dpr);
       this.scale = this.canvas.width / this.C.board.width;
+    }
+
+    _sparks(x, y, n, color, speed) {
+      const now = performance.now() / 1000;
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2, s = speed * (0.3 + Math.random() * 0.7);
+        this.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, t0: now, dur: 0.35 + Math.random() * 0.45, size: 2 + Math.random() * 3, color });
+      }
+    }
+
+    // 重力嵐：盤面の色味を変え、重力の向き（斜め下）に筋を流す（第14.3節）
+    _drawStorm(ctx, cur, now) {
+      const B = this.C.board, a = Math.min(1, cur.t / 0.6, (cur.dur - cur.t) / 0.8);
+      if (a <= 0) return;
+      const ang = cur.ang * (cur.k || 0), ux = Math.sin(ang), uy = Math.cos(ang);
+      ctx.save();
+      ctx.globalAlpha = a;
+      // 重力の向きの側（下手）を濃くする
+      const cx = B.width / 2, cy = B.height / 2, L = 520;
+      const gr = ctx.createLinearGradient(cx - ux * L, cy - uy * L, cx + ux * L, cy + uy * L);
+      gr.addColorStop(0, 'rgba(76,29,149,0.06)'); gr.addColorStop(1, 'rgba(124,58,237,0.34)');
+      ctx.fillStyle = gr; ctx.fillRect(0, 0, B.width, B.height);
+      ctx.strokeStyle = 'rgba(196,181,253,0.30)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      const span = B.height + B.width + 200;
+      for (let i = 0; i < 22; i++) {
+        // 筋は重力の向きに流れる。出発点を盤面の外周に散らし、向きに沿って進める
+        const p = (now * 560 + i * 173) % span - 100, side = ((i * 131) % (B.width + 400)) - 200;
+        const x = cx + (-uy) * (side - B.width / 2) + ux * (p - span / 2) * 0.9;
+        const y = cy + ux * (side - B.width / 2) + uy * (p - span / 2) * 0.9;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + ux * 70, y + uy * 70); ctx.stroke();
+      }
+      // 盤面の中央に、重力の向きの矢印を薄く出す
+      ctx.translate(cx, 300); ctx.rotate(-ang);
+      ctx.fillStyle = 'rgba(221,214,254,' + (0.22 + 0.1 * Math.sin(now * 5)).toFixed(3) + ')';
+      ctx.beginPath(); ctx.moveTo(-14, -40); ctx.lineTo(14, -40); ctx.lineTo(14, 10); ctx.lineTo(30, 10); ctx.lineTo(0, 48); ctx.lineTo(-30, 10); ctx.lineTo(-14, 10); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+
+    // 太陽フレア：予告の間は星が脈打って明るくなる（k＝0→1）。発生後は炎の弧が星の縁から噴き出す
+    _drawFlareCharge(ctx, b, k, now) {
+      const x = b.position.x, y = b.position.y, r = b.circleRadius;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const pul = 0.75 + 0.25 * Math.sin(now * (8 + 14 * k));
+      const R = r * (1.3 + 0.9 * k);
+      const gl = ctx.createRadialGradient(x, y, r * 0.6, x, y, R);
+      gl.addColorStop(0, 'rgba(253,224,71,' + (0.55 * k * pul).toFixed(3) + ')');
+      gl.addColorStop(0.6, 'rgba(251,146,60,' + (0.3 * k * pul).toFixed(3) + ')');
+      gl.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    _drawFlare(ctx, cur, now) {
+      const b = cur.body, x = b && b.position ? b.position.x : cur.x, y = b && b.position ? b.position.y : cur.y, r = cur.r;
+      const u = cur.t / cur.dur, a = Math.min(1, (1 - u) / 0.35);
+      if (a <= 0) return;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      // 星そのものの強い光
+      const gl = ctx.createRadialGradient(x, y, r * 0.5, x, y, r * (1.6 + u));
+      gl.addColorStop(0, 'rgba(255,247,200,' + (0.7 * a).toFixed(3) + ')');
+      gl.addColorStop(0.5, 'rgba(251,146,60,' + (0.35 * a).toFixed(3) + ')');
+      gl.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, r * (1.6 + u), 0, Math.PI * 2); ctx.fill();
+      // 炎の弧（プロミネンス）：縁の2点を結ぶ輪が外へ伸びていく
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 7; i++) {
+        const th = i * 0.898 + 0.4, w = 0.28 + (i % 3) * 0.08;
+        const grow = Math.min(1, cur.t / (0.35 + 0.08 * i));
+        const h = r * (0.5 + 0.9 * grow + 0.15 * Math.sin(now * 6 + i));
+        const p1x = x + Math.cos(th - w) * r, p1y = y + Math.sin(th - w) * r;
+        const p2x = x + Math.cos(th + w) * r, p2y = y + Math.sin(th + w) * r;
+        const cx = x + Math.cos(th) * (r + h * 1.6), cy = y + Math.sin(th) * (r + h * 1.6);
+        for (const [lw, col] of [[9, '251,146,60'], [4, '253,224,71']]) {
+          ctx.strokeStyle = 'rgba(' + col + ',' + (0.8 * a * grow).toFixed(3) + ')';
+          ctx.lineWidth = lw;
+          ctx.beginPath(); ctx.moveTo(p1x, p1y); ctx.quadraticCurveTo(cx, cy, p2x, p2y); ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    // ワームホール：入口（紫とオレンジ）と出口（水色）の渦をプログラムで描く
+    _drawWormhole(ctx, cur, now) {
+      const W = this.C.events.wormhole, open = Math.min(1, cur.t / W.openSec, (cur.dur - cur.t) / W.openSec);
+      if (open <= 0) return;
+      const one = (x, y, dir, c1, c2) => {
+        const r = cur.r * (0.4 + 0.6 * open);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const gl = ctx.createRadialGradient(x, y, 0, x, y, r * 1.6);
+        gl.addColorStop(0, 'rgba(' + c1 + ',' + (0.55 * open).toFixed(3) + ')');
+        gl.addColorStop(0.5, 'rgba(' + c2 + ',' + (0.2 * open).toFixed(3) + ')');
+        gl.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gl; ctx.fillRect(x - r * 1.6, y - r * 1.6, r * 3.2, r * 3.2);
+        ctx.lineCap = 'round';
+        for (let i = 0; i < 5; i++) {
+          const a0 = dir * now * (2.2 + 0.4 * i) + i * Math.PI * 0.4, rr = r * (0.3 + 0.17 * i);
+          ctx.strokeStyle = 'rgba(' + (i % 2 ? c2 : c1) + ',' + (0.7 * open).toFixed(3) + ')';
+          ctx.lineWidth = 3 - i * 0.3;
+          ctx.beginPath(); ctx.arc(x, y, rr, a0, a0 + 2.2); ctx.stroke();
+        }
+        ctx.fillStyle = 'rgba(10,6,24,' + (0.85 * open).toFixed(3) + ')';
+        ctx.beginPath(); ctx.arc(x, y, r * 0.22, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      };
+      // 2つの穴は双方向。つながっていることを、流れる点線で示す
+      ctx.save();
+      ctx.strokeStyle = 'rgba(216,180,254,' + (0.28 * open).toFixed(3) + ')';
+      ctx.lineWidth = 2; ctx.setLineDash([6, 12]); ctx.lineDashOffset = -now * 40;
+      ctx.beginPath(); ctx.moveTo(cur.a.x, cur.a.y); ctx.lineTo(cur.b.x, cur.b.y); ctx.stroke();
+      ctx.restore();
+      one(cur.a.x, cur.a.y, 1, '216,180,254', '251,146,60');   // 紫とオレンジの穴
+      one(cur.b.x, cur.b.y, -1, '165,243,252', '255,255,255'); // 水色の穴（逆に回る）
+    }
+
+    // 彗星の絵（meteor.webp）：岩が左下・炎の尾が右上。岩の中心を物体の位置に合わせ、進む向きに回す
+    _drawComet(ctx, x, y, r, dir, alpha, scale) {
+      const sp = this.sprites.meteor;
+      ctx.save();
+      ctx.translate(x, y);
+      if (alpha != null) ctx.globalAlpha = alpha;
+      if (sp) {
+        const m = sp.meta, s = r / 42 * (scale || 1);   // 岩の半径は絵の上で約 42px、中心は (62, 118)
+        ctx.rotate(dir - 2.44);                        // 絵の進む向きは約 140°
+        ctx.drawImage(sp.img, -62 * s, -118 * s, m.width * s, m.height * s);
+      } else {
+        ctx.fillStyle = '#fb923c'; ctx.beginPath(); ctx.arc(0, 0, r * (scale || 1), 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
     }
 
     _onMerge(e) {
@@ -144,6 +328,12 @@
 
       // 盤面の地（背景の星が少し透ける）
       if (!this.bare) drawGround(ctx, C);
+      const evCur = g.ev && g.ev.cur;
+      if (evCur && evCur.type === 'storm') this._drawStorm(ctx, evCur, now);
+      if (evCur && evCur.type === 'wormhole') this._drawWormhole(ctx, evCur, now);
+      const evW = g.ev && g.ev.warn;
+      if (evW && evW.type === 'flare' && evW.body) this._drawFlareCharge(ctx, evW.body, Math.min(1, evW.t / C.events.warnSec), now);
+      if (evCur && evCur.type === 'flare') this._drawFlare(ctx, evCur, now);
 
       // デッドライン（警告中は赤く点滅）。ブラックホールが生まれたら消す
       if (!g.bh) {
@@ -183,7 +373,36 @@
         ctx.beginPath(); ctx.moveTo(x, B.dropY + r); ctx.lineTo(x, B.height); ctx.stroke();
         ctx.restore();
         drawBody(ctx, this.sprites, C, stg, x, B.dropY, r, 0, g.canDrop() ? 0.55 : 0.25);
+        // 落とす前の天体の名前を、天体の上に出す（表示言語で）
+        // 猫語の鳴き声は呼ぶたびに変わるので、天体か言語が変わったときだけ決め直す
+        const I = root.CosmosI18n, lang = I ? I.lang + '/' + I.baseLang() : '';
+        if (!this._aimName || this._aimName.stg !== stg || this._aimName.lang !== lang) {
+          this._aimName = { stg, lang, name: I ? I.stageName(stg, C) : C.stages[stg].name };
+        }
+        const name = this._aimName.name;
+        ctx.save();
+        ctx.font = '700 15px "Noto Sans JP", "Noto Sans SC", sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.lineWidth = 4; ctx.lineJoin = 'round';
+        // 大きい天体は上が情報ヘッダーに隠れるので、名前は天体の真ん中に出す
+        const ny = B.dropY - r - 6 - 15 >= C.board.nameTopY ? B.dropY - r - 6 : B.dropY + 8;
+        ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.strokeText(name, x, ny);
+        ctx.fillStyle = 'rgba(255,255,255,' + (g.canDrop() ? 0.9 : 0.45) + ')'; ctx.fillText(name, x, ny);
+        ctx.restore();
       }
+
+      // 流星群で降ってくる天体の光の尾
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const b of g.bodies()) {
+        if (!b.plugin.cosmos.meteor || b.velocity.y < 2) continue;
+        const r = b.circleRadius, len = Math.min(160, b.velocity.y * 14);
+        const gr = ctx.createLinearGradient(b.position.x, b.position.y - len, b.position.x, b.position.y);
+        gr.addColorStop(0, 'rgba(165,243,252,0)'); gr.addColorStop(1, 'rgba(165,243,252,0.5)');
+        ctx.fillStyle = gr;
+        ctx.beginPath(); ctx.moveTo(b.position.x - r * 0.7, b.position.y); ctx.lineTo(b.position.x, b.position.y - len); ctx.lineTo(b.position.x + r * 0.7, b.position.y); ctx.fill();
+      }
+      ctx.restore();
 
       // 天体
       for (const b of g.bodies()) {
@@ -198,7 +417,51 @@
           const dir = Math.atan2(g.bh.y - a.y, g.bh.x - a.x), sc = 1 - k;
           ctx.save();
           ctx.translate(x, y); ctx.rotate(dir); ctx.scale(sc * (1 + 1.6 * k), sc * (1 - 0.5 * k)); ctx.rotate(-dir);
-          drawBody(ctx, this.sprites, C, a.stage, 0, 0, a.r, a.angle, 1 - 0.4 * k);
+          if (a.comet) this._drawComet(ctx, 0, 0, a.r, a.angle, 1 - 0.4 * k);
+          else drawBody(ctx, this.sprites, C, a.stage, 0, 0, a.r, a.angle, 1 - 0.4 * k);
+          ctx.restore();
+        }
+      }
+
+      // 彗星
+      if (g.comet) {
+        const c = g.comet.body;
+        this._drawComet(ctx, c.position.x, c.position.y, c.circleRadius, Math.atan2(g.comet.vy, g.comet.vx), null, 1.5);
+      }
+
+      // 広がる光の輪（太陽フレア・ワームホール・惑星衝突）
+      const dtp = Math.min(0.1, now - this._lastDraw); this._lastDraw = now;
+      this.rings = this.rings.filter(r => now - r.t0 < r.dur);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const r of this.rings) {
+        const k = (now - r.t0) / r.dur;
+        if (k < 0) continue;
+        const e = 1 - (1 - k) * (1 - k), rr = r.r0 + (r.r1 - r.r0) * e;
+        ctx.beginPath(); ctx.arc(r.x, r.y, Math.max(1, rr), 0, Math.PI * 2);
+        if (r.fill) { ctx.fillStyle = 'rgba(' + r.color + ',' + (0.9 * (1 - k)).toFixed(3) + ')'; ctx.fill(); continue; }   // 閃光の玉
+        ctx.strokeStyle = 'rgba(' + r.color + ',' + (0.85 * (1 - k)).toFixed(3) + ')';
+        ctx.lineWidth = 10 * (1 - k) + 2;
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 火花・小惑星の破片（見た目だけ）
+      this.parts = this.parts.filter(p => now - p.t0 < p.dur);
+      for (const p of this.parts) {
+        p.x += p.vx * dtp; p.y += p.vy * dtp; p.vy += (p.rock ? 380 : 160) * dtp; p.vx *= 0.985;
+        const k = (now - p.t0) / p.dur;
+        if (p.rock) {
+          p.rot += p.vr * dtp;
+          const sp = this.sprites.asteroid;
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.globalAlpha = 1 - k * k;
+          if (sp) { const s = (2 * p.size) / Math.min(sp.meta.width, sp.meta.height); ctx.drawImage(sp.img, -sp.meta.width * s / 2, -sp.meta.height * s / 2, sp.meta.width * s, sp.meta.height * s); }
+          else { ctx.fillStyle = '#78716c'; ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.fill(); }
+          ctx.restore();
+        } else {
+          ctx.save(); ctx.globalCompositeOperation = 'lighter';
+          ctx.fillStyle = 'rgba(' + p.color + ',' + (1 - k).toFixed(3) + ')';
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1 - 0.5 * k), 0, Math.PI * 2); ctx.fill();
           ctx.restore();
         }
       }
@@ -257,7 +520,7 @@
           ctx.textAlign = 'center';
           const big = bn.main.length > 12 ? 40 : 58;
           ctx.font = big + 'px "Fredoka One", sans-serif';
-          ctx.shadowColor = 'rgba(168,85,247,0.9)'; ctx.shadowBlur = 24;
+          ctx.shadowColor = bn.event ? 'rgba(234,88,12,0.95)' : 'rgba(168,85,247,0.9)'; ctx.shadowBlur = 24;
           ctx.fillStyle = '#ffffff';
           ctx.fillText(bn.main, B.width / 2, y);
           const sub = this.t(bn.subKey);

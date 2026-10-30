@@ -6,15 +6,45 @@
   'use strict';
 
   const CONFIG = {
-    version: 'v0.10', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
+    version: 'v0.11', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
+
+    // 第14章 特殊イベント（M4。2026-10-30）
+    events: {
+      delaySec: [45, 120],   // 前のイベント（とゲームの始め）から、この間のランダムな秒数がたったら必ず起こす（くじはしない。2026-10-30 作者の指示）
+      warnSec: 1.5,          // 発生前にバナーで予告する長さ
+      minDrops: 10,          // 前のイベント（とゲームの始め）から、この数だけ落とすまでは起こさない
+      idleSec: 8,            // 最後に落としてからこの秒数を過ぎたら、待ちの時間を数えず、起こさない（落とすのを止めている間は数えない）
+      weights: { flare: 2 }, // 選ぶときの重み（書いていないものは1）。フレアは弱めなので多めに
+      playTypes: ['flare', 'comet', 'meteor', 'storm', 'wormhole'], // 通常期に起こるもの（惑星衝突は条件で起こる）
+      bhTypes: ['comet', 'meteor'],                                  // ブラックホール期に起こるもの（第14.4節）
+      // 太陽以上。予告の間に対象の星が明るくなり、発生で半径の3.5倍以内を外へ押す（上向きは弱める）。炎の弧を sec 秒見せる
+      flare:    { minStage: 10, rangeMul: 3.5, push: 14, upMul: 0.8, sec: 1.8 },
+      comet:    { crossSec: 0.55, maxSec: 8, radius: 34, yRange: [260, 700], tiltMax: 0.22, margin: 80,
+                  fromY: [40, 200], aimJitter: 30, // 通常期は左右の上の方から、天体の山の重心（面積で重み付け）へ斜めに突っ込む
+                  apexY: 0, bounceVx: 3.5, fall: 0.17, // 重心で跳ね返り、放物線の山が盤面の上の境目（y=0）に来る上向きの速さで飛ぶ。
+                                                       // 跳ね返ったあとは横 3.5px/step、毎 step 0.17 ずつ落ちる（ゆっくりめ）
+                  push: 55, pushRef: 80, upMul: 1, // 当たった天体に足す速さ（px/step）。半径 80 より大きい天体は半径に反比例して弱める
+                  captureMul: 2.5, steer: 0.12, growth: 20 }, // すり抜けて当たった天体を1回押す。合体しない。BH 期は近づくと吸い込まれる
+      meteor:   { topY: 350, count: [5, 7], sec: 3, startVy: 4 }, // 出現範囲の最下段の天体を上から降らせる
+      // 重力を斜め下に傾ける（左右はランダム）。積もった山は傾いた重力に対して平らになろうとして崩れる
+      storm:    { sec: 12, angleDeg: [30, 40], gravityMul: 1, rampSec: 1.2 },
+      // 2つの穴は双方向。ゆっくり動き回る。入った天体は、もう一方の穴から出る（穴から出るまでは戻さない）
+      wormhole: { sec: 30, r: 44, maxRadius: 60, area: { x: [70, 530], y: [260, 800] }, minDist: 220, speed: 18, openSec: 0.8, cooldownSec: 1.2 },
+      // 木星以上の異なる天体が速くぶつかったら（10秒に1回まで）。一瞬スローにし、2つを弾き離す。得点・合体は変えない
+      collision:{ minStage: 9, minSpeed: 6, cooldownSec: 10, slowSec: 0.6, slowScale: 0.25, knock: 5 },
+      // 盤面を揺さぶるイベントの間と、そのあと天体が落ち着くまでは、デッドラインを越えてもゲームオーバーにしない
+      calm: { types: ['flare', 'comet', 'storm', 'collision'], speed: 0.8, stillSec: 0.6, maxSec: 8 }
+    },
 
     // 第4章 盤面（論理座標）
-    board: { width: 600, height: 900, dropY: 90, deadlineY: 150, wallThickness: 200 },
+    board: { width: 600, height: 900, dropY: 90, deadlineY: 150, wallThickness: 200,
+             nameTopY: 4 },   // 落とす前の天体名の上端がこれより上（盤面の外＝情報ヘッダーの裏）になるなら、名前は天体の真ん中に出す
 
     // 第5章 天体進化表（spriteKey は assets/img/manifest.json のキー）
     // 並びは本当の大きさ（平均半径）の順。月 1,737 km < 水星 2,440 < 火星 3,390 < 金星 6,052 < 地球 6,371
     //   < 海王星 24,622 < 天王星 25,362 < 土星 58,232 < 木星 69,911 < 太陽 695,700。太陽より上は順を問わない
     //   （2026-10-29 作者の指示で地球と水星を入れ替えた。半径とスコアは段階ごとのまま）
+    // 半径：地球（41）から上は1段ごとに1.19倍。クリアできるのが先読みのボットで約1割になるよう、約1.2倍から少し縮めた（第9.3節。2026-10-30）
     stages: [
       null,
       { name: '月',         spriteKey: 'moon',        radius: 20,  score: 0,   color: '#bdbdbd' },
@@ -22,13 +52,13 @@
       { name: '火星',       spriteKey: 'mars',        radius: 29,  score: 60,  color: '#dc6b3a' },
       { name: '金星',       spriteKey: 'venus',       radius: 35,  score: 100, color: '#e8c27a' },
       { name: '地球',       spriteKey: 'earth',       radius: 41,  score: 150, color: '#3b82f6' },
-      { name: '海王星',     spriteKey: 'neptune',     radius: 50,  score: 210, color: '#2563eb' },
-      { name: '天王星',     spriteKey: 'uranus',      radius: 60,  score: 280, color: '#7dd3fc' },
-      { name: '土星',       spriteKey: 'saturn',      radius: 72,  score: 360, color: '#d6b47a' },
-      { name: '木星',       spriteKey: 'jupiter',     radius: 86,  score: 450, color: '#c08a5a' },
-      { name: '太陽',       spriteKey: 'sun',         radius: 103, score: 550, color: '#fbbf24' },
-      { name: '超新星',     spriteKey: 'supernova',   radius: 124, score: 660, color: '#f0abfc' },
-      { name: '中性子星',   spriteKey: 'neutronstar', radius: 149, score: 780, color: '#a5f3fc' },
+      { name: '海王星',     spriteKey: 'neptune',     radius: 49,  score: 210, color: '#2563eb' },
+      { name: '天王星',     spriteKey: 'uranus',      radius: 58,  score: 280, color: '#7dd3fc' },
+      { name: '土星',       spriteKey: 'saturn',      radius: 69,  score: 360, color: '#d6b47a' },
+      { name: '木星',       spriteKey: 'jupiter',     radius: 82,  score: 450, color: '#c08a5a' },
+      { name: '太陽',       spriteKey: 'sun',         radius: 98,  score: 550, color: '#fbbf24' },
+      { name: '超新星',     spriteKey: 'supernova',   radius: 117, score: 660, color: '#f0abfc' },
+      { name: '中性子星',   spriteKey: 'neutronstar', radius: 139, score: 780, color: '#a5f3fc' },
       { name: 'ブラックホール', spriteKey: 'blackhole', radius: 36, score: 10000, color: '#000000' }
     ],
     maxMergeStage: 12, // 中性子星どうしはブラックホール誕生へ（第11章）
@@ -51,9 +81,11 @@
       nearR: 2.5, nearG: 3,  // 近距離：Rb × 2.5 まで、重力の3倍
       farR: 8, farGmax: 1.5, farGmin: 1.2, // 中距離：Rb × 8 まで、重力の1.5→1.2倍（距離で減衰）。仕様書は Rb×5・1→0.5倍。
                              // 重力に勝てず床に落ちて吸われないため強めた（2026-10-29 作者の回答 B）
+      passR: 2.2,            // Rb × 2.2 より内側では天体どうしがすり抜ける（詰まり対策。2026-10-30 作者の回答 A）
       swirl: 0.2,            // 回る向きの成分（全体の約20%）
       absorbSec: 0.3,        // 吸収の演出
       growthPerSec: 1,       // 止まらないよう1秒ごとに足す
+      digestPerSec: 10,      // 吸い込んだ分はいったん消化待ちにため、毎秒この分だけ成長に回す。600 まで最短約1分（2026-10-30 作者の回答 Q1=B）
       superGrowth: 600,      // 超巨大
       absorbScorePerStage: 20,
       superHoldSec: 2.5      // 「SUPERMASSIVE BLACK HOLE」を見せてから最終吸収へ
@@ -92,11 +124,12 @@
     },
 
     // 第6.3節 出現テーブル：到達した最高段階 → 出現範囲 [下限, 上限]
+    // 範囲の引き上げは、1段早くした（第9.3節の調整。2026-10-30）
     spawnTable: [
-      { upToMaxStage: 8,  range: [1, 5] },
-      { upToMaxStage: 9,  range: [1, 6] },
-      { upToMaxStage: 10, range: [2, 6] },
-      { upToMaxStage: 11, range: [2, 7] },
+      { upToMaxStage: 7,  range: [1, 5] },
+      { upToMaxStage: 8,  range: [1, 6] },
+      { upToMaxStage: 9,  range: [2, 6] },
+      { upToMaxStage: 10, range: [2, 7] },
       { upToMaxStage: 99, range: [3, 7] }
     ],
     // 範囲の下から順の確率（%）。5段階以外の範囲では 30→10 の直線で按分して合計100に正規化する
@@ -156,9 +189,9 @@
     },
 
     // 第16章 効果音（2026-10-30 作者が試聴して決めた。Sound_List v1_02）
-    //   イベント予告（効果音ラボ「きらーん1」）は M4 で使う
     se: {
       files: {
+        event:   'sfx/eye-shine1.mp3',          // 特殊イベントの予告・惑星衝突：効果音ラボ「きらーん1」
         drop:    'sfx/knife-throw1.mp3',        // 落下：効果音ラボ「ナイフを投げる」
         merge:   'sfx/puyon1.mp3',              // 合体：効果音ラボ「ぷよん」。天体の段階ごとに高さを変える
         bhBirth: 'sfx/buun1.mp3',               // ブラックホール誕生：効果音ラボ「ブウーン（重低音）」
@@ -170,8 +203,8 @@
         pause:   '../../assets/se/se-pause.mp3'   // 一時停止：共通 se-pause（Freesound BaggoNotes、CC0）
       },
       // land（着地・衝突）はプログラムで作る小さな「とん」
-      vol:      { drop: 0.8, land: 0.5, merge: 0.9, bhBirth: 1, bhTier: 0.8, absorb: 0.8, warn: 0.7, button: 0.6, pause: 0.6, bigbang: 1, rumble: 1 },
-      minGapMs: { drop: 60, land: 70, merge: 40, bhBirth: 500, bhTier: 500, absorb: 150, warn: 500, button: 40, pause: 40 }, // 同じ音を続けて鳴らす最短の間
+      vol:      { event: 0.3, drop: 0.8, land: 0.5, merge: 0.9, bhBirth: 1, bhTier: 0.8, absorb: 0.8, warn: 0.7, button: 0.6, pause: 0.6, bigbang: 1, rumble: 1 },
+      minGapMs: { event: 500, drop: 60, land: 70, merge: 40, bhBirth: 500, bhTier: 500, absorb: 150, warn: 500, button: 40, pause: 40 }, // 同じ音を続けて鳴らす最短の間
       maxVoices:{ land: 4, merge: 4, absorb: 3 },  // 同時に鳴らす数の上限（書いていない音は2）
       landMinSpeed: 2.5,     // これより遅い衝突では「とん」を鳴らさない（px/step）
       landFullSpeed: 12      // この速さで最大の音量

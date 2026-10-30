@@ -69,7 +69,7 @@
       this.parts = [];       // 光の粒子
       this.bang = null;      // ビッグバンの中心と大きさ（画面の px）
       this.form = null;      // 形成される星と銀河
-      this.flow = null;      // エンドロールの流れる星
+      this.flow = null;     // エンドロールの流れる星
       this.drift = [];       // 流れていく銀河・星雲
       this.bgs = null;       // ぼかした背景画像
       this.nextDrift = 0;
@@ -242,7 +242,8 @@
       // 宇宙（星雲・銀河・星）は最初から描いておき、ホワイトアウトが透けていくと見えてくる
       if (!this.form) this._makeForm(W, H);
       if (T >= E.whiteAt) {
-        const zoom = 1 + 0.9 * Math.pow(clamp01((T - E.expandAt) / 6), 1.6);
+        // 膨張が始まったら大きくし続け、止めずに大きくなりながら消える（止まってから消えると不自然だった。2026-10-30 作者の指摘）
+        const zoom = 1 + 0.9 * Math.pow(Math.max(0, T - E.expandAt) / 6, 1.6);
         const formFade = 1 - smooth((T - E.bigbangSec - 2) / 5);           // エンドロールの最初の数秒で消える
         if (formFade > 0) {
           ctx.save();
@@ -317,6 +318,27 @@
       // ホワイトアウト：画面全体が白くなり、だんだん透けて宇宙が見えてくる
       const wa = T < E.whiteAt ? smooth((T - (E.whiteAt - 0.5)) / 0.5) : 1 - smooth((T - E.whiteAt - E.whiteHoldSec) / E.revealSec);
       if (wa > 0) { ctx.fillStyle = 'rgba(255,255,255,' + wa.toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+      this._drawBangTitle(ctx, T, W, H);
+    }
+
+    // 「BIG BANG」の文字（第12.3節）。爆発で現れ、ホワイトアウトの間も読めるよう濃いオレンジにふちを付け、
+    // 宇宙が透けて見えてくるころに少し大きくなりながら消える。エンディング中は英語だけ（訳は出さない）
+    _drawBangTitle(ctx, T, W, H) {
+      const E = this.C.ending, t0 = E.burstAt + 0.15, t1 = E.whiteAt + E.whiteHoldSec + 1.8;
+      if (T < t0 || T > t1 + 1.2) return;
+      const a = smooth((T - t0) / 0.35) * (1 - smooth((T - t1) / 1.2));
+      if (a <= 0) return;
+      const md = Math.min(W, H), sc = 0.9 + 0.25 * smooth((T - t0) / (t1 + 1.2 - t0));
+      const big = Math.round(md * 0.14);
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.translate(W / 2, H / 2); ctx.scale(sc, sc);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+      ctx.font = big + 'px "Fredoka One", sans-serif';
+      ctx.lineWidth = big * 0.14; ctx.strokeStyle = 'rgba(67,20,7,0.85)';
+      ctx.strokeText('BIG BANG', 0, 0);
+      ctx.fillStyle = '#fb923c'; ctx.fillText('BIG BANG', 0, 0);
+      ctx.restore();
     }
 
     _makeForm(W, H) {

@@ -51,6 +51,7 @@ Fredoka One / M PLUS Rounded 1c / Noto Sans JP / Noto Sans SC — SIL Open Font 
 | 用途 | ファイル | 出所 | ライセンス |
 |---|---|---|---|
 | 落下 | sfx/knife-throw1.mp3 | 効果音ラボ「ナイフを投げる」 | 効果音ラボの利用規約（表記不要。モノラル 96kbps に変換） |
+| 特殊イベントの予告 | sfx/eye-shine1.mp3 | 効果音ラボ「きらーん1」 | 効果音ラボの利用規約（表記不要。モノラル 96kbps に変換） |
 | 合体 | sfx/puyon1.mp3 | 効果音ラボ「ぷよん」 | 効果音ラボの利用規約（表記不要。モノラル 96kbps に変換） |
 | ブラックホール誕生・成長 | sfx/buun1.mp3 | 効果音ラボ「ブウーン（重低音）」 | 同上 |
 | 吸収 | sfx/magic-drain1.mp3 | 効果音ラボ「HP吸収魔法1」 | 同上 |

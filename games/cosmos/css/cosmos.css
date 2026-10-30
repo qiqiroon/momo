@@ -281,3 +281,5 @@ body.rolling #endroll { display: block; }
 #rollCast img { width: 52px; height: 36px; object-fit: contain; }
 .cast-name { white-space: nowrap; font-weight: 700; font-size: 16px; color: #fff; text-align: right; }
 .cast-role { white-space: nowrap; font-size: 13px; color: #a3a3a3; text-align: left; }
+/* 画像を読み終えて START が働くようになるまで、START を出さない（読み込み中に押しても何も起きなかった。2026-10-30） */
+body:not(.booted) #startBtn, body:not(.booted) #topCtl { visibility: hidden; }   /* 歯車と言語選択も同じ（作者の回答） */

@@ -54,8 +54,10 @@ body.at-title #topbar .mini-head { visibility: hidden; }   /* タイトル画面
 .hud-gauge[hidden] { display: none; }
 .hud-gauge .hud-label { white-space: nowrap; }
 .hud-gauge b { color: #c4b5fd; font-weight: 700; }
-.gauge { flex: 1; height: 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: rgba(17,17,17,.7); overflow: hidden; }
-.gauge-fill { height: 100%; width: 0; background: linear-gradient(90deg, #7c3aed, #ea580c); transition: width .25s; }
+.gauge { position: relative; flex: 1; height: 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: rgba(17,17,17,.7); overflow: hidden; }
+.gauge-fill { position: relative; height: 100%; width: 0; background: linear-gradient(90deg, #7c3aed, #ea580c); transition: width .25s; }
+/* 消化待ち（食べたがまだ成長に回っていない分）を薄く先に伸ばす */
+.gauge-food { position: absolute; left: 0; top: 0; height: 100%; width: 0; background: rgba(251,146,60,.35); transition: width .25s; }
 
 #boardFrame { position: relative; }
 #board { display: block; touch-action: none; cursor: crosshair; }

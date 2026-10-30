@@ -6,7 +6,7 @@
   'use strict';
 
   const CONFIG = {
-    version: 'v0.11', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
+    version: 'v0.12', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
 
     // 第14章 特殊イベント（M4。2026-10-30）
     events: {
@@ -30,8 +30,9 @@
       storm:    { sec: 12, angleDeg: [30, 40], gravityMul: 1, rampSec: 1.2 },
       // 2つの穴は双方向。ゆっくり動き回る。入った天体は、もう一方の穴から出る（穴から出るまでは戻さない）
       wormhole: { sec: 30, r: 44, maxRadius: 60, area: { x: [70, 530], y: [260, 800] }, minDist: 220, speed: 18, openSec: 0.8, cooldownSec: 1.2 },
-      // 木星以上の異なる天体が速くぶつかったら（10秒に1回まで）。一瞬スローにし、2つを弾き離す。得点・合体は変えない
-      collision:{ minStage: 9, minSpeed: 6, cooldownSec: 10, slowSec: 0.6, slowScale: 0.25, knock: 5 },
+      // 木星以上の異なる天体が速く（4px/step 以上）ぶつかったら（10秒に1回まで）。一瞬スローにし、2つを弾き離す。得点・合体は変えない
+      // 境目は 6 だと20回のゲーム中4回でしか起きなかったので、4 に下げた（10回で起きる。M6 の見直し、2026-10-30）
+      collision:{ minStage: 9, minSpeed: 4, cooldownSec: 10, slowSec: 0.6, slowScale: 0.25, knock: 5 },
       // 盤面を揺さぶるイベントの間と、そのあと天体が落ち着くまでは、デッドラインを越えてもゲームオーバーにしない
       calm: { types: ['flare', 'comet', 'storm', 'collision'], speed: 0.8, stillSec: 0.6, maxSec: 8 }
     },

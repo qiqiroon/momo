@@ -351,13 +351,15 @@
       if (force || last.n !== n) board.drawIcon($('nextIcon'), n);
       if (force || last.nn !== nn) board.drawIcon($('nextNextIcon'), nn);
       // 成長ゲージ（超巨大＝成長値 600 で満タン）
+      // 薄い部分は消化待ち（食べたがまだ成長に回っていない分）。食べさせるとすぐ伸び、濃い部分が追いつく
       const bh = game.bh, gw = bh ? Math.min(1, bh.growth / C.bh.superGrowth) : -1, tier = bh ? bh.tier : -1;
-      if (force || last.gw !== gw) {
+      const fw = bh ? Math.min(1, (bh.growth + (bh.food || 0)) / C.bh.superGrowth) : -1;
+      if (force || last.gw !== gw || last.fw !== fw) {
         $('bhGauge').hidden = !bh;
-        if (bh) $('bhFill').style.width = (gw * 100).toFixed(1) + '%';
+        if (bh) { $('bhFill').style.width = (gw * 100).toFixed(1) + '%'; $('bhFood').style.width = (fw * 100).toFixed(1) + '%'; }
       }
       if (force || last.tier !== tier) { if (bh) $('bhTier').textContent = endingEnglish() ? L.en('bhTier' + tier) : L.t('bhTier' + tier); }
-      last = { s, h, n, nn, gw, tier };
+      last = { s, h, n, nn, gw, fw, tier };
     }
 
     // ---- 配置（盤面は 2:3 で、使える領域に収める） ----

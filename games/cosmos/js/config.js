@@ -6,7 +6,7 @@
   'use strict';
 
   const CONFIG = {
-    version: 'v0.08', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
+    version: 'v0.09', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
 
     // 第4章 盤面（論理座標）
     board: { width: 600, height: 900, dropY: 90, deadlineY: 150, wallThickness: 200 },
@@ -153,6 +153,28 @@
       rotateSprites: true,     // 陰影が不自然なら false（第21章）
       glowScale: 1.2,          // 超新星・中性子星の表示倍率（短辺＝直径×1.2）
       starCount: 220
+    },
+
+    // 第16章 効果音（2026-10-30 作者が試聴して決めた。Sound_List v1_02）
+    //   イベント予告（効果音ラボ「きらーん1」）は M4 で使う
+    se: {
+      files: {
+        drop:    'sfx/knife-throw1.mp3',        // 落下：効果音ラボ「ナイフを投げる」
+        merge:   'sfx/puyon1.mp3',              // 合体：効果音ラボ「ぷよん」。天体の段階ごとに高さを変える
+        bhBirth: 'sfx/buun1.mp3',               // ブラックホール誕生：効果音ラボ「ブウーン（重低音）」
+        bhTier:  'sfx/buun1.mp3',               // 成長段階アップ：同じ音
+        absorb:  'sfx/magic-drain1.mp3',        // 吸収：効果音ラボ「HP吸収魔法1」
+        warn:    'sfx/news-title4.mp3',         // 警告（デッドライン）：効果音ラボ「ニュースタイトル表示4」
+        bigbang: 'sfx/bigbang1.mp3',            // ビッグバン：効果音ラボ「爆発4」＋「大爆発1」を重ねたもの。合成の重低音も一緒に鳴らす
+        button:  '../../assets/se/se-button.mp3', // ボタン：共通 se-button（Taira Komori、CC BY 4.0。表記が要る）
+        pause:   '../../assets/se/se-pause.mp3'   // 一時停止：共通 se-pause（Freesound BaggoNotes、CC0）
+      },
+      // land（着地・衝突）はプログラムで作る小さな「とん」
+      vol:      { drop: 0.8, land: 0.5, merge: 0.9, bhBirth: 1, bhTier: 0.8, absorb: 0.8, warn: 0.7, button: 0.6, pause: 0.6, bigbang: 1, rumble: 1 },
+      minGapMs: { drop: 60, land: 70, merge: 40, bhBirth: 500, bhTier: 500, absorb: 150, warn: 500, button: 40, pause: 40 }, // 同じ音を続けて鳴らす最短の間
+      maxVoices:{ land: 4, merge: 4, absorb: 3 },  // 同時に鳴らす数の上限（書いていない音は2）
+      landMinSpeed: 2.5,     // これより遅い衝突では「とん」を鳴らさない（px/step）
+      landFullSpeed: 12      // この速さで最大の音量
     },
 
     storageKeys: { highScore: 'momoCosmos.highScore', clearCount: 'momoCosmos.clearCount', settings: 'momoCosmos.settings' },

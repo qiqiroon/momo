@@ -223,6 +223,7 @@
       for (const p of pairs) {
         const a = p.bodyA, b = p.bodyB, n = p.collision.normal;
         const v = Math.abs((a.velocity.x - b.velocity.x) * n.x + (a.velocity.y - b.velocity.y) * n.y);
+        this.emit('impact', { v });   // 着地・衝突の音（main.js が速さで選ぶ）
         const amt = Math.min(S.max, v * S.gain);
         if (amt < 0.01) continue;
         const ang = Math.atan2(n.y, n.x);

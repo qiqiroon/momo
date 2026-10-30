@@ -3,7 +3,8 @@
  * BGM は共通の assets/bgm/ から目録（manifest.json）を読んで選ぶ。曲の性格ごとのフォルダ：
  *   lobby（タイトル・全アプリ共通）／game-cosmos（通常期とブラックホール期）／ending-cosmos（エンディング）
  * 音量は Web Audio の GainNode でかける（iPhone は audio 要素の volume が効かないため）。
- * 効果音は M5 の残り（素材の試聴待ち）。
+ * 効果音（2026-10-30〜）：短い音はファイルを読み込んで AudioBuffer で鳴らす。着地の「とん」はプログラムで作る。
+ *   同じ音が短い間に重なりすぎないよう、最短の間と同時に鳴らす数を決めている（config.js の se）。
  */
 (function (root) {
   'use strict';
@@ -13,8 +14,13 @@
 
   class CosmosSound {
     /** getSet：設定（se, bgm, seMute, bgmMute）を返す関数 */
-    constructor(getSet) {
+    constructor(getSet, seConf) {
       this.getSet = getSet;
+      this.seConf = seConf;
+      this.seGain = null;
+      this.buf = {};             // 効果音の AudioBuffer（ファイルの場所ごと）
+      this.voices = {};          // 鳴っている数
+      this.lastAt = {};          // 最後に鳴らした時刻（ms）
       this.ac = null; this.bgmGain = null;
       this.sceneGain = null;     // 場面の音量（最終吸収でだんだん小さくする。第12.1節）。利用者の音量とは別
       this.sceneLevel = 1;
@@ -44,7 +50,10 @@
         this.sceneGain = this.ac.createGain();
         this.sceneGain.gain.value = this.sceneLevel;
         this.sceneGain.connect(this.bgmGain);
+        this.seGain = this.ac.createGain();
+        this.seGain.connect(this.ac.destination);
         this.applyGain(true);
+        this._loadSe();
       }
       this.resume();   // 1時間以上離れて戻ったとき：止めていた曲もここで再開する
       if (this.folder && !this.cur) this._play(this.folder);
@@ -57,6 +66,65 @@
       if (!this.ac) return;
       const S = this.getSet(), v = S.bgmMute ? 0 : S.bgm / 100 * 0.9;
       this.bgmGain.gain.setTargetAtTime(v, this.ac.currentTime, now ? 0.001 : 0.03);
+      this.seGain.gain.setTargetAtTime(S.seMute ? 0 : S.se / 100, this.ac.currentTime, now ? 0.001 : 0.03);
+    }
+
+    // ---- 効果音 ----
+    _loadSe() {
+      const files = (this.seConf && this.seConf.files) || {};
+      new Set(Object.values(files)).forEach(path => {
+        fetch(path).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+          .then(b => this.ac.decodeAudioData(b)).then(buf => { this.buf[path] = buf; })
+          .catch(e => console.warn('[cosmos] 効果音を読めません', path, e));
+      });
+    }
+
+    /** 効果音を鳴らす。opt.rate＝高さ（再生の速さ）、opt.vol＝音量の倍率 */
+    se(name, opt) {
+      const C = this.seConf;
+      if (!this.ac || !C || this.ac.state !== 'running') return;
+      const now = performance.now(), gap = C.minGapMs[name] || 40, max = C.maxVoices[name] || 2;
+      if (now - (this.lastAt[name] || -1e9) < gap || (this.voices[name] || 0) >= max) return;
+      const vol = (C.vol[name] || 1) * (opt && opt.vol != null ? opt.vol : 1);
+      let node;
+      if (name === 'land') node = this._thud(vol);
+      else {
+        const buf = this.buf[C.files[name]];
+        if (!buf) return;
+        const src = this.ac.createBufferSource(), g = this.ac.createGain();
+        src.buffer = buf; src.playbackRate.value = (opt && opt.rate) || 1; g.gain.value = vol;
+        src.connect(g).connect(this.seGain); src.start();
+        node = src;
+      }
+      this.lastAt[name] = now;
+      this.voices[name] = (this.voices[name] || 0) + 1;
+      node.onended = () => { this.voices[name]--; };
+    }
+
+    /** ビッグバンの重低音：下がっていく低い音と、こもった雑音（試聴ページと同じ作り。2.4秒） */
+    rumble() {
+      if (!this.ac || this.ac.state !== 'running') return;
+      const c = this.ac, t = c.currentTime, dur = 2.4, v = (this.seConf.vol.rumble || 1);
+      const o = c.createOscillator(), og = c.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(28, t + dur);
+      og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.9 * v, t + 0.03); og.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(og).connect(this.seGain); o.start(t); o.stop(t + dur);
+      const nb = c.createBuffer(1, Math.floor(c.sampleRate * dur), c.sampleRate), d = nb.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const ns = c.createBufferSource(), lp = c.createBiquadFilter(), ng = c.createGain();
+      ns.buffer = nb; lp.type = 'lowpass'; lp.frequency.setValueAtTime(900, t); lp.frequency.exponentialRampToValueAtTime(80, t + dur);
+      ng.gain.setValueAtTime(0.0001, t); ng.gain.exponentialRampToValueAtTime(0.5 * v, t + 0.02); ng.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      ns.connect(lp).connect(ng).connect(this.seGain); ns.start(t);
+    }
+
+    // 着地・衝突の小さな「とん」：低い音を短く減衰させる
+    _thud(vol) {
+      const c = this.ac, t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(70, t + 0.09);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.6 * vol), t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+      o.connect(g).connect(this.seGain); o.start(t); o.stop(t + 0.16);
+      return o;
     }
 
     /** 場面の音量を sec 秒かけて v（0〜1）にする */

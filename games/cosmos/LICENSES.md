@@ -48,4 +48,16 @@ Fredoka One / M PLUS Rounded 1c / Noto Sans JP / Noto Sans SC — SIL Open Font 
 共通の `assets/bgm/`（lobby・game-cosmos・ending-cosmos）。すべて作者本人が作った曲（Mureka・SUNO）。表示義務なし。
 
 ## 効果音
-まだ無い。入れるときに出所を記入する（MOMO_Cosmos_Sound_List と、MOMO Works 音源ライセンス一覧（台帳）に従う）。
+| 用途 | ファイル | 出所 | ライセンス |
+|---|---|---|---|
+| 落下 | sfx/knife-throw1.mp3 | 効果音ラボ「ナイフを投げる」 | 効果音ラボの利用規約（表記不要。モノラル 96kbps に変換） |
+| 合体 | sfx/puyon1.mp3 | 効果音ラボ「ぷよん」 | 効果音ラボの利用規約（表記不要。モノラル 96kbps に変換） |
+| ブラックホール誕生・成長 | sfx/buun1.mp3 | 効果音ラボ「ブウーン（重低音）」 | 同上 |
+| 吸収 | sfx/magic-drain1.mp3 | 効果音ラボ「HP吸収魔法1」 | 同上 |
+| 警告 | sfx/news-title4.mp3 | 効果音ラボ「ニュースタイトル表示4」 | 同上 |
+| ビッグバン | sfx/bigbang1.mp3 | 効果音ラボ「爆発4」と「大爆発1」を重ねたもの（合成の重低音はプログラムで別に鳴らす） | 同上（改変） |
+| ボタン | ../../assets/se/se-button.mp3 | Taira Komori「press_enter1」（https://taira-komori.net/freesounden.html） | CC BY 4.0（表記が要る） |
+| 一時停止 | ../../assets/se/se-pause.mp3 | Freesound: BaggoNotes「Button_Click1」 | CC0 |
+| 着地・衝突 | （ファイルなし） | プログラムで作る音 | — |
+
+効果音ラボ：https://soundeffect-lab.info/ （利用規約 https://soundeffect-lab.info/agreement/ 。ファイル単体の再配布は禁止）

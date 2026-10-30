@@ -58,7 +58,7 @@
     function startGame() { game.start(); show(null); updateHud(true); }
     function toTitle() { game.toTitle(); refreshTitle(); show('title'); updateHud(true); }
     function togglePause() {
-      if (game.controllable) { game.pause(); show('pausePanel'); }
+      if (game.controllable) { game.pause(); show('pausePanel'); sound.se('pause'); }
       else if (game.state === 'PAUSE' && $('confirmPanel').hidden) { game.resume(); show(null); }
     }
 
@@ -203,7 +203,7 @@
     // ---- 設定パネル（第18.4節）。開いてもゲームは進め、落下操作だけ止める ----
     const SET = Object.assign({}, C.settingsDefault, store.get(C.storageKeys.settings, {}));
     const saveSet = () => store.set(C.storageKeys.settings, SET);
-    const sound = new CosmosSound(() => SET);
+    const sound = new CosmosSound(() => SET, C.se);
     function syncSetUI() {
       for (const p of ['', 'm']) {
         const id = k => $(p ? p + k[0].toUpperCase() + k.slice(1) : k);
@@ -278,6 +278,23 @@
       sound.setFolder(bgmForState(st));
     });
     game.on('endingMusic', () => { sound.scene(1, 0); sound.setFolder('ending-cosmos'); });
+
+    // ---- 効果音（第16章。2026-10-30 作者が試聴して決めた） ----
+    const SE = C.se;
+    game.on('impact', e => { if (e.v >= SE.landMinSpeed) sound.se('land', { vol: Math.min(1, e.v / SE.landFullSpeed) }); });
+    game.on('drop', () => sound.se('drop'));
+    game.on('merge', e => sound.se('merge', { rate: Math.pow(2, (7 - e.stage) / 9) }));   // 小さい天体ほど高く、大きいほど低く
+    game.on('bhAppear', () => sound.se('bhBirth'));
+    game.on('bhTier', () => sound.se('bhTier'));
+    game.on('absorb', () => sound.se('absorb'));
+    game.on('warning', on => { if (on) sound.se('warn'); });
+    game.on('bigbangFlash', () => { sound.se('bigbang'); sound.rumble(); });   // 白い点と線のあとの爆発
+    // ボタンの音（一時停止ボタンは一時停止の音。デバッグ用パネルは鳴らさない）
+    document.addEventListener('click', e => {
+      const b = e.target.closest && e.target.closest('button');
+      if (!b || b.id === 'pauseBtn' || b.closest('#debugPanel')) return;
+      sound.se('button');
+    });
     sound.setFolder('lobby');
 
     // ページが隠れたら音を止める。1時間以上たって戻ったら、次の操作でもう一度聞く（第16.3節）

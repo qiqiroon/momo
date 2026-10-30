@@ -39,7 +39,7 @@ Image Direction & Selection: MOMO Works
 AI-generated images were created with assistance from OpenAI's ChatGPT Images and selected for use in this game.
 
 ## フォント
-Fredoka One / Noto Sans JP / Noto Sans SC — SIL Open Font License 1.1（Google Fonts から読み込む）
+Fredoka One / M PLUS Rounded 1c / Noto Sans JP / Noto Sans SC — SIL Open Font License 1.1（Google Fonts から読み込む）
 
 ## 共通ライブラリ
 `lib/momo-lang/momo-lang.js`（言語）、`lib/momo-analytics.js`（アクセス解析） — MOMO Works

@@ -71,6 +71,7 @@
       this.playTime = 0;        // 超巨大に達するまでのプレイ時間（秒）
       this.rollSkippable = false;
       this.rollDone = false;
+      this.rollSec = this.C.ending.rollSec;  // エンドロールの長さ。main.js が文字の量から決め直す
       this._ev = {};            // エンディングで一度だけ起こすことの済み印
     }
 
@@ -451,9 +452,10 @@
       if (this.bh) this.bh.spin += step;
       if (this.state === 'SILENCE' && this.endT >= E.silenceSec) this._enter('BIGBANG');
       else if (this.state === 'BIGBANG') {
-        if (this._once('flash', E.flashAt)) this.emit('bigbangFlash');
+        if (this._once('flash', E.burstAt)) this.emit('bigbangFlash');
+        if (this._once('music', E.musicAt)) this.emit('endingMusic');
         if (this.endT >= E.bigbangSec) this._enter('ENDROLL');
-      } else if (this.state === 'ENDROLL' && !this.rollDone && this.endT >= E.rollSec) {
+      } else if (this.state === 'ENDROLL' && !this.rollDone && this.endT >= this.rollSec) {
         this.rollDone = true;
         this.emit('rollDone');
       }
@@ -461,7 +463,7 @@
 
     /** エンドロールを飛ばす（一度クリアしたことがあるときだけ。第3.2節） */
     skipRoll() {
-      if (this.state === 'ENDROLL' && this.rollSkippable && !this.rollDone) this.endT = this.C.ending.rollSec;
+      if (this.state === 'ENDROLL' && this.rollSkippable && !this.rollDone) this.endT = this.rollSec;
     }
 
     // ---- ゲームオーバー（第10章） -----------------------------------------

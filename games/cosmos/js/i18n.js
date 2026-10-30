@@ -28,7 +28,8 @@
   const I18N = {
     ja: {
       subtitle: 'Merge the Stars, Birth a Universe',
-      howTo: '同じ天体どうしをぶつけると、ひとつ大きな天体に育ちます。月から中性子星まで育てて、宇宙の誕生を目指しましょう。',
+      // 説明はあいまいにし、ブラックホールと宇宙の誕生は遊んで驚いてもらう（2026-10-30 作者の指示）
+      howTo: '同じ天体どうしをぶつけると、ひとつ大きな天体に育ちます。天体を育てて、あなたの宇宙を作りましょう。',
       start: 'START', score: 'SCORE', high: 'HIGH', next: '次', nextNext: '次々',
       highScore: 'ハイスコア',
       pause: '一時停止', paused: '一時停止',
@@ -37,10 +38,7 @@
       confirmTitle: 'タイトルに戻りますか？（このプレイは記録されません）',
       yes: 'はい', no: 'いいえ',
       gameOver: 'GAME OVER', retry: 'もう一度', maxReached: '到達した天体', newRecord: 'ハイスコア更新',
-      // エンドロール（第13.2節）。見出しは系統言語、固有名詞は訳さない
-      rollPhysics: '物理エンジン', rollMusic: '音楽', rollThanks: '遊んでくれてありがとう',
-      rollTime: 'プレイ時間', rollClears: 'クリア回数', rollTap: 'タップでタイトルへ', rollSkip: 'タップでスキップ',
-      clearMark: 'クリア',
+      clearMark: 'クリア',   // タイトルのクリアの印（第13.3節）
       bhBornSub: 'ブラックホール誕生', bhSuperSub: '超巨大ブラックホール',
       bhGauge: 'ブラックホール', bhTier0: '小型', bhTier1: '中型', bhTier2: '大型', bhTier3: '超巨大',
       board: '盤面',
@@ -62,13 +60,13 @@
       credTermsLink: 'MOMO Works 利用規約',
       // フッター
       footAbout: 'MOMO Cosmos について',
-      footDesc: '月から中性子星まで、同じ天体どうしをぶつけて育てる落ち物パズルです。中性子星がふたつそろうとブラックホールが生まれ、やがて宇宙の誕生へ。ブラウザだけで遊べ、登録もインストールもいりません。',
+      footDesc: '同じ天体どうしをぶつけて、ひとつ大きな天体に育てていく落ち物パズルです。月から始めて、どこまで育てられるか。天体を育てて、あなたの宇宙を作りましょう。ブラウザだけで遊べ、登録もインストールもいりません。',
       footTop: 'MOMO Works トップ', footGames: 'ゲーム一覧', footTools: 'ツール一覧',
       stages: ['', '月', '水星', '火星', '金星', '地球', '海王星', '天王星', '土星', '木星', '太陽', '超新星', '中性子星', 'ブラックホール']
     },
     en: {
       subtitle: 'Merge the Stars, Birth a Universe',
-      howTo: 'Drop celestial bodies and bump matching ones together to grow them into something bigger. Grow the Moon all the way to a neutron star and aim for the birth of a universe.',
+      howTo: 'Drop celestial bodies and bump matching ones together to grow them into something bigger. Grow your celestial bodies and build a universe of your own.',
       start: 'START', score: 'SCORE', high: 'HIGH', next: 'Next', nextNext: 'After',
       highScore: 'High score',
       pause: 'Pause', paused: 'Paused',
@@ -77,9 +75,39 @@
       confirmTitle: 'Return to the title? (This game will not be recorded.)',
       yes: 'Yes', no: 'No',
       gameOver: 'GAME OVER', retry: 'Play again', maxReached: 'Reached', newRecord: 'New high score!',
-      rollPhysics: 'Physics', rollMusic: 'Music', rollThanks: 'Thank you for playing',
-      rollTime: 'Play time', rollClears: 'Times cleared', rollTap: 'Tap to return to the title', rollSkip: 'Tap to skip',
       clearMark: 'Cleared',
+      // エンドロールは言語設定にかかわらず英語だけ（2026-10-30 作者の指示）。index.html に英語で書き、
+      // 最後のレシピだけここに置く。p つなぎの文／t 料理名／h 見出し／i 材料／e 締め
+      recipe: [
+        ["p", "The universe was compressed into a single point."],
+        ["p", "Everything ceased to exist."],
+        ["p", "One truth remained:"],
+        ["p", "even a newborn universe needs energy."],
+        ["t", "Cosmic Teriyaki Chicken"],
+        ["h", "Ingredients (serves 2)"],
+        ["i", "Chicken thighs, skin-on, boneless — 500 g"],
+        ["i", "Soy sauce (dark matter) — 2 tbsp"],
+        ["i", "Mirin — 2 tbsp"],
+        ["i", "Sake — 2 tbsp"],
+        ["i", "Sugar — 1 tbsp"],
+        ["i", "Cooking oil — 1 tbsp"],
+        ["h", "PHASE 1　Initiation"],
+        ["p", "Prick the skin with a fork."],
+        ["p", "Mix the soy sauce, mirin, sake and sugar."],
+        ["h", "PHASE 2　Thermal Fusion"],
+        ["p", "Heat the oil over medium-high heat."],
+        ["p", "Cook skin-side down for 5 minutes, until golden."],
+        ["h", "PHASE 3　Equilibrium"],
+        ["p", "Turn over, cover, and cook on low heat for 4–5 minutes."],
+        ["p", "Wipe away the excess oil with a paper towel."],
+        ["h", "PHASE 4　Critical Mass"],
+        ["p", "Pour in the sauce."],
+        ["p", "Spoon it over the chicken until it thickens into a glaze."],
+        ["h", "PHASE 5　Rebirth"],
+        ["p", "Slice, and serve warm over rice."],
+        ["e", "The new universe is online."],
+        ["e", "See you in the next Big Bang."]
+      ],
       bhBornSub: '', bhSuperSub: '',
       bhGauge: 'Black hole', bhTier0: 'Small', bhTier1: 'Medium', bhTier2: 'Large', bhTier3: 'Supermassive',
       board: 'Board',
@@ -98,13 +126,13 @@
       credSoundNote: 'Credits for sound effects will be added when they are added.',
       credTermsLink: 'MOMO Works Terms of Use',
       footAbout: 'About MOMO Cosmos',
-      footDesc: 'A falling-block puzzle where you merge matching celestial bodies, from the Moon up to neutron stars. Two neutron stars give birth to a black hole, and in the end, to a new universe. Plays in your browser — no sign-up, no install.',
+      footDesc: 'A falling-block puzzle where you merge matching celestial bodies into bigger ones. Start with the Moon, see how far you can grow them, and build a universe of your own. Plays in your browser — no sign-up, no install.',
       footTop: 'MOMO Works Home', footGames: 'Games', footTools: 'Tools',
       stages: ['', 'Moon', 'Mercury', 'Mars', 'Venus', 'Earth', 'Neptune', 'Uranus', 'Saturn', 'Jupiter', 'Sun', 'Supernova', 'Neutron star', 'Black hole']
     },
     zh: {
       subtitle: '合并星辰，孕育宇宙',
-      howTo: '让相同的天体相撞，就会合成更大的天体。从月球一路培育到中子星，迎接宇宙的诞生吧。',
+      howTo: '让相同的天体相撞，就会合成更大的天体。培育天体，创造属于你的宇宙吧。',
       start: 'START', score: 'SCORE', high: 'HIGH', next: '下一个', nextNext: '再下一个',
       highScore: '最高分',
       pause: '暂停', paused: '暂停',
@@ -113,8 +141,6 @@
       confirmTitle: '要返回标题吗？（本局不会被记录）',
       yes: '是', no: '否',
       gameOver: 'GAME OVER', retry: '再来一次', maxReached: '到达的天体', newRecord: '刷新最高分',
-      rollPhysics: '物理引擎', rollMusic: '音乐', rollThanks: '感谢游玩',
-      rollTime: '游戏时间', rollClears: '通关次数', rollTap: '点击返回标题', rollSkip: '点击跳过',
       clearMark: '通关',
       bhBornSub: '黑洞诞生', bhSuperSub: '超大质量黑洞',
       bhGauge: '黑洞', bhTier0: '小型', bhTier1: '中型', bhTier2: '大型', bhTier3: '超大质量',
@@ -134,7 +160,7 @@
       credSoundNote: '音效的版权信息将在加入音效时补充。',
       credTermsLink: 'MOMO Works 使用条款',
       footAbout: '关于 MOMO Cosmos',
-      footDesc: '让相同的天体相撞、从月球一路合成到中子星的下落式益智游戏。两颗中子星会诞生黑洞，最终迎来宇宙的诞生。在浏览器中即可游玩，无需注册和安装。',
+      footDesc: '让相同的天体相撞、合成更大天体的下落式益智游戏。从月球开始，看看你能培育到哪一步，创造属于你的宇宙吧。在浏览器中即可游玩，无需注册和安装。',
       footTop: 'MOMO Works 首页', footGames: '游戏列表', footTools: '工具列表',
       stages: ['', '月球', '水星', '火星', '金星', '地球', '海王星', '天王星', '土星', '木星', '太阳', '超新星', '中子星', '黑洞']
     }
@@ -194,6 +220,8 @@
 
   root.CosmosI18n = {
     t, tBase, stageName, setMode, baseLang,
+    /** 英語の辞書から引く（エンドロール用） */
+    en(key) { return I18N.en[key]; },
     onChange(fn) { listeners.push(fn); },
     get mode() { return langMode; },
     get lang() { return currentLang; },

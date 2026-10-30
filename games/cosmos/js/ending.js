@@ -2,7 +2,7 @@
  * MOMO Cosmos — エンディングの演出（仕様書 第12章・第13章）
  * 画面全体に重ねた Canvas（#fx）に描く：
  *   FINAL_ABSORB … 盤面の箱と UI を Canvas に描き写し、格子に分けてブラックホールへ渦を巻いて吸い込む
- *   BIGBANG      … 収縮・暗闇・閃光・爆発・星と銀河の形成・膨張
+ *   BIGBANG      … 収縮・暗闇（5秒）・光の点と線・爆発・ホワイトアウト・透けて見える宇宙・膨張
  *   ENDROLL      … 中央から外へ流れる星の粒子（主役）＋ぼかした背景画像（補助）
  * 時刻はゲームの endT（デバッグのゲーム速度に従う）。クレジットの文字は DOM（main.js）。
  */
@@ -236,85 +236,100 @@
       }
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, W, H);
-      if (T < E.flashAt) return;                                          // 完全な暗闇
+      if (T < E.dotAt) return;                                            // 黒い画面を残す（5秒）
+      const ox = W / 2, oy = H / 2;                                       // ここからは画面の中央
 
-      // 1.3秒：閃光と爆発。光と粒子が画面全体へ広がる
-      if (!B.burst) {
-        B.burst = true;
-        const hues = [45, 30, 15, 280, 210, 190];
-        for (let i = 0; i < 520; i++) {
-          const a = rand(0, Math.PI * 2), v = Math.pow(Math.random(), 0.5) * diag * 1.1;
-          this.parts.push({ x: B.x, y: B.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rand(1.8, 3.6), age: 0,
-            size: rand(0.8, 2.6), hue: hues[i % hues.length], light: rand(65, 95), drag: 1.4 });
-        }
-      }
-      const q = (T - E.flashAt) / (E.formAt - E.flashAt);
-      const fx = this.sprites.fx_bigbang;
-      if (q < 1.3) {
-        const size = diag * (0.08 + 1.5 * (1 - Math.pow(1 - clamp01(q), 3)));
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = clamp01(1 - Math.pow(clamp01(q / 1.3), 1.4));
-        if (fx) {
-          const m = fx.meta, s = size / Math.min(m.width, m.height);
-          ctx.drawImage(fx.img, B.x - m.width * s / 2, B.y - m.height * s / 2, m.width * s, m.height * s);
-        }
-        const gl = ctx.createRadialGradient(B.x, B.y, 0, B.x, B.y, size * 0.6);
-        gl.addColorStop(0, 'rgba(255,250,235,0.9)'); gl.addColorStop(0.3, 'rgba(251,146,60,0.35)'); gl.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = gl; ctx.fillRect(0, 0, W, H);
-        ctx.restore();
-      }
-
-      // 4.0〜8.0秒：星・星雲・銀河が形成され、フェードインする。8.0秒から膨張して外へ流れる
+      // 宇宙（星雲・銀河・星）は最初から描いておき、ホワイトアウトが透けていくと見えてくる
       if (!this.form) this._makeForm(W, H);
-      const zoom = 1 + 0.9 * Math.pow(clamp01((T - E.expandAt) / 6), 1.6);
-      const cx = B.x + (W / 2 - B.x) * smooth((T - E.expandAt) / 4), cy = B.y + (H / 2 - B.y) * smooth((T - E.expandAt) / 4);
-      const formFade = 1 - smooth((T - E.bigbangSec - 2) / 5);             // エンドロールの最初の数秒で消える
-      if (formFade > 0) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        for (const s of this.form.sprites) {
-          const sp = this.sprites[s.key];
-          const a = smooth((T - s.at) / 1.5) * s.alpha * formFade;
-          if (!sp || a <= 0) continue;
-          const m = sp.meta, size = s.size * zoom, sc = size / Math.max(m.width, m.height);
-          const x = cx + (s.x - B.x) * zoom, y = cy + (s.y - B.y) * zoom;
-          ctx.globalAlpha = a;
-          ctx.save(); ctx.translate(x, y); ctx.rotate(s.rot + T * s.spin);
-          ctx.drawImage(sp.img, -m.width * sc / 2, -m.height * sc / 2, m.width * sc, m.height * sc);
+      if (T >= E.whiteAt) {
+        const zoom = 1 + 0.9 * Math.pow(clamp01((T - E.expandAt) / 6), 1.6);
+        const formFade = 1 - smooth((T - E.bigbangSec - 2) / 5);           // エンドロールの最初の数秒で消える
+        if (formFade > 0) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          for (const s of this.form.sprites) {
+            const sp = this.sprites[s.key];
+            if (!sp) continue;
+            const m = sp.meta, size = s.size * zoom, sc = size / Math.max(m.width, m.height);
+            ctx.globalAlpha = s.alpha * formFade;
+            ctx.save(); ctx.translate(ox + (s.x - ox) * zoom, oy + (s.y - oy) * zoom); ctx.rotate(s.rot + T * s.spin);
+            ctx.drawImage(sp.img, -m.width * sc / 2, -m.height * sc / 2, m.width * sc, m.height * sc);
+            ctx.restore();
+          }
+          ctx.globalAlpha = 1;
+          for (const s of this.form.stars) {
+            const a = (0.55 + 0.45 * Math.sin(T * s.tw + s.p)) * formFade;
+            ctx.fillStyle = 'hsla(' + s.hue + ',80%,88%,' + a.toFixed(3) + ')';
+            ctx.beginPath(); ctx.arc(ox + (s.x - ox) * zoom, oy + (s.y - oy) * zoom, s.r, 0, Math.PI * 2); ctx.fill();
+          }
           ctx.restore();
         }
-        ctx.globalAlpha = 1;
-        for (const s of this.form.stars) {
-          const a = smooth((T - s.at) / 1) * (0.55 + 0.45 * Math.sin(T * s.tw + s.p)) * formFade;
-          if (a <= 0) continue;
-          ctx.fillStyle = 'hsla(' + s.hue + ',80%,88%,' + a.toFixed(3) + ')';
-          ctx.beginPath(); ctx.arc(cx + (s.x - B.x) * zoom, cy + (s.y - B.y) * zoom, s.r, 0, Math.PI * 2); ctx.fill();
+        // 宇宙の膨張。中央から外へ星が流れる（エンドロールの主役）
+        if (T >= E.expandAt) this._drawFlow(ctx, T, dt, ox, oy, W, H);
+      }
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      // 中央に白い光の点が現れ、左右に水平に広がって白い線になる
+      if (T < E.burstAt + 0.6) {
+        const k = smooth((T - E.lineAt) / E.lineSec), out = 1 - clamp01((T - E.burstAt) / 0.6);
+        const half = W * 0.55 * k, a = smooth((T - E.dotAt) / 0.08) * out;
+        const glow = ctx.createRadialGradient(ox, oy, 0, ox, oy, 26);
+        glow.addColorStop(0, 'rgba(255,255,255,' + a.toFixed(3) + ')'); glow.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = glow; ctx.fillRect(ox - 26, oy - 26, 52, 52);
+        ctx.fillStyle = 'rgba(255,255,255,' + a.toFixed(3) + ')';
+        ctx.beginPath(); ctx.arc(ox, oy, 1.6, 0, Math.PI * 2); ctx.fill();
+        if (half > 0.5) {
+          const lg = ctx.createLinearGradient(ox - half, 0, ox + half, 0);
+          lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.5, 'rgba(255,255,255,' + a.toFixed(3) + ')'); lg.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = lg;
+          ctx.fillRect(ox - half, oy - 1, half * 2, 2);
+          ctx.globalAlpha = 0.35; ctx.fillRect(ox - half, oy - 4, half * 2, 8); ctx.globalAlpha = 1;
         }
-        ctx.restore();
       }
-
-      // 8.0秒〜：宇宙の膨張。中央から外へ星が流れる（エンドロールの主役）
-      if (T >= E.expandAt) this._drawFlow(ctx, T, dt, cx, cy, W, H);
-
-      // 閃光（短く1回）。最後に重ねる
-      if (T < E.flashAt + E.flashSec) {
-        ctx.fillStyle = 'rgba(255,255,255,' + (0.9 * (1 - (T - E.flashAt) / E.flashSec)).toFixed(3) + ')';
-        ctx.fillRect(0, 0, W, H);
+      // 爆発。光と粒子が広がり、中央の白い部分が画面いっぱいになる
+      if (T >= E.burstAt && T < E.whiteAt + 0.5) {
+        const B = this.bang;
+        if (!B.burst) {
+          B.burst = true;
+          const hues = [45, 30, 15, 280, 210, 190];
+          for (let i = 0; i < 520; i++) {
+            const a = rand(0, Math.PI * 2), v = Math.pow(Math.random(), 0.5) * diag * 1.4;
+            this.parts.push({ x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rand(1.5, 2.5), age: 0,
+              size: rand(0.8, 2.6), hue: hues[i % hues.length], light: rand(65, 95), drag: 1.2 });
+          }
+        }
+        const q = clamp01((T - E.burstAt) / (E.whiteAt - E.burstAt)), e = Math.pow(q, 0.9);
+        const size = diag * (0.08 + 2.6 * e), fx = this.sprites.fx_bigbang;
+        if (fx) {
+          const m = fx.meta, sc = size / Math.min(m.width, m.height);
+          ctx.globalAlpha = 0.9;
+          ctx.drawImage(fx.img, ox - m.width * sc / 2, oy - m.height * sc / 2, m.width * sc, m.height * sc);
+          ctx.globalAlpha = 1;
+        }
+        const core = diag * (0.03 + 0.75 * Math.pow(q, 1.6));                 // 白い中心が画面の端まで広がる
+        const gl = ctx.createRadialGradient(ox, oy, 0, ox, oy, core * 1.6);
+        gl.addColorStop(0, 'rgba(255,255,255,1)'); gl.addColorStop(0.6, 'rgba(255,250,240,1)');
+        gl.addColorStop(0.8, 'rgba(251,191,36,0.5)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gl; ctx.fillRect(0, 0, W, H);
       }
+      ctx.restore();
+      // ホワイトアウト：画面全体が白くなり、だんだん透けて宇宙が見えてくる
+      const wa = T < E.whiteAt ? smooth((T - (E.whiteAt - 0.5)) / 0.5) : 1 - smooth((T - E.whiteAt - E.whiteHoldSec) / E.revealSec);
+      if (wa > 0) { ctx.fillStyle = 'rgba(255,255,255,' + wa.toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
     }
 
     _makeForm(W, H) {
-      const E = this.C.ending, keys = ['galaxy', 'nebula', 'cosmic_dust', 'galaxy', 'nebula', 'stars_bg', 'galaxy_bg'];
+      const keys = ['galaxy', 'nebula', 'cosmic_dust', 'galaxy', 'nebula', 'stars_bg', 'galaxy_bg'];
       const md = Math.min(W, H);
       this.form = {
-        sprites: keys.map((key, i) => ({
+        sprites: keys.map(key => ({
           key, x: rand(0.12, 0.88) * W, y: rand(0.12, 0.88) * H, size: md * rand(0.3, 0.55),
-          at: E.formAt + i * 0.45 + rand(0, 0.4), alpha: rand(0.45, 0.8), rot: rand(-0.4, 0.4), spin: rand(-0.02, 0.02)
+          alpha: rand(0.45, 0.8), rot: rand(-0.4, 0.4), spin: rand(-0.02, 0.02)
         })),
         stars: Array.from({ length: Math.round(Math.max(160, W * H / 3500)) }, () => ({
           x: Math.random() * W, y: Math.random() * H, r: Math.random() < 0.08 ? 1.6 : rand(0.4, 1.2),
-          at: E.formAt + rand(0, 3.2), tw: rand(0.6, 2), p: rand(0, 6.3), hue: Math.random() < 0.25 ? 30 : 220
+          tw: rand(0.6, 2), p: rand(0, 6.3), hue: Math.random() < 0.25 ? 30 : 220
         }))
       };
     }
@@ -334,7 +349,7 @@
           return c;
         });
       }
-      const rollT = T - E.bigbangSec, seg = E.rollSec / 3;
+      const rollT = T - E.bigbangSec, seg = this.g.rollSec / 3;
       const bgIn = smooth((T - E.expandAt) / 4) * E.bgAlpha;
       const idx = Math.max(0, Math.floor(rollT / seg)), mix = smooth((rollT - (idx + 1) * seg + 3) / 3);
       ctx.save();

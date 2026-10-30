@@ -104,26 +104,96 @@
         B.classList.add('bare');
       } else if (st === 'ENDROLL') {
         B.classList.add('rolling');
+        $('endroll').classList.remove('results');
         $('rollEnd').hidden = true;
         $('rollHint').hidden = !game.rollSkippable;
+        recipeAt = -1;
       } else if (st === 'TITLE' || st === 'PLAY') {
         B.classList.remove('ui-gone', 'bare', 'rolling');
         ending.reset();
       }
     });
-    game.on('rollDone', () => { $('rollEnd').hidden = false; $('rollHint').hidden = true; });
-    // エンドロールのタップ：流れている間はスキップ（2回目のクリアから）、終わったらタイトルへ
+    // つなぎの文が出たら、初回のクリアでも飛ばせる（レシピは見なくてもよい。2026-10-30 作者の指示）
+    game.on('rollDone', () => { $('rollHint').hidden = false; });
+    // エンドロールのタップ・キー：
+    //   流れている間 … スキップ（2回目のクリアから）
+    //   止まったあと … 結果を出す（曲はそのまま流れ続ける）→ もう一度でタイトルへ
     function tapRoll() {
       if (game.state !== 'ENDROLL') return;
-      if (game.rollDone) toTitle(); else game.skipRoll();
+      if (!game.rollDone) game.skipRoll();
+      else if ($('rollEnd').hidden) { $('endroll').classList.add('results'); $('rollEnd').hidden = false; $('rollHint').hidden = true; }
+      else toTitle();
     }
     $('endroll').addEventListener('click', tapRoll);
-    document.addEventListener('keydown', e => { if (game.state === 'ENDROLL' && /^(Enter| |Escape)$/.test(e.key)) { e.preventDefault(); tapRoll(); } });
-    // クレジットを下から上へ流す（終わる少し前に流し終える）
+    document.addEventListener('keydown', e => {
+      if (game.state !== 'ENDROLL' || e.repeat || /^(Shift|Control|Alt|Meta)$/.test(e.key)) return;
+      e.preventDefault(); tapRoll();
+    });
+    // クレジットを下から上へ一定の速さで流す。「Thank you for playing」は画面の上部まで来たらそこに残し、
+    // つなぎの文はその下まで来たら止める。レシピはつなぎの文の下に出す
     function scrollRoll() {
-      const el = $('rollText'), H = innerHeight, k = Math.min(1, game.endT / (C.ending.rollSec * 0.94));
-      el.style.transform = 'translateY(' + (H - (H + el.offsetHeight) * k).toFixed(1) + 'px)';
+      const E = C.ending, el = $('rollText'), th = $('rollThanks'), lead = $('rollLead'), H = innerHeight;
+      const thanksY = H * E.thanksStopAt, leadY = thanksY + th.offsetHeight + H * E.leadGap;
+      const dist = H - leadY + lead.offsetTop;
+      if (!game.rollDone) game.rollSec = dist / E.rollPxPerSec;
+      const y = H - Math.min(dist, game.endT * E.rollPxPerSec);
+      el.style.transform = 'translateY(' + y.toFixed(1) + 'px)';
+      const over = thanksY - (y + th.offsetTop);
+      th.style.transform = over > 0 ? 'translateY(' + over.toFixed(1) + 'px)' : '';
+      $('rollRecipe').style.top = (leadY + lead.offsetHeight + H * 0.06).toFixed(0) + 'px';
+      showRecipe();
     }
+    // 曲の時刻（秒）と長さ。音を出せない環境では、ENDROLL の時刻と仮の長さで数える
+    function songClock() {
+      const cur = sound.cur, el = cur && cur.folder === 'ending-cosmos' && cur.el;
+      if (el && isFinite(el.duration) && el.duration > 0) return { t: el.currentTime, d: el.duration };
+      const d = C.ending.songSecFallback;
+      return { t: game.endT % d, d };
+    }
+    // レシピ：曲の終わり近くに、ブロックを1つずつ（interval 秒ごとに）浮かび上がらせ、曲の終わりで消す
+    let recipeAt = -1;
+    function showRecipe() {
+      const E = C.ending, blocks = $('rollRecipe').children, n = blocks.length;
+      let idx = -1;
+      if (game.rollDone) {
+        const { t, d } = songClock(), start = d - n * E.recipeIntervalSec;
+        if (t >= start && t < d - E.recipeFadeSec) idx = Math.min(n - 1, Math.floor((t - start) / E.recipeIntervalSec));
+      }
+      if (idx === recipeAt) return;
+      recipeAt = idx;
+      for (let i = 0; i < n; i++) blocks[i].classList.toggle('show', i === idx);
+    }
+    // つなぎの文とレシピのブロックを作る（英語だけ）。料理名＋材料／PHASE 1〜5／締め の7つ
+    function buildRecipe() {
+      const rows = L.en('recipe') || [], lead = $('rollLead'), box = $('rollRecipe');
+      lead.textContent = ''; box.textContent = '';
+      let blk = null, prev = '';
+      rows.forEach(([k, text]) => {
+        const p = document.createElement('p');
+        p.className = 'rc-' + k;
+        p.textContent = text;
+        if (k === 'p' && !blk) { lead.appendChild(p); return; }
+        if (k === 't' || (k === 'h' && /^PHASE/.test(text)) || (k === 'e' && prev !== 'e')) {
+          blk = document.createElement('div'); blk.className = 'rc-block'; box.appendChild(blk);
+        }
+        blk.appendChild(p); prev = k;
+      });
+    }
+    buildRecipe();
+    // 出演者（Cast）：天体の絵・名前・役名。ブラックホールだけ役名を付ける（作者の回答 Q2=A）
+    (function buildCast() {
+      const names = ['', 'The Moon', 'Mercury', 'Mars', 'Venus', 'Earth', 'Neptune', 'Uranus', 'Saturn', 'Jupiter', 'The Sun', 'Supernova', 'Neutron Star', 'Black Hole'];
+      const box = $('rollCast');
+      for (let s = 1; s < names.length; s++) {
+        const img = document.createElement('img');
+        img.src = 'assets/img/' + C.stages[s].spriteKey + '.webp'; img.alt = '';
+        const n = document.createElement('span'); n.className = 'cast-name'; n.textContent = names[s];
+        const r = document.createElement('span'); r.className = 'cast-role'; r.textContent = s === 13 ? 'as The Devourer' : 'as itself';
+        box.append(img, n, r);
+      }
+    })();
+    // エンドロールの丸文字は、出てから切り替わらないよう先に読み込んでおく（英字の分だけ）
+    if (document.fonts) ['400', '700', '800'].forEach(w => document.fonts.load(w + ' 16px "M PLUS Rounded 1c"', 'A').catch(() => {}));
 
     // ページが隠れたら自動で一時停止（第3.1節）
     document.addEventListener('visibilitychange', () => {
@@ -193,19 +263,21 @@
       $('musicModal').classList.add('show');
     }, true);
     // 場面ごとの BGM（ブラックホール期も通常の曲。2026-10-29 作者の回答）
-    // 最終吸収で徐々に小さくし、静寂とビッグバンは無音。エンディングの曲はエンドロールの始まりから鳴らす（2026-10-30 作者の回答 Q1=B）
+    // 最終吸収で徐々に小さくし、静寂とビッグバンの前半は無音。エンディングの曲は画面が真っ白になったところから鳴らす
+    // （2026-10-30 作者の指示。その前はエンドロールの始まりからだった）
     function bgmForState(st) {
       if (st === 'TITLE') return 'lobby';
       if (st === 'GAMEOVER' || st === 'FINAL_ABSORB') return sound.folder; // そのまま流す
       if (st === 'ENDROLL') return 'ending-cosmos';
-      if (st === 'SILENCE' || st === 'BIGBANG') return null;
+      if (st === 'SILENCE' || st === 'BIGBANG') return null;   // BIGBANG の途中で endingMusic が鳴らし始める
       return 'game-cosmos';
     }
     game.on('state', st => {
-      if (st === 'TITLE' || st === 'PLAY' || st === 'ENDROLL') sound.scene(1, 0);
+      if (st === 'TITLE' || st === 'PLAY') sound.scene(1, 0);
       if (st === 'FINAL_ABSORB') sound.scene(0, C.ending.bgmFadeSec);
       sound.setFolder(bgmForState(st));
     });
+    game.on('endingMusic', () => { sound.scene(1, 0); sound.setFolder('ending-cosmos'); });
     sound.setFolder('lobby');
 
     // ページが隠れたら音を止める。1時間以上たって戻ったら、次の操作でもう一度聞く（第16.3節）

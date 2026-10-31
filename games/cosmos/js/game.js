@@ -452,7 +452,8 @@
       }
       if (ev.warn) {
         ev.warn.t += step;
-        if (this.warning || !this.eventsOn) this._cancelEvent();      // ゲームオーバーの警告中は起こさない
+        // 起こすかは予告の時点で決めた。予告のあとは警告が出ても取りやめない（設定でオフにしたときだけ取りやめる。2026-10-31 作者の指示）
+        if (!this.eventsOn) this._cancelEvent();
         else if (ev.warn.t >= E.warnSec) this._beginEvent(ev.warn.type);
         return;
       }
@@ -571,7 +572,8 @@
 
     /** 猶予中なら true。揺さぶるイベントが続いている間は数えず、終わってから落ち着いたら（または maxSec で）解く */
     _calming(step) {
-      const cl = this.ev.calm, K = this.C.events.calm, cur = this.ev.cur;
+      const cl = this.ev.calm, K = this.C.events.calm, cur = this.ev.cur, warn = this.ev.warn;
+      if (warn) return true;   // 予告中も数えない（予告したイベントが起こる前にゲームオーバーにしない）
       if (!cl) return false;
       if (cur && K.types.includes(cur.type)) return true;
       if (this.ev.slow > 0) return true;

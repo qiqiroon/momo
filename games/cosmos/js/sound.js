@@ -46,14 +46,22 @@
       const AC = root.AudioContext || root.webkitAudioContext;
       if (!AC) return;
       if (!this.ac) {
-        this.ac = new AC();
+        // 音が時々ぷつぷつ途切れる（2026-10-31 作者の報告）への手当て：
+        //   ・音を作る区切りを大きめにして、画面の描画が重い一瞬に音の用意が間に合わなくなるのを防ぐ（効果音は数十ミリ秒遅れる）
+        //   ・曲と効果音が重なって大きくなりすぎたときに音が割れないよう、出口の手前で頭を抑える
+        try { this.ac = new AC({ latencyHint: 'playback' }); } catch (e) { this.ac = new AC(); }
+        this.master = this.ac.createDynamicsCompressor();
+        const m = this.master, t0 = this.ac.currentTime;
+        m.threshold.setValueAtTime(-6, t0); m.knee.setValueAtTime(6, t0); m.ratio.setValueAtTime(12, t0);
+        m.attack.setValueAtTime(0.003, t0); m.release.setValueAtTime(0.25, t0);
+        m.connect(this.ac.destination);
         this.bgmGain = this.ac.createGain();
-        this.bgmGain.connect(this.ac.destination);
+        this.bgmGain.connect(m);
         this.sceneGain = this.ac.createGain();
         this.sceneGain.gain.value = this.sceneLevel;
         this.sceneGain.connect(this.bgmGain);
         this.seGain = this.ac.createGain();
-        this.seGain.connect(this.ac.destination);
+        this.seGain.connect(m);
         this.applyGain(true);
         this._loadSe();
       }
@@ -105,17 +113,22 @@
 
     /** 効果音を on の間だけ繰り返し鳴らす（デッドラインの警告。2026-10-31）。同じ値で何度呼んでもよい */
     loop(name, on) {
+      // 止めるときは 0.05 秒で小さくしてから止める（いきなり切ると「ぷつっ」と鳴る）
       const cur = this.seLoops[name];
       if (!on || !this.ac || this.ac.state !== 'running') {
-        if (cur) { try { cur.stop(); } catch (_) { /* 止まっている */ } delete this.seLoops[name]; }
+        if (cur) {
+          if (this.ac) { const t = this.ac.currentTime; cur.g.gain.setTargetAtTime(0, t, 0.015); try { cur.src.stop(t + 0.08); } catch (_) { /* 止まっている */ } }
+          delete this.seLoops[name];
+        }
         return;
       }
       const C = this.seConf, buf = this.buf[C.files[name]];
       if (cur || !buf) return;
-      const src = this.ac.createBufferSource(), g = this.ac.createGain();
-      src.buffer = buf; src.loop = true; g.gain.value = C.vol[name] || 1;
+      const src = this.ac.createBufferSource(), g = this.ac.createGain(), t = this.ac.currentTime;
+      src.buffer = buf; src.loop = true;
+      g.gain.setValueAtTime(0, t); g.gain.setTargetAtTime(C.vol[name] || 1, t, 0.01);
       src.connect(g).connect(this.seGain); src.start();
-      this.seLoops[name] = src;
+      this.seLoops[name] = { src, g };
     }
 
     /** ビッグバンの重低音：下がっていく低い音と、こもった雑音（試聴ページと同じ作り。2.4秒） */

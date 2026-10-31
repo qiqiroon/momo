@@ -380,6 +380,25 @@
       else if (audioAsked) sound.resume();
     });
 
+    // 遊んでいる間は画面を暗くしない・消さない（Screen Wake Lock。2026-10-31 作者の指示）
+    // タイトル・一時停止・ゲームオーバーでは手放す。画面が裏に回ると自動で外れるので、戻ったらかけ直す
+    let wakeLock = null, wakeBusy = false;
+    async function syncWake() {
+      const want = game.running && !document.hidden;
+      if (!('wakeLock' in navigator) || wakeBusy || want === !!wakeLock) return;
+      wakeBusy = true;
+      try {
+        if (want) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLock.addEventListener('release', () => { wakeLock = null; });
+        } else { const w = wakeLock; wakeLock = null; await w.release(); }
+      } catch (e) { wakeLock = null; }
+      wakeBusy = false;
+      if (want !== (game.running && !document.hidden)) syncWake();   // 待っている間に場面が変わった
+    }
+    game.on('state', syncWake);
+    document.addEventListener('visibilitychange', syncWake);
+
     const input = new CosmosInput($('board'), game, board, C, {
       togglePause: () => { if (modalOpen()) closeModals(); else togglePause(); }
     });
@@ -442,8 +461,17 @@
 
     // ---- 配置（盤面は 2:3 で、使える領域に収める） ----
     function layout() {
-      const wrap = $('boardWrap');
-      const aw = wrap.clientWidth, ah = wrap.clientHeight;
+      const wrap = $('boardWrap'), app = $('app'), SP = ['--sp1', '--sp2', '--sp3', '--sp4'];
+      SP.forEach(k => app.style.removeProperty(k));
+      let aw = wrap.clientWidth, ah = wrap.clientHeight;
+      // 縦画面で盤面が幅で決まり上下が余るときは、余りを上段のすき間に回す（盤面の下が空き、上が詰まって見えたため。2026-10-31）
+      // 1か所に最大 16px。残りは今までどおり盤面の上下に半分ずつ
+      const slack = ah - Math.floor(aw * 1.5);
+      if (!document.body.classList.contains('wide') && slack > 4) {
+        const each = Math.min(16, Math.floor(slack / SP.length));
+        SP.forEach(k => app.style.setProperty(k, each + 'px'));
+        aw = wrap.clientWidth; ah = wrap.clientHeight;
+      }
       let h = Math.min(ah, aw * 1.5);
       if (document.body.classList.contains('wide')) h = Math.min(h, innerHeight * 0.85);
       h = Math.floor(h);
@@ -467,11 +495,13 @@
       ['left', 'top', '--st', '--gap'].forEach(k => list.style.removeProperty(k));
       if (!document.body.classList.contains('wide')) return;
       const f = $('boardFrame').getBoundingClientRect(), N = 13;
-      const st = Math.max(18, Math.min(28, Math.floor((f.height * 0.9 / N) - 6)));
+      // 左上のタイトルブロックに重ならないよう、その下から画面の下までに収める（スマホを横にしたとき重なっていた。2026-10-31）
+      const minTop = $('topbar').getBoundingClientRect().bottom + 6, room = Math.min(f.height * 0.9, innerHeight - minTop - 8);
+      const st = Math.max(14, Math.min(28, Math.floor((room / N) / 1.22)));
       list.style.setProperty('--st', st + 'px');
       list.style.setProperty('--gap', Math.round(st * 0.22) + 'px');
       list.style.left = Math.max(8, f.left - 28 - list.offsetWidth) + 'px';
-      list.style.top = (f.top + (f.height - list.offsetHeight) / 2) + 'px';
+      list.style.top = Math.max(minTop, f.top + (f.height - list.offsetHeight) / 2) + 'px';
     }
     if (document.fonts) document.fonts.ready.then(fitStarList);   // 名前の文字が読み込まれると一覧の幅が変わる
     function applyOrientation() {

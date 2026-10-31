@@ -11,6 +11,14 @@
 
   const BGM_BASE = '../../assets/bgm/';
   const FADE_SEC = 0.8;
+  // 0.05 秒の無音（WAV）。曲の入れ物を、押した瞬間に一度鳴らしておくためのもの
+  const SILENT = (() => {
+    const n = 400, b = new Uint8Array(44 + n), v = new DataView(b.buffer), s = (o, t) => [...t].forEach((c, i) => { b[o + i] = c.charCodeAt(0); });
+    s(0, 'RIFF'); v.setUint32(4, 36 + n, true); s(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); s(36, 'data'); v.setUint32(40, n, true);
+    b.fill(128, 44);
+    return 'data:audio/wav;base64,' + btoa(String.fromCharCode(...b));
+  })();
 
   class CosmosSound {
     /** getSet：設定（se, bgm, seMute, bgmMute）を返す関数 */
@@ -64,6 +72,15 @@
         this.seGain.connect(m);
         this.applyGain(true);
         this._loadSe();
+        // 曲の入れ物（audio 要素）は、ここ（利用者が押した瞬間）で2つ作って鳴らしておき、以後は使い回す。
+        // iPhone は、押した瞬間の外で新しく作った audio 要素を鳴らさないことがあり、超新星で曲を替えたとき無音になった（2026-10-31）
+        this.decks = [0, 1].map(() => {
+          const el = new Audio(); el.preload = 'auto';
+          const g = this.ac.createGain(); g.gain.value = 0;
+          this.ac.createMediaElementSource(el).connect(g).connect(this.sceneGain);
+          el.src = SILENT; el.play().catch(() => {});
+          return { el, gain: g, track: null };
+        });
       }
       this.resume();   // 1時間以上離れて戻ったとき：止めていた曲もここで再開する
       if (this.folder && !this.cur) this._play(this.folder);
@@ -204,15 +221,16 @@
       this.cur = null;
       const file = folder && this._pick(folder);
       if (!file) return;
-      const el = new Audio(BGM_BASE + folder + '/' + file);
-      el.preload = 'auto';
-      const src = this.ac.createMediaElementSource(el), g = this.ac.createGain();
-      g.gain.value = 0;
-      src.connect(g).connect(this.sceneGain);
-      g.gain.setTargetAtTime(1, this.ac.currentTime, fade / 3);
-      const track = { el, gain: g, folder, file };
-      // 曲が終わったら同じフォルダの別の曲へ
-      el.addEventListener('ended', () => { if (this.cur === track) { this.loops++; this._play(this.folder); } });
+      // 2つの入れ物のうち、さっきまで鳴っていなかったほうを使う（前の曲は小さくなりながら、もう片方で鳴り続ける）
+      const prev = this.decks.indexOf(this._lastDeck), deck = this.decks[prev === 0 ? 1 : 0];
+      this._lastDeck = deck;
+      const { el, gain: g } = deck, t = this.ac.currentTime;
+      g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(0, t);
+      g.gain.setTargetAtTime(1, t, fade / 3);
+      const track = { el, gain: g, folder, file, deck };
+      deck.track = track;
+      el.onended = () => { if (this.cur === track) { this.loops++; this._play(this.folder); } };   // 曲が終わったら同じフォルダの別の曲へ
+      el.src = BGM_BASE + folder + '/' + file;
       el.play().catch(e => console.warn('[cosmos] BGM を再生できません', e));
       this.cur = track;
     }
@@ -221,7 +239,8 @@
       if (!track) return;
       fade = fade || FADE_SEC;
       track.gain.gain.setTargetAtTime(0, this.ac.currentTime, fade / 3);
-      setTimeout(() => { track.el.pause(); track.el.src = ''; }, fade * 1000 + 200);
+      // 小さくし終わる前に同じ入れ物が次の曲に使われていたら、止めない
+      setTimeout(() => { if (track.deck.track === track) track.el.pause(); }, fade * 1000 + 200);
     }
   }
 

@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=M+PLUS+Rounded+1c:wght@400;700;800&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <!-- 公開のたびに ?v= を版に合わせる（古いファイルが残って新旧が混ざるのを防ぐ） -->
-<link rel="stylesheet" href="css/cosmos.css?v=0.13">
+<link rel="stylesheet" href="css/cosmos.css?v=0.14">
 <!-- 共通言語ルーチン（defer 不可・本体スクリプトより前） -->
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
@@ -128,6 +128,11 @@
     </div>
     <div id="pauseBar">
       <button class="btn icon" id="pauseBtn" data-t-aria="pause">❚❚</button>
+      <!-- ミサイル（easy だけ出す）。押してから天体を押すと、その天体を壊す -->
+      <button class="btn icon missile-btn" id="missileBtn" data-t-aria="missile" hidden>
+        <img src="assets/img/missile.webp" alt="">
+        <span id="missileN">3</span>
+      </button>
     </div>
   </aside>
 </div>
@@ -144,6 +149,9 @@
       <!-- 出演者：13の天体を映画の出演者のように（main.js が絵つきで並べる。2026-10-30 作者の回答） -->
       <h3>Cast</h3>
       <div id="rollCast"></div>
+      <!-- 名前はアルファベット順に並べ、1行に1人（2026-10-31 作者の指示。今は仮の名前） -->
+      <h3>Special Thanks<span class="roll-note">(in alphabetical order)</span></h3>
+      <p class="roll-name">Ida</p>
       <h3>Program</h3>
       <p class="roll-name">MOMO Works with Claude</p>
       <h3>Images</h3>
@@ -190,6 +198,13 @@
       </div>
     </header>
     <p class="title-desc" data-tb="howTo"></p>
+    <!-- 難易度（2026-10-31 作者の指示）。選んだものは設定に保存し、次の START から効く -->
+    <div class="diff-row" id="diffRow" role="radiogroup" data-t-aria="diffLabel">
+      <button type="button" class="diff" data-diff="easy" role="radio">EASY</button>
+      <button type="button" class="diff" data-diff="hard" role="radio">HARD</button>
+      <button type="button" class="diff" data-diff="apocalypse" role="radio">APOCALYPSE</button>
+    </div>
+    <p class="diff-note" id="diffNote"></p>
     <button class="btn primary btn-start" id="startBtn" data-t="start"></button>
     <p class="home-meta"><span data-t="highScore"></span> <b id="titleHigh">0</b><span id="titleClear" hidden><img class="clear-mark" src="assets/img/galaxy.webp" alt=""><span data-t="clearMark"></span> <b id="titleClearN">0</b></span></p>
   </div>
@@ -327,14 +342,14 @@ THE SOFTWARE.</pre>
   <div id="dbgInfo"></div>
 </div>
 
-<script src="js/vendor/matter.min.js?v=0.13"></script>
-<script src="js/config.js?v=0.13"></script>
-<script src="js/i18n.js?v=0.13"></script>
-<script src="js/game.js?v=0.13"></script>
-<script src="js/render.js?v=0.13"></script>
-<script src="js/input.js?v=0.13"></script>
-<script src="js/sound.js?v=0.13"></script>
-<script src="js/ending.js?v=0.13"></script>
-<script src="js/main.js?v=0.13"></script>
+<script src="js/vendor/matter.min.js?v=0.14"></script>
+<script src="js/config.js?v=0.14"></script>
+<script src="js/i18n.js?v=0.14"></script>
+<script src="js/game.js?v=0.14"></script>
+<script src="js/render.js?v=0.14"></script>
+<script src="js/input.js?v=0.14"></script>
+<script src="js/sound.js?v=0.14"></script>
+<script src="js/ending.js?v=0.14"></script>
+<script src="js/main.js?v=0.14"></script>
 </body>
 </html>

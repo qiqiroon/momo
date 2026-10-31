@@ -2,6 +2,7 @@
   "ending-cosmos": ["bgm-cosmos-ending-1.mp3"],
   "fireworks": ["bgm-fireworks-1.mp3","bgm-fireworks-2.mp3","bgm-fireworks-3.mp3"],
   "game-cosmos": ["bgm-cosmos-1.mp3","bgm-cosmos-2.mp3","bgm-cosmos-3.mp3"],
+  "game-cosmos-easy": ["bgm-cosmos-easy-1.mp3","bgm-cosmos-easy-2.mp3","bgm-cosmos-easy-3.mp3"],
   "game-japanese": ["bgm-game-1.mp3","bgm-game-2.mp3","bgm-game-3.mp3"],
   "game-koikoi": ["bgm-koikoi-1.mp3","bgm-koikoi-2.mp3"],
   "game-mahjong": ["bgm-mahjong-1.mp3","bgm-mahjong-2.mp3","bgm-mahjong-3.mp3"],

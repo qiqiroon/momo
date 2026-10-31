@@ -19,6 +19,8 @@
       this.highScore = 0;
       this.clearCount = 0;     // クリア回数（main.js が保存から読む）
       this.eventsOn = true;    // 特殊イベントのオン・オフ（main.js が設定から入れる。第14.1節）
+      this.stormSide = 0;      // 前の重力嵐の向き（-1 左・1 右・0 まだ）。ゲームをまたいで交互にする
+      this.difficulty = 'apocalypse';   // 難易度（main.js が設定から入れる。次の start() から効く）
       this._newGame();
     }
 
@@ -28,6 +30,11 @@
     // ---- 開始・状態 ----------------------------------------------------
     _newGame() {
       const M = this.M, C = this.C, P = C.physics, B = C.board;
+      const D = C.difficulties[this.difficulty] || C.difficulties.apocalypse;
+      this.sizeMul = D.sizeMul;      // 天体の半径の倍率（ブラックホールは変えない）
+      this.missiles = D.missiles;    // 残りのミサイル
+      this.missileArmed = false;     // ミサイルを選んで、壊す天体を待っている
+      this.shot = null;              // 飛んでいるミサイル：{ body, t, dur, x0, y0, x, y }
       this.engine = M.Engine.create({
         enableSleeping: false,
         positionIterations: P.positionIterations,
@@ -82,7 +89,11 @@
       this.comet = null;
     }
 
-    _setState(st) { this.state = st; this.emit('state', st); }
+    _setState(st) {
+      this.state = st;
+      if (this.missileArmed && st !== 'PLAY' && st !== 'PAUSE') { this.missileArmed = false; this.emit('missileArm', false); }
+      this.emit('state', st);
+    }
     start() { this._newGame(); this._setState('PLAY'); }
     toTitle() { this._newGame(); this._setState('TITLE'); }
     /** 落下操作を受け付ける状態（通常期と餌やり） */
@@ -126,9 +137,12 @@
     get nextStage() { return this.forcedStage || this.queue[0]; }
     get nextNextStage() { return this.queue[1]; }
 
+    /** 天体の半径（難易度の倍率をかけたもの） */
+    radius(stage) { return Math.round(this.C.stages[stage].radius * (stage <= 12 ? this.sizeMul : 1)); }
+
     // ---- 落下（第6章） ----------------------------------------------------
     clampX(x, stage) {
-      const r = this.C.stages[stage || this.nextStage].radius;
+      const r = this.radius(stage || this.nextStage);
       return Math.max(r + 1, Math.min(this.C.board.width - r - 1, x));
     }
 
@@ -158,7 +172,7 @@
 
     _addBody(stage, x, y) {
       const P = this.C.physics;
-      const r = this.C.stages[stage].radius;
+      const r = this.radius(stage);
       const b = this.M.Bodies.circle(x, y, r, {
         restitution: P.restitution, friction: P.friction, frictionStatic: P.frictionStatic,
         frictionAir: P.frictionAir, density: P.density, label: 'body'
@@ -211,6 +225,7 @@
       if (this.state === 'PLAY' || this.state === 'BH') this._updateEvents(step);
       else if (this.ev.cur || this.ev.warn || this.ev.timer) this._stopEvents();
       if (this.bh) this._updateBH(step);
+      if (this.shot) this._updateShot(step);
       if (this.state === 'FINAL_ABSORB') this._updateFinal(step);
     }
 
@@ -267,7 +282,7 @@
         const a = p.bodyA, b = p.bodyB;
         if (a.label !== 'body' || b.label !== 'body') continue;
         const ca = a.plugin.cosmos, cb = b.plugin.cosmos;
-        if (ca.merging || cb.merging || ca.stage !== cb.stage) continue;
+        if (ca.merging || cb.merging || ca.stage !== cb.stage || ca.targeted || cb.targeted) continue;   // ミサイルに狙われた天体は合体しない
         const key = a.id < b.id ? a.id + ':' + b.id : b.id + ':' + a.id;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -552,7 +567,9 @@
         cur = { type, t: 0, dur: K.sec + 0.5, n, done: 0, stage: this.spawnRange()[0] };
       } else if (type === 'storm') {
         const S = E.storm, deg = S.angleDeg[0] + rnd() * (S.angleDeg[1] - S.angleDeg[0]);
-        cur = { type, t: 0, dur: S.sec, ang: (rnd() < 0.5 ? -1 : 1) * deg * Math.PI / 180, k: 0 };   // 重力の傾きは _tickEvent で少しずつ
+        // 向きは前の重力嵐の逆にして、左右交互にする（最初だけランダム。右向きばかりに感じたため。2026-10-31 作者の指示）
+        this.stormSide = this.stormSide ? -this.stormSide : (rnd() < 0.5 ? -1 : 1);
+        cur = { type, t: 0, dur: S.sec, ang: this.stormSide * deg * Math.PI / 180, k: 0 };   // 重力の傾きは _tickEvent で少しずつ
       } else if (type === 'wormhole') {
         const pos = this._wormholePlace();
         if (pos) cur = Object.assign({ type, t: 0, dur: E.wormhole.sec, r: E.wormhole.r }, pos);
@@ -627,7 +644,7 @@
       } else if (cur.type === 'meteor') {
         const K = E.meteor;
         while (cur.done < cur.n && cur.t >= cur.done * K.sec / cur.n) {
-          const r = this.C.stages[cur.stage].radius, x = r + 10 + this.random() * (B.width - 2 * r - 20);
+          const r = this.radius(cur.stage), x = r + 10 + this.random() * (B.width - 2 * r - 20);
           const b = this._addBody(cur.stage, x, -r - 20);
           b.plugin.cosmos.dropped = true;
           b.plugin.cosmos.meteor = true;
@@ -814,6 +831,7 @@
       if (this.overTime >= G.overSec) {
         this.state = 'GAMEOVER';
         this.warning = false;
+        if (this.missileArmed) { this.missileArmed = false; this.emit('missileArm', false); }
         this._stopEvents();
         this._finishScore();
         this.emit('gameOver', { score: this.score, high: this.highScore, maxStage: this.maxStage, newRecord: this.newRecord });
@@ -823,6 +841,59 @@
 
     _finishScore() {
       if (this.score > this.highScore) { this.highScore = this.score; this.newRecord = true; this.emit('highScore', this.highScore); }
+    }
+
+    // ---- ミサイル（easy だけ。2026-10-31 作者の指示） ------------------------
+    // ミサイルを選んでから天体を選ぶと、その天体を1つ壊す。1回のゲームで missiles 発まで。通常期だけ使える
+    get canMissile() { return this.state === 'PLAY' && this.missiles > 0 && !this.shot; }
+
+    /** ミサイルを選ぶ／やめる（on を省くと切り替え） */
+    armMissile(on) {
+      const v = on == null ? !this.missileArmed : !!on;
+      if (v && !this.canMissile) return false;
+      if (v !== this.missileArmed) { this.missileArmed = v; this.emit('missileArm', v); }
+      return true;
+    }
+
+    /** (x, y) の天体（盤面の座標）。少し外れていても近ければ選ぶ */
+    bodyAt(x, y, slack) {
+      let best = null, bd = Infinity;
+      for (const b of this.bodies()) {
+        if (b.plugin.cosmos.pending) continue;
+        const d = Math.hypot(b.position.x - x, b.position.y - y) - b.circleRadius;
+        if (d < (slack || 0) && d < bd) { best = b; bd = d; }
+      }
+      return best;
+    }
+
+    /** 選んだミサイルを (x, y) の天体へ撃つ。天体がなければ何もしない（選んだまま）。
+     *  ミサイルは盤面の上の真ん中から flySec 秒で飛び込み（天体は下に積もっているので、下からだと見えないうちに当たる）、当たったら天体を壊す（その間、狙った天体は合体しない） */
+    fireMissile(x, y) {
+      if (!this.missileArmed || !this.canMissile || this.shot) return false;
+      const b = this.bodyAt(x, y, 12);
+      if (!b) return false;
+      const B = this.C.board;
+      b.plugin.cosmos.targeted = true;
+      this.missiles--;
+      this.missileArmed = false;
+      this.emit('missileArm', false);
+      this.shot = { body: b, t: 0, dur: this.C.missile.flySec, x0: B.width / 2, y0: -60, x: B.width / 2, y: -60, tx: b.position.x, ty: b.position.y };
+      this.emit('missileFire', { left: this.missiles });
+      return true;
+    }
+
+    // 飛んでいるミサイル：狙った天体の今の位置へ近づけ、着いたら壊す
+    _updateShot(step) {
+      const s = this.shot, b = s.body;
+      s.t += step;
+      const k = Math.min(1, s.t / s.dur), e = k * k;   // だんだん速く
+      s.tx = b.position.x; s.ty = b.position.y;
+      s.x = s.x0 + (s.tx - s.x0) * e; s.y = s.y0 + (s.ty - s.y0) * e;
+      if (k < 1) return;
+      this.shot = null;
+      const alive = this.bodies().includes(b);
+      if (alive) this.M.Composite.remove(this.engine.world, b);
+      this.emit('missile', { x: s.tx, y: s.ty, r: b.circleRadius, stage: b.plugin.cosmos.stage, hit: alive, left: this.missiles });
     }
 
     // ---- デバッグ（第9.4節） ----------------------------------------------

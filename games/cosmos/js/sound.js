@@ -28,6 +28,7 @@
       this.folder = null;        // 鳴らしたいフォルダ
       this.cur = null;           // 鳴っている曲：{ el, gain, folder, file }
       this.last = {};            // フォルダごとの直前の曲（同じ曲を続けない）
+      this.seLoops = {};         // 繰り返し鳴らしている効果音（名前ごとの AudioBufferSourceNode）
       this.loops = 0;            // 今のフォルダで、曲が終わって次を鳴らした回数（エンドロールのレシピに使う）
       this._loadPool();
     }
@@ -102,6 +103,21 @@
       node.onended = () => { this.voices[name]--; };
     }
 
+    /** 効果音を on の間だけ繰り返し鳴らす（デッドラインの警告。2026-10-31）。同じ値で何度呼んでもよい */
+    loop(name, on) {
+      const cur = this.seLoops[name];
+      if (!on || !this.ac || this.ac.state !== 'running') {
+        if (cur) { try { cur.stop(); } catch (_) { /* 止まっている */ } delete this.seLoops[name]; }
+        return;
+      }
+      const C = this.seConf, buf = this.buf[C.files[name]];
+      if (cur || !buf) return;
+      const src = this.ac.createBufferSource(), g = this.ac.createGain();
+      src.buffer = buf; src.loop = true; g.gain.value = C.vol[name] || 1;
+      src.connect(g).connect(this.seGain); src.start();
+      this.seLoops[name] = src;
+    }
+
     /** ビッグバンの重低音：下がっていく低い音と、こもった雑音（試聴ページと同じ作り。2.4秒） */
     rumble() {
       if (!this.ac || this.ac.state !== 'running') return;
@@ -139,12 +155,13 @@
     }
 
     /** 場面に合わせて鳴らすフォルダを選ぶ（同じなら何もしない。null で止める） */
-    setFolder(folder) {
+    /** fadeSec を渡すと、前の曲をその秒数で小さくしながら、次の曲を同じ秒数で重ねて大きくする */
+    setFolder(folder, fadeSec) {
       if (folder === this.folder) return;
       this.folder = folder;
       this.loops = 0;
       if (!this.ac) return;          // 許可パネルの前は鳴らさない
-      this._play(folder);
+      this._play(folder, fadeSec);
     }
 
     // ページが隠れている間は曲そのものも止める。音の出口（AudioContext）だけ止めると、
@@ -167,9 +184,10 @@
       return f;
     }
 
-    _play(folder) {
+    _play(folder, fadeSec) {
       if (!this.pool) return;        // 目録を読み終えたら鳴らし直す
-      this._fadeOut(this.cur);
+      const fade = fadeSec || FADE_SEC;
+      this._fadeOut(this.cur, fade);
       this.cur = null;
       const file = folder && this._pick(folder);
       if (!file) return;
@@ -178,7 +196,7 @@
       const src = this.ac.createMediaElementSource(el), g = this.ac.createGain();
       g.gain.value = 0;
       src.connect(g).connect(this.sceneGain);
-      g.gain.setTargetAtTime(1, this.ac.currentTime, FADE_SEC / 3);
+      g.gain.setTargetAtTime(1, this.ac.currentTime, fade / 3);
       const track = { el, gain: g, folder, file };
       // 曲が終わったら同じフォルダの別の曲へ
       el.addEventListener('ended', () => { if (this.cur === track) { this.loops++; this._play(this.folder); } });
@@ -186,10 +204,11 @@
       this.cur = track;
     }
 
-    _fadeOut(track) {
+    _fadeOut(track, fade) {
       if (!track) return;
-      track.gain.gain.setTargetAtTime(0, this.ac.currentTime, FADE_SEC / 3);
-      setTimeout(() => { track.el.pause(); track.el.src = ''; }, FADE_SEC * 1000 + 200);
+      fade = fade || FADE_SEC;
+      track.gain.gain.setTargetAtTime(0, this.ac.currentTime, fade / 3);
+      setTimeout(() => { track.el.pause(); track.el.src = ''; }, fade * 1000 + 200);
     }
   }
 

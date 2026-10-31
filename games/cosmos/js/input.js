@@ -23,6 +23,11 @@
       return (clientX - rect.left) / rect.width * this.C.board.width;
     }
 
+    toBoardY(clientY) {
+      const rect = this.cv.getBoundingClientRect();
+      return (clientY - rect.top) / rect.height * this.C.board.height;
+    }
+
     insideBoard(clientX, clientY) {
       const rect = this.cv.getBoundingClientRect();
       return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
@@ -37,6 +42,11 @@
         if (!this._playable()) return;
         e.preventDefault();
         const x = this.toBoardX(e.clientX);
+        // ミサイルを選んでいる間は、落とさずに、触れた天体を壊す（天体のない所なら何もしない）
+        if (this.g.missileArmed) {
+          if (e.button === 0 || e.pointerType !== 'mouse') this.g.fireMissile(x, this.toBoardY(e.clientY));
+          return;
+        }
         if (e.pointerType === 'mouse') {
           if (e.button !== 0) return;
           this.g.setAim(x);
@@ -53,6 +63,8 @@
       }, { passive: false });
 
       cv.addEventListener('pointermove', e => {
+        // ミサイルの狙い：マウスの下の天体を render.js が赤い輪で示す
+        this.r.pointer = this.insideBoard(e.clientX, e.clientY) ? { x: this.toBoardX(e.clientX), y: this.toBoardY(e.clientY) } : null;
         if (e.pointerType === 'mouse') {
           if (!this._playable()) return;
           this.g.setAim(this.toBoardX(e.clientX));
@@ -84,7 +96,7 @@
       };
       cv.addEventListener('pointerup', e => end(e, false));
       cv.addEventListener('pointercancel', e => end(e, true));
-      cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') this.r.aimVisible = false; });
+      cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { this.r.aimVisible = false; this.r.pointer = null; } });
       cv.addEventListener('contextmenu', e => e.preventDefault());
 
       root.addEventListener('keydown', e => {
@@ -93,7 +105,7 @@
         if (!this._playable()) return;
         if (e.key === 'ArrowLeft') { this.keys.left = true; this.r.aimVisible = true; e.preventDefault(); }
         else if (e.key === 'ArrowRight') { this.keys.right = true; this.r.aimVisible = true; e.preventDefault(); }
-        else if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); if (!e.repeat) { this.r.aimVisible = true; this.g.drop(); } }
+        else if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); if (!e.repeat && !this.g.missileArmed) { this.r.aimVisible = true; this.g.drop(); } }
       });
       root.addEventListener('keyup', e => {
         if (e.key === 'ArrowLeft') this.keys.left = false;

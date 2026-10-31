@@ -137,7 +137,26 @@ body:not(.at-title) #home { display: none; }
 @media (max-width: 420px) { .site-header .subtitle { font-size: 15px; } .site-header h1 { font-size: 1.9rem; } }
 @keyframes fadeDown { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: translateY(0); } }
 .title-desc { font-size: 13px; line-height: 1.8; color: #b5b5b5; margin: 6px 0 0; }
-.btn-start { margin-top: 20px; width: 100%; padding: 12px 16px; }
+.btn-start { margin-top: 14px; width: 100%; padding: 12px 16px; }
+/* 難易度（2026-10-31） */
+.diff-row { display: flex; gap: 6px; margin-top: 20px; }
+.diff {
+  flex: 1; min-width: 0; padding: 9px 4px; cursor: pointer;
+  font-family: "Fredoka One", cursive; font-size: 14px; letter-spacing: .04em; color: var(--muted);
+  background: var(--surface2); border: 1px solid var(--line-strong); border-radius: 10px;
+}
+.diff:hover { border-color: var(--orange-mid); }
+.diff[aria-checked="true"] { color: #fff; border-color: var(--orange-mid); background: rgba(234,88,12,.28); }
+.diff[data-diff="apocalypse"][aria-checked="true"] { border-color: #ef4444; background: rgba(185,28,28,.35); }
+.diff-note { margin: 8px 0 0; min-height: 1.8em; font-size: 12px; line-height: 1.6; color: #b5b5b5; text-align: center; }
+/* ミサイル（easy） */
+#pauseBar { gap: 10px; }
+.btn.icon.missile-btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: 76px; letter-spacing: 0; color: #fca5a5; }
+.missile-btn img { width: 40px; height: auto; transform: rotate(-35deg); }
+.missile-btn span { font-family: var(--font-title); font-size: 16px; }
+.btn.icon.missile-btn.armed { background: #b91c1c; border-color: #ef4444; color: #fff; }
+.missile-btn:disabled { opacity: .35; cursor: default; }
+.missile-btn[hidden] { display: none; }
 .home-meta { margin: 12px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
 .home-meta b { color: var(--text); font-family: var(--font-title); font-weight: normal; font-size: 16px; }
 
@@ -240,6 +259,7 @@ body.rolling #endroll { display: block; }
 #rollText { position: absolute; left: 0; right: 0; top: 0; text-align: center; padding: 0 16px; will-change: transform; }
 #rollText p, #rollText h3 { margin: 0; }
 #rollText h3 { margin-top: 15vh; font-family: var(--font-body); font-weight: 700; font-size: 13px; letter-spacing: .12em; color: #a3a3a3; }
+.roll-note { display: block; margin-top: 4px; font-weight: 400; font-size: 11px; letter-spacing: .04em; color: #8a8a8a; }
 .roll-title { font-family: "Fredoka One", cursive; font-size: 40px; color: #fff; }
 .roll-title b { font-weight: 400; color: var(--orange-mid); }
 .roll-sub { font-family: var(--font-title); font-size: 15px; color: #d4d4d4; margin-top: 6px !important; }

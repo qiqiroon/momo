@@ -6,7 +6,7 @@
   'use strict';
 
   const CONFIG = {
-    version: 'v0.13', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
+    version: 'v0.14', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
 
     // 第14章 特殊イベント（M4。2026-10-30）
     events: {
@@ -36,6 +36,17 @@
       // 盤面を揺さぶるイベントの間と、そのあと天体が落ち着くまでは、デッドラインを越えてもゲームオーバーにしない
       calm: { types: ['flare', 'comet', 'storm', 'collision'], speed: 0.8, stillSec: 0.6, maxSec: 8 }
     },
+
+    // 難易度（2026-10-31 作者の指示）。sizeMul＝天体（月〜中性子星）の半径の倍率、missiles＝1回のゲームで撃てるミサイルの数
+    //   apocalypse … 今までの大きさ（先読みのボットで約1割クリアに合わせた。線越えを10秒にしたあとの測定では4回中0回）
+    //   hard       … 天体を小さくして、先読みのボットで約3分の1クリア（0.8倍 8回中7回・0.85倍 4回中3回・0.9倍 5回中3回・0.93倍 12回中7回・0.94倍 4回中1回を見て、作者の指示で 0.94。2026-10-31）
+    //   easy       … hard と同じ大きさに、好きな天体を1つ壊せるミサイルを3発
+    difficulties: {
+      easy:       { sizeMul: 0.94, missiles: 3 },
+      hard:       { sizeMul: 0.94, missiles: 0 },
+      apocalypse: { sizeMul: 1,   missiles: 0 }
+    },
+    missile: { flySec: 0.45, explodeSec: 0.7, explodeMul: 3.2 },   // 盤面の下から天体まで飛ぶ秒・爆発の絵を出す秒・爆発の大きさ（天体の半径の倍）
 
     // 第4章 盤面（論理座標）
     board: { width: 600, height: 900, dropY: 90, deadlineY: 150, wallThickness: 200,
@@ -172,7 +183,8 @@
     },
 
     // 第10章 ゲームオーバー
-    gameOver: { settleAgeSec: 1.0, overSec: 2.0, warnSec: 0.5 },
+    // 線を越えたまま overSec 秒続いたらゲームオーバー（2.0 → 10。2026-10-31 作者の指示）。警告中は警告音を鳴らし続け、残りの秒を出す
+    gameOver: { settleAgeSec: 1.0, overSec: 10.0, warnSec: 0.5 },
 
     // 第8.2節 合体演出
     mergeFx: {
@@ -211,10 +223,12 @@
       landFullSpeed: 12      // この速さで最大の音量
     },
 
+    bgmCrossSec: 4,   // 超新星ができたとき、easy の曲から緊迫感のある曲へ重ねて切り替える秒数（2026-10-31）
+
     storageKeys: { highScore: 'momoCosmos.highScore', clearCount: 'momoCosmos.clearCount', settings: 'momoCosmos.settings' },
 
     // 第18.4節 設定パネルの既定値（音は M5 で鳴らす。今は値だけ保存する）
-    settingsDefault: { se: 100, bgm: 40, seMute: false, bgmMute: false, events: true, debugPanel: true },
+    settingsDefault: { se: 100, bgm: 40, seMute: false, bgmMute: false, events: true, debugPanel: true, difficulty: 'easy' },   // 難易度の初期値は easy
 
     // 猫語のときの天体名（第21章。2026-10-29 作者の回答で鳴き声に決定）。'base'＝系統言語のまま／'cat'＝鳴き声
     catStageNames: 'cat'

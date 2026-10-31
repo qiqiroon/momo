@@ -25,7 +25,9 @@
     catch (err) { console.warn('[cosmos] スプライトを読めません。色付きの円で表示します。', err); }
 
     const game = new CosmosGame(C, Matter);
-    game.highScore = Number(store.get(C.storageKeys.highScore, 0)) || 0;
+    // ハイスコアは難易度ごと（2026-10-31 作者の回答 Q1=A）。今までの記録は今までの大きさ＝apocalypse のものとして、元の場所に残す
+    const highKey = d => d === 'apocalypse' ? C.storageKeys.highScore : C.storageKeys.highScore + '.' + d;
+    const loadHigh = d => Number(store.get(highKey(d), 0)) || 0;
     game.clearCount = Number(store.get(C.storageKeys.clearCount, 0)) || 0;
     const board = new CosmosRender.BoardRenderer($('board'), game, sprites, C);
     const stars = new CosmosRender.StarField($('bg'), C);
@@ -40,6 +42,7 @@
     }
 
     function refreshTitle() {
+      game.highScore = loadHigh(SET.difficulty);   // タイトルには、選んでいる難易度の記録を出す
       $('titleHigh').textContent = game.highScore.toLocaleString();
       $('titleClear').hidden = !game.clearCount;     // クリアの印（第13.3節）
       $('titleClearN').textContent = game.clearCount;
@@ -55,7 +58,7 @@
     $('confirmYes').onclick = () => { const a = confirmAction; confirmAction = null; a && a(); };
     $('confirmNo').onclick = () => { confirmAction = null; show('pausePanel'); };
 
-    function startGame() { game.start(); show(null); updateHud(true); }
+    function startGame() { game.difficulty = SET.difficulty; game.highScore = loadHigh(SET.difficulty); game.start(); show(null); updateHud(true); }
     function toTitle() { game.toTitle(); refreshTitle(); show('title'); updateHud(true); }
     function togglePause() {
       if (game.controllable) { game.pause(); show('pausePanel'); sound.se('pause'); }
@@ -70,7 +73,7 @@
     $('retryBtn').onclick = startGame;
     $('goTitleBtn').onclick = toTitle;
 
-    game.on('highScore', v => store.set(C.storageKeys.highScore, v));
+    game.on('highScore', v => store.set(highKey(game.difficulty), v));
     let goMaxStage = 1;
     game.on('gameOver', e => {
       $('goScore').textContent = e.score.toLocaleString();
@@ -108,7 +111,8 @@
         $('endroll').classList.remove('results');
         $('rollEnd').hidden = true;
         $('rollHint').hidden = !game.rollSkippable;
-        recipeAt = -1; recipeEnded = false;
+        // null にして、前のエンディングで出したままの締めの言葉も必ず消す（-1 だと「変わっていない」とみなして消さなかった。2026-10-31）
+        recipeAt = null; recipeEnded = false;
       } else if (st === 'TITLE' || st === 'PLAY') {
         B.classList.remove('ui-gone', 'bare', 'rolling');
         applyLang();   // エンディングで英語にした情報ヘッダーを、表示言語に戻す
@@ -230,6 +234,19 @@
     bindVol('mBgmVol', 'mBgmMute', 'bgm', 'bgmMute');
     $('eventsChk').addEventListener('change', e => { SET.events = e.target.checked; game.eventsOn = SET.events; saveSet(); });
     game.eventsOn = SET.events;
+    // 難易度（タイトル画面。2026-10-31 作者の指示）。選んだものを保存し、次の START から効く
+    if (!C.difficulties[SET.difficulty]) SET.difficulty = C.settingsDefault.difficulty;
+    game.difficulty = SET.difficulty;
+    function syncDiff() {
+      document.querySelectorAll('#diffRow .diff').forEach(b => b.setAttribute('aria-checked', String(b.dataset.diff === SET.difficulty)));
+      $('diffNote').textContent = L.tBase('diffNote_' + SET.difficulty);
+    }
+    document.querySelectorAll('#diffRow .diff').forEach(b => b.addEventListener('click', () => { SET.difficulty = b.dataset.diff; saveSet(); syncDiff(); refreshTitle(); }));
+    syncDiff();
+    // ミサイル（easy）：押すと選ぶ・もう一度押すとやめる。選んだあと天体を押すと壊す（input.js）
+    $('missileBtn').onclick = () => game.armMissile();
+    game.on('missileFire', () => sound.se('drop', { rate: 0.7 }));                 // 撃った：風を切る音を低めに
+    game.on('missile', () => sound.se('bigbang', { vol: 0.45, rate: 1.5 }));    // 当たった：爆発を短く高めに
     $('debugChk').addEventListener('change', e => { SET.debugPanel = e.target.checked; saveSet(); syncSetUI(); });
     $('debugRow').hidden = !DEBUG;
 
@@ -271,11 +288,14 @@
     // 場面ごとの BGM（ブラックホール期も通常の曲。2026-10-29 作者の回答）
     // 最終吸収で徐々に小さくし、静寂とビッグバンの前半は無音。エンディングの曲は画面が真っ白になったところから鳴らす
     // （2026-10-30 作者の指示。その前はエンドロールの始まりからだった）
+    // 通常期は、超新星ができるまでは穏やかな easy の曲、超新星ができたら緊迫感のある曲（2026-10-31 作者の指示）
+    const SUPERNOVA = 11;
     function bgmForState(st) {
       if (st === 'TITLE') return 'lobby';
-      if (st === 'GAMEOVER' || st === 'FINAL_ABSORB') return sound.folder; // そのまま流す
+      if (st === 'GAMEOVER' || st === 'FINAL_ABSORB' || st === 'PAUSE') return sound.folder; // そのまま流す
       if (st === 'ENDROLL') return 'ending-cosmos';
       if (st === 'SILENCE' || st === 'BIGBANG') return null;   // BIGBANG の途中で endingMusic が鳴らし始める
+      if (st === 'PLAY' && game.maxStage < SUPERNOVA) return 'game-cosmos-easy';
       return 'game-cosmos';
     }
     game.on('state', st => {
@@ -283,6 +303,8 @@
       if (st === 'FINAL_ABSORB') sound.scene(0, C.ending.bgmFadeSec);
       sound.setFolder(bgmForState(st));
     });
+    // 超新星ができたら、easy の曲を小さくしながら緊迫感のある曲を重ねて切り替える
+    game.on('maxStage', s => { if (s >= SUPERNOVA && game.state === 'PLAY') sound.setFolder('game-cosmos', C.bgmCrossSec); });
     game.on('endingMusic', () => { sound.scene(1, 0); sound.setFolder('ending-cosmos'); });
 
     // ---- 効果音（第16章。2026-10-30 作者が試聴して決めた） ----
@@ -293,7 +315,8 @@
     game.on('bhAppear', () => sound.se('bhBirth'));
     game.on('bhTier', () => sound.se('bhTier'));
     game.on('absorb', () => sound.se('absorb'));
-    game.on('warning', on => { if (on) sound.se('warn'); });
+    // 警告音は、線を越えている間（プレイ中だけ）鳴らし続ける。毎コマ frame() で合わせる（2026-10-31 作者の指示）
+    const warnLoop = () => sound.loop('warn', game.warning && game.state === 'PLAY');
     game.on('eventWarn', () => sound.se('event'));        // 特殊イベントの予告（第14.1節）
     game.on('collision', () => sound.se('event'));        // 惑星衝突は予告できないので、起きたときに鳴らす
     game.on('cometAbsorb', () => sound.se('absorb'));
@@ -326,6 +349,7 @@
       document.querySelectorAll('[data-t-aria]').forEach(el => { const v = L.t(el.dataset.tAria); el.setAttribute('aria-label', v); el.title = v; });
       document.querySelectorAll('.site-header .subtitle').forEach(el => el.classList.toggle('zh', L.baseLang() === 'zh'));
       if (confirmKey) $('confirmMsg').textContent = L.t(confirmKey);
+      syncDiff();
       $('goMax').textContent = L.stageName(goMaxStage, C);
       $('langSelect').value = L.mode;
       if (endingEnglish()) hudEnglish();
@@ -359,7 +383,16 @@
         if (bh) { $('bhFill').style.width = (gw * 100).toFixed(1) + '%'; $('bhFood').style.width = (fw * 100).toFixed(1) + '%'; }
       }
       if (force || last.tier !== tier) { if (bh) $('bhTier').textContent = endingEnglish() ? L.en('bhTier' + tier) : L.t('bhTier' + tier); }
-      last = { s, h, n, nn, gw, fw, tier };
+      // ミサイルのボタン：ミサイルのある難易度の、通常期（一時停止・ゲームオーバーを含む）だけ出す
+      const ms = C.difficulties[game.difficulty].missiles > 0 && ['PLAY', 'PAUSE', 'GAMEOVER'].includes(game.state);
+      const mk = ms + '/' + game.missiles + '/' + game.missileArmed + '/' + game.canMissile;
+      if (force || last.mk !== mk) {
+        $('missileBtn').hidden = !ms;
+        $('missileN').textContent = game.missiles;
+        $('missileBtn').disabled = !game.canMissile && !game.missileArmed;
+        $('missileBtn').classList.toggle('armed', game.missileArmed);
+      }
+      last = { s, h, n, nn, gw, fw, tier, mk };
     }
 
     // ---- 配置（盤面は 2:3 で、使える領域に収める） ----
@@ -398,6 +431,7 @@
       board.draw();
       ending.draw(game.running ? dt * game.speed : 0);
       if (game.state === 'ENDROLL') scrollRoll();
+      warnLoop();
       updateHud(false);
       if (DEBUG) { fpsAcc += dt; fpsN++; if (fpsAcc > 0.5) { debugInfo(game, fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; } }
       requestAnimationFrame(frame);
@@ -449,7 +483,7 @@
     $('dbgInfo').textContent =
       'fps ' + fps.toFixed(0) + ' / bodies ' + game.bodies().length + ' / t ' + game.time.toFixed(0) + 's / drops ' + game.dropCount +
       ' / max ' + game.maxStage + ' / range ' + lo + '-' + hi + ' / over ' + game.overTime.toFixed(1) + 's' +
-      ' / ' + game.state + ' / ev ' + (game.ev.cur ? game.ev.cur.type : game.ev.warn ? '予告 ' + game.ev.warn.type : game.ev.timer.toFixed(0) + '/' + (game.ev.wait == null ? '-' : game.ev.wait.toFixed(0)) + 's') + (game.ev.calm ? ' / 猶予中' : '') + (game.bh ? ' / growth ' + game.bh.growth.toFixed(0) + ' r ' + game.bh.r.toFixed(0) : '');
+      ' / ' + game.state + ' / ' + game.difficulty + (game.missiles ? ' 🚀' + game.missiles : '') + ' / ev ' + (game.ev.cur ? game.ev.cur.type : game.ev.warn ? '予告 ' + game.ev.warn.type : game.ev.timer.toFixed(0) + '/' + (game.ev.wait == null ? '-' : game.ev.wait.toFixed(0)) + 's') + (game.ev.calm ? ' / 猶予中' : '') + (game.bh ? ' / growth ' + game.bh.growth.toFixed(0) + ' r ' + game.bh.r.toFixed(0) : '');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

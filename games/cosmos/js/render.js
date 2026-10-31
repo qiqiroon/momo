@@ -161,6 +161,24 @@
           this.parts.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 140, t0: now, dur: 1.4 + Math.random() * 0.6, size: 10 + Math.random() * 16, rock: true, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 10 });
         }
       });
+      // ミサイル（easy）：選んでいる間は案内の文字。壊したら爆発
+      game.on('missileArm', on => {
+        const now = performance.now() / 1000;
+        if (on) this.banner = { main: 'MISSILE', subKey: 'missileHint', t0: now, dur: 9999, missile: true };
+        else if (this.banner && this.banner.missile) this.banner.dur = Math.min(this.banner.dur, now - this.banner.t0 + 0.3);
+      });
+      game.on('missile', e => {
+        const now = performance.now() / 1000, X = C.missile;
+        this.fx.push({ x: e.x, y: e.y, r: Math.max(40, e.r) * X.explodeMul / 2, t0: now, dur: X.explodeSec, key: 'explosion', blend: 'source-over', fade: true });
+        this.shake = Math.max(this.shake, 14);
+        this.rings.push({ x: e.x, y: e.y, r0: e.r * 1.2, r1: 8, t0: now, dur: 0.35, color: '255,255,255', fill: true });
+        this.rings.push({ x: e.x, y: e.y, r0: e.r * 0.5, r1: e.r * 2.6, t0: now, dur: 0.6, color: '248,113,113' });
+        this._sparks(e.x, e.y, 40, '253,186,116', 520);
+        for (let i = 0; i < 10; i++) {   // 壊れた天体の破片
+          const a = Math.random() * Math.PI * 2, s = 140 + Math.random() * 260;
+          this.parts.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120, t0: now, dur: 1.0 + Math.random() * 0.5, size: 6 + Math.random() * e.r * 0.25, rock: true, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 10 });
+        }
+      });
       game.on('state', st => {
         if (st === 'PLAY' || st === 'TITLE') { this.banner = null; this.flash = null; this.bare = false; this.parts = []; this.rings = []; }
         // 最終吸収に入ったら「SUPERMASSIVE BLACK HOLE」を 0.6 秒で消す
@@ -312,7 +330,7 @@
       const F = this.C.mergeFx;
       const tier = e.stage <= F.small.maxStage ? F.small : e.stage <= F.medium.maxStage ? F.medium : F.large;
       const now = performance.now() / 1000;
-      this.fx.push({ x: e.x, y: e.y, r: this.C.stages[e.stage].radius * tier.size, t0: now, dur: tier.durSec });
+      this.fx.push({ x: e.x, y: e.y, r: this.g.radius(e.stage) * tier.size, t0: now, dur: tier.durSec });
       if (e.add) this.popups.push({ x: e.x, y: e.y, text: '+' + e.add, t0: now, dur: F.popupSec });
       if (tier.shake) this.shake = Math.max(this.shake, tier.shake);
     }
@@ -345,6 +363,13 @@
         ctx.strokeStyle = on ? 'rgba(239,68,68,0.95)' : 'rgba(239,68,68,0.25)';
       } else ctx.strokeStyle = 'rgba(251,146,60,0.35)';
       ctx.beginPath(); ctx.moveTo(0, B.deadlineY); ctx.lineTo(B.width, B.deadlineY); ctx.stroke();
+      // 警告中は、ゲームオーバーまでの残りの秒を線の右端の下に出す（10秒に伸ばしたので。2026-10-31）
+      if (g.warning) {
+        ctx.setLineDash([]);
+        ctx.font = '700 30px "Fredoka One", sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+        ctx.fillStyle = 'rgba(239,68,68,0.95)';
+        ctx.fillText(String(Math.max(1, Math.ceil(C.gameOver.overSec - g.overTime))), B.width - 12, B.deadlineY + 8);
+      }
       ctx.restore();
       }
 
@@ -364,8 +389,8 @@
       if (g.bh) this._drawBH(ctx, g.bh, now);
 
       // 照準
-      if (g.controllable && this.aimVisible) {
-        const stg = g.nextStage, r = C.stages[stg].radius, x = g.clampX(g.aimX, stg);
+      if (g.controllable && this.aimVisible && !g.missileArmed) {
+        const stg = g.nextStage, r = g.radius(stg), x = g.clampX(g.aimX, stg);
         ctx.save();
         ctx.strokeStyle = 'rgba(229,229,229,0.28)';
         ctx.lineWidth = 1.5;
@@ -407,6 +432,43 @@
       // 天体
       for (const b of g.bodies()) {
         drawBody(ctx, this.sprites, C, b.plugin.cosmos.stage, b.position.x, b.position.y, b.circleRadius, b.angle, null, b.plugin.cosmos);
+      }
+
+      // 飛んでいるミサイル：先端を狙った天体へ向けて描く
+      if (g.shot) {
+        const s = g.shot, sp = this.sprites.missile_fly, dir = Math.atan2(s.ty - s.y, s.tx - s.x);
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        if (sp) {
+          const m = sp.meta, sc = 150 / m.width;   // 盤面では長さ 150（煙まで）
+          ctx.rotate(dir - m.dirRad);
+          ctx.drawImage(sp.img, -m.noseX * sc, -m.noseY * sc, m.width * sc, m.height * sc);
+        } else {
+          ctx.rotate(dir); ctx.fillStyle = '#ef4444'; ctx.fillRect(-30, -5, 30, 10);
+        }
+        ctx.restore();
+      }
+
+      // ミサイルを選んでいる間：どの天体も赤い点線の輪で囲み、マウスの下の天体は照準の印で示す
+      if (g.missileArmed) {
+        const hot = this.pointer && g.bodyAt(this.pointer.x, this.pointer.y, 12);
+        ctx.save();
+        for (const b of g.bodies()) {
+          const on = b === hot, r = b.circleRadius + (on ? 6 : 3);
+          ctx.setLineDash(on ? [] : [6, 6]);
+          ctx.lineWidth = on ? 3 : 1.5;
+          ctx.strokeStyle = on ? 'rgba(248,113,113,0.95)' : 'rgba(248,113,113,' + (0.35 + 0.2 * Math.sin(now * 6)).toFixed(3) + ')';
+          ctx.beginPath(); ctx.arc(b.position.x, b.position.y, r, 0, Math.PI * 2); ctx.stroke();
+          if (on) {   // 十字
+            ctx.beginPath();
+            ctx.moveTo(b.position.x - r - 10, b.position.y); ctx.lineTo(b.position.x - r + 8, b.position.y);
+            ctx.moveTo(b.position.x + r - 8, b.position.y); ctx.lineTo(b.position.x + r + 10, b.position.y);
+            ctx.moveTo(b.position.x, b.position.y - r - 10); ctx.lineTo(b.position.x, b.position.y - r + 8);
+            ctx.moveTo(b.position.x, b.position.y + r - 8); ctx.lineTo(b.position.x, b.position.y + r + 10);
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
       }
 
       // 吸い込まれていく天体（第11.5節：引き伸ばされながら縮み、0.3秒で消える）
@@ -472,8 +534,8 @@
         const fxs = this.sprites[f.key || 'fx_merge'];
         const k = (now - f.t0) / f.dur;
         ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = 1 - k;
+        ctx.globalCompositeOperation = f.blend || 'lighter';
+        ctx.globalAlpha = f.fade ? 1 - k * k : 1 - k;   // 爆発（fade）は終わり近くで一気に消す
         const rr = f.r * (0.7 + 0.6 * k);
         if (fxs) {
           const m = fxs.meta, s = (2 * rr) / Math.min(m.width, m.height);

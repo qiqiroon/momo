@@ -543,7 +543,8 @@
           // 左右の上の方から、山の重心（面積で重み付け）へ斜めに突っ込む
           let m = 0, cx = 0, cy = 0;
           for (const b of bs) { const a = b.circleRadius * b.circleRadius; m += a; cx += b.position.x * a; cy += b.position.y * a; }
-          cx = cx / m + (rnd() - 0.5) * 2 * K.aimJitter; cy = cy / m + (rnd() - 0.5) * 2 * K.aimJitter;
+          // 狙う高さは、重心と底板（盤面の下端）の中間（重心より下に当てる。2026-10-31 作者の指示）
+          cx = cx / m + (rnd() - 0.5) * 2 * K.aimJitter; cy = (cy / m + B.height) / 2 + (rnd() - 0.5) * 2 * K.aimJitter;
           y0 = K.fromY[0] + rnd() * (K.fromY[1] - K.fromY[0]);
           const dx = cx - x0, dy = cy - y0, d = Math.hypot(dx, dy) || 1;
           vx = dx / d * speed; vy = dy / d * speed;

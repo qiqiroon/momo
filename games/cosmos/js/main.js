@@ -201,6 +201,50 @@
         box.append(img, n, r);
       }
     })();
+    // 天体の名前（一覧とふきだし用）。ブラックホールは「？」（作者の指示）
+    const starName = s => s === 13 ? '？' : L.stageName(s, C);
+    function starListNames() { document.querySelectorAll('#starList .st').forEach(el => { el.querySelector('.nm').textContent = starName(+el.dataset.s); }); fitStarList(); }
+    // 天体の一覧（横長は盤面の左に縦に、縦画面はタイトルブロックの下に）。マウスを乗せる／触ると名前、ブラックホールは「？」（2026-10-31 作者の指示）
+    (function buildStarList() {
+      const box = $('starList'), tip = $('starTip'), bar = $('topbar');
+      let hideT = 0, cur = null;
+      const show = el => {
+        if (cur && cur !== el) cur.classList.remove('on');
+        cur = el; el.classList.add('on');
+        if (document.body.classList.contains('wide')) return;   // 横長は名前を並べて出しているので、ふきだしは出さない
+        const s = +el.dataset.s;
+        tip.textContent = 'LV' + s + ' ' + starName(s);
+        tip.hidden = false;
+        const b = bar.getBoundingClientRect(), r = el.getBoundingClientRect();
+        const x = Math.max(0, Math.min(b.width - tip.offsetWidth, r.left - b.left + r.width / 2 - tip.offsetWidth / 2));
+        tip.style.left = x + 'px'; tip.style.top = (r.bottom - b.top + 4) + 'px';
+      };
+      const hide = () => { tip.hidden = true; if (cur) cur.classList.remove('on'); cur = null; };
+      for (let s = 1; s <= 13; s++) {
+        const el = document.createElement('span');
+        el.className = 'st' + (s === 13 ? ' q' : ''); el.dataset.s = s;
+        const lv = document.createElement('span'); lv.className = 'lv'; lv.textContent = 'LV' + s;
+        const ic = document.createElement('span'); ic.className = 'ic';
+        const nm = document.createElement('span'); nm.className = 'nm';
+        el.append(lv, ic, nm);
+        if (s === 13) ic.textContent = '？';
+        else {
+          // 本体の大きさをそろえて描く（輪のある天王星・土星は輪がはみ出してよい。超新星・中性子星は光ごと大きめに。
+          // 2026-10-31 作者の指示）。枠の2倍の Canvas を枠の中央に重ね、はみ出した分も見せる
+          const cv = document.createElement('canvas');
+          cv.width = cv.height = 128;
+          CosmosRender.drawBody(cv.getContext('2d'), sprites, C, s, 64, 64, 32 * (C.render.listBodyScale[s] || C.render.listBodyScale[0]), 0);
+          ic.appendChild(cv);
+        }
+        el.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') show(el); });
+        el.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hide(); });
+        el.addEventListener('pointerdown', e => {
+          if (e.pointerType === 'mouse') return;
+          show(el); clearTimeout(hideT); hideT = setTimeout(hide, 1600);
+        });
+        box.appendChild(el);
+      }
+    })();
     // エンドロールの丸文字は、出てから切り替わらないよう先に読み込んでおく（英字の分だけ）
     if (document.fonts) ['400', '700', '800'].forEach(w => document.fonts.load(w + ' 16px "M PLUS Rounded 1c"', 'A').catch(() => {}));
 
@@ -352,6 +396,7 @@
       syncDiff();
       $('goMax').textContent = L.stageName(goMaxStage, C);
       $('langSelect').value = L.mode;
+      starListNames();
       if (endingEnglish()) hudEnglish();
     }
     // エンディング中（超巨大ブラックホールから）は、言語によらず英語で出す（2026-10-30 作者の指示）
@@ -372,8 +417,8 @@
       const s = game.score, h = Math.max(game.highScore, s), n = game.nextStage, nn = game.nextNextStage;
       if (force || last.s !== s) $('hudScore').textContent = s.toLocaleString();
       if (force || last.h !== h) $('hudHigh').textContent = h.toLocaleString();
-      if (force || last.n !== n) board.drawIcon($('nextIcon'), n);
-      if (force || last.nn !== nn) board.drawIcon($('nextNextIcon'), nn);
+      if (force || last.n !== n) { board.drawIcon($('nextIcon'), n); nextLabel('next', n); }
+      if (force || last.nn !== nn) { board.drawIcon($('nextNextIcon'), nn); nextLabel('nextNext', nn); }
       // 成長ゲージ（超巨大＝成長値 600 で満タン）
       // 薄い部分は消化待ち（食べたがまだ成長に回っていない分）。食べさせるとすぐ伸び、濃い部分が追いつく
       const bh = game.bh, gw = bh ? Math.min(1, bh.growth / C.bh.superGrowth) : -1, tier = bh ? bh.tier : -1;
@@ -408,8 +453,27 @@
       $('boardFrame').style.height = h + 'px';
       stars.resize();
       ending.resize();
+      fitStarList();
       updateHud(true);
     }
+    // 横長の天体の一覧：盤面の左に、縦1列で盤面の高さの中央にそろえる。高さが足りなければ絵と間を小さくする
+    // 次・次々のレベルと名前（「LV4」「金星」。2026-10-31 作者の指示）
+    function nextLabel(id, s) {
+      $(id + 'Lv').textContent = s ? 'LV' + s : '';
+      $(id + 'Name').textContent = s ? starName(s) : '';
+    }
+    function fitStarList() {
+      const list = $('starList');
+      ['left', 'top', '--st', '--gap'].forEach(k => list.style.removeProperty(k));
+      if (!document.body.classList.contains('wide')) return;
+      const f = $('boardFrame').getBoundingClientRect(), N = 13;
+      const st = Math.max(18, Math.min(28, Math.floor((f.height * 0.9 / N) - 6)));
+      list.style.setProperty('--st', st + 'px');
+      list.style.setProperty('--gap', Math.round(st * 0.22) + 'px');
+      list.style.left = Math.max(8, f.left - 28 - list.offsetWidth) + 'px';
+      list.style.top = (f.top + (f.height - list.offsetHeight) / 2) + 'px';
+    }
+    if (document.fonts) document.fonts.ready.then(fitStarList);   // 名前の文字が読み込まれると一覧の幅が変わる
     function applyOrientation() {
       document.body.classList.toggle('wide', innerWidth / innerHeight >= 1);
     }

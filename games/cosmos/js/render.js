@@ -398,13 +398,13 @@
         ctx.beginPath(); ctx.moveTo(x, B.dropY + r); ctx.lineTo(x, B.height); ctx.stroke();
         ctx.restore();
         drawBody(ctx, this.sprites, C, stg, x, B.dropY, r, 0, g.canDrop() ? 0.55 : 0.25);
-        // 落とす前の天体の名前を、天体の上に出す（表示言語で）
+        // 落とす前の天体のレベルと名前を、天体の上に出す（表示言語で）
         // 猫語の鳴き声は呼ぶたびに変わるので、天体か言語が変わったときだけ決め直す
         const I = root.CosmosI18n, lang = I ? I.lang + '/' + I.baseLang() : '';
         if (!this._aimName || this._aimName.stg !== stg || this._aimName.lang !== lang) {
           this._aimName = { stg, lang, name: I ? I.stageName(stg, C) : C.stages[stg].name };
         }
-        const name = this._aimName.name;
+        const name = 'LV' + stg + ' ' + this._aimName.name;   // 「LV1 月」のように（2026-10-31 作者の指示）
         ctx.save();
         ctx.font = '700 15px "Noto Sans JP", "Noto Sans SC", sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';

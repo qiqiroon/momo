@@ -2,8 +2,10 @@
  * MOMO Cosmos — 落下操作（仕様書 第6.1節）
  * タッチ：タップで即落下／0.25秒以上の長押し、または10px超の移動で照準モード→離して落下
  *         照準モード中に盤面の外で離すと取り消し
- * マウス：移動で照準が追従、クリックでその位置に落下
- * キー  ：← → で照準移動、Space で落下、Esc で一時停止・再開
+ *         指を離さずに 0.6 秒たつと、指の位置で続けて落とす（離しても追加では落とさない）
+ * マウス：移動で照準が追従、クリックでその位置に落下。押したまま 0.6 秒で続けて落とす
+ * キー  ：← → で照準移動、Space で落下（押したまま 0.6 秒で続けて落とす）、Esc で一時停止・再開
+ * 続けて落とす間隔は連打防止（dropCooldownMs）と同じ。2026-10-31 作者の指示
  */
 (function (root) {
   'use strict';
@@ -14,6 +16,7 @@
       this.hooks = hooks || {};
       this.touch = null;   // 進行中のタッチ
       this.keys = { left: false, right: false };
+      this.held = null;    // 押したまま（マウス・Space）：{ t0 }。タッチは this.touch.t0
       this.enabled = () => true; // main.js が「設定パネルを開いている間は false」に差し替える
       this._bind();
     }
@@ -52,10 +55,11 @@
           this.g.setAim(x);
           this.r.aimVisible = true;
           this.g.drop(x);
+          this.held = { t0: performance.now() };
           return;
         }
         try { cv.setPointerCapture(e.pointerId); } catch (_) { /* 古い環境 */ }
-        const t = { id: e.pointerId, x0: e.clientX, y0: e.clientY, aiming: false, timer: 0 };
+        const t = { id: e.pointerId, x0: e.clientX, y0: e.clientY, aiming: false, timer: 0, t0: performance.now(), repeated: false };
         t.timer = setTimeout(() => {
           if (this.touch === t) { t.aiming = true; this.g.setAim(this.toBoardX(t.lastX != null ? t.lastX : t.x0)); this.r.aimVisible = true; }
         }, I.tapMaxMs);
@@ -86,7 +90,7 @@
         clearTimeout(t.timer);
         this.touch = null;
         this.r.aimVisible = false;
-        if (cancelled || !this._playable()) return;
+        if (cancelled || !this._playable() || t.repeated) return;
         if (t.aiming) {
           if (this.insideBoard(e.clientX, e.clientY)) this.g.drop(this.toBoardX(e.clientX));
           // 盤面の外で離した：取り消し
@@ -96,7 +100,8 @@
       };
       cv.addEventListener('pointerup', e => end(e, false));
       cv.addEventListener('pointercancel', e => end(e, true));
-      cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { this.r.aimVisible = false; this.r.pointer = null; } });
+      cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { this.r.aimVisible = false; this.r.pointer = null; this.held = null; } });
+      root.addEventListener('pointerup', e => { if (e.pointerType === 'mouse') this.held = null; });
       cv.addEventListener('contextmenu', e => e.preventDefault());
 
       root.addEventListener('keydown', e => {
@@ -105,20 +110,33 @@
         if (!this._playable()) return;
         if (e.key === 'ArrowLeft') { this.keys.left = true; this.r.aimVisible = true; e.preventDefault(); }
         else if (e.key === 'ArrowRight') { this.keys.right = true; this.r.aimVisible = true; e.preventDefault(); }
-        else if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); if (!e.repeat && !this.g.missileArmed) { this.r.aimVisible = true; this.g.drop(); } }
+        else if (e.key === ' ' || e.code === 'Space') {
+          e.preventDefault();
+          if (!e.repeat && !this.g.missileArmed) { this.r.aimVisible = true; this.g.drop(); this.held = { t0: performance.now() }; }
+        }
       });
       root.addEventListener('keyup', e => {
         if (e.key === 'ArrowLeft') this.keys.left = false;
         if (e.key === 'ArrowRight') this.keys.right = false;
+        if (e.key === ' ' || e.code === 'Space') this.held = null;
       });
-      root.addEventListener('blur', () => { this.keys.left = this.keys.right = false; });
+      root.addEventListener('blur', () => { this.keys.left = this.keys.right = false; this.held = null; });
     }
 
-    /** 毎フレーム：キーでの照準移動 */
+    /** 毎フレーム：キーでの照準移動と、押したままで続けて落とす */
     update(dt) {
       if (!this._playable()) return;
       const d = (this.keys.right ? 1 : 0) - (this.keys.left ? 1 : 0);
       if (d) this.g.setAim(this.g.aimX + d * this.C.input.keyAimSpeed * dt);
+      if (this.g.missileArmed) return;
+      const now = performance.now(), wait = this.C.input.holdRepeatMs;
+      if (this.held && now - this.held.t0 >= wait) this.g.drop();
+      const t = this.touch;
+      if (t && now - t.t0 >= wait) {
+        const cx = t.lastX != null ? t.lastX : t.x0;
+        t.aiming = true; this.r.aimVisible = true;
+        if (this.g.drop(this.toBoardX(cx))) t.repeated = true;
+      }
     }
   }
 

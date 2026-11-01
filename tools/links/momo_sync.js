@@ -852,6 +852,9 @@ let _gestureListenerActive=false;
 let _gestureHandler=null;
 function _armUserGestureSilentRetry(){
   if(_gestureListenerActive) return;
+  // v4.76: ホーム画面から開いたアプリ(iPhone等)では仕掛けない。画面に触れた瞬間にサインインの窓を開こうとして固まっていた。
+  //   代わりに「更新が必要」表示を押してもらう(ボタンのクリックなら窓を開ける)。
+  if(_isStandalone()){ _syncNeeded=true; updateSyncStatus(); _logSync('arm-skip',true,'home-app'); return; }
   // v4.52: バックオフ中でも仕掛けてOK。ユーザー操作直下のsilent試行はpopup_blockerが出ないので別扱い。
   if(!_savedHint() || !_everSigned()) return;                   // 試行条件を満たさない時は仕掛けない
   _gestureHandler=function(ev){
@@ -876,8 +879,7 @@ function _armUserGestureSilentRetry(){
     _userGestureSilentRetry();   // バックオフを無視してsilent試行(ユーザー操作直下)
   };
   document.addEventListener('click', _gestureHandler, {capture:true});
-  document.addEventListener('touchstart', _gestureHandler, {capture:true, passive:true});
-  document.addEventListener('keydown', _gestureHandler, {capture:true});
+  document.addEventListener('keydown', _gestureHandler, {capture:true});   // v4.76: touchstart は撤去(窓を開ける操作として扱われない)
   _gestureListenerActive=true;
 }
 // v4.52: ユーザー操作直下のsilent試行。バックオフ無視。手動更新ボタン押下と同じ扱い。
@@ -900,6 +902,15 @@ function _userGestureSilentRetry(){
       _armUserGestureSilentRetry();   // 次のユーザー操作で再試行を仕掛け直す
     }
   );
+}
+// v4.76: 起動時の確認画面を「閉じる」/「自動同期をオフ」で閉じたとき。裏の再試行を止め、受け取りの確認は24時間後に回す。
+//   未送信の編集が残っている場合は次の起動でまた送ろうとする(4章)。
+function _onSyncStartupDismiss(off){
+  _disarmUserGestureSilentRetry();
+  _setLastCheck();
+  _syncNeeded=!off;
+  updateSyncStatus();
+  _logSync('startup-modal',true,off?'sync-off':'closed');
 }
 function _disarmUserGestureSilentRetry(){
   if(!_gestureListenerActive) return;

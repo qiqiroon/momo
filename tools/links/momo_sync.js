@@ -54,6 +54,25 @@ function _logSync(ev, ok, msg){
   }catch(e){}
   if(typeof updateSyncStatus==='function') updateSyncStatus();
 }
+// v4.75: 固まり対策。同期の各段階に入るとき「いまここ」を端末に書き、終わったら消す。
+//   次の起動時に残っていたら＝前回その段階で固まった(またはアプリが落ちた)ので、この起動では自動同期をしない。
+//   →固まっても、アプリを終了して開き直せば操作でき、ログで止まった段階が分かる。手動更新は従来どおり使える。
+const LS_INFLIGHT='gdrive_inflight';
+function _stage(step){
+  try{ localStorage.setItem(LS_INFLIGHT, JSON.stringify({ts:Math.floor(Date.now()/1000), step})); }catch(e){}
+  _logSync('step', true, step);
+}
+function _stageDone(){ try{ localStorage.removeItem(LS_INFLIGHT); }catch(e){} }
+let _prevHang=null;
+try{
+  const v=localStorage.getItem(LS_INFLIGHT);
+  if(v){ _prevHang=JSON.parse(v); localStorage.removeItem(LS_INFLIGHT); }
+}catch(e){ _prevHang={step:'?'}; }
+// v4.75: 画面側で起きたエラーもログに残す(固まりの手掛かり)
+try{
+  window.addEventListener('error', e=>{ _logSync('js-error', false, String(e&&e.message||e)+' @'+String(e&&e.filename||'').split('/').pop()+':'+(e&&e.lineno||'')); });
+  window.addEventListener('unhandledrejection', e=>{ _logSync('js-error', false, 'promise:'+String(e&&e.reason&&(e.reason.message||e.reason)||'')); });
+}catch(e){}
 function getSyncLogForView(){ return _getSyncLog(); }   // index.html から参照
 function clearSyncLog(){ try{localStorage.removeItem(LS_SYNC_LOG);}catch{} if(typeof updateSyncStatus==='function') updateSyncStatus(); }
 function _everSigned(){ try{return localStorage.getItem(LS_EVER_SIGNED)==='1';}catch{return false;} }
@@ -373,6 +392,10 @@ function _fmtTime12(unixSec){
 
 // ── 状態表示 兼 手動更新ボタン（案件②）──
 //   状態: 'manual'/'auto'(=更新中・オレンジ＋回転) / 'idle'(=手動更新・通常) / 'needed'(=更新が必要・アンバー＋⚠A) / 'warnB'(=同期オフ・⚠B・iOSのみ) / 'hide'
+// v4.75: ホーム画面から開いたアプリか(ログの手掛かり用)
+function _isStandalone(){
+  try{ return !!(navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)); }catch(e){ return false; }
+}
 function _isIOS(){
   try{ return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1); }catch(e){ return false; }
 }
@@ -517,6 +540,11 @@ function _requestToken(prompt, onSuccess, onFail){
   // 段4: 保存済みhint(メール)があれば渡す→Googleが「このアカウントを使う」と判断し、複数アカウント時もsilent成功率向上
   const hint=_savedHint();
   if(hint) opt.hint=hint;
+  // v4.75: 段階記録。コールバックで消す(ホーム画面アプリでは窓が戻らず、コールバックが来ないまま止まることがある)
+  const _cb=opt.callback, _eb=opt.error_callback;
+  opt.callback=(resp)=>{ _stageDone(); _cb(resp); };
+  opt.error_callback=(err)=>{ _stageDone(); _eb(err); };
+  _stage('token:'+(prompt===undefined?'default':(prompt||'empty')));
   const client=google.accounts.oauth2.initTokenClient(opt);
   client.requestAccessToken();
 }
@@ -591,6 +619,7 @@ async function runSync(mode){
   _syncNeeded=false;
   _renderStatus(mode==='auto'?'auto':'manual');
   _lockUnload();
+  _stage('sync:start');
   // v4.74: 「前回同期」は読み取りを始めた時刻で記録する。同期の最中にした編集を「送信済み」と誤認しないように(1秒手前に倒す)。
   const syncStartTs=Math.floor(Date.now()/1000)-1;
 
@@ -613,6 +642,7 @@ async function runSync(mode){
     }else{
       // 整合性チェック付きで読む。壊れていたら Driveの版履歴から前世代を取って復旧(段C v4.59)。
       let rem;
+      _stage('sync:read');
       const v=await _readVerified(SYNC_FILE);
       if(v.ok){
         rem=v.obj;
@@ -635,6 +665,7 @@ async function runSync(mode){
       }else if(firstSync){
         // v4.67: 初回または長期未同期 → 3択 (HTMLモーダル・ボタン式)
         //   旧 prompt('1/2/3') は操作しにくいためボタン式モーダルに置換。
+        _stage('sync:choice-modal');
         const ch = (typeof showSyncChoiceModal==='function')
           ? await showSyncChoiceModal()
           : parseInt(prompt(_t('syncChoiceAsk'),'1')||'0');   // fallback
@@ -656,6 +687,7 @@ async function runSync(mode){
         // 通常マージ - 段B(v4.66): headRevisionId-based 楽観的ロックのリトライループ
         //   読込直後に baseMeta を取得→headRevisionId を _commitRemote に渡す。
         //   書込直前に再取得して比較→違えば衝突→[1,1.5,2.5,3.5,5.5]分のランダム待ち→再読込→再マージ。最大3回。
+        _stage('sync:merge-write');
         let baseMeta = await _getRemoteMeta();
         // v4.66: テストモード2 - 裏で別端末を装ってリモートに目印を追加(=Drive側のheadRevisionId更新)。
         //   呼出側の baseMeta.headRevisionId は古いまま保持→次の_commitRemote事前チェックで必ず衝突発動。
@@ -707,6 +739,7 @@ async function runSync(mode){
             throw e;   // 他のエラーは上に伝える
           }
         }
+        _stage('sync:apply');
         _applyMerged(mergedFinal);
       }
     }
@@ -728,6 +761,7 @@ async function runSync(mode){
     alert(_t('syncErrorMsg',(e.message||String(e))));
     // lastSync は更新しない（次回再試行）
   }finally{
+    _stageDone();
     _syncing=false;
     _unlockUnload();
     updateSyncStatus();
@@ -883,6 +917,7 @@ async function _autoSyncOrBadge(autoTrigger){
   if(!syncEnabled()){ _logSync('auto-skip',true,(autoTrigger||'auto')+':disabled'); return; }
   if(_syncing){ _logSync('auto-skip',true,(autoTrigger||'auto')+':already-syncing'); return; }
   if(!_everSigned()){ _logSync('auto-skip',true,(autoTrigger||'auto')+':never-signed'); return; }
+  if(_prevHang){ if(autoTrigger==='startup') _logSync('auto-skip',true,'startup:prev-hang'); return; }   // v4.75
   // v4.74: 他端末の変更を確かめに行くのは24時間に1回。自分の未送信の編集があるとき(編集通知'edit'を含む)は待たずに送る。
   //   時刻前ならサインインの取り直しもしない＝起動のたびの「一瞬の枠とぐるぐる」も出ない。
   const testActive0 = _testConflictPending || _testConflict2Pending;
@@ -940,7 +975,9 @@ async function _autoSyncOrBadge(autoTrigger){
 }
 // 軽いチェック→変更あれば同期(token必須・両方変化なしで静かに終了)
 async function _doAutoCheck(autoTrigger){
+  _stage('check');
   const remote=await _checkRemoteChanged();
+  _stageDone();
   const localDirty=_hasLocalChanges();
   _logSync('check', remote!=='error', remote+(localDirty?' / local-dirty':' / local-clean'));
   // v4.66: テストモード1/2発動中はスキップ無効化(injectの機会を作る)
@@ -964,7 +1001,8 @@ function notifyLocalEdit(){
 //   v4.74: Pyodide先読み(v4.60〜)は撤去。iPhone で画面が固まる原因だった。Drive操作は JS 直呼びに置換済み。
 // v4.71: 起動時実行を関数化＋readyState ベースに(iPhone PWA で load イベントが既に発火済みのケース対策)
 function _bootInit(){
-  try{ _logSync('boot',true,'init '+(syncEnabled()?'sync-on':'sync-off')+' ready='+document.readyState); }catch(e){}
+  try{ _logSync('boot',true,'init '+(syncEnabled()?'sync-on':'sync-off')+' ready='+document.readyState+' '+(_isStandalone()?'home-app':'browser')); }catch(e){}
+  if(_prevHang){ try{ _logSync('prev-hang', false, 'stopped-at:'+(_prevHang.step||'?')); }catch(e){} }   // v4.75
   if(syncEnabled()&&location.protocol!=='file:'){
     _loadScript(GSI_URL).then(()=>{
       _logSync('gsi-load',true,'ok');

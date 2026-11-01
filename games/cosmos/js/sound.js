@@ -217,7 +217,8 @@
     _play(folder, fadeSec) {
       if (!this.pool) return;        // 目録を読み終えたら鳴らし直す
       const fade = fadeSec || FADE_SEC;
-      this._fadeOut(this.cur, fade);
+      // 今の曲だけでなく、まだ鳴っている入れ物はすべて小さくする（曲が重なって残らないように。2026-11-01）
+      for (const d of this.decks) if (d.track && !d.el.paused) this._fadeOut(d.track, fade);
       this.cur = null;
       const file = folder && this._pick(folder);
       if (!file) return;

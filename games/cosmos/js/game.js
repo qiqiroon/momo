@@ -846,7 +846,8 @@
 
     // ---- ミサイル（easy だけ。2026-10-31 作者の指示） ------------------------
     // ミサイルを選んでから天体を選ぶと、その天体を1つ壊す。1回のゲームで missiles 発まで。通常期だけ使える
-    get canMissile() { return this.state === 'PLAY' && this.missiles > 0 && !this.shot; }
+    // 壊せる天体が1つもないときは選べない（選ぶと落とせなくなり、行き詰まったと思われた。2026-11-01 作者の指示）
+    get canMissile() { return this.state === 'PLAY' && this.missiles > 0 && !this.shot && this.bodies().some(b => !b.plugin.cosmos.pending); }
 
     /** ミサイルを選ぶ／やめる（on を省くと切り替え） */
     armMissile(on) {
@@ -912,8 +913,10 @@
       this.overTime = 0;
       this._spawnBH(this.C.bh.home.x, this.C.bh.home.y);
       this.score += this.C.stages[13].score;
-      this._noteStage(13);
+      // 先に BH 期にしてから最大段階を記す。逆だと「超新星ができた」として easy の曲から4秒かけて重ねて切り替え、
+      // すぐ始まるエンディングの曲の小さくし方と重なって、曲が混ざって聞こえた（2026-11-01 作者の報告）
       this._setState('BH');
+      this._noteStage(13);
     }
 
     /** 特殊イベントをすぐ予告する（デバッグ）。確率と間隔は見ない。惑星衝突は一番大きい天体の所に演出だけ出す */

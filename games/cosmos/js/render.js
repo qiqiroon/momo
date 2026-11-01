@@ -416,6 +416,9 @@
         ctx.restore();
       }
 
+      // 最初の1個を落とすまでの案内：押してよい範囲（盤面全体）を点線の枠で示し、真ん中に文字（2026-11-01 作者の指示）
+      if (g.state === 'PLAY' && g.dropCount === 0 && !this.bare) this._drawGuide(ctx, g, now);
+
       // 流星群で降ってくる天体の光の尾
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -595,6 +598,54 @@
           ctx.restore();
         }
       }
+    }
+
+    // 落とし方の案内。触る画面（hover できない）は「タップ」、マウスは「クリック」
+    // 猫語の鳴き声は呼ぶたびに変わるので、言語が変わったときだけ決め直す
+    _drawGuide(ctx, g, now) {
+      const B = this.C.board, I = root.CosmosI18n, lang = I ? I.lang + '/' + I.baseLang() : '';
+      if (!this._guide || this._guide.lang !== lang) {
+        const touch = root.matchMedia && root.matchMedia('(hover: none)').matches;
+        this._guide = { lang, main: this.t(touch ? 'guideTap' : 'guideClick'), sub: this.t('guideHold') };
+      }
+      const a = 0.6 + 0.25 * Math.sin(now * 3), m = 10, top = B.dropY - 50;
+      ctx.save();
+      // 押してよい範囲
+      ctx.fillStyle = 'rgba(251,146,60,' + (0.05 * a).toFixed(3) + ')';
+      ctx.fillRect(m, top, B.width - m * 2, B.height - top - m);
+      ctx.strokeStyle = 'rgba(251,146,60,' + (0.45 * a).toFixed(3) + ')';
+      ctx.lineWidth = 2; ctx.setLineDash([10, 8]);
+      ctx.strokeRect(m, top, B.width - m * 2, B.height - top - m);
+      // 照準が出ていないとき（触る画面）は、真ん中に次の天体と落ちる向きの点線を見本として薄く出す
+      if (!this.aimVisible) {
+        const stg = g.nextStage, r = g.radius(stg);
+        ctx.strokeStyle = 'rgba(229,229,229,' + (0.35 * a).toFixed(3) + ')';
+        ctx.lineWidth = 1.5; ctx.setLineDash([4, 8]);
+        ctx.beginPath(); ctx.moveTo(B.width / 2, B.dropY + r); ctx.lineTo(B.width / 2, B.height - m); ctx.stroke();
+        drawBody(ctx, this.sprites, this.C, stg, B.width / 2, B.dropY, r, 0, 0.35);
+      }
+      // 左右どこでも選べることを矢印で
+      const ay = B.dropY, ax = 150;
+      ctx.setLineDash([]); ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(253,186,116,' + (0.8 * a).toFixed(3) + ')';
+      for (const s of [-1, 1]) {
+        const x0 = B.width / 2 + s * 70, x1 = B.width / 2 + s * (70 + ax);
+        ctx.beginPath(); ctx.moveTo(x0, ay); ctx.lineTo(x1, ay);
+        ctx.moveTo(x1 - s * 12, ay - 10); ctx.lineTo(x1, ay); ctx.lineTo(x1 - s * 12, ay + 10); ctx.stroke();
+      }
+      // 文字
+      const y = B.height * 0.42;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx.font = '700 30px "Noto Sans JP", "Noto Sans SC", sans-serif';
+      ctx.strokeText(this._guide.main, B.width / 2, y);
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.7 + 0.3 * a).toFixed(3) + ')';
+      ctx.fillText(this._guide.main, B.width / 2, y);
+      ctx.font = '20px "Noto Sans JP", "Noto Sans SC", sans-serif';
+      ctx.strokeText(this._guide.sub, B.width / 2, y + 42);
+      ctx.fillStyle = '#fdba74';
+      ctx.fillText(this._guide.sub, B.width / 2, y + 42);
+      ctx.restore();
     }
 
     // ブラックホール：周りの光（重力エフェクト）・渦・本体の絵（第11.1節・第11.6節）

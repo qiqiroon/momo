@@ -825,7 +825,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.73</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.74</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1288,11 +1288,14 @@ try{
 // ══════════════════════════════════════
 // SAVE
 // ══════════════════════════════════════
+// v4.74: 同期結果の反映は「ローカル編集」ではない。save()の編集通知を止め、同期直後に30秒後の再同期が走るのを防ぐ。
+var _applyingExternal=false;   // var: 宣言より前にsave()が呼ばれても安全
 function applyExternalData(links,tags,tagMeta){
   link_data=[...links];
   link_allTags=[...tags];
   if(tagMeta) link_tagMeta=tagMeta;
-  save();
+  _applyingExternal=true;
+  try{ save(); }finally{ _applyingExternal=false; }
   renderAll();
 }
 function save(){
@@ -1310,7 +1313,7 @@ function save(){
   localStorage.setItem('tags_v2', JSON.stringify(link_allTags));
   localStorage.setItem('tagmeta_v2',JSON.stringify(link_tagMeta));
   // 案件⑥段A: ローカル編集を同期エンジンに通知(30秒デバウンスでまとめて1回送る)
-  if(typeof notifyLocalEdit==='function') notifyLocalEdit();
+  if(!_applyingExternal && typeof notifyLocalEdit==='function') notifyLocalEdit();
 }
 
 // ══════════════════════════════════════

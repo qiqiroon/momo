@@ -3,6 +3,8 @@
 
 const SYNC_FILE   = '/momo-works/links/links_data.json';
 const SYNC_BAK    = '/momo-works/links/links_data.bak.json';   // 上書き前に退避する一世代バックアップ
+const GDRIVE_PY   = 'https://qiqiroon.github.io/momo/lib/momo_gdrive/momo_gdrive.py';
+const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v0.27.4/full/pyodide.js';
 const GSI_URL     = 'https://accounts.google.com/gsi/client';
 const CLIENT_ID   = '1053350886212-q87r5msugnqbb3saoq1fh3uj3t648hcg.apps.googleusercontent.com';
 const GDRIVE_SCOPE= 'https://www.googleapis.com/auth/drive.file';
@@ -19,6 +21,8 @@ const LS_ACCOUNT_HINT= 'gdrive_account_hint';     // 段4: 自分のメール(si
 const LS_LAST_CHECK  = 'gdrive_last_check';       // v4.74: 最後に他端末の変更を確かめた時刻(Unix秒)。24時間ごとの確認の基準
 
 // ── 状態 ──
+let _pyodide  = null;
+let _loading  = false;
 let _syncing  = false;
 let _gToken   = null;   // 手動トリガー時にキャッシュするGSIアクセストークン
 let _gTokenExp= 0;      // トークン有効期限（Unix秒）
@@ -115,15 +119,21 @@ async function _checkRemoteChanged(){
   try{
     await loadDeps();
     await _gConnect();
-    const fileId=await _gResolve(SYNC_FILE);
-    if(!fileId) return 'no-file';
-    const j=await _driveJson(`${DRIVE_API}/files/${fileId}?fields=modifiedTime`);
+    const exists=await _gExists(SYNC_FILE);
+    if(!exists) return 'no-file';
+    window._sp=SYNC_FILE;
+    const fileId=await _pyodide.runPythonAsync('await gdrive.resolve_path(js.window._sp)');
+    const token=_pyodide.runPython('gdrive._token');
+    const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`,
+      {headers:{Authorization:`Bearer ${token}`}});
+    if(!resp.ok) return 'error';
+    const j=await resp.json();
     _setLastCheck();   // v4.74: 他端末の変更を確かめた時刻(24時間ごとの確認の基準)
     const cur=(j&&j.modifiedTime)||'';
     const prev=_savedRemoteMod();
     if(!prev) return 'changed';   // 基準が未保存なら念のため同期
     return (cur===prev)?'unchanged':'changed';
-  }catch(e){ _logSync('check-error',false,(e&&e.message)||String(e)); return 'error'; }
+  }catch(e){ return 'error'; }
 }
 
 // ── スクリプト動的ロード ──
@@ -136,123 +146,81 @@ function _loadScript(src){
   });
 }
 
-// ── 依存の読み込み ──
-//   v4.74: Pyodide＋momo_gdrive.py をやめ、Drive API を JS の fetch で直接呼ぶ。
-//   iPhone では Pyodide(数十MB)の読み込みで画面が固まり、以後の操作を受け付けなくなっていた。
-//   Links が使うのは「パス→ID・存在確認・フォルダ作成・読み書き」だけなので JS で足りる。
-async function loadDeps(){ await _loadScript(GSI_URL); }
-
-// ── GDrive 操作（JS 直呼び）──
-const DRIVE_API   = 'https://www.googleapis.com/drive/v3';
-const UPLOAD_API  = 'https://www.googleapis.com/upload/drive/v3';
-const MIME_FOLDER = 'application/vnd.google-apps.folder';
-const DRIVE_TIMEOUT_MS = 30*1000;   // 1回の通信の上限。応答が無いまま同期中で止まり続けないように
-let _childCache = {};               // フォルダID→中身。_gConnect と書き込みのたびに捨てる
-
-// トークンは _requestToken で取得済みのもの(_gToken)を使う。無ければ同期できない。
-async function _gConnect(){
-  _childCache={};
-  if(!_gToken || Math.floor(Date.now()/1000)>=_gTokenExp) throw new Error('no-token');
-}
-
-async function _driveFetch(url, opt){
-  opt=opt||{};
-  const ctl=(typeof AbortController!=='undefined')?new AbortController():null;
-  const timer=ctl?setTimeout(()=>ctl.abort(), DRIVE_TIMEOUT_MS):null;
+// ── Pyodide + GSI + momo_gdrive.py の遅延ロード ──
+async function loadDeps(){
+  if(_pyodide) return;
+  if(_loading){ while(_loading) await new Promise(r=>setTimeout(r,100)); return; }
+  _loading=true;
   try{
-    const headers=Object.assign({Authorization:`Bearer ${_gToken}`}, opt.headers||{});
-    const resp=await fetch(url,{method:opt.method||'GET', headers, body:opt.body, signal:ctl?ctl.signal:undefined});
-    if(!resp.ok) throw new Error(_t('syncDriveApiError',resp.status)+': '+await resp.text());
-    return resp;
-  }catch(e){
-    if(e && e.name==='AbortError') throw new Error('drive-timeout');
-    throw e;
+    await Promise.all([_loadScript(GSI_URL), _loadScript(PYODIDE_URL)]);
+    _pyodide = await globalThis.loadPyodide();
+    const resp = await fetch(GDRIVE_PY);
+    if(!resp.ok) throw new Error(_t('syncModuleLoadError'));
+    _pyodide.runPython(await resp.text());
+    _pyodide.runPython('import js');
   }finally{
-    if(timer) clearTimeout(timer);
+    _loading=false;
   }
 }
-async function _driveJson(url, opt){
-  const resp=await _driveFetch(url, opt);
-  const tx=await resp.text();
-  return tx?JSON.parse(tx):{};
-}
-async function _listChildren(folderId){
-  if(_childCache[folderId]) return _childCache[folderId];
-  const q=`'${folderId}' in parents and trashed = false`;
-  const fields='files(id,name,mimeType,modifiedTime),nextPageToken';
-  const items=[];
-  let pageToken='';
-  do{
-    let url=`${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&pageSize=1000`;
-    if(pageToken) url+='&pageToken='+encodeURIComponent(pageToken);
-    const j=await _driveJson(url);
-    (j.files||[]).forEach(f=>items.push(f));
-    pageToken=j.nextPageToken||'';
-  }while(pageToken);
-  _childCache[folderId]=items;
-  return items;
-}
-// パス→ID。同名が複数あれば更新時刻が新しい方を採用(momo_gdrive.py の resolve_path と同じ規則)。無ければ null。
-async function _gResolve(path){
-  let id='root';
-  for(const part of path.split('/').filter(Boolean)){
-    const hits=(await _listChildren(id)).filter(f=>f.name===part)
-      .sort((a,b)=>String(b.modifiedTime||'').localeCompare(String(a.modifiedTime||'')));
-    if(!hits.length) return null;
-    id=hits[0].id;
+
+// ── Pyodide 経由の GDrive 操作 ──
+async function _gConnect(){
+  await _pyodide.runPythonAsync('gdrive = MomoGDrive()');
+  const now=Math.floor(Date.now()/1000);
+  if(_gToken && now<_gTokenExp){
+    // 手動トリガーで取得済みのトークンを注入（モバイル対応）
+    window._gtok=_gToken;
+    _pyodide.runPython('gdrive._token = js.window._gtok');
+  }else{
+    await _pyodide.runPythonAsync('await gdrive.connect()');
   }
-  return id;
-}
-// フォルダを順に作る(既存は再利用)。momo_gdrive.py の mkdir と同じ動き。
-async function _gMkdir(path){
-  let id='root';
-  for(const part of path.split('/').filter(Boolean)){
-    const hits=(await _listChildren(id)).filter(f=>f.name===part)
-      .sort((a,b)=>String(b.modifiedTime||'').localeCompare(String(a.modifiedTime||'')));
-    if(hits.length){ id=hits[0].id; continue; }
-    const j=await _driveJson(`${DRIVE_API}/files?fields=id`,{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name:part, mimeType:MIME_FOLDER, parents:[id]})
-    });
-    delete _childCache[id];
-    id=j.id;
-  }
-  return id;
 }
 
 async function _gExists(path){
-  return !!(await _gResolve(path));
+  window._sp=path;
+  return await _pyodide.runPythonAsync('await gdrive.exists(js.window._sp)');
 }
 
 async function _gReadJson(path){
-  const fileId=await _gResolve(path);
-  if(!fileId) throw new Error(_t('syncDriveApiError',404));
-  const resp=await _driveFetch(`${DRIVE_API}/files/${fileId}?alt=media`);
+  window._sp=path;
+  const fileId=await _pyodide.runPythonAsync('await gdrive.resolve_path(js.window._sp)');
+  const token=_pyodide.runPython('gdrive._token');
+  const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    {headers:{Authorization:`Bearer ${token}`}});
+  if(!resp.ok) throw new Error(_t('syncDriveApiError',resp.status));
   return await resp.json();
 }
 
 // v4.66: ETag/If-Match は撤去。衝突検知は _commitRemote 側で headRevisionId 比較で行う。
 async function _gWriteText(path,content){
+  const token=_pyodide.runPython('gdrive._token');
   const name=path.split('/').pop();
   const boundary='momo_boundary_xXx';
-  const fileId=await _gResolve(path);
+
+  window._sp=path;
+  let fileId=null;
+  try{ fileId=await _pyodide.runPythonAsync('await gdrive.resolve_path(js.window._sp)'); }catch(e){}
 
   let url,method,meta;
   if(fileId){
-    url=`${UPLOAD_API}/files/${fileId}?uploadType=multipart&fields=id`;
+    url=`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&fields=id`;
     method='PATCH';
     meta=JSON.stringify({name});
   }else{
     const parentPath='/'+path.replace(/^\//,'').split('/').slice(0,-1).join('/');
-    const parentId=await _gMkdir(parentPath);
-    url=`${UPLOAD_API}/files?uploadType=multipart&fields=id`;
+    window._pp=parentPath;
+    const parentId=await _pyodide.runPythonAsync('await gdrive.mkdir(js.window._pp)');
+    url='https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id';
     method='POST';
     meta=JSON.stringify({name,parents:[parentId]});
   }
 
+  const headers={'Authorization':`Bearer ${token}`,'Content-Type':`multipart/related; boundary=${boundary}`};
+
   const body=`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n${content}\r\n--${boundary}--`;
-  await _driveFetch(url,{method, headers:{'Content-Type':`multipart/related; boundary=${boundary}`}, body});
-  _childCache={};
+  const resp=await fetch(url,{method,headers,body});
+  if(!resp.ok) throw new Error(_t('syncDriveApiError',resp.status)+': '+await resp.text());
+  await _pyodide.runPythonAsync('gdrive.cache.clear()');
 }
 
 // ── 整合性チェック（チェックサム）＋バックアップ ──
@@ -309,9 +277,14 @@ async function _getRemoteModTime(){
 //   を使った楽観的ロックに切替。CORSの影響を受けない。
 async function _getRemoteMeta(){
   try{
-    const fileId=await _gResolve(SYNC_FILE);
-    if(!fileId) return null;
-    const j=await _driveJson(`${DRIVE_API}/files/${fileId}?fields=modifiedTime,headRevisionId`);
+    if(!_pyodide) return null;
+    window._sp=SYNC_FILE;
+    const fileId=await _pyodide.runPythonAsync('await gdrive.resolve_path(js.window._sp)');
+    const token=_pyodide.runPython('gdrive._token');
+    const resp=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime,headRevisionId`,
+      {headers:{Authorization:`Bearer ${token}`}});
+    if(!resp.ok) return null;
+    const j=await resp.json();
     return {fileId, modifiedTime: (j&&j.modifiedTime)||null, headRevisionId: (j&&j.headRevisionId)||null};
   }catch(e){ return null; }
 }
@@ -360,12 +333,18 @@ async function _gReadRevision(){
   try{
     const meta = await _getRemoteMeta();
     if(!meta || !meta.fileId) return null;
+    const token = _pyodide.runPython('gdrive._token');
     // リビジョン一覧(modifiedTime順)
-    const list = await _driveJson(`${DRIVE_API}/files/${meta.fileId}/revisions?fields=revisions(id,modifiedTime)`);
+    const listResp = await fetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}/revisions?fields=revisions(id,modifiedTime)`,
+      {headers:{Authorization:`Bearer ${token}`}});
+    if(!listResp.ok) return null;
+    const list = await listResp.json();
     const revs = (list.revisions||[]).slice().sort((a,b)=>new Date(b.modifiedTime)-new Date(a.modifiedTime));
     if(revs.length < 2) return null;   // 1世代しかなければ復旧元なし
     const prevRev = revs[1];
-    const dataResp = await _driveFetch(`${DRIVE_API}/files/${meta.fileId}/revisions/${prevRev.id}?alt=media`);
+    const dataResp = await fetch(`https://www.googleapis.com/drive/v3/files/${meta.fileId}/revisions/${prevRev.id}?alt=media`,
+      {headers:{Authorization:`Bearer ${token}`}});
+    if(!dataResp.ok) return null;
     return await dataResp.json();
   }catch(e){ return null; }
 }
@@ -749,9 +728,12 @@ async function runSync(mode){
     _disarmUserGestureSilentRetry();   // v4.51: 同期成功で待機解除
     // 段3: 同期成功後、現在のリモート更新時刻を取得して保存(次回チェックの基準)
     try{
-      const m=await _getRemoteMeta();
-      if(m&&m.modifiedTime) _setRemoteMod(m.modifiedTime);
-      _setLastCheck();
+      window._sp=SYNC_FILE;
+      const fileId=await _pyodide.runPythonAsync('await gdrive.resolve_path(js.window._sp)');
+      const token=_pyodide.runPython('gdrive._token');
+      const r=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`,{headers:{Authorization:`Bearer ${token}`}});
+      if(r.ok){ const j=await r.json(); if(j&&j.modifiedTime) _setRemoteMod(j.modifiedTime); }
+      _setLastCheck();   // v4.74
     }catch(e){}
     _logSync('sync',true,mode==='auto'?'auto-ok':'manual-ok');
 
@@ -1008,8 +990,10 @@ function notifyLocalEdit(){
   _editDebounceTimer=setTimeout(()=>{ _editDebounceTimer=null; _autoSyncOrBadge('edit'); }, 30*1000);
 }
 
-// ── 起動時：GSI先読み＋軽いチェック＋状態表示 ──
-//   v4.74: Pyodide先読み(v4.60〜)は撤去。iPhone で画面が固まる原因だった。Drive操作は JS 直呼びに置換済み。
+// ── 起動時：GSI先読み＋Pyodide先読み＋軽いチェック＋状態表示 ──
+//   v4.60: Pyodideも並行で先読み(同期ONユーザーのみ・初回同期の体感時間を短縮)。
+//   Pyodide本体は数十MB・初回ロードに数十秒〜1分かかるが、ブラウザキャッシュで2回目以降は速い。
+//   (v4.74 で一度 JS 直呼びに置き換えたが、iPhone の固まりの原因ではなかったため v4.77 で戻した)
 // v4.71: 起動時実行を関数化＋readyState ベースに(iPhone PWA で load イベントが既に発火済みのケース対策)
 function _bootInit(){
   try{ _logSync('boot',true,'init '+(syncEnabled()?'sync-on':'sync-off')+' ready='+document.readyState+' '+(_isStandalone()?'home-app':'browser')); }catch(e){}
@@ -1019,6 +1003,10 @@ function _bootInit(){
       _logSync('gsi-load',true,'ok');
       setTimeout(()=>_autoSyncOrBadge('startup'), 800);
     }).catch(e=>{ _logSync('gsi-load',false,String(e&&e.message||e)); });
+    setTimeout(()=>{
+      loadDeps().then(()=>{ _logSync('pyodide-preload',true,'ok'); })
+                .catch(e=>{ _logSync('pyodide-preload',false,String(e&&e.message||e)); });
+    }, 1500);
   }
   updateSyncStatus();
 }

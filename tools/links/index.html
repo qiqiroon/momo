@@ -825,7 +825,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.76</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.77</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -2589,6 +2589,8 @@ function renderAll(){renderSidebar();displayedCount=0;renderCards();}
 // DATA MODAL
 // ══════════════════════════════════════
 function openDataModal(){
+  // v4.77: 自動同期オフでもサインイン部品(GSI)を先読みする。旧: オフだと未読込で「今すぐ同期」の1回目が必ず「準備中」になっていた
+  try{ if(location.protocol!=='file:' && typeof _loadScript==='function' && typeof GSI_URL!=='undefined') _loadScript(GSI_URL).catch(()=>{}); }catch(e){}
   const data={version:2,exported:new Date().toISOString(),link_data,tags:link_allTags,tagMeta:link_tagMeta};
   document.getElementById('jsonExportArea').value=JSON.stringify(data,null,2);
   document.getElementById('chromeExportArea').value=genChromeHtml();

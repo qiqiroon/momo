@@ -556,23 +556,29 @@ function runSyncManual(){
   //   初回押下で確実に chooser→選択→メール保存。次回以降は silent成功(hint付き)。
   _closeModal();
   const hint=_savedHint();
-  if(hint){
+  // v4.80: ホーム画面から開いたアプリ(iPhone等)では silent(prompt:none) の結果が戻らず必ず popup_closed になる
+  //   (2026-11-01 実機ログ)。アカウント選択画面を出す方式(select_account)なら通るので、最初からそちらを使う。
+  //   また、silent が一度失敗したら次の押下は選択画面方式にする(旧: 押し直しても同じ silent を繰り返し、何度押しても通らなかった)。
+  if(hint && !_isStandalone() && !_manualSilentFailed){
     _requestToken('none',
       ()=>{ _logSync('silent',true,''); _logSync('manual',true,''); runSync('manual'); },
       (err)=>{
         _logSync('silent',false,err);
+        _manualSilentFailed=true;   // 次の押下は選択画面方式
         // silent失敗時はもう一度押してもらう(user gesture消費済み対策)
         alert(_t('syncPreparing'));
       }
     );
   }else{
-    // hint無し→直接 chooser(初回・あるいはアカウント変更直後)
-    _requestToken(undefined,
-      ()=>{ _logSync('manual',true,'prompt'); runSync('manual'); },
+    // hint無し(初回・アカウント変更直後)→ブラウザ既定の画面。ホーム画面アプリ/silent失敗後→アカウント選択画面
+    const pr=(_isStandalone()||_manualSilentFailed)?'select_account':undefined;
+    _requestToken(pr,
+      ()=>{ _manualSilentFailed=false; _logSync('manual',true,pr||'prompt'); runSync('manual'); },
       (err)=>{ _logSync('manual',false,err); alert(_t('syncAuthError',err)); }
     );
   }
 }
+let _manualSilentFailed=false;   // v4.80: 手動更新の silent が失敗したか(このページを開いている間だけ)
 
 // ── 案件②段2: アカウント変更（select_accountで強制的にアカウント選択画面を出す）──
 function changeSyncAccount(){

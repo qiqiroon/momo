@@ -825,7 +825,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.79</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.80</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1282,6 +1282,15 @@ link_data.forEach(l=>{
   if(l.deleted_at===undefined) l.deleted_at=(l.status==='trash')?(l.updated_at):null;
   if('status' in l) delete l.status;
 });
+// v4.80: 2026-06 の同期試験(v4.64〜4.66 の ?testconflict=2)で入った、文字列IDの試験用ブックマーク(test_remote_…)を削除扱いにする。
+//   IDが文字なので削除ボタン等の onclick が trashLink(test_remote_xxx) になり、未定義参照エラーで画面から消せなかった。
+//   削除の印(deleted_at/updated_at=今)は同期で全端末に伝わる。ゴミ箱にも出さない(1年後に自動で消える)。
+function _isTestRemote(l){ return typeof l.id==='string' && /^test_remote_/.test(l.id); }
+(function(){
+  let changed=false;
+  link_data.forEach(l=>{ if(_isTestRemote(l) && !l.deleted_at){ const n=Math.floor(Date.now()/1000); l.deleted_at=n; l.updated_at=n; changed=true; } });
+  if(changed){ try{ localStorage.setItem('links_v2',JSON.stringify(link_data)); }catch(e){} }
+})();
 
 // PIN未設定時は0000を自動登録
 try{
@@ -1581,7 +1590,7 @@ function getFiltered(){
   let r;
 
   if(specialFilter==='__trash__'){
-    r=link_data.filter(l=>!!l.deleted_at);
+    r=link_data.filter(l=>!!l.deleted_at && !_isTestRemote(l));
   } else {
     r=link_data.filter(l=>!l.deleted_at);
     // 通常モードではシークレットリンクを除外
@@ -2198,7 +2207,7 @@ function renderSidebar(){
   const isEditing=link_editingId!==null;
   const isAdding=document.getElementById('addPanel').classList.contains('open');
   const activeLinks=link_data.filter(l=>!l.deleted_at);
-  const trashLinks=link_data.filter(l=>!!l.deleted_at);
+  const trashLinks=link_data.filter(l=>!!l.deleted_at && !_isTestRemote(l));
 
   document.getElementById('cnt-all').textContent=activeLinks.length;
   document.getElementById('cnt-none').textContent=activeLinks.filter(l=>!(l.tags&&l.tags.length)).length;
@@ -2654,6 +2663,8 @@ function syncStartupOk(){
   }, 600);
   // user gesture直下: ボタンonclickなので silent試行はpopup抑止されない
   if(typeof _disarmUserGestureSilentRetry==='function') _disarmUserGestureSilentRetry();
+  // v4.80: ホーム画面アプリでは画面なしサインインが通らないので、手動更新と同じ道(アカウント選択画面)へ
+  if(typeof _isStandalone==='function' && _isStandalone()){ if(typeof runSyncManual==='function') runSyncManual(); return; }
   if(typeof _userGestureSilentRetry==='function') _userGestureSilentRetry();
 }
 function syncStartupCancel(){

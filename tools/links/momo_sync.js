@@ -323,7 +323,9 @@ async function _commitRemote(data, prevRemote, expectedHeadRevId){
       throw new Error('version-conflict');
     }
   }
+  _stage('sync:write');
   await _writeSync(SYNC_FILE, data);
+  _stage('sync:verify');
   const v=await _readVerified(SYNC_FILE);   // 書き込み後の確認
   if(!v.ok) throw new Error(_t('syncWriteVerifyFail'));
 }
@@ -615,7 +617,7 @@ async function runSync(mode){
 
     if(!remoteExists){
       // GDriveにファイルなし → ローカルをアップロード
-      if(!confirm(_t('syncUploadAsk'))) return;
+      if(!confirm(_t('syncUploadAsk'))){ _logSync('sync',true,'upload-cancel'); return; }
       await _writeSync(SYNC_FILE, loc);
 
     }else{
@@ -638,7 +640,7 @@ async function runSync(mode){
 
       if(!hasLocal&&hasRemote){
         // ローカル空 → GDriveから取得
-        if(!confirm(_t('syncDownloadAsk'))) return;
+        if(!confirm(_t('syncDownloadAsk'))){ _logSync('sync',true,'download-cancel'); return; }
         _applyMerged(rem);
 
       }else if(firstSync){
@@ -648,7 +650,8 @@ async function runSync(mode){
         const ch = (typeof showSyncChoiceModal==='function')
           ? await showSyncChoiceModal()
           : parseInt(prompt(_t('syncChoiceAsk'),'1')||'0');   // fallback
-        if(!ch) return;   // 0 (キャンセル)
+        _stage('sync:choice-'+ch);   // v4.78: どれを選んだか(0=キャンセル)
+        if(!ch){ _logSync('sync',true,'choice-cancel'); return; }   // 0 (キャンセル)
         if(ch===1){
           const merged=_mergeData(loc,rem);
           _applyMerged(merged);

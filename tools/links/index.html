@@ -825,7 +825,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.78</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.79</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -1142,7 +1142,10 @@ main{animation:fadeUp .25s .05s ease both;}
           <div id="gdriveLogBox" style="display:none">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
               <strong id="gdriveLogTitle" style="font-size:12px">同期ログ</strong>
-              <button class="btn" id="gdriveLogClearBtn" onclick="clearGdriveLog()" style="padding:2px 8px;font-size:11px">クリア</button>
+              <span style="display:flex;gap:6px">
+                <button class="btn" id="gdriveLogCopyBtn" onclick="copyGdriveLog()" style="padding:2px 8px;font-size:11px">コピー</button>
+                <button class="btn" id="gdriveLogClearBtn" onclick="clearGdriveLog()" style="padding:2px 8px;font-size:11px">クリア</button>
+              </span>
             </div>
             <div class="sync-log-list" id="gdriveLogList"></div>
           </div>
@@ -2699,6 +2702,27 @@ function clearGdriveLog(){
   if(typeof clearSyncLog==='function') clearSyncLog();
   renderGdriveLog();
 }
+// v4.79: 同期ログをクリップボードへ(新しい順・1件1行・記録そのままのコード名)。先頭に版と端末の種類を付ける
+function copyGdriveLog(){
+  const log=(typeof getSyncLogForView==='function')?getSyncLogForView():[];
+  const p2=n=>(n<10?'0':'')+n;
+  const fmt=ts=>{ const d=new Date(ts*1000); return (d.getMonth()+1)+'/'+d.getDate()+' '+p2(d.getHours())+':'+p2(d.getMinutes())+':'+p2(d.getSeconds()); };
+  const vb=document.getElementById('versionBadge');
+  const head='MOMO Links '+(vb?vb.textContent:'')+' / '+((typeof _isStandalone==='function'&&_isStandalone())?'home-app':'browser')+' / '+navigator.userAgent;
+  const text=[head].concat(log.slice().reverse().map(e=>fmt(e.ts)+' '+(e.ok?'OK':'NG')+' '+e.ev+' '+(e.msg||''))).join('\n');
+  const btn=document.getElementById('gdriveLogCopyBtn');
+  const done=ok=>{ if(!btn) return; const o=t('syncLogCopy'); btn.textContent=ok?t('syncLogCopied'):t('syncLogCopyFail'); setTimeout(()=>{ btn.textContent=o; },1500); };
+  const fallback=()=>{
+    try{
+      const ta=document.createElement('textarea'); ta.value=text; ta.setAttribute('readonly','');
+      ta.style.position='fixed'; ta.style.top='0'; ta.style.left='0'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0,text.length);
+      const ok=document.execCommand('copy'); document.body.removeChild(ta); done(ok);
+    }catch(e){ done(false); }
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(()=>done(true), fallback);
+  else fallback();
+}
 function renderGdriveLog(){
   const list=document.getElementById('gdriveLogList');
   if(!list) return;
@@ -3066,7 +3090,7 @@ const I18N={
     gdriveNoSync:'未同期',
     syncBusy:'☁ 同期中', syncNeeded:'更新が必要です', syncNeededHint:'クリックして今すぐ同期',
     syncManual:'手動更新', syncAuto:'自動更新', gdriveChangeAccount:'アカウントを変更',
-    syncLastPrefix:'前回', syncLogBtn:'ログを見る', syncLogTitle:'同期ログ', syncLogClear:'クリア', syncLogEmpty:'(まだログはありません)',
+    syncLastPrefix:'前回', syncLogBtn:'ログを見る', syncLogTitle:'同期ログ', syncLogClear:'クリア', syncLogCopy:'コピー', syncLogCopied:'コピーしました', syncLogCopyFail:'コピーできませんでした', syncLogEmpty:'(まだログはありません)',
     syncLogEvSync:'同期', syncLogEvSilent:'画面なしサインイン', syncLogEvManual:'手動更新', syncLogEvAccount:'アカウント変更',
     syncLogEvCheck:'変更チェック', syncLogEvSkip:'変更なしスキップ', syncLogEvHint:'アカウント記憶', syncLogEvConflict:'同時書込衝突',
     syncStartupAsk:'同期を開始します。\nOKを押すと同期します。',
@@ -3174,7 +3198,7 @@ const I18N={
     gdriveNoSync:'Not synced yet',
     syncBusy:'☁ Syncing', syncNeeded:'Update needed', syncNeededHint:'Click to sync now',
     syncManual:'Manual update', syncAuto:'Auto update', gdriveChangeAccount:'Change account',
-    syncLastPrefix:'Last', syncLogBtn:'View log', syncLogTitle:'Sync log', syncLogClear:'Clear', syncLogEmpty:'(No log entries yet)',
+    syncLastPrefix:'Last', syncLogBtn:'View log', syncLogTitle:'Sync log', syncLogClear:'Clear', syncLogCopy:'Copy', syncLogCopied:'Copied', syncLogCopyFail:'Copy failed', syncLogEmpty:'(No log entries yet)',
     syncLogEvSync:'Sync', syncLogEvSilent:'Silent sign-in', syncLogEvManual:'Manual update', syncLogEvAccount:'Account change',
     syncLogEvCheck:'Change check', syncLogEvSkip:'No-change skip', syncLogEvHint:'Account remember', syncLogEvConflict:'Write conflict',
     syncStartupAsk:'Start syncing.\nClick OK to sync now.',
@@ -3282,7 +3306,7 @@ const I18N={
     gdriveNoSync:'尚未同步',
     syncBusy:'☁ 同步中', syncNeeded:'需要更新', syncNeededHint:'点击立即同步',
     syncManual:'手动更新', syncAuto:'自动更新', gdriveChangeAccount:'更改账号',
-    syncLastPrefix:'上次', syncLogBtn:'查看日志', syncLogTitle:'同步日志', syncLogClear:'清除', syncLogEmpty:'(暂无日志)',
+    syncLastPrefix:'上次', syncLogBtn:'查看日志', syncLogTitle:'同步日志', syncLogClear:'清除', syncLogCopy:'复制', syncLogCopied:'已复制', syncLogCopyFail:'复制失败', syncLogEmpty:'(暂无日志)',
     syncLogEvSync:'同步', syncLogEvSilent:'静默登录', syncLogEvManual:'手动更新', syncLogEvAccount:'更改账号',
     syncLogEvCheck:'变更检查', syncLogEvSkip:'无变更跳过', syncLogEvHint:'账号记忆', syncLogEvConflict:'写入冲突',
     syncStartupAsk:'开始同步。\n点击「确定」立即同步。',
@@ -3402,6 +3426,7 @@ function applyLang(){
   tx('gdriveLogBtn',t('syncLogBtn'));
   tx('gdriveLogTitle',t('syncLogTitle'));
   tx('gdriveLogClearBtn',t('syncLogClear'));
+  tx('gdriveLogCopyBtn',t('syncLogCopy'));
   tx('gdriveCloseBtn',t('closeBtn'));
   if(typeof updateSyncStatus==='function') updateSyncStatus();   // ②: 言語切替で状態表示の文言も更新
   ph('secretPinNew1',t('pinSetupPlaceholder1')); ph('secretPinNew2',t('pinSetupPlaceholder2'));

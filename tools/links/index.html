@@ -2663,8 +2663,6 @@ function syncStartupOk(){
   }, 600);
   // user gesture直下: ボタンonclickなので silent試行はpopup抑止されない
   if(typeof _disarmUserGestureSilentRetry==='function') _disarmUserGestureSilentRetry();
-  // v4.80: ホーム画面アプリでは画面なしサインインが通らないので、手動更新と同じ道(アカウント選択画面)へ
-  if(typeof _isStandalone==='function' && _isStandalone()){ if(typeof runSyncManual==='function') runSyncManual(); return; }
   if(typeof _userGestureSilentRetry==='function') _userGestureSilentRetry();
 }
 function syncStartupCancel(){

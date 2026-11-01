@@ -556,10 +556,11 @@ function runSyncManual(){
   //   初回押下で確実に chooser→選択→メール保存。次回以降は silent成功(hint付き)。
   _closeModal();
   const hint=_savedHint();
-  // v4.80: ホーム画面から開いたアプリ(iPhone等)では silent(prompt:none) の結果が戻らず必ず popup_closed になる
-  //   (2026-11-01 実機ログ)。アカウント選択画面を出す方式(select_account)なら通るので、最初からそちらを使う。
-  //   また、silent が一度失敗したら次の押下は選択画面方式にする(旧: 押し直しても同じ silent を繰り返し、何度押しても通らなかった)。
-  if(hint && !_isStandalone() && !_manualSilentFailed){
+  // v4.80: silent が一度失敗したら、次の押下はアカウント選択画面方式にする
+  //   (旧: 押し直しても同じ silent を繰り返し、Googleのログインが切れていると何度押しても通らなかった。
+  //    2026-11-01 iPhoneホーム画面アプリの実機ログ: ログイン切れで silent は popup_closed、select_account は成功、
+  //    select_account でログインし直した後は silent も成功)
+  if(hint && !_manualSilentFailed){
     _requestToken('none',
       ()=>{ _logSync('silent',true,''); _logSync('manual',true,''); runSync('manual'); },
       (err)=>{
@@ -570,8 +571,8 @@ function runSyncManual(){
       }
     );
   }else{
-    // hint無し(初回・アカウント変更直後)→ブラウザ既定の画面。ホーム画面アプリ/silent失敗後→アカウント選択画面
-    const pr=(_isStandalone()||_manualSilentFailed)?'select_account':undefined;
+    // hint無し(初回・アカウント変更直後)→ブラウザ既定の画面。silent失敗後→アカウント選択画面
+    const pr=_manualSilentFailed?'select_account':undefined;
     _requestToken(pr,
       ()=>{ _manualSilentFailed=false; _logSync('manual',true,pr||'prompt'); runSync('manual'); },
       (err)=>{ _logSync('manual',false,err); alert(_t('syncAuthError',err)); }
@@ -886,6 +887,7 @@ function _userGestureSilentRetry(){
     },
     (err)=>{
       _logSync('silent',false,'user-gesture:'+err);
+      _manualSilentFailed=true;   // v4.80: 次の手動更新はアカウント選択画面方式
       _silentBackoffUntil = Math.floor(Date.now()/1000) + 15*60;
       // v4.55: popup系エラーは警告無しで再arm(レース等で偶発失敗・次のユーザー操作で回復見込み)。
       //  非popup系(本当のサインイン切れ等)のみ警告。

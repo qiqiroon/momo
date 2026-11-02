@@ -370,6 +370,28 @@
       </div>
       <div class="card-play" id="cosmos-play">今すぐプレイ</div>
     </a>
+    <a class="card" href="cube/">
+      <div class="card-head">
+        <img class="card-icon" src="cube/favicon.svg" alt="" aria-hidden="true">
+        <div class="card-headtext">
+          <div class="card-title">MOMO <span>Cube</span></div>
+          <div class="card-subtitle" id="cube-subtitle">Fast Hands, Six Faces</div>
+        </div>
+      </div>
+      <div class="card-badge" id="cube-badge">🧩 パズル</div>
+      <div class="card-desc" id="cube-desc">MOMO Cube は、ブラウザで遊べる無料の 3D キューブパズルです。1×1×1 から 10×10×10 まで大きさを選び、指やマウスで面をつまんで回して、6 つの面の色をそろえます。3 枚の鏡に裏の面が映るので、キューブを回さなくても全体が見えます。シャッフルしてから時間を計り、ベスト記録に挑戦できます。困ったときはヒントと解答も使えます。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。</div>
+      <div class="card-meta" id="cube-meta">
+        <span>🧊 3D キューブ</span>
+        <span>⏱ タイムアタック</span>
+        <span id="cube-players">1人</span>
+      </div>
+      <div class="platform-row">
+        <span class="platform-tag">🍎 iPhone</span>
+        <span class="platform-tag">🤖 Android</span>
+        <span class="platform-tag">💻 PC</span>
+      </div>
+      <div class="card-play" id="cube-play">今すぐプレイ</div>
+    </a>
     <a class="card" href="sudoku/">
       <div class="card-head">
         <img class="card-icon" src="sudoku/favicon.svg" alt="" aria-hidden="true">
@@ -534,6 +556,11 @@ const I18N = {
     cosmosDesc: '同じ天体どうしをぶつけて、ひとつ大きな天体に育てていく落ち物パズル。月から始めて、どこまで育てられるか。天体を育てて、あなたの宇宙を作りましょう。',
     cosmosMeta1: '🪐 落ち物パズル', cosmosMeta2: '🌌 宇宙', cosmosPlayers: '1人',
     cosmosPlay: '今すぐプレイ',
+    cubeBadge: '🧩 パズル',
+    cubeSubtitle: 'Fast Hands, Six Faces',
+    cubeDesc: 'MOMO Cube は、ブラウザで遊べる無料の 3D キューブパズルです。1×1×1 から 10×10×10 まで大きさを選び、指やマウスで面をつまんで回して、6 つの面の色をそろえます。3 枚の鏡に裏の面が映るので、キューブを回さなくても全体が見えます。シャッフルしてから時間を計り、ベスト記録に挑戦できます。困ったときはヒントと解答も使えます。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。',
+    cubeMeta1: '🧊 3D キューブ', cubeMeta2: '⏱ タイムアタック', cubePlayers: '1人',
+    cubePlay: '今すぐプレイ',
     catAmbient: 'Ambient Games',
     fireworksBadge: '🎆 アンビエント',
     fireworksSubtitle: 'Night Blooms, Golden Fade',
@@ -602,6 +629,11 @@ const I18N = {
     cosmosDesc: 'A falling-block puzzle where you merge matching celestial bodies into bigger ones. Start with the Moon, see how far you can grow them, and build a universe of your own.',
     cosmosMeta1: '🪐 Drop puzzle', cosmosMeta2: '🌌 Space', cosmosPlayers: '1 Player',
     cosmosPlay: 'Play Now',
+    cubeBadge: '🧩 Puzzle',
+    cubeSubtitle: 'Fast Hands, Six Faces',
+    cubeDesc: 'MOMO Cube is a free 3D cube puzzle you can play in your browser. Pick any size from 1×1×1 to 10×10×10, grab a face with your finger or mouse and turn it, and bring all six faces back to one color each. Three mirrors show the hidden faces, so you can see the whole cube without turning it around. Scramble it, race the clock, and go for your best time. Hints and an automatic solve are there when you get stuck. No account or installation required — just play instantly in your browser.',
+    cubeMeta1: '🧊 3D cube', cubeMeta2: '⏱ Time attack', cubePlayers: '1 Player',
+    cubePlay: 'Play Now',
     catAmbient: 'Ambient Games',
     fireworksBadge: '🎆 Ambient',
     fireworksSubtitle: 'Night Blooms, Golden Fade',
@@ -670,6 +702,11 @@ const I18N = {
     cosmosDesc: '让相同的天体相撞、合成更大天体的下落式益智游戏。从月球开始，看看能培育到哪一步，创造属于你的宇宙吧。',
     cosmosMeta1: '🪐 下落益智', cosmosMeta2: '🌌 宇宙', cosmosPlayers: '1人',
     cosmosPlay: '立即游玩',
+    cubeBadge: '🧩 益智',
+    cubeSubtitle: '快手六面',
+    cubeDesc: 'MOMO Cube 是一款可在浏览器中免费游玩的 3D 魔方益智游戏。尺寸可从 1×1×1 选到 10×10×10，用手指或鼠标抓住一个面转动，让六个面各自恢复成同一种颜色。三面镜子映出背面，不用转动魔方也能看到全貌。打乱后开始计时，挑战最佳纪录。遇到困难时还可以使用提示和自动解答。无需注册账号或安装，在浏览器中即可立即游玩。',
+    cubeMeta1: '🧊 3D 魔方', cubeMeta2: '⏱ 计时挑战', cubePlayers: '1人',
+    cubePlay: '立即游玩',
     catAmbient: 'Ambient Games',
     fireworksBadge: '🎆 观赏',
     fireworksSubtitle: '夜空绽放，金辉渐落',
@@ -739,6 +776,7 @@ function applyLang() {
   document.getElementById('cat-puzzle').textContent = t('catPuzzle');
   document.getElementById('sudoku-badge').textContent = t('sudokuBadge');
   document.getElementById('cosmos-badge').textContent = t('cosmosBadge');
+  document.getElementById('cube-badge').textContent = t('cubeBadge');
   document.getElementById('shogi-badge').textContent = t('shogiBadge');
   document.getElementById('darts-badge').textContent = t('dartsBadge');
   document.getElementById('hanafuda-badge').textContent = t('hanafudaBadge');
@@ -794,6 +832,13 @@ function applyLang() {
   if (cosmosMetaSpans[1]) cosmosMetaSpans[1].textContent = t('cosmosMeta2');
   document.getElementById('cosmos-players').textContent = t('cosmosPlayers');
   document.getElementById('cosmos-play').textContent = t('cosmosPlay');
+  // Cube
+  document.getElementById('cube-desc').textContent = t('cubeDesc');
+  const cubeMetaSpans = document.querySelectorAll('#cube-meta span');
+  if (cubeMetaSpans[0]) cubeMetaSpans[0].textContent = t('cubeMeta1');
+  if (cubeMetaSpans[1]) cubeMetaSpans[1].textContent = t('cubeMeta2');
+  document.getElementById('cube-players').textContent = t('cubePlayers');
+  document.getElementById('cube-play').textContent = t('cubePlay');
   // Darts
   document.getElementById('darts-desc').textContent = t('dartsDesc');
   const dartsMetaSpans = document.querySelectorAll('#darts-meta span');
@@ -842,6 +887,7 @@ function applyLang() {
     ['hanafuda-subtitle', subtitleDict.hanafudaSubtitle],
     ['sudoku-subtitle',   subtitleDict.sudokuSubtitle],
     ['cosmos-subtitle',   subtitleDict.cosmosSubtitle],
+    ['cube-subtitle',     subtitleDict.cubeSubtitle],
     ['billiards-subtitle', subtitleDict.billiardsSubtitle],
     ['mahjong-subtitle',  subtitleDict.mahjongSubtitle],
     ['fireworks-subtitle', subtitleDict.fireworksSubtitle],

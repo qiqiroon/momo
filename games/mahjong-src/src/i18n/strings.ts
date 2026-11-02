@@ -89,11 +89,13 @@ const ja = {
   bgmLabel: 'BGM',
   sfxLabel: '効果音',
   mute: 'ミュート',
-  creditsButton: '音源クレジット',
-  creditsTitle: '音源クレジット',
+  creditsButton: 'クレジット',
+  creditsTitle: 'クレジット',
+  creditsApp: 'アプリ',
+  creditsSe: '効果音',
+  creditsTiles: '麻雀牌',
   creditsModified: '前後の無音を除いて MP3 に変換しています（改変）。',
-  creditsShared: 'MOMO Works 共通の効果音',
-  creditsBgm: 'BGM は MOMO Works のオリジナルです。',
+  creditsBgm: 'MOMO Works（SUNO・Mureka により作成）',
   close: '閉じる',
   flashRon: 'ロン！',
   flashTsumo: 'ツモ！',
@@ -806,11 +808,13 @@ const en: Dict = {
   bgmLabel: 'Music',
   sfxLabel: 'Sound effects',
   mute: 'Mute',
-  creditsButton: 'Sound credits',
-  creditsTitle: 'Sound credits',
+  creditsButton: 'Credits',
+  creditsTitle: 'Credits',
+  creditsApp: 'App',
+  creditsSe: 'Sound effects',
+  creditsTiles: 'Mahjong tiles',
   creditsModified: 'Silence at the start and end was trimmed and the files were converted to MP3 (modified).',
-  creditsShared: 'Sound effects shared across MOMO Works',
-  creditsBgm: 'Background music is original to MOMO Works.',
+  creditsBgm: 'MOMO Works (created with SUNO and Mureka)',
   close: 'Close',
   flashRon: 'Ron!',
   flashTsumo: 'Tsumo!',
@@ -1518,11 +1522,13 @@ const zh: Dict = {
   bgmLabel: '背景音乐',
   sfxLabel: '音效',
   mute: '静音',
-  creditsButton: '音源版权',
-  creditsTitle: '音源版权',
+  creditsButton: '版权信息',
+  creditsTitle: '版权信息',
+  creditsApp: '应用',
+  creditsSe: '音效',
+  creditsTiles: '麻将牌',
   creditsModified: '已去除首尾的静音并转换为 MP3（经过修改）。',
-  creditsShared: 'MOMO Works 共用的音效',
-  creditsBgm: '背景音乐为 MOMO Works 原创。',
+  creditsBgm: 'MOMO Works（使用 SUNO・Mureka 制作）',
   close: '关闭',
   flashRon: '荣和！',
   flashTsumo: '自摸！',
@@ -2163,7 +2169,7 @@ const DICTS: Record<BaseLang, Dict> = { ja, en, zh };
  *  - サブタイトル（全アプリ共通で猫語にしない）
  *  - 利用規約・免責・賭博禁止・公平性の説明など、意味が伝わらないと困るもの（同意画面の文面は i18n/notice.ts） */
 // 制限時間の同意の窓（tc…）は自動の操作で不利になることの説明＝利用上の注意と同じ扱いで猫語にしない
-const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['listDot', 'subtitle', 'noMoney', 'creditsModified', 'creditsShared', 'creditsBgm', 'chatRule', 'sameStartWarn', 'tcTitle', 'tcBody', 'tcCountdown', 'tcCancelNote', 'tcReclaimNote', 'asIntro', 'asHints', 'asFair', 'asCpu', 'asPlus', 'asOr']);
+const NO_CAT_KEYS: ReadonlySet<MessageKey> = new Set(['listDot', 'subtitle', 'noMoney', 'creditsTitle', 'creditsApp', 'creditsSe', 'creditsTiles', 'creditsModified', 'creditsBgm', 'chatRule', 'sameStartWarn', 'tcTitle', 'tcBody', 'tcCountdown', 'tcCancelNote', 'tcReclaimNote', 'asIntro', 'asHints', 'asFair', 'asCpu', 'asPlus', 'asOr']);
 
 /** 攻撃的な鳴き声を返すキー（失敗・エラーの通知）。いまは無い（オンラインの段階で足す） */
 const ERROR_KEYS: ReadonlySet<MessageKey> = new Set(['olErrNoName', 'olErrNoRoomName', 'olErrWrongPw', 'olErrFull', 'olErrGone', 'olErrStarted', 'olLost', 'olBusy']);

@@ -323,7 +323,8 @@ const BilliardsI18N = (() => {
       'audio.title': '音を鳴らしますか？', 'audio.desc': 'BGMと効果音を再生します。あとから設定で変えられます。',
       'audio.yes': '再生する', 'audio.no': '鳴らさない',
       'set.title': '設定', 'set.bgm': 'BGM', 'set.sfx': '効果音', 'set.mute': 'ミュート',
-      'set.speed': '玉の転がる速さ', 'set.credits': '音源クレジット',
+      'set.speed': '玉の転がる速さ', 'set.credits': 'クレジット',
+      'cred.title': 'クレジット', 'cred.app': 'アプリ', 'cred.se': '効果音', 'cred.bgm': 'MOMO Works（SUNO・Mureka により作成）',
       'set.speedNote': '玉が転がる見た目の速さだけが変わります。キューの動きや画面の切り替わり、勝ち負けは変わりません。',
 
       'rules.title': 'ルール確認',
@@ -655,7 +656,8 @@ const BilliardsI18N = (() => {
       'audio.title': 'Play sound?', 'audio.desc': 'Music and effects. You can change this later in settings.',
       'audio.yes': 'Play', 'audio.no': 'Stay silent',
       'set.title': 'Settings', 'set.bgm': 'Music', 'set.sfx': 'Effects', 'set.mute': 'Mute',
-      'set.speed': 'Ball rolling speed', 'set.credits': 'Sound credits',
+      'set.speed': 'Ball rolling speed', 'set.credits': 'Credits',
+      'cred.title': 'Credits', 'cred.app': 'App', 'cred.se': 'Sound effects', 'cred.bgm': 'MOMO Works (created with SUNO and Mureka)',
       'set.speedNote': 'Changes only how fast the balls appear to roll. Cue movement, screen changes and the outcome stay the same.',
 
       'rules.title': 'Rules',
@@ -987,7 +989,8 @@ const BilliardsI18N = (() => {
       'audio.title': '要播放声音吗？', 'audio.desc': '播放背景音乐与音效，之后可在设置中更改。',
       'audio.yes': '播放', 'audio.no': '静音',
       'set.title': '设置', 'set.bgm': '音乐', 'set.sfx': '音效', 'set.mute': '静音',
-      'set.speed': '球滚动的速度', 'set.credits': '音源版权',
+      'set.speed': '球滚动的速度', 'set.credits': '版权信息',
+      'cred.title': '版权信息', 'cred.app': '应用', 'cred.se': '音效', 'cred.bgm': 'MOMO Works（使用 SUNO・Mureka 制作）',
       'set.speedNote': '只改变球滚动的视觉速度。球杆动作、画面切换与胜负都不受影响。',
 
       'rules.title': '规则',
@@ -1094,6 +1097,12 @@ const BilliardsI18N = (() => {
   /** 字幕・ブランド表記は CAT でも本来のテキストを出す（他アプリと同じ扱い） */
   function brandLang() { return currentLang === 'cat' ? catBase() : currentLang; }
 
+  /** クレジットなど、CAT でも本来の言葉で出すもの */
+  function tb(key) {
+    const d = DICT[brandLang()] || DICT.ja;
+    return (d[key] != null) ? d[key] : (DICT.ja[key] != null ? DICT.ja[key] : key);
+  }
+
   function setMode(mode) {
     langMode = mode;
     currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, mode)
@@ -1105,7 +1114,7 @@ const BilliardsI18N = (() => {
     init, t, has, setMode, DIFF_LABEL, SUPPORTED, LANG_APP_ID,
     get lang() { return currentLang; },
     get mode() { return langMode; },
-    brandLang, catBase,
+    brandLang, catBase, tb,
   };
 })();
 

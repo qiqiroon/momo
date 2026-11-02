@@ -1,4 +1,4 @@
-// 音の画面：最初の操作で出す「音楽を再生しますか？」・歯車の設定（BGM と効果音の音量・ミュート・音源クレジット）。
+// 音の画面：最初の操作で出す「音楽を再生しますか？」・歯車の設定（BGM と効果音の音量・ミュート・クレジット）。
 // 作りは MOMO Shogi（MusicPrompt.tsx・SettingsPopup.tsx）と花札にそろえる。
 
 import { useRef, useState } from 'react';
@@ -15,6 +15,7 @@ import {
   setSfxVolume,
 } from '../audio/engine';
 import type { MessageKey } from '../i18n/strings';
+import { APP_VERSION } from '../version';
 
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
@@ -73,7 +74,7 @@ export function SoundPrompt({ t, onDone }: { t: T; onDone: () => void }) {
   );
 }
 
-/** 歯車の設定：音量・ミュート・音源クレジット */
+/** 歯車の設定：音量・ミュート・クレジット */
 export function SettingsPanel({ t, onClose }: { t: T; onClose: () => void }) {
   const [credits, setCredits] = useState(false);
   return (
@@ -112,37 +113,55 @@ export function SettingsPanel({ t, onClose }: { t: T; onClose: () => void }) {
   );
 }
 
-/** 音源クレジット（CC BY は作者名・ライセンスへのリンク・改変したことを示す＝利用条件） */
+/** クレジット（Cosmos と同じ並び）。猫語のときも系統言語で出す。
+ *  音は音源の台帳と同じ内容（CC BY は作者名・ライセンスへのリンク・改変したことを示す＝利用条件） */
 function Credits({ t }: { t: T }) {
   return (
     <div className="credit-body">
+      <h3>{t('creditsApp')}</h3>
       <p>
-        <a href="http://notanomori.net/" target="_blank" rel="noopener">
-          ノタの森 (Nota no Mori)
-        </a>{' '}
-        —{' '}
+        MOMO Mahjong {APP_VERSION}
+        <br />
+        MOMO Works
+      </p>
+      <h3>Special Thanks</h3>
+      <p>Satomi</p>
+      <h3>{t('creditsTiles')}</h3>
+      <p>
+        lietxia「mahjong_graphic」 —{' '}
+        <a href="https://github.com/lietxia/mahjong_graphic" target="_blank" rel="noopener">
+          github.com/lietxia/mahjong_graphic
+        </a>
+      </p>
+      <h3>BGM</h3>
+      <p>{t('creditsBgm')}</p>
+      <h3>{t('creditsSe')}</h3>
+      <p>
+        ノタの森 (Nota no Mori) —{' '}
         <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">
           CC BY 3.0
+        </a>{' '}
+        —{' '}
+        <a href="http://notanomori.net/" target="_blank" rel="noopener">
+          notanomori.net
         </a>
         <br />
         <small>{t('creditsModified')}</small>
-      </p>
-      <p>
-        {t('creditsShared')}:{' '}
+        <br />
+        Taira Komori「temple_bell1」 — CC BY 4.0 —{' '}
         <a href="https://taira-komori.net/freesounden.html" target="_blank" rel="noopener">
-          Taira Komori
-        </a>{' '}
-        (CC BY 4.0) /{' '}
+          taira-komori.net
+        </a>
+        <br />
+        LittleRobotSoundFactory「Achievement Orchestral (uplifting)」(Freesound) — CC BY —{' '}
         <a href="https://freesound.org/s/270404/" target="_blank" rel="noopener">
-          LittleRobotSoundFactory
-        </a>{' '}
-        (CC BY) /{' '}
-        <a href="https://freesound.org/s/658431/" target="_blank" rel="noopener">
-          deathbyfairydust
-        </a>{' '}
-        (CC BY)
+          freesound.org/s/270404
+        </a>
+        <br />
+        <a href="https://soundeffect-lab.info/" target="_blank" rel="noopener">
+          soundeffect-lab.info
+        </a>
       </p>
-      <p>{t('creditsBgm')}</p>
     </div>
   );
 }

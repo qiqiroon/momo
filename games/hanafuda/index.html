@@ -83,6 +83,12 @@
   .credit-link:hover{color:var(--text);}
   .credit-body{font-size:11px;color:var(--text-muted);line-height:1.7;}
   .credit-body a{color:var(--text-muted);}
+  /* v3.14: クレジットの窓（Cosmos と同じ並び・見た目） */
+  .cred-scroll{max-height:62vh;overflow-y:auto;font-size:12px;line-height:1.7;color:#b5b5b5;-webkit-user-select:text;user-select:text;}
+  .cred-scroll h3{margin:14px 0 4px;font-family:"Fredoka One",sans-serif;font-weight:400;font-size:14px;color:var(--orange-light);}
+  .cred-scroll h3:first-child{margin-top:0;}
+  .cred-scroll p{margin:0 0 6px;}
+  .cred-scroll a{color:var(--orange-light);}
   /* v1.62: 八八（3人）盤面。上=相手2人／中=山・場／下=自分。縦横共通の縦積み（横は比率で広がる）。 */
   .h88-board{display:flex;flex-direction:column;gap:8px;padding:6px 8px 10px;max-width:760px;margin:0 auto;}
   /* v1.80: 縦画面では中央ブロックは素通し（board 直下に status/場/自分が並ぶ）。順序で status を先頭に。 */
@@ -1322,7 +1328,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.13</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.14</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1388,7 +1394,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.13</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.14</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1524,7 +1530,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.13</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.14</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1587,7 +1593,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.13</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.14</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1773,7 +1779,7 @@
     <input type="range" class="settings-volume-slider" id="anim-speed-slider" min="0" max="4" step="1" value="2">
     <div class="settings-row-hint" data-i18n="settings.anim.hint">札の移動・待ち・こいこいの流れる速さ（x0.5〜x2.0）</div>
   </div>
-  <!-- v1.61: 音源クレジット（将棋準拠・CC-BY のみ掲載。CC0/効果音ラボ/SUNO は義務なしで割愛） -->
+  <!-- v3.14: クレジット（アプリ・Special Thanks・BGM・効果音） -->
   <div class="settings-row" id="settings-row-credits">
     <a href="#credits" id="link-credits" class="credit-link" data-i18n="sound.creditsButton">クレジット</a>
   </div>
@@ -1786,12 +1792,21 @@
   </div>
 </div></div>
 
-<!-- v1.61: 音源クレジットモーダル（将棋準拠・CC-BY 提供者のみ） -->
+<!-- v3.14: クレジット（Cosmos と同じ並び）。猫語のときも系統言語で出す。音は音源の台帳と同じ内容 -->
 <div class="overlay" id="ovCredits"><div class="opanel">
-  <div class="credit-body">
-    CC-BY 4.0: <a href="https://taira-komori.net/freesounden.html" target="_blank" rel="noopener">Taira Komori</a>
-    &nbsp;/&nbsp; CC-BY (Freesound): <a href="https://freesound.org/s/270404/" target="_blank" rel="noopener">LittleRobotSoundFactory</a>
-    &nbsp;/&nbsp; CC-BY (Freesound): <a href="https://freesound.org/s/658431/" target="_blank" rel="noopener">deathbyfairydust</a>
+  <h2 data-i18n="cred.title">クレジット</h2>
+  <div class="cred-scroll">
+    <h3 data-i18n="cred.app">アプリ</h3>
+    <p>MOMO Hanafuda <span id="cred-version"></span><br>MOMO Works</p>
+    <h3>Special Thanks</h3>
+    <p>Satomi</p>
+    <h3>BGM</h3>
+    <p data-i18n="cred.bgmBody">MOMO Works（SUNO により作成）</p>
+    <h3 data-i18n="cred.se">効果音</h3>
+    <p><a href="https://soundeffect-lab.info/" target="_blank" rel="noopener">soundeffect-lab.info</a><br>
+    Taira Komori「press_enter1」「temple_bell1」— CC BY 4.0 — <a href="https://taira-komori.net/freesounden.html" target="_blank" rel="noopener">taira-komori.net</a><br>
+    LittleRobotSoundFactory「Achievement Orchestral (uplifting)」(Freesound) — CC BY — <a href="https://freesound.org/s/270404/" target="_blank" rel="noopener">freesound.org/s/270404</a><br>
+    deathbyfairydust「pop.wav」(Freesound) — CC BY — <a href="https://freesound.org/s/658431/" target="_blank" rel="noopener">freesound.org/s/658431</a></p>
   </div>
   <div class="btn-row">
     <button class="btn btn-ghost btn-sm" id="btn-credits-close" data-i18n="sound.creditsClose">閉じる</button>
@@ -2246,7 +2261,8 @@ const I18N = {
     'settings.sfx.hint': '効果音の音量',
     'settings.mute': 'ミュート',
     'settings.close': '閉じる',
-    'sound.creditsButton': '音源クレジット', 'sound.creditsClose': '閉じる',
+    'sound.creditsButton': 'クレジット', 'sound.creditsClose': '閉じる',
+    'cred.title': 'クレジット', 'cred.app': 'アプリ', 'cred.se': '効果音', 'cred.bgmBody': 'MOMO Works（SUNO により作成）',
     'music.title': '音楽を再生しますか？',
     'music.body': 'BGM と効果音を再生してもよろしいですか？（あとで歯車の設定から変えられます）',
     'music.yes': '再生する', 'music.no': '再生しない',
@@ -2573,7 +2589,8 @@ const I18N = {
     'settings.sfx.hint': 'Sound-effect volume',
     'settings.mute': 'Mute',
     'settings.close': 'Close',
-    'sound.creditsButton': 'Sound credits', 'sound.creditsClose': 'Close',
+    'sound.creditsButton': 'Credits', 'sound.creditsClose': 'Close',
+    'cred.title': 'Credits', 'cred.app': 'App', 'cred.se': 'Sound effects', 'cred.bgmBody': 'MOMO Works (created with SUNO)',
     'music.title': 'Play music?',
     'music.body': 'May we play BGM and sound effects? (You can change this later from the gear settings.)',
     'music.yes': 'Play', 'music.no': "Don't play",
@@ -2903,7 +2920,8 @@ const I18N = {
     'music.body': '可以播放 BGM 和音效吗？（之后可在齿轮设置中更改。）',
     'music.yes': '播放', 'music.no': '不播放',
     'settings.close': '关闭',
-    'sound.creditsButton': '音源版权', 'sound.creditsClose': '关闭',
+    'sound.creditsButton': '版权信息', 'sound.creditsClose': '关闭',
+    'cred.title': '版权信息', 'cred.app': '应用', 'cred.se': '音效', 'cred.bgmBody': 'MOMO Works（使用 SUNO 制作）',
     'settings.tag.label': '牌面编号', 'settings.tag.hint': '在每张牌左上角显示月份数字＋种类（光L/种A/短冊R/カス无）',
     'settings.anim.label': '动画速度', 'settings.anim.hint': '牌的移动・停顿・こいこい滚动的速度（x0.5〜x2.0）',
     'gear.title': '设置',
@@ -2947,7 +2965,7 @@ function _langDetectFallback() {
 }
 
 // v3.13: 断り書きなど、意味が伝わらないと困るものは猫語にしない（猫語を選ぶ直前の言語で出す）
-const NO_CAT_KEYS = new Set(['art.disclaimer']);
+const NO_CAT_KEYS = new Set(['art.disclaimer', 'cred.title', 'cred.app', 'cred.se', 'cred.bgmBody']);
 function t(key, params) {
   const noCat = _currentLang === 'cat' && NO_CAT_KEYS.has(key);
   if (_currentLang === 'cat' && !noCat) return catSpeak(key);
@@ -11141,7 +11159,7 @@ function bindEvents() {
   document.getElementById('btn-settings-close').addEventListener('click', () => document.getElementById('ovSettings').classList.remove('show'));
   // v1.61: 音源クレジット（将棋準拠）
   const linkCredits = document.getElementById('link-credits');
-  if (linkCredits) linkCredits.addEventListener('click', (e) => { e.preventDefault(); document.getElementById('ovCredits').classList.add('show'); });
+  if (linkCredits) linkCredits.addEventListener('click', (e) => { e.preventDefault(); const v = document.querySelector('.version-tag'); document.getElementById('cred-version').textContent = v ? v.textContent : ''; document.getElementById('ovCredits').classList.add('show'); });
   const btnCredClose = document.getElementById('btn-credits-close');
   if (btnCredClose) btnCredClose.addEventListener('click', () => document.getElementById('ovCredits').classList.remove('show'));
   const ovCred = document.getElementById('ovCredits');

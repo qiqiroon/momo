@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '2.11';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '2.12';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -194,6 +194,9 @@
     set('set-mute1', 'set.mute'); set('set-mute2', 'set.mute'); set('btn-set-close', 'nav.close');
     set('set-speed', 'set.speed'); set('speed-note', 'set.speedNote');
     set('link-credits', 'set.credits'); set('btn-credits-close', 'nav.close');
+    // クレジットの中身は猫語のときも系統言語で出す
+    [['cred-title', 'cred.title'], ['cred-app', 'cred.app'], ['cred-bgm', 'cred.bgm'], ['cred-se', 'cred.se']]
+      .forEach(([id, k]) => { const e = $(id); if (e) e.textContent = I.tb(k); });
     set('dl-title', 'dl.title'); set('dl-ask', 'dl.ask');
     set('btn-dl-yes', 'btn.yes'); set('btn-dl-no', 'btn.no'); set('btn-note-close', 'nav.close');
     set('lbl-myname', 'lobby.name'); set('lbl-roomname', 'lobby.room'); set('lbl-pw', 'lobby.pw2');
@@ -8214,7 +8217,7 @@
     $('modal-settings').classList.add('on');
   }
   $('btn-set-close').onclick = () => $('modal-settings').classList.remove('on');
-  // 音源クレジットは設定の窓の上に重ねて出す（閉じれば設定の窓に戻る）
+  // クレジットは設定の窓の上に重ねて出す（閉じれば設定の窓に戻る）
   $('link-credits').onclick = e => { e.preventDefault(); AU.sfx('button'); $('modal-credits').classList.add('on'); };
   $('btn-credits-close').onclick = () => $('modal-credits').classList.remove('on');
   $('vol-bgm').oninput = e => AU.setBgmVolume(+e.target.value);
@@ -8354,7 +8357,7 @@
   function boot() {
     I.init();
     mountSetup('setup-host', false);        // 設定の中身の定位置は設定画面の中
-    ['version-tag', 'version-tag-2', 'version-tag-3', 'version-tag-4', 'version-tag-5', 'version-tag-6'].forEach(id => {
+    ['version-tag', 'version-tag-2', 'version-tag-3', 'version-tag-4', 'version-tag-5', 'version-tag-6', 'version-tag-7'].forEach(id => {
       const e = $(id); if (e) e.textContent = 'v' + APP_VER;
     });
     // 名前と部屋名は憶えておく。パスワードは憶えない

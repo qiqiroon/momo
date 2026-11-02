@@ -2343,6 +2343,24 @@ body.in-game .site-header .subtitle {
 .credit-body {
   font-size: 12px;
   line-height: 1.8;
+  user-select: text;
+}
+
+/* クレジットの見出し（Cosmos と同じ見た目） */
+.credit-body h3 {
+  margin: 14px 0 2px;
+  font-family: 'Fredoka One', sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--orange-mid); /* 麻雀の色の決まり：薄いオレンジは使わない */
+}
+
+.credit-body h3:first-child {
+  margin-top: 0;
+}
+
+.credit-body p {
+  margin: 0 0 6px;
 }
 
 .credit-body a {

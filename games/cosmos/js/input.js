@@ -3,6 +3,8 @@
  * タッチ：タップで即落下／0.25秒以上の長押し、または10px超の移動で照準モード→離して落下
  *         照準モード中に盤面の外で離すと取り消し
  *         指を離さずに 0.6 秒たつと、指の位置で続けて落とす（離しても追加では落とさない）
+ *         触れた所へすぐ照準を動かし、指を離したあとも前に落とした位置に照準（次の天体・名前・点線）を出しておく
+ *         （2026-11-02 作者の指示）
  * マウス：移動で照準が追従、クリックでその位置に落下。押したまま 0.6 秒で続けて落とす
  * キー  ：← → で照準移動、Space で落下（押したまま 0.6 秒で続けて落とす）、Esc で一時停止・再開
  * 続けて落とす間隔は連打防止（dropCooldownMs）と同じ。2026-10-31 作者の指示
@@ -59,6 +61,7 @@
           return;
         }
         try { cv.setPointerCapture(e.pointerId); } catch (_) { /* 古い環境 */ }
+        this.g.setAim(x); this.r.aimVisible = true;
         const t = { id: e.pointerId, x0: e.clientX, y0: e.clientY, aiming: false, timer: 0, t0: performance.now(), repeated: false };
         t.timer = setTimeout(() => {
           if (this.touch === t) { t.aiming = true; this.g.setAim(this.toBoardX(t.lastX != null ? t.lastX : t.x0)); this.r.aimVisible = true; }
@@ -89,14 +92,11 @@
         if (!t || t.id !== e.pointerId) return;
         clearTimeout(t.timer);
         this.touch = null;
-        this.r.aimVisible = false;
         if (cancelled || !this._playable() || t.repeated) return;
-        if (t.aiming) {
-          if (this.insideBoard(e.clientX, e.clientY)) this.g.drop(this.toBoardX(e.clientX));
-          // 盤面の外で離した：取り消し
-        } else {
-          this.g.drop(this.toBoardX(e.clientX)); // タップ
-        }
+        const x = this.toBoardX(e.clientX);
+        if (t.aiming && !this.insideBoard(e.clientX, e.clientY)) return;   // 盤面の外で離した：取り消し
+        this.g.setAim(x);
+        this.g.drop(x);
       };
       cv.addEventListener('pointerup', e => end(e, false));
       cv.addEventListener('pointercancel', e => end(e, true));

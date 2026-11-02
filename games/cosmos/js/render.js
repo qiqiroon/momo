@@ -397,7 +397,7 @@
         ctx.setLineDash([4, 8]);
         ctx.beginPath(); ctx.moveTo(x, B.dropY + r); ctx.lineTo(x, B.height); ctx.stroke();
         ctx.restore();
-        drawBody(ctx, this.sprites, C, stg, x, B.dropY, r, 0, g.canDrop() ? 0.55 : 0.25);
+        drawBody(ctx, this.sprites, C, stg, x, B.dropY, r, 0, 1);   // 落ちた天体と同じ明るさ（2026-11-02 作者の指示。前は 0.55・連打防止の間は 0.25）
         // 落とす前の天体のレベルと名前を、天体の上に出す（表示言語で）
         // 猫語の鳴き声は呼ぶたびに変わるので、天体か言語が変わったときだけ決め直す
         const I = root.CosmosI18n, lang = I ? I.lang + '/' + I.baseLang() : '';

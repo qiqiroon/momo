@@ -255,7 +255,10 @@
 
     // ---- 設定パネル（第18.4節）。開いてもゲームは進め、落下操作だけ止める ----
     const SET = Object.assign({}, C.settingsDefault, store.get(C.storageKeys.settings, {}));
-    const saveSet = () => store.set(C.storageKeys.settings, SET);
+    // 音の許可パネルで「再生しない」を選んだ間の消音は、保存しない（その前の消音の有無を quiet に控える）
+    // 保存するのは控えた値。作者が自分で消音を切り替えたら、その分は控えを捨てる（2026-11-02 作者の指示）
+    let quiet = null;
+    const saveSet = () => store.set(C.storageKeys.settings, quiet ? Object.assign({}, SET, quiet) : SET);
     const sound = new CosmosSound(() => SET, C.se);
     function syncSetUI() {
       for (const p of ['', 'm']) {
@@ -269,8 +272,9 @@
       if (DEBUG) $('debugPanel').hidden = !SET.debugPanel;
     }
     function bindVol(vol, mute, key, mkey) {
-      $(vol).addEventListener('input', e => { SET[key] = +e.target.value; if (SET[key] > 0) SET[mkey] = false; saveSet(); syncSetUI(); });
-      $(mute).addEventListener('change', e => { SET[mkey] = e.target.checked; saveSet(); syncSetUI(); });
+      const own = () => { if (quiet) delete quiet[mkey]; };
+      $(vol).addEventListener('input', e => { SET[key] = +e.target.value; if (SET[key] > 0) { SET[mkey] = false; own(); } saveSet(); syncSetUI(); });
+      $(mute).addEventListener('change', e => { SET[mkey] = e.target.checked; own(); saveSet(); syncSetUI(); });
     }
     bindVol('seVol', 'seMute', 'se', 'seMute');
     bindVol('bgmVol', 'bgmMute', 'bgm', 'bgmMute');
@@ -308,8 +312,10 @@
     // ---- 音の許可パネル（第16.3節）。回答は保存せず、ページを開くたびに最初の1回だけ聞く ----
     const LONG_MS = 60 * 60 * 1000;
     let audioAsked = false, pendingAct = null, hiddenAt = 0;
+    // 「再生する」：作者が設定した消音・音量のまま鳴らす。「再生しない」：この間だけ両方を消音にする
     function closeMusic(play) {
-      SET.seMute = SET.bgmMute = !play;
+      if (play) { if (quiet) Object.assign(SET, quiet); quiet = null; }
+      else { if (!quiet) quiet = { seMute: SET.seMute, bgmMute: SET.bgmMute }; SET.seMute = SET.bgmMute = true; }
       saveSet();
       sound.unlock();
       syncSetUI();

@@ -297,6 +297,7 @@ body.hide-top #topCtl { display: none; }   /* BIGBANG〜ENDROLL（M3） */
 .cred-scroll h3 { margin: 14px 0 4px; font-family: var(--font-title); font-weight: 400; font-size: 14px; color: var(--orange-light); }
 .cred-scroll h3:first-child { margin-top: 0; }
 .cred-scroll p { margin: 0 0 6px; }
+.cred-scroll .cred-note { font-family: var(--font-body, sans-serif); font-size: 11px; color: #8a8a8a; }
 .cred-scroll a { color: var(--orange-light); }
 .license { white-space: pre-wrap; font-size: 10px; line-height: 1.5; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin: 4px 0 8px; color: var(--muted); }
 

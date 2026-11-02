@@ -2,13 +2,13 @@
  "moon": {
   "type": "body",
   "blend": "source-over",
-  "bodyRadiusPx": 69,
-  "centerX": 74,
-  "centerY": 74,
-  "source": "画像2",
+  "bodyRadiusPx": 125.1,
+  "centerX": 128,
+  "centerY": 128,
+  "source": "pic/月.png",
   "file": "assets/img/moon.webp",
-  "width": 148,
-  "height": 148
+  "width": 256,
+  "height": 256
  },
  "mars": {
   "type": "body",
@@ -35,13 +35,13 @@
  "mercury": {
   "type": "body",
   "blend": "source-over",
-  "bodyRadiusPx": 66,
-  "centerX": 71,
-  "centerY": 71,
-  "source": "画像2",
+  "bodyRadiusPx": 125.1,
+  "centerX": 128,
+  "centerY": 128,
+  "source": "pic/水星.png",
   "file": "assets/img/mercury.webp",
-  "width": 142,
-  "height": 142
+  "width": 256,
+  "height": 256
  },
  "neptune": {
   "type": "body",

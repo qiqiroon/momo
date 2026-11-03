@@ -47,9 +47,9 @@
         if (!this._playable()) return;
         e.preventDefault();
         const x = this.toBoardX(e.clientX);
-        // ミサイルを選んでいる間は、落とさずに、触れた天体を壊す（天体のない所なら何もしない）
-        if (this.g.missileArmed) {
-          if (e.button === 0 || e.pointerType !== 'mouse') this.g.fireMissile(x, this.toBoardY(e.clientY));
+        // ミサイル・天体進化を選んでいる間は、落とさずに、触れた天体に使う（天体のない所なら何もしない）
+        if (this.g.armed) {
+          if (e.button === 0 || e.pointerType !== 'mouse') this.g.useArmed(x, this.toBoardY(e.clientY));
           return;
         }
         if (e.pointerType === 'mouse') {
@@ -70,7 +70,7 @@
       }, { passive: false });
 
       cv.addEventListener('pointermove', e => {
-        // ミサイルの狙い：マウスの下の天体を render.js が赤い輪で示す
+        // ミサイル・天体進化の狙い：マウスの下の天体を render.js が輪で示す
         this.r.pointer = this.insideBoard(e.clientX, e.clientY) ? { x: this.toBoardX(e.clientX), y: this.toBoardY(e.clientY) } : null;
         if (e.pointerType === 'mouse') {
           if (!this._playable()) return;
@@ -112,7 +112,7 @@
         else if (e.key === 'ArrowRight') { this.keys.right = true; this.r.aimVisible = true; e.preventDefault(); }
         else if (e.key === ' ' || e.code === 'Space') {
           e.preventDefault();
-          if (!e.repeat && !this.g.missileArmed) { this.r.aimVisible = true; this.g.drop(); this.held = { t0: performance.now() }; }
+          if (!e.repeat && !this.g.armed) { this.r.aimVisible = true; this.g.drop(); this.held = { t0: performance.now() }; }
         }
       });
       root.addEventListener('keyup', e => {
@@ -128,7 +128,7 @@
       if (!this._playable()) return;
       const d = (this.keys.right ? 1 : 0) - (this.keys.left ? 1 : 0);
       if (d) this.g.setAim(this.g.aimX + d * this.C.input.keyAimSpeed * dt);
-      if (this.g.missileArmed) return;
+      if (this.g.armed) return;
       const now = performance.now(), wait = this.C.input.holdRepeatMs;
       if (this.held && now - this.held.t0 >= wait) this.g.drop();
       const t = this.touch;

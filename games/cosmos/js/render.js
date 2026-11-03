@@ -114,6 +114,7 @@
       this.rings = [];           // 広がる光の輪：{ x, y, r0, r1, t0, dur, color }
       this._lastDraw = performance.now() / 1000;
       const EVN = { flare: 'SOLAR FLARE', comet: 'COMET', meteor: 'METEOR SHOWER', storm: 'GRAVITY STORM', wormhole: 'WORMHOLE' };
+      const ITEMN = { missile: 'MISSILE', shock: 'SHOCKWAVE', evolve: 'EVOLUTION' };
       game.on('eventWarn', e => {
         this.banner = { main: EVN[e.type], subKey: 'ev_' + e.type, t0: performance.now() / 1000, dur: C.events.warnSec + 1.3, event: true };
       });
@@ -161,11 +162,30 @@
           this.parts.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 140, t0: now, dur: 1.4 + Math.random() * 0.6, size: 10 + Math.random() * 16, rock: true, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 10 });
         }
       });
-      // ミサイル（easy）：選んでいる間は案内の文字。壊したら爆発
-      game.on('missileArm', on => {
+      // ミサイル・天体進化：選んでいる間は案内の文字。ミサイルは壊したら爆発
+      game.on('arm', type => {
         const now = performance.now() / 1000;
-        if (on) this.banner = { main: 'MISSILE', subKey: 'missileHint', t0: now, dur: 9999, missile: true };
-        else if (this.banner && this.banner.missile) this.banner.dur = Math.min(this.banner.dur, now - this.banner.t0 + 0.3);
+        if (type) this.banner = { main: type === 'missile' ? 'MISSILE' : 'EVOLUTION', subKey: type + 'Hint', t0: now, dur: 9999, armed: true };
+        else if (this.banner && this.banner.armed) this.banner.dur = Math.min(this.banner.dur, now - this.banner.t0 + 0.3);
+      });
+      // アイテムをもらった：短く知らせる（イベントの予告や、選んでいる間の案内は消さない）
+      game.on('item', e => {
+        const bn = this.banner;
+        if (bn && (bn.event || bn.armed || bn.dur > 5)) return;
+        this.banner = { main: ITEMN[e.type] + ' +1', subKey: 'itemGet_' + e.type, t0: performance.now() / 1000, dur: 1.8 };
+      });
+      // 天体進化：大きくなった天体のまわりに緑の光の輪と火花
+      game.on('evolve', e => {
+        const now = performance.now() / 1000;
+        this.rings.push({ x: e.x, y: e.y, r0: e.r * 1.3, r1: 6, t0: now, dur: 0.35, color: '220,252,231', fill: true });
+        this.rings.push({ x: e.x, y: e.y, r0: e.r * 0.6, r1: e.r * 2.4, t0: now, dur: 0.6, color: '74,222,128' });
+        this.rings.push({ x: e.x, y: e.y, r0: e.r * 0.6, r1: e.r * 1.8, t0: now + 0.12, dur: 0.55, color: '253,224,71' });
+        this._sparks(e.x, e.y, 36, '134,239,172', 420);
+      });
+      game.on('shock', () => { this.shake = Math.max(this.shake, 16); });
+      // 線越えの直前に残りのミサイルで自動で撃った
+      game.on('autoDefense', () => {
+        this.banner = { main: 'AUTO DEFENSE', subKey: 'autoDefense', t0: performance.now() / 1000, dur: 2.2, event: true };
       });
       game.on('missile', e => {
         const now = performance.now() / 1000, X = C.missile;
@@ -389,7 +409,7 @@
       if (g.bh) this._drawBH(ctx, g.bh, now);
 
       // 照準
-      if (g.controllable && this.aimVisible && !g.missileArmed) {
+      if (g.controllable && this.aimVisible && !g.armed) {
         const stg = g.nextStage, r = g.radius(stg), x = g.clampX(g.aimX, stg);
         ctx.save();
         ctx.strokeStyle = 'rgba(229,229,229,0.28)';
@@ -437,9 +457,10 @@
         drawBody(ctx, this.sprites, C, b.plugin.cosmos.stage, b.position.x, b.position.y, b.circleRadius, b.angle, null, b.plugin.cosmos);
       }
 
-      // 飛んでいるミサイル：先端を狙った天体へ向けて描く
-      if (g.shot) {
-        const s = g.shot, sp = this.sprites.missile_fly, dir = Math.atan2(s.ty - s.y, s.tx - s.x);
+      // 飛んでいるミサイル：先端を狙った天体へ向けて描く（自動で撃つときは何発か続けて飛ぶ）
+      for (const s of g.shots) {
+        if (s.t < 0) continue;
+        const sp = this.sprites.missile_fly, dir = Math.atan2(s.ty - s.y, s.tx - s.x);
         ctx.save();
         ctx.translate(s.x, s.y);
         if (sp) {
@@ -452,15 +473,20 @@
         ctx.restore();
       }
 
-      // ミサイルを選んでいる間：どの天体も赤い点線の輪で囲み、マウスの下の天体は照準の印で示す
-      if (g.missileArmed) {
-        const hot = this.pointer && g.bodyAt(this.pointer.x, this.pointer.y, 12);
+      // ショックウェーブ：衝撃波の絵を、いちばん広い輪を波の先にして、下から上へ半透明で流す
+      if (g.shock) this._drawShock(ctx, g.shock);
+
+      // ミサイル・天体進化を選んでいる間：選べる天体を点線の輪（ミサイルは赤・進化は緑）で囲み、マウスの下の天体は照準の印で示す
+      if (g.armed) {
+        const ok = g.armed === 'missile' ? g._missileOk : g._evolveOk, rgb = g.armed === 'missile' ? '248,113,113' : '74,222,128';
+        const hot = this.pointer && g.bodyAt(this.pointer.x, this.pointer.y, 12, ok);
         ctx.save();
         for (const b of g.bodies()) {
+          if (!ok.call(g, b)) continue;
           const on = b === hot, r = b.circleRadius + (on ? 6 : 3);
           ctx.setLineDash(on ? [] : [6, 6]);
           ctx.lineWidth = on ? 3 : 1.5;
-          ctx.strokeStyle = on ? 'rgba(248,113,113,0.95)' : 'rgba(248,113,113,' + (0.35 + 0.2 * Math.sin(now * 6)).toFixed(3) + ')';
+          ctx.strokeStyle = on ? 'rgba(' + rgb + ',0.95)' : 'rgba(' + rgb + ',' + (0.35 + 0.2 * Math.sin(now * 6)).toFixed(3) + ')';
           ctx.beginPath(); ctx.arc(b.position.x, b.position.y, r, 0, Math.PI * 2); ctx.stroke();
           if (on) {   // 十字
             ctx.beginPath();
@@ -598,6 +624,20 @@
           ctx.restore();
         }
       }
+    }
+
+    // 波の先（いちばん広い輪）は、下から上へ抜けたあとも同じ速さで進み、上ほど大きくなって盤面の上へ突き抜ける
+    _drawShock(ctx, s) {
+      const C = this.C, B = C.board, K = C.shock, sp = this.sprites.shockwave_wave;
+      const k = s.t / K.riseSec, top = B.height - (B.height + 120) * k;   // k＝1 で波の先が盤面の上の端を越える
+      const fade = k <= 1 ? 1 : Math.max(0, 1 - (s.t - K.riseSec) / K.fadeSec);
+      const w = B.width * (K.scale[0] + (K.scale[1] - K.scale[0]) * Math.min(1.5, k)), h = sp ? w * sp.img.height / sp.img.width : w;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = K.alpha * fade;
+      if (sp) ctx.drawImage(sp.img, (B.width - w) / 2, top - h * 0.08, w, h);
+      else { ctx.fillStyle = 'rgba(96,165,250,0.5)'; ctx.fillRect(0, s.y, B.width, 40); }
+      ctx.restore();
     }
 
     // 落とし方の案内。触る画面（hover できない）は「タップ」、マウスは「クリック」

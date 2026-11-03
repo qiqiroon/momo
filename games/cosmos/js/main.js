@@ -291,10 +291,16 @@
     }
     document.querySelectorAll('#diffRow .diff').forEach(b => b.addEventListener('click', () => { SET.difficulty = b.dataset.diff; saveSet(); syncDiff(); refreshTitle(); }));
     syncDiff();
-    // ミサイル（easy）：押すと選ぶ・もう一度押すとやめる。選んだあと天体を押すと壊す（input.js）
+    // アイテム（2026-11-03）。ミサイル・天体進化は押すと選ぶ・もう一度押すとやめる。選んだあと天体を押すと使う（input.js）
+    // ショックウェーブは押すとすぐ撃つ
     $('missileBtn').onclick = () => game.armMissile();
+    $('evolveBtn').onclick = () => game.armEvolve();
+    $('shockBtn').onclick = () => game.fireShock();
     game.on('missileFire', () => sound.se('drop', { rate: 0.7 }));                 // 撃った：風を切る音を低めに
     game.on('missile', () => sound.se('bigbang', { vol: 0.45, rate: 1.5 }));    // 当たった：爆発を短く高めに
+    game.on('shock', () => { sound.se('bigbang', { vol: 0.6, rate: 0.6 }); sound.rumble(); });   // 衝撃波：爆発を低く長めに＋地響き
+    game.on('evolve', e => sound.se('merge', { rate: Math.pow(2, (7 - e.stage) / 9) }));      // 進化：合体と同じ音
+    game.on('item', () => sound.se('bhTier', { vol: 0.6 }));                                  // アイテムをもらった
     $('debugChk').addEventListener('change', e => { SET.debugPanel = e.target.checked; saveSet(); syncSetUI(); });
     $('debugRow').hidden = !DEBUG;
 
@@ -453,14 +459,17 @@
         if (bh) { $('bhFill').style.width = (gw * 100).toFixed(1) + '%'; $('bhFood').style.width = (fw * 100).toFixed(1) + '%'; }
       }
       if (force || last.tier !== tier) { if (bh) $('bhTier').textContent = endingEnglish() ? L.en('bhTier' + tier) : L.t('bhTier' + tier); }
-      // ミサイルのボタン：ミサイルのある難易度の、通常期（一時停止・ゲームオーバーを含む）だけ出す
-      const ms = C.difficulties[game.difficulty].missiles > 0 && ['PLAY', 'PAUSE', 'GAMEOVER'].includes(game.state);
-      const mk = ms + '/' + game.missiles + '/' + game.missileArmed + '/' + game.canMissile;
+      // アイテムのボタン：通常期（一時停止・ゲームオーバーを含む）だけ出す。数が0・使えないときは押せない
+      const ms = ['PLAY', 'PAUSE', 'GAMEOVER'].includes(game.state), it = game.items;
+      const mk = ms + '/' + it.missile + '/' + it.shock + '/' + it.evolve + '/' + game.armed + '/' + game.canMissile + '/' + game.canShock + '/' + game.canEvolve;
       if (force || last.mk !== mk) {
-        $('missileBtn').hidden = !ms;
-        $('missileN').textContent = game.missiles;
-        $('missileBtn').disabled = !game.canMissile && !game.missileArmed;
-        $('missileBtn').classList.toggle('armed', game.missileArmed);
+        [['missile', game.canMissile], ['shock', game.canShock], ['evolve', game.canEvolve]].forEach(([k, can]) => {
+          const btn = $(k + 'Btn'), on = game.armed === k;
+          btn.hidden = !ms;
+          $(k + 'N').textContent = it[k];
+          btn.disabled = !can && !on;
+          btn.classList.toggle('armed', on);
+        });
       }
       last = { s, h, n, nn, gw, fw, tier, mk };
     }
@@ -569,6 +578,9 @@
     $('dbgToBH').onclick = () => game.debugToBH();
     $('dbgGrow').onclick = () => game.debugGrow(100);
     $('dbgToEnd').onclick = () => game.debugToEnding();
+    $('dbgMissile').onclick = () => game.debugItem('missile');
+    $('dbgShock').onclick = () => game.debugItem('shock');
+    $('dbgEvolve').onclick = () => game.debugItem('evolve');
     // 特殊イベントを起こす（確率と間隔は見ない。条件を満たさないときは何も起きない）
     const evRow = $('dbgEvents');
     [['flare', 'フレア'], ['comet', '彗星'], ['meteor', '流星群'], ['storm', '重力嵐'], ['wormhole', 'ワーム'], ['collision', '衝突']].forEach(([type, label]) => {
@@ -583,7 +595,7 @@
     $('dbgInfo').textContent =
       'fps ' + fps.toFixed(0) + ' / bodies ' + game.bodies().length + ' / t ' + game.time.toFixed(0) + 's / drops ' + game.dropCount +
       ' / max ' + game.maxStage + ' / range ' + lo + '-' + hi + ' / over ' + game.overTime.toFixed(1) + 's' +
-      ' / ' + game.state + ' / ' + game.difficulty + (game.missiles ? ' 🚀' + game.missiles : '') + ' / ev ' + (game.ev.cur ? game.ev.cur.type : game.ev.warn ? '予告 ' + game.ev.warn.type : game.ev.timer.toFixed(0) + '/' + (game.ev.wait == null ? '-' : game.ev.wait.toFixed(0)) + 's') + (game.ev.calm ? ' / 猶予中' : '') + (game.bh ? ' / growth ' + game.bh.growth.toFixed(0) + ' r ' + game.bh.r.toFixed(0) : '');
+      ' / ' + game.state + ' / ' + game.difficulty + ' / 🚀' + game.items.missile + ' 🌊' + game.items.shock + ' ⬆' + game.items.evolve + ' (' + game.itemsGiven + '個目まで)' + ' / ev ' + (game.ev.cur ? game.ev.cur.type : game.ev.warn ? '予告 ' + game.ev.warn.type : game.ev.timer.toFixed(0) + '/' + (game.ev.wait == null ? '-' : game.ev.wait.toFixed(0)) + 's') + (game.ev.calm ? ' / 猶予中' : '') + (game.bh ? ' / growth ' + game.bh.growth.toFixed(0) + ' r ' + game.bh.r.toFixed(0) : '');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

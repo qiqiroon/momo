@@ -11,6 +11,8 @@
 
   const BGM_BASE = '../../assets/bgm/';
   const FADE_SEC = 0.8;
+  // 曲や目録が読めなかったとき（電波が一瞬途切れた・サーバーが止まった など）、RETRY_SEC 秒おきに RETRY_MAX 回まで読み直す（2026-11-03 作者の回答）
+  const RETRY_SEC = 3, RETRY_MAX = 10;
   // 0.05 秒の無音（WAV）。曲の入れ物を、押した瞬間に一度鳴らしておくためのもの
   const SILENT = (() => {
     const n = 400, b = new Uint8Array(44 + n), v = new DataView(b.buffer), s = (o, t) => [...t].forEach((c, i) => { b[o + i] = c.charCodeAt(0); });
@@ -41,11 +43,17 @@
       this._loadPool();
     }
 
-    async _loadPool() {
+    async _loadPool(tries) {
+      tries = tries || 0;
       try {
         const r = await fetch(BGM_BASE + 'manifest.json', { cache: 'no-cache' });
+        if (!r.ok) throw new Error(r.status);
         this.pool = await r.json();
-      } catch (e) { console.warn('[cosmos] BGM の目録を読めません', e); this.pool = {}; }
+      } catch (e) {
+        console.warn('[cosmos] BGM の目録を読めません（' + (tries + 1) + '回目）', e);
+        if (tries + 1 < RETRY_MAX) { setTimeout(() => this._loadPool(tries + 1), RETRY_SEC * 1000); return; }
+        this.pool = {};
+      }
       if (this.ac && this.folder) this._play(this.folder);
     }
 
@@ -231,6 +239,20 @@
       const track = { el, gain: g, folder, file, deck };
       deck.track = track;
       el.onended = () => { if (this.cur === track) { this.loops++; this._play(this.folder); } };   // 曲が終わったら同じフォルダの別の曲へ
+      // 読めなかったら、この曲がまだ今の曲である間だけ、少し待って同じ曲を読み直す（前は次に曲が替わるまで無音のままだった）
+      track.tries = 0;
+      el.onerror = () => {
+        if (this.cur !== track) return;
+        if (track.tries >= RETRY_MAX) { console.warn('[cosmos] BGM を読めません。読み直しをやめます', file); return; }
+        track.tries++;
+        console.warn('[cosmos] BGM を読めません。' + RETRY_SEC + '秒後に読み直します（' + track.tries + '回目）', file);
+        setTimeout(() => {
+          if (this.cur !== track) return;
+          el.src = BGM_BASE + folder + '/' + file;
+          el.load();
+          if (this.ac.state === 'running') el.play().catch(() => {});   // 裏に回っている間は読むだけ（戻ったら resume で鳴らす）
+        }, RETRY_SEC * 1000);
+      };
       el.src = BGM_BASE + folder + '/' + file;
       el.play().catch(e => console.warn('[cosmos] BGM を再生できません', e));
       this.cur = track;

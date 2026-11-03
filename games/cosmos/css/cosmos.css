@@ -218,21 +218,27 @@ body.at-title #app { visibility: hidden; }
 .diff[aria-checked="true"] { color: #fff; border-color: var(--orange-mid); background: rgba(234,88,12,.28); }
 .diff[data-diff="apocalypse"][aria-checked="true"] { border-color: #ef4444; background: rgba(185,28,28,.35); }
 .diff-note { margin: 8px 0 0; min-height: 1.8em; font-size: 12px; line-height: 1.6; color: #b5b5b5; text-align: center; }
-/* ミサイル（easy） */
-#pauseBar { gap: 10px; }
-.btn.icon.missile-btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: 76px; letter-spacing: 0; color: #fca5a5; }
-.missile-btn img { width: 40px; height: auto; transform: rotate(-35deg); }
-.missile-btn span { font-family: var(--font-title); font-size: 16px; }
+/* アイテム（ミサイル・ショックウェーブ・天体進化。2026-11-03） */
+#pauseBar { gap: 8px; flex-wrap: wrap; }
+.btn.icon.item-btn { position: relative; overflow: visible; display: inline-flex; align-items: center; justify-content: center; gap: 3px; width: 72px; padding: 0 4px; letter-spacing: 0; }
+.item-btn img { width: 36px; height: 36px; object-fit: contain; }
+.item-btn span { font-family: var(--font-title); font-size: 16px; }
+.item-btn:disabled { opacity: .35; cursor: default; }
+.item-btn[hidden] { display: none; }
+.btn.icon.missile-btn { color: #fca5a5; }
+.missile-btn img { transform: rotate(-35deg); }
+.btn.icon.shock-btn { color: #93c5fd; }
+.btn.icon.evolve-btn { color: #86efac; }
 .btn.icon.missile-btn.armed { background: #b91c1c; border-color: #ef4444; color: #fff; }
-.missile-btn:disabled { opacity: .35; cursor: default; }
-.missile-btn[hidden] { display: none; }
-.btn.icon.missile-btn { position: relative; overflow: visible; }
-.missile-btn .missile-tip { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); display: none; flex-direction: column; align-items: center; gap: 1px;
+.btn.icon.evolve-btn.armed { background: #15803d; border-color: #4ade80; color: #fff; }
+.item-btn .missile-tip { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); display: none; flex-direction: column; align-items: center; gap: 1px;
   padding: 4px 10px; white-space: nowrap; pointer-events: none; z-index: 5;
   background: rgba(127,29,29,.92); border: 1px solid #ef4444; border-radius: 8px; color: #fff; font-family: var(--font-body); line-height: 1.35; }
-.missile-btn.armed .missile-tip { display: flex; }
+.evolve-btn .missile-tip { background: rgba(20,83,45,.92); border-color: #4ade80; }
+.item-btn.armed .missile-tip { display: flex; }
 .missile-tip b { font-size: 13px; font-weight: 700; }
 .missile-tip i { font-size: 11px; font-style: normal; color: #fecaca; }
+.evolve-btn .missile-tip i { color: #bbf7d0; }
 .home-meta { margin: 12px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
 .home-meta b { color: var(--text); font-family: var(--font-title); font-weight: normal; font-size: 16px; }
 

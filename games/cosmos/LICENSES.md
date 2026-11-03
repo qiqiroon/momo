@@ -39,6 +39,7 @@ Image Direction & Selection: MOMO Works
 AI-generated images were created with assistance from OpenAI's ChatGPT Images and selected for use in this game.
 
 ミサイル（`missile.webp`・`missile_fly.webp`）と爆発（`explosion.webp`）は、作者が ChatGPT Images で作った絵（作業側 `pic\`）を `tools\crop_missile.py` で切り出して透明にしたもの（2026-10-31）。
+ショックウェーブのボタン（`shockwave.webp`）と衝撃波（`shockwave_wave.webp`）は、作者が ChatGPT Images で作った絵（作業側 `pic\未来砲台と青い衝撃波リング.png`）を `tools\make_shock_evolve.py` で切り出したもの。天体進化のボタン（`evolve.webp`）は、同じスクリプトで火星・海王星の絵に矢印と「1UP」を重ねて作ったもの（2026-11-03）。
 
 ## フォント
 Fredoka One / M PLUS Rounded 1c / Noto Sans JP / Noto Sans SC — SIL Open Font License 1.1（Google Fonts から読み込む）

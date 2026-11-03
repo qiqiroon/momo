@@ -32,9 +32,12 @@
       const M = this.M, C = this.C, P = C.physics, B = C.board;
       const D = C.difficulties[this.difficulty] || C.difficulties.apocalypse;
       this.sizeMul = D.sizeMul;      // 天体の半径の倍率（ブラックホールは変えない）
-      this.missiles = D.missiles;    // 残りのミサイル
-      this.missileArmed = false;     // ミサイルを選んで、壊す天体を待っている
-      this.shot = null;              // 飛んでいるミサイル：{ body, t, dur, x0, y0, x, y }
+      this.itemEvery = D.itemEvery;  // この点数ごとにアイテムを1つもらう
+      this.items = { missile: 0, shock: 0, evolve: 0 };   // 持っているアイテムの数（最初はどれも0）
+      this.itemsGiven = 0;           // これまでにもらったアイテムの数（itemCycle の何番目まで来たか）
+      this.armed = null;             // 選んで、相手の天体を待っているアイテム：'missile'（壊す）・'evolve'（1段上げる）
+      this.shots = [];               // 飛んでいるミサイル：{ body, t, dur, x0, y0, x, y }。t が負の間は待っている
+      this.shock = null;             // 上へ抜けていく衝撃波：{ t, y, hit }（y＝波の先の高さ）
       this.engine = M.Engine.create({
         enableSleeping: false,
         positionIterations: P.positionIterations,
@@ -46,8 +49,9 @@
       const opt = { isStatic: true, friction: P.friction, frictionStatic: P.frictionStatic, restitution: P.restitution, label: 'wall',
         collisionFilter: { category: 0x0002, mask: 0xFFFFFFFF, group: 0 } };
       M.Composite.add(this.engine.world, [
-        M.Bodies.rectangle(-t / 2, H / 2 - H, t, H * 3, opt),          // 左（上に高く伸ばす）
-        M.Bodies.rectangle(W + t / 2, H / 2 - H, t, H * 3, opt),       // 右
+        // 左右の壁は上に高く伸ばす（ショックウェーブで盤面の上へ大きく飛び出した天体が、壁を越えて外へ出ないように。上の端は -7H）
+        M.Bodies.rectangle(-t / 2, -3 * H, t, H * 8, opt),             // 左
+        M.Bodies.rectangle(W + t / 2, -3 * H, t, H * 8, opt),          // 右
         M.Bodies.rectangle(W / 2, H + t / 2, W + t * 2, t, Object.assign({}, opt, { label: 'floor' })) // 床
       ]);
       this._pairs = [];
@@ -91,7 +95,7 @@
 
     _setState(st) {
       this.state = st;
-      if (this.missileArmed && st !== 'PLAY' && st !== 'PAUSE') { this.missileArmed = false; this.emit('missileArm', false); }
+      if (this.armed && st !== 'PLAY' && st !== 'PAUSE') this._disarm();
       this.emit('state', st);
     }
     start() { this._newGame(); this._setState('PLAY'); }
@@ -225,7 +229,9 @@
       if (this.state === 'PLAY' || this.state === 'BH') this._updateEvents(step);
       else if (this.ev.cur || this.ev.warn || this.ev.timer) this._stopEvents();
       if (this.bh) this._updateBH(step);
-      if (this.shot) this._updateShot(step);
+      if (this.shots.length) this._updateShots(step);
+      if (this.shock) this._updateShock(step);
+      this._giveItems();
       if (this.state === 'FINAL_ABSORB') this._updateFinal(step);
     }
 
@@ -592,6 +598,7 @@
     _calming(step) {
       const cl = this.ev.calm, K = this.C.events.calm, cur = this.ev.cur, warn = this.ev.warn;
       if (warn) return true;   // 予告中も数えない（予告したイベントが起こる前にゲームオーバーにしない）
+      if (this.shock) return true;   // ショックウェーブが抜けている間も数えない
       if (!cl) return false;
       if (cur && K.types.includes(cur.type)) return true;
       if (this.ev.slow > 0) return true;
@@ -820,19 +827,24 @@
         if (this.warning) { this.warning = false; this.emit('warning', false); }
         return;
       }
-      let over = false;
-      for (const b of this.bodies()) {
-        const c = b.plugin.cosmos;
-        if (c.dropped && this.time - c.born < G.settleAgeSec) continue; // 落下中
-        if (b.position.y - b.circleRadius < line) { over = true; break; }
-      }
-      this.overTime = over ? this.overTime + step : 0;
+      const over = this._overLine();
+      this.overTime = over.length ? this.overTime + step : 0;
       const warn = this.overTime >= G.warnSec;
       if (warn !== this.warning) { this.warning = warn; this.emit('warning', warn); }
+      if (this.overTime >= G.overSec && this.items.missile > 0) {
+        // ゲームオーバーの直前にミサイルが残っていたら、線を越えた天体を上から順に、越えている数だけ自動で撃つ（2026-11-03 作者の指示）
+        const targets = over.filter(b => !b.plugin.cosmos.targeted).slice(0, this.items.missile);
+        if (this.armed === 'missile') this._disarm();
+        targets.forEach((b, i) => this._launch(b, i * this.C.missile.autoGapSec));
+        this.overTime = 0;
+        if (this.warning) { this.warning = false; this.emit('warning', false); }
+        this.emit('autoDefense', { n: targets.length, left: this.items.missile });
+        return;
+      }
       if (this.overTime >= G.overSec) {
         this.state = 'GAMEOVER';
         this.warning = false;
-        if (this.missileArmed) { this.missileArmed = false; this.emit('missileArm', false); }
+        if (this.armed) this._disarm();
         this._stopEvents();
         this._finishScore();
         this.emit('gameOver', { score: this.score, high: this.highScore, maxStage: this.maxStage, newRecord: this.newRecord });
@@ -840,62 +852,158 @@
       }
     }
 
+    /** 線を越えている天体（落としたばかりのものは除く）。上に出ている順（天体の上の端が高い順） */
+    _overLine() {
+      const G = this.C.gameOver, line = this.C.board.deadlineY;
+      return this.bodies().filter(b => {
+        const c = b.plugin.cosmos;
+        if (c.dropped && this.time - c.born < G.settleAgeSec) return false;   // 落下中
+        return b.position.y - b.circleRadius < line;
+      }).sort((p, q) => (p.position.y - p.circleRadius) - (q.position.y - q.circleRadius));
+    }
+
     _finishScore() {
       if (this.score > this.highScore) { this.highScore = this.score; this.newRecord = true; this.emit('highScore', this.highScore); }
     }
 
-    // ---- ミサイル（easy だけ。2026-10-31 作者の指示） ------------------------
-    // ミサイルを選んでから天体を選ぶと、その天体を1つ壊す。1回のゲームで missiles 発まで。通常期だけ使える
-    // 壊せる天体が1つもないときは選べない（選ぶと落とせなくなり、行き詰まったと思われた。2026-11-01 作者の指示）
-    get canMissile() { return this.state === 'PLAY' && this.missiles > 0 && !this.shot && this.bodies().some(b => !b.plugin.cosmos.pending); }
+    // ---- アイテム（2026-11-03 作者の指示。前は easy だけミサイル3発） ----------------
+    // 最初はどれも0。点数が itemEvery を超えるたびに itemCycle の順で1つずつもらう。通常期だけ使える
+    get missiles() { return this.items.missile; }
+    set missiles(v) { this.items.missile = v; }
+    get missileArmed() { return this.armed === 'missile'; }
+    get evolveArmed() { return this.armed === 'evolve'; }
+    /** 後方互換：最初に飛んでいるミサイル */
+    get shot() { return this.shots[0] || null; }
 
-    /** ミサイルを選ぶ／やめる（on を省くと切り替え） */
-    armMissile(on) {
-      const v = on == null ? !this.missileArmed : !!on;
-      if (v && !this.canMissile) return false;
-      if (v !== this.missileArmed) { this.missileArmed = v; this.emit('missileArm', v); }
-      return true;
+    _giveItems() {
+      if (!this.itemEvery) return;
+      const cyc = this.C.itemCycle;
+      while (this.itemsGiven < Math.floor(this.score / this.itemEvery)) {
+        const type = cyc[this.itemsGiven % cyc.length];
+        this.itemsGiven++;
+        this.items[type]++;
+        this.emit('item', { type, n: this.items[type] });
+      }
     }
 
-    /** (x, y) の天体（盤面の座標）。少し外れていても近ければ選ぶ */
-    bodyAt(x, y, slack) {
+    // 壊せる・進化させられる天体が1つもないときは選べない（選ぶと落とせなくなり、行き詰まったと思われた。2026-11-01 作者の指示）
+    _missileOk(b) { const c = b.plugin.cosmos; return !c.pending && !c.targeted; }
+    _evolveOk(b) { const c = b.plugin.cosmos; return !c.pending && !c.targeted && c.stage < this.C.maxMergeStage; }   // 中性子星はブラックホールにできない
+    get canMissile() { return this.state === 'PLAY' && this.items.missile > 0 && !this.shots.length && this.bodies().some(b => this._missileOk(b)); }
+    get canEvolve() { return this.state === 'PLAY' && this.items.evolve > 0 && this.bodies().some(b => this._evolveOk(b)); }
+    get canShock() { return this.state === 'PLAY' && this.items.shock > 0 && !this.shock && this.bodies().length > 0; }
+
+    _disarm() { const t = this.armed; this.armed = null; this.emit('arm', null); if (t === 'missile') this.emit('missileArm', false); }
+
+    /** アイテムを選ぶ／やめる（on を省くと切り替え）。type は 'missile' か 'evolve' */
+    arm(type, on) {
+      const v = on == null ? this.armed !== type : !!on;
+      if (v && !(type === 'missile' ? this.canMissile : this.canEvolve)) return false;
+      if (!v) { if (this.armed === type) this._disarm(); return true; }
+      if (this.armed && this.armed !== type) this._disarm();
+      if (this.armed !== type) { this.armed = type; this.emit('arm', type); if (type === 'missile') this.emit('missileArm', true); }
+      return true;
+    }
+    armMissile(on) { return this.arm('missile', on); }
+    armEvolve(on) { return this.arm('evolve', on); }
+
+    /** 選んだアイテムを (x, y) の天体に使う。天体がなければ何もしない（選んだまま） */
+    useArmed(x, y) { return this.armed === 'missile' ? this.fireMissile(x, y) : this.armed === 'evolve' ? this.evolveAt(x, y) : false; }
+
+    /** (x, y) の天体（盤面の座標）。少し外れていても近ければ選ぶ。ok で選べる天体を絞る */
+    bodyAt(x, y, slack, ok) {
       let best = null, bd = Infinity;
       for (const b of this.bodies()) {
-        if (b.plugin.cosmos.pending) continue;
+        if (b.plugin.cosmos.pending || (ok && !ok.call(this, b))) continue;
         const d = Math.hypot(b.position.x - x, b.position.y - y) - b.circleRadius;
         if (d < (slack || 0) && d < bd) { best = b; bd = d; }
       }
       return best;
     }
 
-    /** 選んだミサイルを (x, y) の天体へ撃つ。天体がなければ何もしない（選んだまま）。
-     *  ミサイルは盤面の上の真ん中から flySec 秒で飛び込み（天体は下に積もっているので、下からだと見えないうちに当たる）、当たったら天体を壊す（その間、狙った天体は合体しない） */
+    /** 選んだミサイルを (x, y) の天体へ撃つ */
     fireMissile(x, y) {
-      if (!this.missileArmed || !this.canMissile || this.shot) return false;
-      const b = this.bodyAt(x, y, 12);
+      if (!this.missileArmed || !this.canMissile) return false;
+      const b = this.bodyAt(x, y, 12, this._missileOk);
       if (!b) return false;
-      const B = this.C.board;
-      b.plugin.cosmos.targeted = true;
-      this.missiles--;
-      this.missileArmed = false;
-      this.emit('missileArm', false);
-      this.shot = { body: b, t: 0, dur: this.C.missile.flySec, x0: B.width / 2, y0: -60, x: B.width / 2, y: -60, tx: b.position.x, ty: b.position.y };
-      this.emit('missileFire', { left: this.missiles });
+      this._disarm();
+      this._launch(b, 0);
       return true;
     }
 
+    /** ミサイルを1発撃つ。盤面の上の真ん中から flySec 秒で飛び込み（天体は下に積もっているので、下からだと見えないうちに当たる）、
+     *  当たったら天体を壊す（その間、狙った天体は合体しない）。delay 秒待ってから飛ぶ */
+    _launch(b, delay) {
+      const B = this.C.board;
+      b.plugin.cosmos.targeted = true;
+      this.items.missile--;
+      this.shots.push({ body: b, t: -delay, dur: this.C.missile.flySec, x0: B.width / 2, y0: -60, x: B.width / 2, y: -60, tx: b.position.x, ty: b.position.y, fired: false });
+      if (!delay) { this.shots[this.shots.length - 1].fired = true; this.emit('missileFire', { left: this.items.missile }); }
+    }
+
     // 飛んでいるミサイル：狙った天体の今の位置へ近づけ、着いたら壊す
-    _updateShot(step) {
-      const s = this.shot, b = s.body;
+    _updateShots(step) {
+      for (const s of this.shots.slice()) {
+        const b = s.body;
+        s.t += step;
+        if (s.t < 0) continue;
+        if (!s.fired) { s.fired = true; this.emit('missileFire', { left: this.items.missile }); }
+        const k = Math.min(1, s.t / s.dur), e = k * k;   // だんだん速く
+        s.tx = b.position.x; s.ty = b.position.y;
+        s.x = s.x0 + (s.tx - s.x0) * e; s.y = s.y0 + (s.ty - s.y0) * e;
+        if (k < 1) continue;
+        this.shots.splice(this.shots.indexOf(s), 1);
+        const alive = this.bodies().includes(b);
+        if (alive) this.M.Composite.remove(this.engine.world, b);
+        this.emit('missile', { x: s.tx, y: s.ty, r: b.circleRadius, stage: b.plugin.cosmos.stage, hit: alive, left: this.items.missile });
+      }
+    }
+
+    /** 天体進化：選んだ天体を1段だけ大きくする（中性子星は選べない。点数は入らない） */
+    evolveAt(x, y) {
+      if (!this.evolveArmed || !this.canEvolve) return false;
+      const b = this.bodyAt(x, y, 12, this._evolveOk);
+      if (!b) return false;
+      const c = b.plugin.cosmos, ns = c.stage + 1;
+      this._disarm();
+      this.items.evolve--;
+      const M = this.M, nb = this._addBody(ns, b.position.x, b.position.y);
+      nb.plugin.cosmos.born = c.born;
+      M.Composite.remove(this.engine.world, b);
+      M.Body.setVelocity(nb, b.velocity);
+      M.Body.setAngle(nb, b.angle);
+      M.Body.setAngularVelocity(nb, b.angularVelocity);
+      this._noteStage(ns);
+      this.emit('evolve', { x: b.position.x, y: b.position.y, r: nb.circleRadius, stage: ns, left: this.items.evolve });
+      return true;
+    }
+
+    /** ショックウェーブ：盤面の下から衝撃波を上へ送る。通った所の天体を上へ吹き飛ばし、落ちてくると並び順が入れ替わる */
+    fireShock() {
+      if (!this.canShock) return false;
+      if (this.armed) this._disarm();
+      this.items.shock--;
+      this.shock = { t: 0, y: this.C.board.height, hit: new Set() };
+      this._startCalm();   // 吹き飛んで線を越えても、落ち着くまではゲームオーバーにしない
+      this.emit('shock', { left: this.items.shock });
+      return true;
+    }
+
+    _updateShock(step) {
+      const K = this.C.shock, B = this.C.board, s = this.shock, M = this.M;
       s.t += step;
-      const k = Math.min(1, s.t / s.dur), e = k * k;   // だんだん速く
-      s.tx = b.position.x; s.ty = b.position.y;
-      s.x = s.x0 + (s.tx - s.x0) * e; s.y = s.y0 + (s.ty - s.y0) * e;
-      if (k < 1) return;
-      this.shot = null;
-      const alive = this.bodies().includes(b);
-      if (alive) this.M.Composite.remove(this.engine.world, b);
-      this.emit('missile', { x: s.tx, y: s.ty, r: b.circleRadius, stage: b.plugin.cosmos.stage, hit: alive, left: this.missiles });
+      s.y = B.height - (B.height + 120) * Math.min(1, s.t / K.riseSec);
+      // 重力の加速（px/step²）。空気の抵抗とぶつかり合いで届かない分を 1.4 倍で補う
+      const g = this.engine.gravity.scale * this.engine.gravity.y * this.C.physics.stepMs * this.C.physics.stepMs * 1.4;
+      for (const b of this.bodies()) {
+        if (s.hit.has(b.id) || b.plugin.cosmos.pending || s.y > b.position.y + b.circleRadius) continue;
+        s.hit.add(b.id);
+        // 上がる高さをばらつかせる：いちばん上（topY）から、今の高さへ mix の割合まで。下の天体ほど幅が大きい
+        const top = K.topY + b.circleRadius, h = Math.max(0, b.position.y - top) * (1 - this.random() * K.mix);
+        M.Body.setVelocity(b, { x: (this.random() - 0.5) * 2 * K.vx * K.power, y: -Math.sqrt(2 * g * h) * K.power });
+        M.Body.setAngularVelocity(b, (this.random() - 0.5) * 0.3);
+      }
+      if (s.t >= K.riseSec + K.fadeSec) this.shock = null;
     }
 
     // ---- デバッグ（第9.4節） ----------------------------------------------
@@ -946,6 +1054,9 @@
 
     /** 成長値を足す（デバッグ） */
     debugGrow(v) { if (this.bh && this.state === 'BH') this._grow(v); }
+
+    /** アイテムを1つ足す（デバッグ） */
+    debugItem(type) { this.items[type]++; this.emit('item', { type, n: this.items[type] }); }
 
     /** 超巨大まで一気に育てる（エンディングの確認用） */
     debugToEnding() {

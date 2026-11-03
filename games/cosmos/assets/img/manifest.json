@@ -269,5 +269,29 @@
   "file": "assets/img/explosion.webp",
   "width": 512,
   "height": 341
+ },
+ "shockwave": {
+  "type": "ui",
+  "source": "pic/未来砲台と青い衝撃波リング.png",
+  "note": "ショックウェーブのボタン（左の砲台）",
+  "file": "assets/img/shockwave.webp",
+  "width": 200,
+  "height": 189
+ },
+ "shockwave_wave": {
+  "type": "fx",
+  "source": "pic/未来砲台と青い衝撃波リング.png",
+  "note": "ショックウェーブを撃ったときに盤面の下から上へ流す衝撃波（明るさを足して重ねる）",
+  "file": "assets/img/shockwave_wave.webp",
+  "width": 512,
+  "height": 522
+ },
+ "evolve": {
+  "type": "ui",
+  "source": "tools/make_shock_evolve.py（火星・海王星の絵と矢印・1UP を合成）",
+  "note": "天体進化のボタン",
+  "file": "assets/img/evolve.webp",
+  "width": 160,
+  "height": 160
  }
 }

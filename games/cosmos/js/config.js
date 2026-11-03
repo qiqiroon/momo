@@ -6,7 +6,7 @@
   'use strict';
 
   const CONFIG = {
-    version: 'v0.19', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
+    version: 'v0.20', // v0.01 から、公開（デプロイ）のたびに +0.01（2026-10-29 作者の指示。v1.00 へは飛ばさない）
 
     // 第14章 特殊イベント（M4。2026-10-30）
     events: {
@@ -38,16 +38,26 @@
       calm: { types: ['flare', 'comet', 'storm', 'collision'], speed: 0.8, stillSec: 0.6, maxSec: 8 }
     },
 
-    // 難易度（2026-10-31 作者の指示）。sizeMul＝天体（月〜中性子星）の半径の倍率、missiles＝1回のゲームで撃てるミサイルの数
+    // 難易度（2026-10-31 作者の指示）。sizeMul＝天体（月〜中性子星）の半径の倍率、itemEvery＝この点数ごとにアイテムを1つもらう
     //   apocalypse … 今までの大きさ（先読みのボットで約1割クリアに合わせた。線越えを10秒にしたあとの測定では4回中0回）
     //   hard       … 天体を小さくして、先読みのボットで約3分の1クリア（0.8倍 8回中7回・0.85倍 4回中3回・0.9倍 5回中3回・0.93倍 12回中7回・0.94倍 4回中1回を見て、作者の指示で 0.94。2026-10-31）
-    //   easy       … hard と同じ大きさに、好きな天体を1つ壊せるミサイルを3発
+    //   easy       … hard と同じ大きさ。アイテムが早くたまる
+    // アイテムは最初はどれも0。点数が itemEvery を超えるたびに itemCycle の順で1つずつもらう（2026-11-03 作者の指示。前は easy だけミサイル3発）
     difficulties: {
-      easy:       { sizeMul: 0.94, missiles: 3 },
-      hard:       { sizeMul: 0.94, missiles: 0 },
-      apocalypse: { sizeMul: 1,   missiles: 0 }
+      easy:       { sizeMul: 0.94, itemEvery: 20000 },
+      hard:       { sizeMul: 0.94, itemEvery: 50000 },
+      apocalypse: { sizeMul: 1,   itemEvery: 100000 }
     },
-    missile: { flySec: 0.45, explodeSec: 0.7, explodeMul: 3.2 },   // 盤面の下から天体まで飛ぶ秒・爆発の絵を出す秒・爆発の大きさ（天体の半径の倍）
+    itemCycle: ['missile', 'missile', 'shock', 'missile', 'evolve'],   // ミサイル2・ショックウェーブ1・ミサイル1・天体進化1 を繰り返す（2026-11-03 作者の指示で直した）
+    missile: { flySec: 0.45, explodeSec: 0.7, explodeMul: 3.2,     // 盤面の上から天体まで飛ぶ秒・爆発の絵を出す秒・爆発の大きさ（天体の半径の倍）
+               autoGapSec: 0.15 },                                // 線越えでゲームオーバーになる直前に自動で撃つとき、1発ずつずらす秒
+    // ショックウェーブ：盤面の下から衝撃波を上へ送り、通った所の天体を上へ吹き飛ばす（落ちてくると並び順が入れ替わる）
+    //   riseSec＝衝撃波が下から上まで抜ける秒、fadeSec＝抜けたあと絵を消す秒、topY＝吹き飛んだ天体のいちばん高い所（盤面の座標）、
+    //   mix＝どこまで上がるかのばらつき（0〜1。大きいほど入れ替わる）、vx＝横のばらつき（px/step）、
+    //   power＝吹き飛ばす速さの倍率（topY まで届く速さの何倍か）、alpha＝絵の濃さ、
+    //   scale＝絵の幅（盤面の幅の倍）。下では [0]、上へ抜けるほど大きくして [1]（2026-11-03 作者の指示：下は小さく、上ほど拡大して突き抜ける）
+    // 作者の指示（2026-11-03）：速さを倍（riseSec 0.45 → 0.225）、威力を倍（power 2）、もっと透明に（alpha 0.95 → 0.5）
+    shock: { riseSec: 0.225, fadeSec: 0.3, topY: 40, mix: 0.7, vx: 3.5, power: 2, alpha: 0.5, scale: [0.35, 2.2] },
 
     // 第4章 盤面（論理座標）
     board: { width: 600, height: 900, dropY: 90, deadlineY: 150, wallThickness: 200,

@@ -351,7 +351,8 @@
       const tier = e.stage <= F.small.maxStage ? F.small : e.stage <= F.medium.maxStage ? F.medium : F.large;
       const now = performance.now() / 1000;
       this.fx.push({ x: e.x, y: e.y, r: this.g.radius(e.stage) * tier.size, t0: now, dur: tier.durSec });
-      if (e.add) this.popups.push({ x: e.x, y: e.y, text: '+' + e.add, t0: now, dur: F.popupSec });
+      if (e.add) this.popups.push({ x: e.x, y: e.y, text: '+' + e.add.toLocaleString(), sub: e.combo > 1 ? 'COMBO ×' + e.combo : null,
+        t0: now, dur: e.combo > 1 ? F.popupSec * 1.6 : F.popupSec });
       if (tier.shake) this.shake = Math.max(this.shake, tier.shake);
     }
 
@@ -586,6 +587,12 @@
         ctx.globalAlpha = 1 - k * k;
         ctx.fillStyle = '#fb923c';
         ctx.fillText(p.text, p.x, p.y - 20 - 40 * k);
+        if (p.sub) {   // 連鎖の倍率（2 回目から）
+          ctx.font = '700 20px "Fredoka One", "Noto Sans JP", sans-serif';
+          ctx.fillStyle = '#facc15';
+          ctx.fillText(p.sub, p.x, p.y - 48 - 40 * k);
+          ctx.font = '700 26px "Fredoka One", "Noto Sans JP", sans-serif';
+        }
       }
       ctx.restore();
 

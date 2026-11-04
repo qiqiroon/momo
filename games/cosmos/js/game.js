@@ -34,7 +34,7 @@
       this.sizeMul = D.sizeMul;      // 天体の半径の倍率（ブラックホールは変えない）
       this.itemEvery = D.itemEvery;  // この点数ごとにアイテムを1つもらう
       this.items = { missile: 0, shock: 0, evolve: 0 };   // 持っているアイテムの数（最初はどれも0）
-      this.itemsGiven = 0;           // これまでにもらったアイテムの数（itemCycle の何番目まで来たか）
+      this.itemsGiven = 0;           // これまでにもらったアイテムの数（itemOrder の何番目まで来たか）
       this.armed = null;             // 選んで、相手の天体を待っているアイテム：'missile'（壊す）・'evolve'（1段上げる）
       this.shots = [];               // 飛んでいるミサイル：{ body, t, dur, x0, y0, x, y }。t が負の間は待っている
       this.shock = null;             // 上へ抜けていく衝撃波：{ t, y, hit }（y＝波の先の高さ）
@@ -67,6 +67,9 @@
       this._acc = 0;
       this.score = 0;
       this.maxStage = 1;
+      this.maxCombo = 1;        // このゲームでいちばん長かった連鎖（点数の倍率）
+      this.combo = null;        // 今の連鎖：{ id, n＝何回目か, at＝始まった時刻 }
+      this._comboId = 0;
       this.dropCount = 0;
       this.lastDropAt = -1e9;
       this.overTime = 0;
@@ -183,7 +186,9 @@
       });
       b.plugin = b.plugin || {};
       // sq：やわらかさの縮み量、sqV：その速さ、sqAng：縮む向き（ぶつかった向き）
-      b.plugin.cosmos = { stage, born: this.time, merging: false, dropped: false, sq: 0, sqV: 0, sqAng: 0 };
+      // since：この天体の材料のうち一番新しく落とした時刻。chain・chainEnd：どの連鎖で生まれたか（this.combo.id）・その連鎖が切れる時刻。noChain：この時刻までは連鎖にしない
+      b.plugin.cosmos = { stage, born: this.time, merging: false, dropped: false, sq: 0, sqV: 0, sqAng: 0,
+        since: this.time, chain: 0, chainEnd: 0, noChain: 0 };
       this.M.Composite.add(this.engine.world, b);
       return b;
     }
@@ -310,12 +315,32 @@
         nb.plugin.cosmos.born = Math.min(ca.born, cb.born); // 合体で生まれた天体はすぐ判定対象（落下中扱いにしない）
         M.Body.setVelocity(nb, { x: vx, y: vy + C.physics.mergeBounceVy });
         M.Body.setAngularVelocity(nb, av);
-        const add = C.stages[ns].score;
+        const combo = this._chain(ca, cb, nb.plugin.cosmos);
+        const add = C.stages[ns].score * combo;
         this.score += add;
         this._noteStage(ns);
         this._mergedThisStep++;
-        this.emit('merge', { stage: ns, x, y, add });
+        if (combo > this.maxCombo) this.maxCombo = combo;
+        this.emit('merge', { stage: ns, x, y, add, combo });
       }
+    }
+
+    /** 連鎖：合体する2つ（ca・cb）から、生まれる天体（nc）の連鎖を決め、点数の倍率を返す。
+     *  連鎖は盤面に1つだけ（this.combo）。それに続かない合体が起きたら切れて、その合体から1で数え直す（2026-11-04 作者の指示） */
+    _chain(ca, cb, nc) {
+      const t = this.time, K = this.C.combo, cur = this.combo;
+      nc.since = Math.max(ca.since, cb.since);
+      if (ca.noChain > t || cb.noChain > t) { nc.noChain = t + K.windowSec; this.combo = null; return 1; }   // ショック・進化で動いた天体は数えない（連鎖も切れる）
+      if (cur) for (const [p, q] of [[ca, cb], [cb, ca]]) {
+        // p が今の連鎖で生まれた天体で、まだ切れていなくて、相手 q が連鎖の始まる前からあった（そのあと落とした天体ではない）なら続く
+        if (p.chain === cur.id && t <= p.chainEnd && q.since <= cur.at) {
+          cur.n++; nc.chain = cur.id; nc.chainEnd = t + K.windowSec;
+          return cur.n;
+        }
+      }
+      this.combo = { id: ++this._comboId, n: 1, at: t };
+      nc.chain = this.combo.id; nc.chainEnd = t + K.windowSec;
+      return 1;
     }
 
     // ---- ブラックホール誕生（第8.1節・第11.1節） --------------------------
@@ -867,7 +892,7 @@
     }
 
     // ---- アイテム（2026-11-03 作者の指示。前は easy だけミサイル3発） ----------------
-    // 最初はどれも0。点数が itemEvery を超えるたびに itemCycle の順で1つずつもらう。通常期だけ使える
+    // 最初はどれも0。点数が itemEvery を超えるたびに itemOrder の順で1つずつもらい、そのあとは itemAfter だけ。通常期だけもらえて、使える
     get missiles() { return this.items.missile; }
     set missiles(v) { this.items.missile = v; }
     get missileArmed() { return this.armed === 'missile'; }
@@ -876,10 +901,10 @@
     get shot() { return this.shots[0] || null; }
 
     _giveItems() {
-      if (!this.itemEvery) return;
-      const cyc = this.C.itemCycle;
+      if (!this.itemEvery || this.state !== 'PLAY') return;   // ブラックホールができたら（待機から先）もうもらえない
+      const ord = this.C.itemOrder;
       while (this.itemsGiven < Math.floor(this.score / this.itemEvery)) {
-        const type = cyc[this.itemsGiven % cyc.length];
+        const type = this.itemsGiven < ord.length ? ord[this.itemsGiven] : this.C.itemAfter;
         this.itemsGiven++;
         this.items[type]++;
         this.emit('item', { type, n: this.items[type] });
@@ -969,6 +994,8 @@
       this.items.evolve--;
       const M = this.M, nb = this._addBody(ns, b.position.x, b.position.y);
       nb.plugin.cosmos.born = c.born;
+      nb.plugin.cosmos.since = c.since;
+      nb.plugin.cosmos.noChain = this.time + this.C.combo.windowSec;   // 進化させた天体の合体は連鎖にしない（続いていた連鎖も切れる）
       M.Composite.remove(this.engine.world, b);
       M.Body.setVelocity(nb, b.velocity);
       M.Body.setAngle(nb, b.angle);
@@ -998,6 +1025,8 @@
       for (const b of this.bodies()) {
         if (s.hit.has(b.id) || b.plugin.cosmos.pending || s.y > b.position.y + b.circleRadius) continue;
         s.hit.add(b.id);
+        const c = b.plugin.cosmos;
+        c.chain = 0; c.noChain = this.time + this.C.combo.shockSec;   // 吹き飛んだ天体の合体は連鎖にしない
         // 上がる高さをばらつかせる：いちばん上（topY）から、今の高さへ mix の割合まで。下の天体ほど幅が大きい
         const top = K.topY + b.circleRadius, h = Math.max(0, b.position.y - top) * (1 - this.random() * K.mix);
         M.Body.setVelocity(b, { x: (this.random() - 0.5) * 2 * K.vx * K.power, y: -Math.sqrt(2 * g * h) * K.power });

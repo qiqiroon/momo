@@ -60,16 +60,23 @@ export class ControlPanel {
   private readonly faceRow: HTMLElement;
   private readonly middleRow: HTMLElement;
   private readonly wholeRow: HTMLElement;
+  /** 広い画面のキー設定（全体を回す行の後ろ） */
+  private readonly keysWide: HTMLButtonElement;
   /** 狭い画面の 1 段目：回す面を選ぶ（05 §1.1）。2 段目は選んだ面の 3 ボタンだけを見せる */
   private readonly pickerRow: HTMLElement;
   private picked = 'R';
   private lastPressed: HTMLElement | null = null;
 
-  constructor(root: HTMLElement, deps: PanelDeps) {
+  /**
+   * root＝下の操作パネル。commandsRoot＝シャッフル・そろえるなどの基本コマンドの列。
+   * 基本コマンドはいつも要るので、下のパネルではなく上の帯（大きさなど）の下に置き、出したままにする（2026-11-04 作者）
+   */
+  constructor(root: HTMLElement, commandsRoot: HTMLElement, deps: PanelDeps) {
     this.deps = deps;
     root.classList.add('panel');
 
-    const game = div('panel-row panel-game');
+    const game = commandsRoot;
+    game.classList.add('panel-row', 'panel-game');
     // 文字は relabel で入れる（言語を切り替えたときも同じ関数で入れ直す）
     this.gameButtons = {
       scramble: button('', deps.scramble),
@@ -77,7 +84,10 @@ export class ControlPanel {
       undo: button('', deps.undo),
       redo: button('', deps.redo),
       home: button('', deps.home),
-      wholeToggle: button('', () => this.wholeRow.classList.toggle('open')),
+      wholeToggle: button('', () => {
+        // 開いた行がパネルの下にはみ出したら、見えるところまで送る（パネルの高さには上限がある）
+        if (this.wholeRow.classList.toggle('open')) requestAnimationFrame(() => this.wholeRow.scrollIntoView({ block: 'nearest' }));
+      }),
       hint: button('', deps.hint),
       solve: button('', deps.solve),
       keys: button('', deps.openKeymap),
@@ -85,7 +95,14 @@ export class ControlPanel {
     };
     this.gameButtons.wholeToggle.classList.add('whole-toggle');
     this.gameButtons.settings.classList.add('settings-btn');
-    game.append(...Object.values(this.gameButtons));
+    // 全体を回す行の出し入れ（狭い画面だけ）は、その行のある下のパネルの、面を選ぶ行の後ろに置く（buildPickerRow）
+    // キー設定は、上の列ではなく下の操作パネルの中に置く（2026-11-04 作者：「キー」では分かりにくい）。
+    // 広い画面は全体を回す行の後ろ、狭い画面は面を選ぶ行の後ろ
+    this.gameButtons.keys.classList.add('keys-btn', 'keys-narrow');
+    this.keysWide = button('', deps.openKeymap);
+    this.keysWide.classList.add('keys-btn', 'keys-wide');
+    game.append(...Object.values(this.gameButtons)
+      .filter((b) => b !== this.gameButtons.wholeToggle && b !== this.gameButtons.keys));
 
     this.layerRow = div('panel-row panel-layer');
     this.pickerRow = div('panel-row panel-picker');
@@ -93,7 +110,7 @@ export class ControlPanel {
     this.faceRow = div('panel-row panel-faces');
     this.middleRow = div('panel-row panel-faces panel-middle');
     this.wholeRow = div('panel-row panel-whole');
-    root.append(game, this.layerRow, this.pickerRow, this.faceRow, this.middleRow, this.wholeRow);
+    root.append(this.layerRow, this.pickerRow, this.faceRow, this.middleRow, this.wholeRow);
     root.addEventListener('pointerleave', () => deps.highlight(null));
     this.relabel();
   }
@@ -115,6 +132,7 @@ export class ControlPanel {
     set(b.hint, S.hint, S.hintTitle);
     set(b.solve, this.solving ? S.solveStop : S.solve, S.solveTitle);
     set(b.keys, S.keys, S.keysTitle);
+    set(this.keysWide, S.keys, S.keysTitle);
     // 歯車は MOMO Hanafuda・Sudoku と同じ絵
     b.settings.replaceChildren(gearIcon(), document.createTextNode(S.settings));
     b.settings.title = S.settingsTitleAttr;
@@ -246,7 +264,7 @@ export class ControlPanel {
       b.dataset.key = key;
       b.classList.add('pick');
       return b;
-    }));
+    }), this.gameButtons.wholeToggle, this.gameButtons.keys);
     this.markPicked();
   }
 
@@ -276,6 +294,7 @@ export class ControlPanel {
       }
       this.wholeRow.append(g);
     }
+    this.wholeRow.append(this.keysWide);
   }
 
   /** 面 1 つ分：名前と、時計回り・反時計回り・半回転の 3 ボタン */

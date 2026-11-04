@@ -23,6 +23,10 @@ export interface ViewSettings {
 
 export const CAMERA_FOV = 38;
 /** 見えない球の半径＝キューブの外接球 */
+/** キューブ本体の上に空ける余白と、下に空ける知らせ欄（2 行まで・下の余白込み）のぶん（px） */
+const CUBE_TOP_SPACE = 4;
+const MESSAGE_SPACE = 40;
+
 export const BALL_RADIUS = (CUBE_WORLD_SIZE * Math.sqrt(3)) / 2;
 const FIT_MARGIN = 1.12;
 /** 近づける限度：キューブだけが画面に収まる距離に対する割合（鏡の像は画面の外へ出て消える） */
@@ -106,12 +110,21 @@ export class ViewController {
   private cubeFitDistance = 12;
   private viewportWidth = 1;
   private viewportHeight = 1;
+  /**
+   * キューブの大きさを決める高さ（px）。描く画面の高さ（viewportHeight）と別に持つ。
+   * 下のパネルの高さが変わって画面の高さが変わっても、これが同じならキューブの写る大きさは変わらない
+   * （2026-11-04 作者：パネルの高さは変わってよいが、キューブの大きさは変えない）。
+   * 画面のほうが低ければ下が欠け、高ければ下が広く見える。キューブの写る位置は画面の上からの距離で決まり、変わらない
+   */
+  private fitHeight = 1;
   private viewportMin = 1;
   private lastFrame: ViewFrame | null = null;
   /** 写したい球（カメラ座標） */
   private framing: { q: Vector3; radius: number }[];
   /** 写したい範囲を画面の中央に寄せるための、描く窓のずらし（px） */
   private offsetPx = { x: 0, y: 0 };
+  /** キューブの重心が写る位置の、見えている画面の中央からのずれ（px） */
+  private cubeOffset = { x: 0, y: 0 };
 
   /**
    * framing：画面に収めたい球（ホームのときの世界座標）。既定はキューブだけ。
@@ -155,7 +168,7 @@ export class ViewController {
   /** 画面に収めたい球を変える（鏡を消したとき、キューブだけを大きく写す） */
   setFraming(framing: { center: Vector3; radius: number }[]): void {
     this.framing = this.toCameraFraming(framing);
-    this.setViewport(this.viewportWidth, this.viewportHeight);
+    this.setViewport(this.viewportWidth, this.viewportHeight, this.fitHeight);
   }
 
   private toCameraFraming(framing: { center: Vector3; radius: number }[]): { q: Vector3; radius: number }[] {
@@ -174,25 +187,29 @@ export class ViewController {
 
   /** キューブの重心が写る位置の、画面中央からのずれ（px、下向きが正）。ドラッグの見えない球の中心 */
   get cubeScreenOffset(): { x: number; y: number } {
-    return { x: -this.offsetPx.x, y: -this.offsetPx.y };
+    return { ...this.cubeOffset };
   }
 
-  /** ビューポートの大きさが変わったとき。写したい球がすべて収まる距離を求め直す */
-  setViewport(width: number, height: number): void {
+  /**
+   * ビューポートの大きさが変わったとき。写したい球がすべて収まる距離を求め直す。
+   * fitHeight：キューブの大きさを決める高さ（省けば画面の高さ）。写したい球は、幅 width・高さ fitHeight の画面に収める
+   */
+  setViewport(width: number, height: number, fitHeight = height): void {
     this.viewportWidth = width;
     this.viewportHeight = height;
-    this.viewportMin = Math.min(width, height);
+    this.fitHeight = Math.max(1, fitHeight);
+    this.viewportMin = Math.min(width, this.fitHeight);
     this.fitDistance = this.fitFor(this.framing);
     this.cubeFitDistance = this.fitFor([{ q: new Vector3(), radius: BALL_RADIUS }]);
     this.zoomScale = Math.max(this.zoomScale, this.zoomMin);
-    this.camera.aspect = width / height;
+    this.camera.aspect = width / this.fitHeight;
     this.applyCamera();
   }
 
   /** 球がすべて収まるいちばん近い距離。距離を延ばすほど写る範囲は小さくなるので二分法で探す */
   private fitFor(framing: { q: Vector3; radius: number }[]): number {
     const tanV = Math.tan((CAMERA_FOV * Math.PI) / 360);
-    const tanH = tanV * (this.viewportWidth / this.viewportHeight);
+    const tanH = tanV * (this.viewportWidth / this.fitHeight);
     const fits = (d: number) => {
       const b = this.bounds(d, framing);
       return b !== null && (b.maxX - b.minX) / 2 <= tanH / FIT_MARGIN && (b.maxY - b.minY) / 2 <= tanV / FIT_MARGIN;
@@ -238,7 +255,7 @@ export class ViewController {
     if (dx === 0 && dy === 0) return;
     this.anim = null;
     this.spin = null;
-    const s = (2 * this.distance * Math.tan((CAMERA_FOV * Math.PI) / 360)) / this.viewportHeight;
+    const s = (2 * this.distance * Math.tan((CAMERA_FOV * Math.PI) / 360)) / this.fitHeight;
     const p = ballPoint((x - dx / 2) * s, -(y - dy / 2) * s, BALL_RADIUS);
     const axis = rollAxis(p, dx, dy);
     if (!axis) return;
@@ -340,6 +357,7 @@ export class ViewController {
       }
     }
     if (this.settings.viewGrid !== 0) this.command({ kind: 'snap' });
+    else this.onTarget(this.targetDelta);
   }
 
   zoom(factor: number): void {
@@ -393,6 +411,7 @@ export class ViewController {
     if (s.w < INERTIA_MIN) {
       this.spin = null;
       if (this.settings.viewGrid !== 0) this.command({ kind: 'snap' });
+      else this.onTarget(this.targetDelta);
     }
     this.applyCamera();
     return true;
@@ -406,6 +425,53 @@ export class ViewController {
   private startAnimation(to: Quaternion, duration: number): void {
     this.target.copy(to);
     this.anim = { from: this.c.clone(), elapsed: 0, duration };
+    this.onTarget(this.targetDelta);
+  }
+
+  /**
+   * 全体の向きの行き先が決まった（回す命令・ホーム・寄せる・手を離して寄せないとき）。プレイ記録が覚える。
+   * 指で回している途中の向きは知らせない
+   */
+  onTarget: (delta: Quaternion) => void = () => {};
+
+  /** 指で回している最中 */
+  get dragging(): boolean {
+    return this.lastDrag !== null;
+  }
+
+  /** 全体の向きを、すぐに delta にする（プレイ記録の再生の始め） */
+  setDelta(delta: Quaternion): void {
+    this.anim = null;
+    this.spin = null;
+    this.lastDrag = null;
+    this.c.copy(this.cameraFor(delta)).normalize();
+    this.target.copy(this.c);
+    this.applyCamera();
+  }
+
+  /** 全体の向きを、ms かけて delta にする（プレイ記録の再生） */
+  animateTo(delta: Quaternion, ms = SNAP_MS): void {
+    this.spin = null;
+    this.startAnimation(this.cameraFor(delta).normalize(), ms);
+  }
+
+  /** 距離 d のとき、キューブの外接球が画面に写る半径（px。思い描いた高さ fitHeight の画面で） */
+  private cubeRadiusPx(d: number): number {
+    const tanV = Math.tan((CAMERA_FOV * Math.PI) / 360);
+    return (BALL_RADIUS / Math.sqrt(Math.max(d * d - BALL_RADIUS * BALL_RADIUS, 1e-6))) / tanV * (this.fitHeight / 2);
+  }
+
+  /**
+   * キューブ本体と下の知らせ欄が欠けずに収まるのに要る、見えている画面の高さ（px。ピンチの拡大は数えない）。
+   * 下のパネルは、画面がこれより低くならない高さまでにする
+   */
+  get neededHeight(): number {
+    const h = this.fitHeight;
+    const d = this.fitDistance;
+    const b = this.bounds(d);
+    const tanV = Math.tan((CAMERA_FOV * Math.PI) / 360);
+    const oy = b ? -(((b.minY + b.maxY) / 2) / tanV) * (h / 2) : 0;
+    return Math.ceil(h / 2 - oy + this.cubeRadiusPx(d) + MESSAGE_SPACE);
   }
 
   private applyCamera(): void {
@@ -416,7 +482,7 @@ export class ViewController {
     // ピンチで近づくほどずらしを減らし、キューブだけが収まる距離より近ければキューブを真ん中に置く
     const b = this.bounds(this.distance);
     const w = this.viewportWidth;
-    const h = this.viewportHeight;
+    const h = this.fitHeight;
     if (b) {
       const tanV = Math.tan((CAMERA_FOV * Math.PI) / 360);
       const tanH = tanV * (w / h);
@@ -427,8 +493,21 @@ export class ViewController {
         y: -k * (((b.minY + b.maxY) / 2) / tanV) * (h / 2),
       };
     }
-    if (Math.abs(this.offsetPx.x) > 1e-6 || Math.abs(this.offsetPx.y) > 1e-6) {
-      this.camera.setViewOffset(w, h, this.offsetPx.x, this.offsetPx.y, w, h);
+    // 幅 w・高さ h（キューブの大きさを決める高さ）の画面を思い描き、その上の端から、実際の高さの分だけを描く。
+    // 上の端をそろえるので、下のパネルの高さが変わってもキューブの写る位置は変わらない
+    // （2026-11-04 作者：パネルを開いても閉じても、キューブの大きさも位置も変えない）。
+    // 見えている画面が思い描いた高さより低く、キューブ本体の下が欠けるときだけ、上へずらす（パネルの高さの上限で、ふつうは起きない）
+    const vh = this.viewportHeight;
+    let oy = this.offsetPx.y;
+    const r = this.cubeRadiusPx(this.distance);
+    const lo = h / 2 + r + MESSAGE_SPACE - vh;
+    if (vh < h && oy < lo) {
+      const hi = h / 2 - r - CUBE_TOP_SPACE;
+      oy = lo <= hi ? lo : h / 2 - vh / 2;
+    }
+    this.cubeOffset = { x: -this.offsetPx.x, y: h / 2 - oy - vh / 2 };
+    if (Math.abs(this.offsetPx.x) > 1e-6 || Math.abs(oy) > 1e-6 || Math.abs(h - vh) > 1e-6) {
+      this.camera.setViewOffset(w, h, this.offsetPx.x, oy, w, vh);
     } else {
       this.camera.clearViewOffset();
     }

@@ -1,5 +1,5 @@
 // 起動と配線のみ
-import { PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three';
+import { PerspectiveCamera, Quaternion, Scene, Vector3, WebGLRenderer } from 'three';
 import { isSolved } from './core/cubeState';
 import type { Move } from './core/types';
 import { formatMove } from './core/notation';
@@ -16,6 +16,7 @@ import { describeMove, faceMove } from './input/screenMoves';
 import { ViewController, type ViewSettings } from './input/viewController';
 import { ArrowView } from './render/arrowView';
 import { CubeView } from './render/cubeView';
+import { MarkView } from './render/markView';
 import { Lights } from './render/lights';
 import { AdaptiveQuality } from './render/adaptiveQuality';
 import { CUBE_RADIUS, MirrorRoom, framingSpheres } from './render/mirrorRoom';
@@ -24,11 +25,18 @@ import { Announcer } from './ui/announcer';
 import { ArrowLabels } from './ui/arrowLabels';
 import { ConfirmDialog } from './ui/confirmDialog';
 import { KeymapDialog } from './ui/keymapDialog';
+import { Dock } from './ui/dock';
 import { ControlPanel } from './ui/panel';
+import { SequencePanel } from './ui/sequencePanel';
+import { GamePanel } from './ui/gamePanel';
+import { decodeMove, encodeView, GameRecorder, GameStore } from './ui/gameLog';
+import { SequenceStore } from './ui/sequences';
+import { fromSeqMark, markAt, MarkSet, spotOf, type Mark, type Spot } from './ui/marks';
 import { motionOf } from './ui/panelModel';
 import { browserStorage, formatTime, RecordStore, type AddResult } from './ui/records';
 import { ResultCard } from './ui/resultCard';
 import { Toast } from './ui/toast';
+import { MessageBar } from './ui/messageBar';
 import { effectiveQuarterMs, loadSettings, saveSettings, type Settings } from './ui/settings';
 import { SettingsDialog } from './ui/settingsDialog';
 import { baseLang, S, setLang, SUBTITLE } from './ui/strings';
@@ -42,6 +50,10 @@ const timer = document.getElementById('timer')!;
 const timerLabel = timer.querySelector<HTMLElement>('.timer-label')!;
 const timerValue = timer.querySelector<HTMLElement>('.timer-value')!;
 const panelRoot = document.getElementById('panel')!;
+const commandsRoot = document.getElementById('commands')!;
+const seqRoot = document.getElementById('seq-panel')!;
+const gameRoot = document.getElementById('game-panel')!;
+const dockTabs = document.getElementById('dock-tabs')!;
 // 言語（MOMO 共通の lib/momo-lang）。画面の部品を作る前に決める
 let langState = initLang();
 setLang(langState.lang, langState.catBase);
@@ -57,7 +69,8 @@ stage.appendChild(renderer.domElement);
 const scene = new Scene();
 const lights = new Lights(scene);
 // 矢印は鏡に映さない（2026-11-02 作者）
-const mirrors = new MirrorRoom(scene, () => arrowView.objects);
+// 印の番号の札も映さない（字が裏返るため）
+const mirrors = new MirrorRoom(scene, () => [...arrowView.objects, ...markView.notReflected]);
 const highlight = new SliceHighlight(scene);
 const arrowView = new ArrowView(scene);
 
@@ -74,6 +87,9 @@ const view = new ViewController(camera, viewSettings, framingSpheres());
 
 const session = new GameSession(3, { animation });
 const cubeView = new CubeView(scene, session.state);
+// 印（マーキング。2026-11-04 作者）。ステッカーに付き、回すと一緒に動く
+const marks = new MarkSet();
+const markView = new MarkView(scene);
 
 let needsRender = true;
 const invalidate = (): void => {
@@ -103,11 +119,11 @@ let pendingResult: AddResult | null = null;
 /** 計っていないときにそろった：「そろった！」を浮かべる（回っている手が止まってから） */
 const toast = new Toast(stage);
 let pendingToast = false;
-/** キューブの下の操作の案内（指で触る端末とマウスで言い方を変える） */
-const gestureHint = document.createElement('div');
-gestureHint.className = 'gesture-hint';
-gestureHint.setAttribute('aria-hidden', 'true');
-stage.append(gestureHint);
+/**
+ * キューブの画面の下の知らせ欄。ふだんは操作の案内（指で触る端末とマウスで言い方を変える）。
+ * 知らせは特に決めたもの以外すべてここに、案内と入れ替えて出す（2026-11-04 作者：知らせで画面の大きさを変えない）
+ */
+const messages = new MessageBar(stage);
 const touchQuery = window.matchMedia('(hover: none) and (pointer: coarse)');
 
 // ヒントと解答（設計 06 §3・§5）。どちらもシャッフルと自分の手を逆にたどる道筋を使う
@@ -135,6 +151,7 @@ function showHint(): void {
   }
   hintText = S.hintMove(text, keyLabelFor({ kind: 'move', move: m }, keymap, view.frame, st.n));
   announcer.say(hintText);
+  messages.flash(hintText, 'active', HINT_MS);
   updateInfo();
   invalidate();
 }
@@ -178,13 +195,19 @@ new PointerRouter(renderer.domElement, view, picker, {
   press: (id) => arrows.press(id),
   select: (hit) => {
     const st = session.state;
+    // 印をつけている最中は、押したセルに次の番号の印を付ける（面は選ばない）
+    if (sequences.marking) {
+      const mark = markAt(st, { pos: st.cubies[hit.cubie].pos, face: hit.face });
+      if (mark && marks.add(mark)) sequences.marksEdited();
+      return;
+    }
     arrows.select(hit.face, cellOf(hit.face, st.cubies[hit.cubie].pos, st.n));
   },
   clear: () => arrows.clear(),
   hover: (id) => arrows.hover(id),
 });
 
-const panel = new ControlPanel(panelRoot, {
+const panel = new ControlPanel(panelRoot, commandsRoot, {
   getSize: () => session.state.n,
   getFrame: () => view.frame,
   getKeymap: () => keymap,
@@ -207,6 +230,95 @@ const panel = new ControlPanel(panelRoot, {
   layerChanged: () => updateInfo(),
 });
 
+// 手順の記録と再生（2026-11-04 作者）。下のパネルはタグで切り替え・出し入れする
+const sequences = new SequencePanel(seqRoot, {
+  store: new SequenceStore(browserStorage()),
+  getSize: () => session.state.n,
+  getFrame: () => view.frame,
+  enqueue: enqueueMove,
+  queueLength: () => session.queueLength,
+  markSpots: () => {
+    const st = session.state;
+    return marks.all.map((m) => spotOf(st, m)).filter((p): p is Spot => p !== null);
+  },
+  showMarks: (list, frame) => {
+    const st = session.state;
+    marks.set(list.map((m) => fromSeqMark(st.n, frame, m)).filter((p): p is Spot => p !== null)
+      .map((p) => markAt(st, p)).filter((m): m is Mark => m !== null));
+  },
+  removeMark: () => void marks.removeLast(),
+  confirm: (message, okLabel) => confirmDialog.ask(message, okLabel, { title: S.seqConfirmTitle, cancel: S.seqCancel }),
+  announce: (text) => announcer.say(text),
+  status: (text, tone) => messages.setState('seq', text, tone),
+  flash: (text, tone) => messages.flash(text, tone),
+  note: (text) => {
+    sequences.noteShown = text !== null;
+    messages.setState('note', text, 'info');
+  },
+  changed: () => updateDockBadges(),
+});
+// プレイ記録（2026-11-04 作者）。シャッフルの中身とそのあとの手・全体の回転をすべて覚え、保存・再生する
+const gameRecorder = new GameRecorder();
+gameRecorder.start(session.state.n, [], encodeView(view.targetDelta));
+// 全体の回転は手数に数えないが、プレイ記録には覚える
+view.onTarget = (delta) => gameRecorder.view(encodeView(delta));
+const games = new GamePanel(gameRoot, {
+  store: new GameStore(browserStorage()),
+  recorder: gameRecorder,
+  load: (log) => endGame(S.gameConfirmPlay, S.gamePlay, () => {
+    if (autoSolver.running) autoSolver.stop();
+    view.setDelta(new Quaternion(...log.view0));
+    session.loadScramble(log.n, log.scramble.map((m) => decodeMove(log.n, m)));
+    sizeSelect.value = String(log.n);
+  }),
+  step: (n, step) => {
+    if (step[0] === 'u') session.enqueue({ kind: 'undo' });
+    else if (step[0] === 'r') session.enqueue({ kind: 'redo' });
+    else if (step[0] === 'v') view.animateTo(new Quaternion(step[1], step[2], step[3], step[4]));
+    else session.enqueue({ kind: 'move', move: decodeMove(n, step), origin: 'user' });
+    invalidate();
+  },
+  idle: () => !session.busy && !view.isActive,
+  confirm: (message, okLabel) => confirmDialog.ask(message, okLabel, { title: S.seqConfirmTitle, cancel: S.seqCancel }),
+  announce: (text) => announcer.say(text),
+  status: (text, tone) => messages.setState('game', text, tone),
+  flash: (text, tone) => messages.flash(text, tone),
+  clearFlash: () => messages.clearFlash(),
+  changed: () => updateDockBadges(),
+});
+const dock = new Dock(dockTabs, [
+  { id: 'controls', label: () => S.tabControls, el: panelRoot },
+  { id: 'sequences', label: () => S.tabSequences, el: seqRoot },
+  { id: 'games', label: () => S.tabGames, el: gameRoot },
+], browserStorage());
+/**
+ * 手順の名前以外を押したら（キューブのドラッグも）、手順の選択を外してマークを消す。
+ * 手順のパネルの中を押したら手順セットの説明を出し、パネルの外を押したらふだんの案内に戻す（2026-11-04 作者）
+ */
+document.addEventListener('pointerdown', (e) => {
+  const t = e.target instanceof Element ? e.target : null;
+  // 確かめの画面などの上の操作は数えない
+  if (t?.closest('.modal-backdrop')) return;
+  if (!t?.closest('.seq-name')) sequences.deselect();
+  if (t && seqRoot.contains(t)) sequences.showNote();
+  else sequences.hideNote();
+}, true);
+// 出しているパネルを替えた・しまった：手順の説明は消して、それぞれの表示に戻す。手順のパネルを出したら説明を出す
+dock.onChange = () => {
+  if (dock.current === 'sequences') sequences.showNote();
+  else sequences.hideNote();
+};
+/** 記録中・再生中は、パネルをしまっていても分かるようにタグに印を出す */
+function updateDockBadges(): void {
+  dock.setBadge('sequences', sequences.recording ? '●' : sequences.playing ? '▶' : sequences.marking ? '◎' : '');
+  dock.setBadge('games', games.isPlaying ? '▶' : '');
+}
+marks.onChange = () => {
+  markView.invalidate();
+  updateInfo();
+  invalidate();
+};
+
 const keymapDialog = new KeymapDialog(document.body, {
   getKeymap: () => keymap,
   setKeymap: (k) => {
@@ -219,14 +331,19 @@ const keymapDialog = new KeymapDialog(document.body, {
 
 // 論理が確定したら基準行列を作り直す。途中の角度は毎フレーム applyAnimation が付ける
 let lastMove = '';
-session.on('move:committed', ({ move }) => {
+session.on('move:committed', ({ move, origin }) => {
   cubeView.rebuildBaseMatrices();
+  markView.invalidate();
   // そろったあとも回し続けたら、結果の札と「そろった！」は下げる（そろった手なら、このあと solved が出し直す）
   resultCard.hide();
   toast.hide();
   pendingToast = false;
+  if (hintText) messages.clearFlash();
   hintText = '';
   lastMove = formatMove(move);
+  sequences.committed(move, origin);
+  gameRecorder.committed(move, origin);
+  games.committed(origin);
   updateInfo();
   invalidate();
 });
@@ -238,8 +355,18 @@ const rebuildAll = (): void => {
   pendingResult = null;
   toast.hide();
   pendingToast = false;
+  if (hintText) messages.clearFlash();
   hintText = '';
   lastMove = '';
+  sequences.stopAll();
+  games.stopAll();
+  // シャッフル・そろえる・大きさを変えたところから、プレイ記録を覚え直す
+  gameRecorder.start(session.state.n, session.scrambleMoves, encodeView(view.targetDelta));
+  // 選んでいる手順のマークを、作り直した姿に付け直す（選んでいなければ外す）
+  sequences.refresh();
+  markView.invalidate();
+  // 大きさが変わると「操作」のパネルの行の数が変わる（しまっていても、キューブの大きさを決め直す）
+  resize();
   panel.rebuild();
   updateInfo();
   invalidate();
@@ -249,6 +376,7 @@ session.on('reset', rebuildAll);
 session.on('scrambled', rebuildAll);
 session.on('solved', (e) => {
   if (e.timed) {
+    gameRecorder.solved(e.timeMs);
     pendingResult = records.add({
       n: e.n, timeMs: e.timeMs, moves: e.moves, scrambleLength: e.scrambleLength, completedAt: Date.now(),
       usedHint: e.usedHint, usedSolver: e.usedSolver,
@@ -364,12 +492,12 @@ function updateInfo(): void {
       className: layer.depth === 1 && !layer.wide ? 'dim' : undefined,
     });
   }
-  if (hintText) items.push({ text: hintText, className: 'hint-move' });
-  if (session.phase === 'scrambled') items.push({ text: S.timerWaiting, className: 'dim' });
   const best = records.bestTime(n);
   if (best) items.push({ text: `${S.best} ${formatTime(best.timeMs)}`, className: 'dim' });
-  if (quality.verySlow && settings.mirrors) items.push({ text: S.slowHint, className: 'slow' });
-  items.push({ text: arrows.selected ? S.arrowHintSelected : S.arrowHint, className: 'dim hint' });
+  // 知らせは上の帯ではなく、キューブの画面の下の知らせ欄へ
+  messages.setState('timer', session.phase === 'scrambled' ? S.timerWaiting : null);
+  messages.setState('slow', quality.verySlow && settings.mirrors ? S.slowHint : null, 'warn');
+  messages.setState('arrow', arrows.selected ? S.arrowHintSelected : null, 'active');
   info.replaceChildren(...items.map(({ text, className }) => {
     const el = document.createElement('span');
     el.textContent = text;
@@ -396,7 +524,8 @@ function applyLang(): void {
   subtitle.textContent = SUBTITLE[base];
   subtitle.classList.toggle('zh', base === 'zh');
   document.getElementById('size-label')!.textContent = S.size;
-  gestureHint.textContent = touchQuery.matches ? S.gestureHintTouch : S.gestureHintMouse;
+  // マウスの端末では、面のタップで矢印が出ることも添える（指の端末は 1 行に収まらないので省く）
+  messages.setDefault(touchQuery.matches ? S.gestureHintTouch : `${S.gestureHintMouse} / ${S.arrowHint}`);
   for (const [id, text] of [
     ['foot-about', S.footAbout], ['foot-desc', S.footDesc],
     ['foot-top', S.footTop], ['foot-games', S.footGames], ['foot-tools', S.footTools],
@@ -404,10 +533,14 @@ function applyLang(): void {
     document.getElementById(id)!.textContent = text;
   }
   panel.relabel();
+  sequences.relabel();
+  games.relabel();
+  dock.relabel();
   keymapDialog.relabel();
   settingsDialog.relabel();
   confirmDialog.relabel();
   resultCard.relabel();
+  if (hintText) messages.clearFlash();
   hintText = '';
   timerText = '';
   updateInfo();
@@ -445,6 +578,48 @@ let framingKey = '';
 /** これより幅の狭い画面を携帯とみなす（px。CSS の狭い画面と同じ） */
 const NARROW_STAGE = 640;
 
+/**
+ * キューブの大きさを決める高さ（2026-11-04 作者：下のパネルの高さは変わってよいが、キューブの大きさは変えない）。
+ * 「操作」のパネルを出しているときの画面の高さに決める。手順のパネルが高い・パネルをしまったときは、
+ * キューブの大きさはそのままで、見える範囲だけが変わる（低ければ上下の鏡が欠け、高ければまわりが広く見える）。
+ * 狭い画面で「全体を回す…」の行を開いたぶんは数えない
+ */
+function cubeFitHeight(stageHeight: number): number {
+  const open = dockPanels().reduce((sum, el) => sum + (el.hidden ? 0 : el.offsetHeight), 0);
+  const wasHidden = panelRoot.hidden;
+  const cap = panelRoot.style.maxHeight;
+  // しまっている「操作」のパネルの高さも、高さの上限を外して測る（同じ処理の中で戻すので、画面には出ない）
+  if (wasHidden) panelRoot.hidden = false;
+  panelRoot.style.maxHeight = '';
+  const whole = panelRoot.querySelector<HTMLElement>('.panel-whole.open');
+  const controls = panelRoot.offsetHeight - (whole ? whole.offsetHeight + 6 : 0);
+  panelRoot.style.maxHeight = cap;
+  if (wasHidden) panelRoot.hidden = true;
+  // パネルをしまうと、タグの行の下に余白（端末の下の縁のぶん）が付く。その差も数えない
+  const tabs = dockTabs.offsetHeight;
+  const pad = dockTabs.style.paddingBottom;
+  dockTabs.style.paddingBottom = '0px';
+  const tabsOpen = dockTabs.offsetHeight;
+  dockTabs.style.paddingBottom = pad;
+  return Math.max(120, stageHeight + open + tabs - tabsOpen - controls);
+}
+
+/** 下に出し入れするパネル */
+const dockPanels = (): HTMLElement[] => [panelRoot, seqRoot, gameRoot];
+
+/**
+ * 下のパネルの高さの上限（2026-11-04 作者：パネルを開いても閉じても、キューブの大きさも位置も変えない）。
+ * キューブの画面が、キューブ本体と下の知らせ欄の入る高さより低くならないようにする。超えたぶんはパネルの中でスクロール
+ */
+function capPanels(stageHeight: number): void {
+  const open = dockPanels().reduce((sum, el) => sum + (el.hidden ? 0 : el.offsetHeight), 0);
+  const room = Math.max(80, Math.floor(stageHeight + open - view.neededHeight));
+  for (const el of dockPanels()) {
+    const v = `min(45vh, ${room}px)`;
+    if (el.style.maxHeight !== v) el.style.maxHeight = v;
+  }
+}
+
 function resize(): void {
   renderer.setPixelRatio(quality.pixelRatio);
   const w = stage.clientWidth;
@@ -457,9 +632,10 @@ function resize(): void {
     framingKey = key;
     view.setFraming(mirrors.visible ? framingSpheres(compact) : [{ center: new Vector3(), radius: CUBE_RADIUS }]);
   }
-  view.setViewport(w, h);
+  view.setViewport(w, h, cubeFitHeight(h));
+  capPanels(h);
   const pr = renderer.getPixelRatio();
-  mirrors.setResolution(Math.round(w * pr), Math.round(h * pr));
+  mirrors.setResolution(Math.round(w * pr), Math.round(h * pr), pr);
   invalidate();
 }
 new ResizeObserver(resize).observe(stage);
@@ -475,6 +651,8 @@ function frame(now: number): void {
   if (highlight.update(dt)) needsRender = true;
   if (arrows.update(dt)) needsRender = true;
   autoSolver.update();
+  sequences.tick();
+  games.tick(now);
   session.tick(dt);
   updateTimer();
   if (pendingResult && !session.getAnimation()) {
@@ -487,11 +665,13 @@ function frame(now: number): void {
   }
   const anim = session.getAnimation();
   if (cubeView.applyAnimation(anim)) needsRender = true;
+  if (markView.update(session.state, marks.all, anim)) needsRender = true;
   if (needsRender) {
     // 照明と鏡は画面に固定（キューブを手元で回す外部仕様）。中ではカメラが回るので、その逆に回す
     const delta = view.delta;
     lights.follow(delta);
     mirrors.follow(delta);
+    markView.facing(camera.position);
     renderer.render(scene, camera);
     arrowLabels.update(camera, stage.clientWidth, stage.clientHeight);
     needsRender = false;
@@ -506,5 +686,5 @@ requestAnimationFrame(frame);
 
 // 開発時の確かめ用（計測・自動確認）。本番ビルドには入らない
 if (import.meta.env.DEV) {
-  Object.assign(window, { __cube: { renderer, scene, camera, view, cubeView, session, mirrors, lights, highlight, panel, keyboard, arrows, picker, records, resultCard, confirmDialog, autoSolver, quality, settingsDialog, getSettings: () => settings } });
+  Object.assign(window, { __cube: { renderer, scene, camera, view, cubeView, session, mirrors, lights, highlight, panel, sequences, games, gameRecorder, dock, marks, markView, messages, keyboard, arrows, picker, records, resultCard, confirmDialog, autoSolver, quality, settingsDialog, getSettings: () => settings } });
 }

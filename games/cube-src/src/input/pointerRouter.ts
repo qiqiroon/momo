@@ -2,7 +2,8 @@
 //
 // 押した瞬間には決めず、少し動いた時点で用途を決める：
 // - キューブ（色の境目・小キューブの隙間も含む）を左ボタン／1 本指で押した → その層を 90° 回す
-//   （Alt＝外側から掴んだ層までまとめて、Ctrl＝キューブ全体をその向きへ 90°）
+//   （Alt＝外側から掴んだ層までまとめて、Ctrl＝キューブ全体をその向きへ 90°）。
+//   回すかどうかと向きは、離したときに「押した所 → 離した所」の差だけで決める（途中の道筋は見ない）
 // - キューブの外（背景・鏡） → キューブ全体を横回しか縦回し（最初に動いた向きで決める）
 // - Shift・右ボタン・中ボタン → キューブ全体の自由回転（見えない球）
 // - 2 本指 → ピンチでズーム。ホイール → ズーム
@@ -15,16 +16,30 @@ import type { Picker, StickerHit } from './picker';
 import type { ViewCommand, ViewController } from './viewController';
 
 const WHEEL_GAIN = 0.0012;
+/** これより動いたらタップではない（px） */
 export const DRAG_THRESHOLD = 6;
 /**
- * 指では、層を回す向きをこれだけ動いてから決める（px）。指の当たり始めは揺れるので、
- * 6px だけで決めると向きを取り違えやすい（2026-11-02 作者：回転の方向を間違えることがある）
+ * 層を回すのに要る、押した所から離した所までの距離（px。マウス・ペン）。
+ * 前の 6px の 1.5 倍（2026-11-04 作者：入力に要る移動量を 1.5 倍に）
  */
-export const TOUCH_LAYER_THRESHOLD = 14;
+export const LAYER_THRESHOLD = 9;
+/**
+ * 指では、さらに長く要る（px。前の 14px の 1.5 倍）。指の当たり始めは揺れるので、
+ * 短いと向きを取り違えやすい（2026-11-02 作者：回転の方向を間違えることがある）
+ */
+export const TOUCH_LAYER_THRESHOLD = 21;
+
+/**
+ * 層を回すかどうかと向きは、押した所と離した所の差だけで決める（2026-11-04 作者：途中でゆがんでも）。
+ * 足りなければ null（何も回さない）
+ */
+export function layerDragOf(touch: boolean, dx: number, dy: number): { x: number; y: number } | null {
+  return Math.hypot(dx, dy) >= (touch ? TOUCH_LAYER_THRESHOLD : LAYER_THRESHOLD) ? { x: dx, y: dy } : null;
+}
 /** これより長く押していたらタップとみなさない（10 §6.1） */
 export const TAP_MS = 500;
 
-type Mode = 'pending' | 'layer-done' | 'rotate' | 'free' | 'pinch';
+type Mode = 'pending' | 'layer' | 'rotate' | 'free' | 'pinch';
 
 interface Gesture {
   mode: Mode;
@@ -147,7 +162,7 @@ export class PointerRouter {
       }
       return;
     }
-    if (g.mode === 'layer-done') return;
+    if (g.mode === 'layer') return;
     if (g.mode === 'pending') {
       const tx = e.clientX - g.startX;
       const ty = e.clientY - g.startY;
@@ -155,13 +170,8 @@ export class PointerRouter {
       if (dist <= DRAG_THRESHOLD) return;
       g.moved = true;
       if (g.hit) {
-        if (g.touch && dist <= TOUCH_LAYER_THRESHOLD) return;
-        // 層を回す。決まったら、指を離すまで追加では回さない（設計 04 §3.6）
-        g.mode = 'layer-done';
-        const push = this.picker.pushFor(g.hit, tx, ty, g.alt ? 'wide' : 'single');
-        if (!push) return;
-        if (g.ctrl) this.on.view({ kind: 'rotate', about: push.about, quarter: 1 });
-        else this.on.move(push.move);
+        // 層を回す。どこを通ったかは見ず、離したときに押した所との差で決める（layerDragOf）
+        g.mode = 'layer';
         return;
       }
       if (g.free) {
@@ -200,6 +210,7 @@ export class PointerRouter {
   private up(e: PointerEvent, cancelled = false): void {
     if (!this.points.delete(e.pointerId)) return;
     const g = this.gesture;
+    if (g && g.mode === 'layer' && !cancelled && this.points.size === 0) this.layerRelease(g, e);
     if (g && g.mode === 'pending' && !g.moved && !cancelled && this.points.size === 0 && e.timeStamp - g.at <= TAP_MS) {
       this.tap(g);
     }
@@ -213,6 +224,17 @@ export class PointerRouter {
       this.on.change();
     }
     this.gesture = null;
+  }
+
+  /** 層を掴んで離した。押した所と離した所の差で、回すかどうかと向きを決める */
+  private layerRelease(g: Gesture, e: PointerEvent): void {
+    if (!g.hit) return;
+    const d = layerDragOf(g.touch, e.clientX - g.startX, e.clientY - g.startY);
+    if (!d) return;
+    const push = this.picker.pushFor(g.hit, d.x, d.y, g.alt ? 'wide' : 'single');
+    if (!push) return;
+    if (g.ctrl) this.on.view({ kind: 'rotate', about: push.about, quarter: 1 });
+    else this.on.move(push.move);
   }
 
   /** 動かさずに離した */

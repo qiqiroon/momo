@@ -50,6 +50,11 @@ export class MoveHistory {
     return this.redoStack.length > 0;
   }
 
+  /** シャッフルの手 */
+  get scramble(): readonly Move[] {
+    return this.scrambleLog;
+  }
+
   /** 完成状態から現在までに適用された手の列 */
   get fullHistory(): readonly Move[] {
     return [...this.scrambleLog, ...this.userLog];

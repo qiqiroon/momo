@@ -11,6 +11,7 @@
 // - 反射は 1 回だけ。鏡を描く間はほかの鏡を隠し、鏡どうしの映し合い（2 回・3 回反射の像）を出さない。
 //   像は左上（左の鏡）・右上（奥の鏡）・下（床の鏡）の 3 つだけになる
 // - 鏡像は本体よりはっきり暗くして、見分けやすくする
+// - 鏡はガラスに見せる（ごく薄い青み・少しぼかす。2026-11-04 作者）
 import {
   Color, EdgesGeometry, Group, LinearSRGBColorSpace, LineBasicMaterial, LineSegments, PlaneGeometry, Quaternion, Vector3,
   type Object3D, type Scene,
@@ -26,11 +27,12 @@ export const MIRROR_DISTANCE = CUBE_RADIUS + 0.75;
 /** 鏡の板の広がり：奥側の端は角（−D）、手前側は +FAR まで */
 const MIRROR_FAR = MIRROR_DISTANCE * 2;
 /**
- * 鏡像の明るさ（リニアの値に掛ける割合）。0.3 は見た目（sRGB）でおよそ 6 割の明るさ。
+ * 鏡像の明るさ（リニアの値に掛ける割合）。0.26 は見た目（sRGB）でおよそ 5 割強の明るさ
+ * （前は 0.3＝およそ 6 割。2026-11-04 作者「あとほんのちょっと暗く」）。
  * 色の比はそのままなので、黄が橙に寄るなど色合いは変わらない。
  * 16 進（sRGB）で渡すとリニアへ直されて値が変わるので、リニアで直接渡す
  */
-const MIRROR_BRIGHTNESS = 0.3;
+const MIRROR_BRIGHTNESS = 0.26;
 const MIRROR_COLOR = new Color().setRGB(MIRROR_BRIGHTNESS, MIRROR_BRIGHTNESS, MIRROR_BRIGHTNESS, LinearSRGBColorSpace);
 
 /**
@@ -39,17 +41,40 @@ const MIRROR_COLOR = new Color().setRGB(MIRROR_BRIGHTNESS, MIRROR_BRIGHTNESS, MI
  */
 // ReflectorShader は three の実体にあるが、@types/three に型が無い
 const BASE_SHADER = (Reflector as unknown as { ReflectorShader: Record<string, unknown> }).ReflectorShader;
+/**
+ * 鏡はガラスに見せる（2026-11-04 作者：鏡に映ったキューブが実体に見えてしまう。4 案から「ガラス」を選んだ。
+ * そのあと「ゆがみはやめて少しぼやけさせる・真ん中の三角〔光の筋〕は消す・青は 5 分の 1 に」）。
+ * 像にごく薄い青みを足し、少しぼかす（鏡の面に斜めの線を入れる案も試したが、不自然なのでやめた）
+ */
+/** ぼかしの半径（画面の px） */
+export const MIRROR_BLUR_PX = 1.2;
+
 const MIRROR_SHADER = {
   ...BASE_SHADER,
+  uniforms: {
+    ...(BASE_SHADER.uniforms as Record<string, unknown>),
+    /** ぼかしの半径（鏡に貼る絵の上での割合 x, y） */
+    blur: { value: [0, 0] },
+  },
   fragmentShader: /* glsl */ `
     uniform vec3 color;
     uniform sampler2D tDiffuse;
+    uniform vec2 blur;
     varying vec4 vUv;
     #include <logdepthbuf_pars_fragment>
     void main() {
       #include <logdepthbuf_fragment>
-      vec4 base = texture2DProj(tDiffuse, vUv);
-      gl_FragColor = vec4(base.rgb * color, 1.0);
+      // 少しぼかす：まわり 8 か所と真ん中を重みを付けて混ぜる
+      vec2 p = vUv.xy / vUv.w;
+      vec3 c = texture2D(tDiffuse, p).rgb * 0.25;
+      c += (texture2D(tDiffuse, p + vec2(blur.x, 0.0)).rgb + texture2D(tDiffuse, p - vec2(blur.x, 0.0)).rgb
+          + texture2D(tDiffuse, p + vec2(0.0, blur.y)).rgb + texture2D(tDiffuse, p - vec2(0.0, blur.y)).rgb) * 0.125;
+      c += (texture2D(tDiffuse, p + blur).rgb + texture2D(tDiffuse, p - blur).rgb
+          + texture2D(tDiffuse, p + vec2(blur.x, -blur.y)).rgb + texture2D(tDiffuse, p - vec2(blur.x, -blur.y)).rgb) * 0.0625;
+      c *= color;
+      // ごく薄い青み（最初の案の 5 分の 1）
+      c = c * vec3(0.924, 0.972, 1.09) + vec3(0.0008, 0.0024, 0.006);
+      gl_FragColor = vec4(c, 1.0);
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
     }`,
@@ -94,7 +119,8 @@ export function mirrorFaceOf(delta: Quaternion, axis: Axis): Face {
 }
 
 /** 狭い画面で、鏡の像のうち必ず写す範囲の半径（像の手前の面＝鏡の方を向いた面のまわり） */
-const COMPACT_IMAGE_RADIUS = (CUBE_WORLD_SIZE / 2) * 1.15;
+/** （2026-11-04 作者：スマホでは左右の鏡の像が少し欠けてもよいので、キューブを大きく。1.15 → 0.5） */
+const COMPACT_IMAGE_RADIUS = (CUBE_WORLD_SIZE / 2) * 0.5;
 
 /**
  * 本体のカメラに写したい球（キューブと、鏡 3 枚に映る像）。ホームの部屋の座標。
@@ -163,6 +189,10 @@ export class MirrorRoom {
     scene.add(this.room);
   }
 
+  private uniforms(mirror: Reflector): Record<string, { value: unknown }> {
+    return (mirror.material as unknown as { uniforms: Record<string, { value: unknown }> }).uniforms;
+  }
+
   /** 鏡を出す・消す（設定。消しているあいだは鏡の絵も描かない） */
   get visible(): boolean {
     return this.room.visible;
@@ -172,9 +202,13 @@ export class MirrorRoom {
     this.room.visible = v;
   }
 
-  /** 鏡に貼る絵の解像度。画面の画素数に合わせる */
-  setResolution(width: number, height: number): void {
-    for (const m of this.mirrors) m.getRenderTarget().setSize(width, height);
+  /** 鏡に貼る絵の解像度。画面の画素数に合わせる（pixelRatio：画面の 1px が何画素か。ぼかしの幅に使う） */
+  setResolution(width: number, height: number, pixelRatio = 1, blurPx = MIRROR_BLUR_PX): void {
+    const blur = [(blurPx * pixelRatio) / Math.max(1, width), (blurPx * pixelRatio) / Math.max(1, height)];
+    for (const m of this.mirrors) {
+      m.getRenderTarget().setSize(width, height);
+      this.uniforms(m).blur.value = blur;
+    }
   }
 
   /** delta＝キューブの見た目の回り具合 Δ。部屋（鏡）を画面に固定する */

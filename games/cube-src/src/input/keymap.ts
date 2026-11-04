@@ -81,6 +81,27 @@ export function serializeKeymap(keymap: Keymap): string {
   return JSON.stringify({ version: KEYMAP_VERSION, keys: keymap });
 }
 
+/** キーの割り当てのファイル（2026-11-04 作者：覚えたキーをファイルに保存・読み出し）の印 */
+export const KEYMAP_FILE_KIND = 'momo-cube-keys';
+
+export function keymapToFile(keymap: Keymap): string {
+  return JSON.stringify({ kind: KEYMAP_FILE_KIND, version: KEYMAP_VERSION, keys: keymap });
+}
+
+/** ファイルの中身を読む。印が違う・壊れている・重なっている、なら null */
+export function keymapFromFile(text: string): Keymap | null {
+  try {
+    const data = JSON.parse(text) as { kind?: unknown };
+    if (!data || data.kind !== KEYMAP_FILE_KIND) return null;
+    const keymap = parseKeymap(text);
+    // parseKeymap はだめなとき既定を返すので、ファイルの中身と同じかで見分ける
+    const keys = (data as { keys?: Record<string, unknown> }).keys ?? {};
+    return KEY_ACTIONS.every((a) => keymap[a] === keys[a]) ? keymap : null;
+  } catch {
+    return null;
+  }
+}
+
 /** ブラウザの保存場所。開けないとき（プライベートの窓など）は既定のまま動く */
 export function loadKeymap(storage: Pick<Storage, 'getItem'> | null = safeStorage()): Keymap {
   try {

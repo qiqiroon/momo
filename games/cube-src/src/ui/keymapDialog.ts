@@ -1,6 +1,7 @@
 // キーの割り当てを変える画面（設計 04 §5.2・05 §5）。<dialog> は Safari 15.4 未満で無いので div で作る
 import {
-  assignKey, DEFAULT_KEYMAP, isReservedCode, KEY_ACTIONS, keyLabel, learnKeyLabel, type KeyAction, type Keymap,
+  assignKey, DEFAULT_KEYMAP, isReservedCode, KEY_ACTIONS, keyLabel, keymapFromFile, keymapToFile, learnKeyLabel,
+  type KeyAction, type Keymap,
 } from '../input/keymap';
 import { S } from './strings';
 
@@ -14,7 +15,9 @@ export class KeymapDialog {
   private readonly backdrop: HTMLDivElement;
   private readonly list: HTMLDivElement;
   private readonly message: HTMLParagraphElement;
-  private readonly texts: { title: HTMLElement; help: HTMLElement; reset: HTMLElement; close: HTMLElement };
+  private readonly texts: {
+    title: HTMLElement; help: HTMLElement; reset: HTMLElement; close: HTMLElement; save: HTMLElement; load: HTMLElement;
+  };
   private waiting: KeyAction | null = null;
   private returnFocus: HTMLElement | null = null;
 
@@ -49,8 +52,23 @@ export class KeymapDialog {
     const close = document.createElement('button');
     close.type = 'button';
     close.addEventListener('click', () => this.close());
+    // 覚えたキーをファイルに保存・ファイルから読み出す（2026-11-04 作者）
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.addEventListener('click', () => this.saveFile());
+    const load = document.createElement('button');
+    load.type = 'button';
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.json,application/json';
+    fileInput.hidden = true;
+    load.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => void this.loadFile(fileInput));
+    const files = document.createElement('div');
+    files.className = 'modal-files';
+    files.append(save, load, fileInput);
     footer.append(reset, close);
-    box.append(title, help, this.list, this.message, footer);
+    box.append(title, help, this.list, this.message, files, footer);
     this.backdrop.append(box);
     this.backdrop.addEventListener('pointerdown', (e) => {
       if (e.target === this.backdrop) this.close();
@@ -58,7 +76,7 @@ export class KeymapDialog {
     // 割り当て中のキーは、ゲームの操作に渡さずここで受ける
     window.addEventListener('keydown', (e) => this.onKey(e), true);
     parent.append(this.backdrop);
-    this.texts = { title, help, reset, close };
+    this.texts = { title, help, reset, close, save, load };
     this.relabel();
   }
 
@@ -68,6 +86,10 @@ export class KeymapDialog {
     this.texts.help.textContent = S.keymapHelp;
     this.texts.reset.textContent = S.keymapDefault;
     this.texts.close.textContent = S.close;
+    this.texts.save.textContent = S.seqExport;
+    this.texts.save.title = S.keymapSaveTitle;
+    this.texts.load.textContent = S.seqImport;
+    this.texts.load.title = S.keymapLoadTitle;
     if (this.isOpen) this.render();
   }
 
@@ -114,6 +136,39 @@ export class KeymapDialog {
       });
       row.append(name, b);
       this.list.append(row);
+    }
+  }
+
+  private saveFile(): void {
+    const blob = new Blob([keymapToFile(this.deps.getKeymap())], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'momo-cube-keys.json';
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  private async loadFile(input: HTMLInputElement): Promise<void> {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    let text = '';
+    try {
+      text = await file.text();
+    } catch {
+      text = '';
+    }
+    const keymap = keymapFromFile(text);
+    if (keymap) {
+      this.deps.setKeymap(keymap);
+      this.waiting = null;
+      this.message.textContent = S.keymapLoaded;
+      this.render();
+    } else {
+      this.message.textContent = S.keymapLoadFailed;
     }
   }
 

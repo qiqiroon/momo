@@ -142,6 +142,34 @@ export class GameSession extends Emitter<GameSessionEvents> {
     this.emit('scrambled', { length: moves.length });
   }
 
+  /** いまのゲームのシャッフルの手 */
+  get scrambleMoves(): readonly Move[] {
+    return this.history.scramble;
+  }
+
+  /** 回している最中の手がある */
+  get busy(): boolean {
+    return this.running !== null || this.queue.length > 0;
+  }
+
+  /**
+   * プレイ記録の再生（2026-11-04）：大きさ n の完成形にシャッフルの手を当てたところから始める。
+   * 時間は計らない（再生は遊びではないので、そろっても記録に残さない）。
+   * 大きさが変わるときは 'size:changed'、そのあと 'scrambled' を出す
+   */
+  loadScramble(n: number, moves: readonly Move[]): void {
+    const sizeChanged = n !== this._state.n;
+    this.restart(createSolved(n));
+    if (sizeChanged) this.emit('size:changed', { n });
+    moves.forEach((m) => applyMove(this._state, m));
+    if (import.meta.env.DEV) assertInvariants(this._state);
+    this.history.setScramble(moves);
+    this.scrambleLen = moves.length;
+    this.wasSolved = isSolved(this._state);
+    this._phase = 'solved';
+    this.emit('scrambled', { length: moves.length });
+  }
+
   /** false＝待ち行列が満杯で捨てた */
   enqueue(req: MoveRequest): boolean {
     if (req.kind === 'move' && req.move.n !== this._state.n) return false;

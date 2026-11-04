@@ -56,10 +56,12 @@ export class ConfirmDialog {
     return !this.backdrop.hidden;
   }
 
-  /** message を見せて、okLabel を押したら true */
-  ask(message: string, okLabel: string): Promise<boolean> {
+  /** message を見せて、okLabel を押したら true。見出しとやめるボタンの文字は変えられる（既定はゲームの途中の確認） */
+  ask(message: string, okLabel: string, opts: { title?: string; cancel?: string } = {}): Promise<boolean> {
     this.finish(false);
     this.returnFocus = document.activeElement as HTMLElement | null;
+    this.title.textContent = opts.title ?? S.confirmTitle;
+    this.cancel.textContent = opts.cancel ?? S.confirmContinue;
     this.text.textContent = message;
     this.ok.textContent = okLabel;
     this.backdrop.hidden = false;

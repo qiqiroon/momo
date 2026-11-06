@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>MOMO Polyomino</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <meta
+      name="description"
+      content="昭和生まれならわかる、プラスチックのピースを枠に埋めていく、あのパズル。正方形をつないだ駒を全種類使い、枠にすき間なく敷き詰めます。駒の大きさ（レベル）は自由に選べます。登録不要・インストール不要。"
+    />
+    <meta name="keywords" content="ポリオミノ,ペントミノ,テトロミノ,ヘキソミノ,敷き詰めパズル,パズル,無料,ブラウザゲーム" />
+    <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/polyomino/" />
+    <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/polyomino/" />
+    <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/polyomino/" />
+    <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/polyomino/" />
+    <link rel="canonical" href="https://qiqiroon.github.io/momo/games/polyomino/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://qiqiroon.github.io/momo/games/polyomino/" />
+    <meta property="og:title" content="MOMO Polyomino - ポリオミノの敷き詰めパズル" />
+    <meta
+      property="og:description"
+      content="昭和生まれならわかる、プラスチックのピースを枠に埋めていく、あのパズル。登録不要・インストール不要。"
+    />
+    <meta property="og:image" content="https://qiqiroon.github.io/momo/games/polyomino/favicon.svg" />
+    <meta property="og:locale" content="ja_JP" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:locale:alternate" content="zh_CN" />
+    <!-- MOMO Works 共通アクセス解析（公開サイトの /momo/lib を指す。開発サーバーでは読めないが害はない） -->
+    <script src="/momo/lib/momo-analytics.js" defer></script>
+    <!-- MOMO Works の共通フォント（app-card-design §1.3：3 つまとめて 1 行） -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+    <!-- MOMO 共通の言語ルーチン（lib/momo-lang）は src/i18n/langMode.ts から読み込む -->
+    <style>
+      /* MOMO Works デザイン仕様 v1.0 §1：色は黒・白・オレンジの 3 色体系。直書きしない */
+      :root {
+        --bg: #0a0a0a; --surface: #111111; --surface2: #1a1a1a;
+        --orange: #c2410c; --orange-mid: #ea580c; --orange-light: #fb923c;
+        --text: #e5e5e5; --text-muted: #737373;
+        --border: #2a2a2a; --border-strong: #444;
+        --bg-selected: rgba(194,65,12,0.15);
+      }
+      html, body { margin: 0; background: var(--bg); color: var(--text);
+        font: 14px/1.4 'Noto Sans JP', system-ui, sans-serif; }
+      html:lang(zh-Hans) body { font-family: 'Noto Sans SC', 'Noto Sans JP', system-ui, sans-serif; }
+      /* ゲームは画面いっぱい（#app）。その下に説明のフッターがあり、ページを下へ送ると見える */
+      #app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+      /* 背景の 48px の格子（§3 方式B） */
+      body {
+        background-image: linear-gradient(var(--border) 1px, transparent 1px),
+          linear-gradient(90deg, var(--border) 1px, transparent 1px);
+        background-size: 48px 48px; background-attachment: fixed; }
+      body::before { content: ''; position: fixed; inset: 0; background: var(--bg); opacity: 0.8;
+        pointer-events: none; z-index: 0; }
+      body > * { position: relative; z-index: 1; }
+      button, select, input { font: inherit; }
+      button { color: var(--text); background: var(--surface2); border: 1px solid var(--border-strong); border-radius: 6px;
+        padding: 4px 10px; cursor: pointer; }
+      button:hover:not(:disabled) { border-color: var(--orange); color: var(--orange-light); }
+      button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--orange-light); outline-offset: 1px; }
+      button:disabled { opacity: .4; cursor: default; }
+      select { color: var(--text); background: var(--surface2); border: 1px solid var(--border-strong); border-radius: 4px; padding: 3px 6px; }
+
+      /* アプリの見出し（app-card-design v1.1 §1〜§4：猫＋ポリオミノの絵・MOMO Polyomino・版・サブタイトル）。
+         Cube と同じく 3 分の 2 ほどに縮めて、遊ぶ画面の面積を取る */
+      #top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 0 12px; }
+      .site-header { display: flex; align-items: flex-start; gap: 7px; margin: 6px 0 0;
+        animation: fadeDown 0.4s ease-out; }
+      .cat-icon { width: 38px; height: 41px; flex-shrink: 0; }
+      .title-block { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
+      h1 { margin: 0; font-family: 'Fredoka One', cursive; font-size: clamp(1.33rem, 4vw, 1.73rem); font-weight: 400;
+        letter-spacing: 0.02em; line-height: 1; display: flex; align-items: baseline; gap: 0.3em; }
+      h1 .momo { color: var(--text); }
+      h1 .polyomino { color: var(--orange-mid); }
+      h1 .version-tag { color: var(--text-muted); font-size: 0.28em; letter-spacing: 0.04em; align-self: flex-end; padding-bottom: 0.2em; }
+      .subtitle { font-family: 'Fredoka One', cursive; color: #888888; letter-spacing: 0; margin: 1px 0 4px;
+        font-size: 15px; min-height: 1.2em; animation: fadeDown 0.5s ease-out; }
+      .subtitle.zh { font-size: 11px; font-family: 'Fredoka One', 'Noto Sans SC', 'Noto Sans JP', sans-serif; }
+      /* 言語の選択（cat-lang-spec：ボタンではなくプルダウン） */
+      .lang-select { margin-top: 6px; background: var(--surface2); border: 1px solid var(--border-strong); color: var(--text);
+        font-size: 12px; padding: 2px 6px; border-radius: 4px; cursor: pointer; }
+      .lang-select:focus { border-color: var(--orange); }
+      @keyframes fadeDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+      /* 遊ぶ画面では見出しをタイトルだけに縮める（app-card-design §5）。狭い・低い画面でも同じ */
+      body.in-game .site-header .cat-icon, body.in-game .site-header .subtitle, body.in-game .site-header .version-tag { display: none; }
+      body.in-game .site-header { margin: 3px 0 1px; }
+      body.in-game .site-header h1 { font-size: 0.95rem; }
+      @media (max-width: 639px), (max-height: 560px) {
+        .site-header { margin: 3px 0 1px; }
+        .site-header .cat-icon, .site-header .subtitle, .site-header .version-tag { display: none; }
+        .site-header h1 { font-size: 0.95rem; }
+        .lang-select { margin-top: 2px; padding: 1px 5px; font-size: 11px; }
+      }
+
+      #screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+      /* ── レベル選択 */
+      #levels { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px 16px; }
+      #levels h2 { font-family: 'Fredoka One', 'Noto Sans JP', 'Noto Sans SC', sans-serif; font-weight: 400; font-size: 17px;
+        margin: 4px 0 10px; color: var(--text); animation: fadeUp 0.4s ease-out; }
+      .level-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+      .level-card { display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 10px 12px 12px;
+        background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--text);
+        transition: transform .15s, border-color .15s; animation: fadeUp 0.4s ease-out both; }
+      .level-card:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--orange); color: var(--text); }
+      .level-card .lv { font-family: 'Fredoka One', cursive; font-size: 20px; line-height: 1; color: var(--orange-light); }
+      .level-card .variant { font-size: 12px; color: var(--text); background: var(--surface2); border: 1px solid var(--border-strong);
+        border-radius: 999px; padding: 1px 8px; align-self: flex-start; }
+      .level-card .variant.legacy { border-color: var(--orange); color: var(--orange-light); }
+      .level-card .family { font-size: 13px; color: var(--text); }
+      .level-card .info { font-size: 12px; color: var(--text-muted); }
+      .level-card .shape { display: flex; align-items: center; justify-content: center; height: 64px; }
+      .level-card .shape svg { max-width: 100%; max-height: 64px; }
+      .level-notes { margin: 14px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--text-muted); }
+
+      /* ── 遊ぶ画面 */
+      #game { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+      #game-bar { display: flex; align-items: center; gap: 10px; padding: 4px 12px;
+        background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+      #game-title { font-family: 'Fredoka One', 'Noto Sans JP', 'Noto Sans SC', sans-serif; font-size: 15px; }
+      #game-title .variant { font-family: 'Noto Sans JP', 'Noto Sans SC', sans-serif; font-size: 12px; color: var(--orange-light); margin-left: 6px; }
+      #game-main { flex: 1; min-height: 0; display: flex; }
+      #board-wrap { flex: 1; min-width: 0; position: relative; }
+      #board { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+      #piece-list { width: clamp(76px, 22vw, 170px); flex-shrink: 0; display: flex; flex-direction: column;
+        background: var(--surface); border-left: 1px solid var(--border); }
+      #piece-list .head { font-size: 12px; color: var(--text-muted); padding: 6px 8px; border-bottom: 1px solid var(--border); }
+      #piece-items { flex: 1; min-height: 0; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 6px; }
+      .piece-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px 4px;
+        background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
+      .piece-item svg { display: block; max-width: 100%; height: auto; }
+      .piece-item .name { font-size: 11px; color: var(--text-muted); line-height: 1; }
+      .piece-item.placed { opacity: .55; }
+      .piece-item.selected { border-color: var(--orange-light); background: var(--bg-selected); box-shadow: 0 0 0 1px var(--orange-light) inset; }
+      .list-scroll { flex-shrink: 0; margin: 3px 6px; padding: 0; height: 22px; font-size: 10px; line-height: 1; color: var(--text-muted); }
+      .list-scroll[hidden] { display: none; }
+      #reset { margin-left: auto; font-size: 12px; padding: 3px 10px; }
+      #hint { font-size: 12px; padding: 3px 10px; border-color: var(--orange); color: var(--orange-light); }
+      #hint[hidden] { display: none; }
+      #hint.busy { animation: hintPulse 1s ease-in-out infinite; }
+      @keyframes hintPulse { 50% { background: var(--bg-selected); } }
+      .hint-toast { position: absolute; left: 50%; bottom: 52px; transform: translateX(-50%); z-index: 4; max-width: calc(100% - 24px);
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+        padding: 6px 12px; border-radius: 10px; font-size: 12px; color: var(--text); background: rgba(17,17,17,0.94);
+        border: 1px solid var(--orange); box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+      .hint-toast[hidden] { display: none; }
+      .hint-toast button { font-size: 12px; padding: 2px 10px; }
+      .hint-toast button.primary { background: var(--orange); border-color: var(--orange-light); color: #fff; }
+      .hint-toast.busy span::after { content: ''; display: inline-block; width: 10px; height: 10px; margin-left: 8px; vertical-align: -1px;
+        border: 2px solid var(--orange-light); border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* 盤面の上に浮かぶもの（仮置きの駒に付くボタン・拡大縮小・端のスクロール・案内） */
+      #board-wrap { overflow: hidden; }
+      #board-wrap > button, .float-tools button, .zoom-tools button {
+        width: 38px; height: 38px; padding: 0; border-radius: 50%; font-size: 18px; line-height: 1;
+        background: rgba(17,17,17,0.88); border: 1px solid var(--border-strong); touch-action: none; user-select: none; }
+      .float-tools { position: absolute; left: 0; top: 0; display: flex; gap: 6px; z-index: 3; will-change: transform; }
+      .float-tools[hidden], .float-tools button[hidden] { display: none; }
+      #piece-list { transition: box-shadow .15s, background .15s; }
+      #piece-list.drop-target { box-shadow: inset 0 0 0 2px var(--orange-light); background: var(--bg-selected); }
+      .float-tools .rot { cursor: grab; }
+      .float-tools .ok:not(:disabled) { background: var(--orange); border-color: var(--orange-light); color: #fff; }
+      .zoom-tools { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 6px; z-index: 2; }
+      .zoom-tools button { width: 34px; height: 34px; font-size: 17px; }
+      #board-wrap > button.edge { position: absolute; z-index: 2; width: 30px; height: 30px; font-size: 11px; opacity: .8; }
+      #board-wrap > button.edge[hidden] { display: none; }
+      .edge.up { top: 6px; left: calc(50% - 15px); }
+      .edge.down { bottom: 6px; left: calc(50% - 15px); }
+      .edge.left { left: 6px; top: calc(50% - 15px); }
+      .edge.right { right: 6px; top: calc(50% - 15px); }
+      .place-hint { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 2; max-width: calc(100% - 80px);
+        padding: 4px 12px; border-radius: 999px; font-size: 12px; color: var(--text); background: rgba(17,17,17,0.9);
+        border: 1px solid var(--orange); pointer-events: none; text-align: center; }
+      .place-hint[hidden] { display: none; }
+
+      /* 時計・解提示・完成（§6） */
+      #clock { margin-left: auto; font-family: 'Fredoka One', cursive; font-size: 15px; color: var(--orange-light);
+        font-variant-numeric: tabular-nums; min-width: 3.2em; text-align: right; }
+      #clock + #reset { margin-left: 0; }
+      #piece-list.revealing .piece-item { opacity: .25; }
+      .piece-item { transition: opacity .5s; }
+      .complete { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center;
+        background: rgba(10,10,10,0.45); overflow: hidden; }
+      .complete.animate { animation: fadeIn .4s ease-out; }
+      .complete-card { position: relative; z-index: 1; min-width: 220px; max-width: calc(100% - 32px); padding: 18px 22px 16px; text-align: center;
+        background: var(--surface); border: 1px solid var(--orange); border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+      .complete.animate .complete-card { animation: pop .5s cubic-bezier(.2,1.6,.4,1) both; }
+      .complete-card h2 { margin: 0 0 8px; font-family: 'Fredoka One', 'Noto Sans JP', 'Noto Sans SC', sans-serif; font-weight: 400;
+        font-size: 28px; color: var(--orange-light); }
+      .complete-card p { margin: 4px 0; }
+      .complete-card .time { font-family: 'Fredoka One', 'Noto Sans JP', 'Noto Sans SC', sans-serif; font-size: 20px; color: var(--text); }
+      .complete-card .best { font-size: 13px; color: var(--text-muted); }
+      .complete-card .best.new { color: #ffffff; font-weight: 700; }
+      .complete-buttons { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+      .complete-buttons button { padding: 6px 14px; }
+      .complete-buttons .primary { background: var(--orange); border-color: var(--orange-light); color: #fff; }
+      .confetti { position: absolute; inset: 0; pointer-events: none; }
+      .confetti span { position: absolute; top: -12px; width: 8px; height: 8px; border-radius: 1px; opacity: 0;
+        animation: fall 2s ease-in forwards; }
+      @keyframes fall { 0% { opacity: 1; transform: translate(0, 0) rotate(0); }
+        100% { opacity: 0; transform: translate(var(--drift), 110cqh) rotate(var(--spin)); } }
+      .complete { container-type: size; }
+      @keyframes pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+      /* レベル選択のベストタイムと、iPhone・iPad の保存の注意（§10） */
+      .level-card .best { font-size: 12px; color: var(--orange-light); }
+      .ios-notice { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 12px; padding: 8px 10px; font-size: 12px;
+        background: var(--surface); border: 1px solid var(--orange); border-radius: 8px; }
+      .ios-notice p { margin: 0; flex: 1; }
+      .ios-notice button { flex-shrink: 0; font-size: 12px; }
+
+      /* 説明のフッター（ページを下へ送ると見える） */
+      .site-footer { background: var(--surface); border-top: 1px solid var(--border); padding: 26px 24px 36px; color: var(--text-muted); }
+      .site-footer-inner { max-width: 760px; margin: 0 auto; }
+      .site-footer h2 { font-family: 'Fredoka One', 'Noto Sans JP', 'Noto Sans SC', sans-serif; font-weight: 400; font-size: 15px;
+        color: var(--text); margin: 0 0 9px; letter-spacing: .02em; }
+      .site-footer p { font-size: 12px; line-height: 1.9; margin: 0 0 14px; }
+      .foot-links { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+      .foot-links a { font-size: 12px; color: var(--orange-light); text-decoration: none; }
+      .foot-links a:hover { text-decoration: underline; }
+      @media (max-width: 640px) { .site-footer { padding: 22px 16px 32px; } .site-footer-inner { padding: 0 8px; } }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+    <header id="top">
+      <div class="site-header">
+        <svg class="cat-icon" viewBox="-46 -50 100 110" role="img" aria-label="MOMO Polyomino"><g id="cat-body"><g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g><g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g><ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/><line x1="-14" y1="1.00"  x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="-14" y1="6.0"   x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="-33.68" y1="-2.28" x2="-38" y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="-33.44" y1="6.0"   x2="-40" y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="-29.58" y1="14.26" x2="-37" y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="14"  y1="1.00"  x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="14"  y1="6.0"   x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="14"  y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><line x1="33.68" y1="-2.28" x2="38"  y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="33.44" y1="6.0"   x2="40"  y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><line x1="29.58" y1="14.26" x2="37"  y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/><ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/><ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/><ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/><ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/><circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/><circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/><path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/><line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/><path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/><path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/></g><g id="polyomino-overlay" transform="translate(-2,2) scale(0.2)"
+     stroke="#000" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"><path d="M120,0 L200,0 L200,120 L160,120 L160,80 L120,80 L120,0 Z" fill="#fb923c"/><path d="M200,0 L240,0 L240,160 L160,160 L160,120 L200,120 L200,0 Z" fill="#ffffff"/><path d="M80,40 L120,40 L120,80 L160,80 L160,120 L120,120 L120,160 L80,160 L80,120 L40,120 L40,80 L80,80 L80,40 Z" fill="#ffffff"/><path d="M40,120 L80,120 L80,160 L120,160 L120,120 L160,120 L160,200 L40,200 L40,120 Z" fill="#fb923c"/></g></svg>
+        <div class="title-block">
+          <h1><span class="momo">MOMO</span><span class="polyomino">Polyomino</span><span class="version-tag" id="version-tag"></span></h1>
+          <div class="subtitle" id="subtitle"></div>
+        </div>
+      </div>
+      <select class="lang-select" id="lang-select">
+        <option value="auto">Auto</option>
+        <option value="ja">日本語</option>
+        <option value="en">EN</option>
+        <option value="zh">中文</option>
+        <option value="cat">CAT</option>
+      </select>
+    </header>
+    <main id="screen"></main>
+    </div>
+    <footer class="site-footer">
+      <div class="site-footer-inner">
+        <h2 id="foot-about">MOMO Polyomino について</h2>
+        <p id="foot-desc">MOMO Polyomino は、ブラウザで遊べる無料のポリオミノ敷き詰めパズルです。昭和生まれならわかる、プラスチックのピースを枠に埋めていく、あのパズルです。正方形を辺でつないだ同じ大きさの駒を全種類使って、枠にすき間なく敷き詰めます。駒の大きさ（レベル）は自由に選べます。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。</p>
+        <div class="foot-links">
+          <a href="../../" id="foot-top">MOMO Works トップ</a>
+          <a href="../../games/" id="foot-games">ゲーム一覧</a>
+          <a href="../../tools/" id="foot-tools">ツール一覧</a>
+        </div>
+      </div>
+    </footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

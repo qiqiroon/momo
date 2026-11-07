@@ -12,6 +12,12 @@ const cellKey = (x: number, y: number): string => x + ',' + y;
  */
 export function pieceColors(level: LevelDef, colors = 6): Map<string, number> {
   const pieces = piecesOf(level);
+  if (!level.solution.length) {
+    // 完成形の無いレベル（解の保証なし）：駒の番号で順に色を回す
+    const out = new Map<string, number>();
+    pieces.forEach((_, i) => { for (let c = 0; c < level.count; c++) out.set(`${i}:${c}`, (i + c) % colors); });
+    return out;
+  }
   const owner = new Map<string, string>();
   const keys: string[] = [];
   for (const pl of level.solution) {

@@ -1,9 +1,9 @@
 // 盤面を canvas に描く。大きい盤面（n=8 で 2958 マス）でも軽く描けるよう、駒ごとの DOM は作らない。
 // 見る位置と大きさ（拡大縮小・スクロール。仕様書 §4.8）もここで持つ。操作の受け付けは boardControl.ts
 
-import { type Cell, holesOf, orient, outlineEdges } from '../core/geometry';
+import { type Cell, outlineEdges } from '../core/geometry';
 import { type Game, refKey } from '../core/game';
-import { boardCells, type Placement } from '../core/levels';
+import { boardCells, boardRuns, type Placement } from '../core/levels';
 import { pieceColors } from '../core/progress';
 import { shade } from './shapeSvg';
 
@@ -12,6 +12,10 @@ const PIECE_FILLS = ['#fb923c', '#ea580c', '#c2410c', '#fdba74', '#f97316', '#9a
 /** 拡大の上限：1マスがおよそこの大きさ（px）。駒リストの駒（1マス 16〜20px）の約 3 倍（§4.8） */
 const MAX_CELL = 60;
 const MARGIN = 18; // 盤面のまわりの余白（お盆の縁が入る幅）
+/** 1 回の描画で新しく作る駒の絵の数の上限（拡大率を変えた直後に、駒が何百個も見えていても固まらないように） */
+const SPRITE_BUDGET = 60;
+/** リストから呼んだ駒を盤面で点滅させる長さ（ms） */
+const FLASH_MS = 2000;
 
 interface Anim {
   /** 描き始めの回転（度）と左右の向き（-1 は鏡うつし）。時間とともに 0・1 へ寄せる */
@@ -31,6 +35,11 @@ export class BoardView {
   private layerSig = '';
   private dpr = 1;
   private readonly cells: Cell[];
+  /** 盤面の行ごとの横の並び [y, x0, x1)（大きい盤面を少ない四角で塗る） */
+  private readonly runs: Array<[number, number, number]>;
+  /** 盤面の外周の線（小さくて立体にできないときに引く）と、お盆の縁の形（マスの単位）。盤面は変わらないので1回だけ作る */
+  private outline: Array<[number, number, number, number]> | null = null;
+  private lipCells: Array<{ x: number; y: number; m: number }> | null = null;
   private readonly ro: ResizeObserver;
   /** 1マスの大きさ（CSS px）と、盤面の左上が来る画面上の位置 */
   scale = 0;
@@ -52,11 +61,20 @@ export class BoardView {
   private reveal: { t0: number; show: number; fly: number; onEnd: () => void } | null = null;
   /** 完成の演出（§6.2）：左から右へ光が走る */
   private cheer: number | null = null;
+  /**
+   * 置いた駒の立体の絵（と影）の使い回し。立体の描き方は 1 個あたり約 1ms かかるので、
+   * 同じ駒・向き・色の絵は 1 回だけ作り、あとは貼るだけにする。拡大率・画素密度が変わったら作り直す
+   */
+  private readonly sprites = new Map<string, { img: HTMLCanvasElement; pad: number }>();
+  private spriteKey = '';
+  /** 下絵のうち、まだ平らに描いた駒がある（次の描画で続きの絵を作る） */
+  private layerIncomplete = false;
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly game: Game) {
     this.ctx = this.screenCtx = canvas.getContext('2d')!;
     this.layerCtx = this.layer.getContext('2d')!;
     this.cells = boardCells(game.level);
+    this.runs = boardRuns(game.level);
     this.colors = pieceColors(game.level);
     this.ro = new ResizeObserver(() => this.invalidate());
     this.ro.observe(canvas);
@@ -165,7 +183,7 @@ export class BoardView {
     if (r.x < 0 || r.y < 0 || r.x + r.w > this.width || r.y + r.h > this.height) {
       this.panBy(this.width / 2 - cx, this.height / 2 - cy);
     }
-    this.flash = { key, until: performance.now() + 900 };
+    this.flash = { key, until: performance.now() + FLASH_MS };
     this.invalidate();
   }
 
@@ -254,7 +272,7 @@ export class BoardView {
     const light = css.getPropertyValue('--orange-light').trim() || '#fb923c';
 
     // 下絵（盤面＋置いた駒）。見る位置・大きさ・置いた駒が変わったときだけ描き直す
-    const sig = [cssW, cssH, dpr, this.scale, this.tx, this.ty, this.reveal ? 'r' : '', JSON.stringify([...this.game.placements])].join('|');
+    const sig = [cssW, cssH, dpr, this.scale, this.tx, this.ty, this.reveal ? 'r' : '', this.game.rev].join('|');
     if (sig !== this.layerSig) {
       this.layerSig = sig;
       if (this.layer.width !== this.canvas.width || this.layer.height !== this.canvas.height) {
@@ -262,8 +280,13 @@ export class BoardView {
         this.layer.height = this.canvas.height;
       }
       this.ctx = this.layerCtx;
+      this.layerIncomplete = false;
       this.drawLayer(cssW, cssH, dpr);
       this.ctx = this.screenCtx;
+      if (this.layerIncomplete) {
+        this.layerSig = '';
+        this.invalidate();
+      }
     }
     const g = this.ctx;
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -281,7 +304,9 @@ export class BoardView {
 
     // 置いた駒の上の光（完成の光・リストから呼んだ駒の点滅）
     const cheerW = this.game.size.w + 6;
+    const vis = this.visibleCells();
     for (const [key, pl] of this.game.placements) {
+      if (!this.boxVisible(pl, vis)) continue;
       if (this.cheer !== null) {
         // 完成の光：駒の左端から順に、白い枠が光って消える
         const t = (now - this.cheer) / 1400 - pl.x / cheerW;
@@ -294,9 +319,14 @@ export class BoardView {
         }
       }
       if (this.flash && this.flash.key === key && now < this.flash.until) {
+        // 4 回点滅（駒の面を白く塗り、枠も白く。駒が小さく見えるときでも分かるように）
+        const a = Math.sin(((this.flash.until - now) / FLASH_MS) * Math.PI * 4) ** 2;
+        g.globalAlpha = 0.75 * a;
+        g.fillStyle = '#ffffff';
+        for (const [x, y] of this.game.shapeCells(pl)) g.fillRect(this.tx + x * cell, this.ty + y * cell, cell, cell);
         g.strokeStyle = '#ffffff';
         g.lineWidth = Math.max(2, Math.min(4, cell / 6));
-        g.globalAlpha = 0.3 + 0.7 * Math.sin(((this.flash.until - now) / 900) * Math.PI * 3) ** 2;
+        g.globalAlpha = 0.3 + 0.7 * a;
         this.strokeEdges(outlineEdges(this.game.shapeCells(pl)));
         g.globalAlpha = 1;
       }
@@ -353,15 +383,24 @@ export class BoardView {
     const border = css.getPropertyValue('--border-strong').trim() || '#444';
     const frame = css.getPropertyValue('--orange').trim() || '#c2410c';
 
-    // 盤面のマス
+    // 盤面のマス（見えている行・列だけ。行ごとの横の並びをまとめて塗る）
+    const vis = this.visibleCells();
     g.fillStyle = surface2;
-    for (const [x, y] of this.cells) g.fillRect(ox + x * cell, oy + y * cell, cell, cell);
+    for (const [y, a, b] of this.runs) {
+      if (y < vis.y0 || y > vis.y1) continue;
+      const x0 = Math.max(a, vis.x0), x1 = Math.min(b, vis.x1 + 1);
+      if (x0 < x1) g.fillRect(ox + x0 * cell, oy + y * cell, (x1 - x0) * cell, cell);
+    }
     // マスの目（細い線。小さすぎるときは描かない）
     if (cell >= 6) {
       g.strokeStyle = border;
       g.lineWidth = 1;
       g.beginPath();
-      for (const [x, y] of this.cells) g.rect(ox + x * cell + 0.5, oy + y * cell + 0.5, cell - 1, cell - 1);
+      for (const [y, a, b] of this.runs) {
+        if (y < vis.y0 || y > vis.y1) continue;
+        const x1 = Math.min(b, vis.x1 + 1);
+        for (let x = Math.max(a, vis.x0); x < x1; x++) g.rect(ox + x * cell + 0.5, oy + y * cell + 0.5, cell - 1, cell - 1);
+      }
       g.globalAlpha = 0.5;
       g.stroke();
       g.globalAlpha = 1;
@@ -374,14 +413,16 @@ export class BoardView {
       g.strokeStyle = frame;
       g.lineWidth = Math.max(1.5, Math.min(3, cell / 8));
       g.lineCap = 'square';
-      this.strokeEdges(outlineEdges(this.cells));
+      this.outline ??= outlineEdges(this.cells);
+      this.strokeEdges(this.outline);
     }
 
     if (this.reveal) return; // 解提示の間は、駒を描いたあとで drawLip を画面に描く
-    // 置いた駒（色は駒ごとに決まった色。置き直しても変わらない）。
+    // 置いた駒（色は駒ごとに決まった色。置き直しても変わらない）。見えている駒だけ描く。
     // 影を先に全部描く（あとから描いた駒の影が、先に描いた駒の上に落ちないように）
-    for (const pl of this.game.placements.values()) this.drawShadow(pl, 1);
-    for (const [key, pl] of this.game.placements) this.drawPiece(pl, this.fillOf(key), 1, false);
+    const shown = [...this.game.placements].filter(([, pl]) => this.boxVisible(pl, vis));
+    if (bevel) this.drawSprites(shown);
+    else this.drawFlat(shown);
     // 無理に置いた駒（PC）の重なり・はみ出しは白い斜線
     this.stripes(this.game.conflictCells(), cssW, cssH);
     this.drawLip();
@@ -413,6 +454,120 @@ export class BoardView {
     // 縁の上面の角：左上に光・右下に陰（外側の角も、内側の角も。駒の縁と同じ描き方）
     this.inset(lip, 'rgba(255,255,255,0.3)', lipW * 0.15, lipW * 0.14, lipW * 0.14);
     this.inset(lip, 'rgba(0,0,0,0.6)', lipW * 0.2, -lipW * 0.18, -lipW * 0.18);
+  }
+
+  /** 画面に見えているマスの範囲（まわりに 1 マスの余裕。影の分） */
+  private visibleCells(): { x0: number; y0: number; x1: number; y1: number } {
+    const s = this.scale || 1;
+    return {
+      x0: Math.floor(-this.tx / s) - 1,
+      y0: Math.floor(-this.ty / s) - 1,
+      x1: Math.ceil((this.width - this.tx) / s) + 1,
+      y1: Math.ceil((this.height - this.ty) / s) + 1,
+    };
+  }
+
+  private boxVisible(pl: Placement, v: { x0: number; y0: number; x1: number; y1: number }): boolean {
+    const b = this.game.boxOf(pl);
+    return b.x + b.w >= v.x0 && b.x <= v.x1 && b.y + b.h >= v.y0 && b.y <= v.y1;
+  }
+
+  /**
+   * 置いた駒を立体の絵を貼って描く（影を先に全部、そのあと駒）。
+   * 絵がまだ無い駒は SPRITE_BUDGET 個まで作り、残りはこの回だけ平らに描く（次の描画で続きを作る）
+   */
+  private drawSprites(shown: Array<[string, Placement]>): void {
+    const key = `${this.scale}|${this.dpr}`;
+    if (key !== this.spriteKey || this.sprites.size > 4000) {
+      this.sprites.clear();
+      this.spriteKey = key;
+    }
+    let budget = SPRITE_BUDGET;
+    const get = (kind: 's' | 'p', pl: Placement, fill: string) => {
+      const k = kind === 's' ? `s|${pl.piece}|${pl.o}` : `p|${pl.piece}|${pl.o}|${fill}`;
+      let sp = this.sprites.get(k);
+      if (!sp && budget > 0) {
+        budget--;
+        sp = this.makeSprite(kind, pl, fill);
+        this.sprites.set(k, sp);
+      }
+      return sp;
+    };
+    const ready: Array<[Placement, { img: HTMLCanvasElement; pad: number }, { img: HTMLCanvasElement; pad: number }]> = [];
+    const flat: Array<[string, Placement]> = [];
+    for (const [k, pl] of shown) {
+      const fill = this.fillOf(k);
+      const sh = get('s', pl, fill), pc = sh && get('p', pl, fill);
+      if (sh && pc) ready.push([pl, sh, pc]);
+      else flat.push([k, pl]);
+    }
+    for (const [pl, sh] of ready) this.blit(pl, sh);
+    if (flat.length) {
+      this.drawFlat(flat);
+      this.layerIncomplete = true;
+    }
+    for (const [pl, , pc] of ready) this.blit(pl, pc);
+  }
+
+  /** 駒 1 個の絵（kind 's' は落ち影だけ、'p' は駒だけ）を、小さな canvas に描いて作る */
+  private makeSprite(kind: 's' | 'p', pl: Placement, fill: string): { img: HTMLCanvasElement; pad: number } {
+    const s = this.scale, dpr = this.dpr, b = this.game.boxOf(pl);
+    const pad = kind === 's' ? Math.ceil(s * 0.6) + 2 : 2; // 影はずれとぼけの分だけ広く
+    const img = document.createElement('canvas');
+    img.width = Math.ceil((b.w * s + pad * 2) * dpr);
+    img.height = Math.ceil((b.h * s + pad * 2) * dpr);
+    const cx = img.getContext('2d')!;
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const keep = { ctx: this.ctx, tx: this.tx, ty: this.ty };
+    // 駒の左上が (pad, pad) に来るよう、見る位置を一時的にずらして、いつもの描き方で描く
+    this.ctx = cx;
+    this.tx = pad - pl.x * s;
+    this.ty = pad - pl.y * s;
+    try {
+      if (kind === 's') this.drawShadow(pl, 1);
+      else this.drawPiece(pl, fill, 1, false);
+    } finally {
+      this.ctx = keep.ctx;
+      this.tx = keep.tx;
+      this.ty = keep.ty;
+    }
+    return { img, pad };
+  }
+
+  /** 絵を貼る（画素の境目にそろえて、にじませない） */
+  private blit(pl: Placement, sp: { img: HTMLCanvasElement; pad: number }): void {
+    const g = this.ctx, s = this.scale, dpr = this.dpr;
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.drawImage(sp.img, Math.round((this.tx + pl.x * s - sp.pad) * dpr), Math.round((this.ty + pl.y * s - sp.pad) * dpr));
+    g.restore();
+  }
+
+  /** 小さくて立体にできないときの駒：色ごとにまとめて塗り、外周の線もまとめて引く（駒が何千個あっても軽く） */
+  private drawFlat(list: Array<[string, Placement]>): void {
+    const g = this.ctx, s = this.scale;
+    const byFill = new Map<string, Path2D>();
+    const edges = new Path2D();
+    for (const [key, pl] of list) {
+      const f = this.fillOf(key);
+      let path = byFill.get(f);
+      if (!path) byFill.set(f, (path = new Path2D()));
+      const shape = this.game.shapeCells(pl);
+      for (const [x, y] of shape) path.rect(this.tx + x * s, this.ty + y * s, s, s);
+      const holes = this.game.holeCells(pl);
+      for (const [x1, y1, x2, y2] of [...outlineEdges(shape), ...(holes.length ? outlineEdges(holes) : [])]) {
+        edges.moveTo(this.tx + x1 * s, this.ty + y1 * s);
+        edges.lineTo(this.tx + x2 * s, this.ty + y2 * s);
+      }
+    }
+    for (const [f, path] of byFill) {
+      g.fillStyle = f;
+      g.fill(path);
+    }
+    g.strokeStyle = 'rgba(0,0,0,0.75)';
+    g.lineWidth = Math.max(0.5, Math.min(1.5, s / 6));
+    g.lineCap = 'square';
+    g.stroke(edges);
   }
 
   private fillOf(key: string): string {
@@ -455,7 +610,7 @@ export class BoardView {
   /** 立体表示の縁（駒のまわりの出っ張り）の幅（1マスの 4 分の 1。2026-11-06 利用者の指示）。小さすぎて見えないときは 0＝平らに描く */
   private bevel(): number {
     const b = this.scale / 4;
-    return b >= 1.5 ? b : 0;
+    return b >= 2.5 ? b : 0;
   }
 
   /** マスの集まりを 1 つの形にした Path2D（今の見る位置・大きさで） */
@@ -509,24 +664,37 @@ export class BoardView {
    * 盤面の外の空きマスのうち、盤面に接する辺の帯（角を除く）＋盤面のマスが周りにある角の w×w
    */
   private lipPath(w: number): Path2D {
-    const set = new Set(this.cells.map(([x, y]) => x + ',' + y));
-    const has = (x: number, y: number) => set.has(x + ',' + y);
-    const s = this.scale, path = new Path2D(), m = s - 2 * w;
-    const empties = new Set<string>();
-    for (const [x, y] of this.cells) {
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!has(x + dx, y + dy)) empties.add(x + dx + ',' + (y + dy));
+    // 盤面のまわりの空きマスと、そのマスのどの辺・角が盤面に接するか（盤面は変わらないので1回だけ調べる）
+    if (!this.lipCells) {
+      const set = new Set(this.cells.map(([x, y]) => x + ',' + y));
+      const has = (x: number, y: number) => set.has(x + ',' + y);
+      const empties = new Set<string>();
+      for (const [x, y] of this.cells) {
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!has(x + dx, y + dy)) empties.add(x + dx + ',' + (y + dy));
+      }
+      this.lipCells = [...empties].map((k) => {
+        const [x, y] = k.split(',').map(Number);
+        const T = has(x, y - 1), B = has(x, y + 1), L = has(x - 1, y), R = has(x + 1, y);
+        const m =
+          (T ? 1 : 0) | (B ? 2 : 0) | (L ? 4 : 0) | (R ? 8 : 0) |
+          (L || T || has(x - 1, y - 1) ? 16 : 0) | (R || T || has(x + 1, y - 1) ? 32 : 0) |
+          (L || B || has(x - 1, y + 1) ? 64 : 0) | (R || B || has(x + 1, y + 1) ? 128 : 0);
+        return { x, y, m };
+      });
     }
-    for (const k of empties) {
-      const [x, y] = k.split(',').map(Number);
-      const X = this.tx + x * s, Y = this.ty + y * s;
-      if (has(x, y - 1)) path.rect(X + w, Y, m, w);
-      if (has(x, y + 1)) path.rect(X + w, Y + s - w, m, w);
-      if (has(x - 1, y)) path.rect(X, Y + w, w, m);
-      if (has(x + 1, y)) path.rect(X + s - w, Y + w, w, m);
-      if (has(x - 1, y) || has(x, y - 1) || has(x - 1, y - 1)) path.rect(X, Y, w, w);
-      if (has(x + 1, y) || has(x, y - 1) || has(x + 1, y - 1)) path.rect(X + s - w, Y, w, w);
-      if (has(x - 1, y) || has(x, y + 1) || has(x - 1, y + 1)) path.rect(X, Y + s - w, w, w);
-      if (has(x + 1, y) || has(x, y + 1) || has(x + 1, y + 1)) path.rect(X + s - w, Y + s - w, w, w);
+    const s = this.scale, path = new Path2D(), m = s - 2 * w;
+    const v = this.visibleCells();
+    for (const c of this.lipCells) {
+      if (c.x < v.x0 || c.x > v.x1 || c.y < v.y0 || c.y > v.y1) continue;
+      const X = this.tx + c.x * s, Y = this.ty + c.y * s;
+      if (c.m & 1) path.rect(X + w, Y, m, w);
+      if (c.m & 2) path.rect(X + w, Y + s - w, m, w);
+      if (c.m & 4) path.rect(X, Y + w, w, m);
+      if (c.m & 8) path.rect(X + s - w, Y + w, w, m);
+      if (c.m & 16) path.rect(X, Y, w, w);
+      if (c.m & 32) path.rect(X + s - w, Y, w, w);
+      if (c.m & 64) path.rect(X, Y + s - w, w, w);
+      if (c.m & 128) path.rect(X + s - w, Y + s - w, w, w);
     }
     return path;
   }
@@ -598,7 +766,7 @@ export class BoardView {
     g.lineWidth = Math.max(1, Math.min(1.5, this.scale / 20));
     g.lineCap = 'square';
     this.strokeEdges(outlineEdges(shape));
-    const holes = holesOf(orient(this.game.pieces[pl.piece].cells, pl.o)).map(([x, y]) => [x + pl.x, y + pl.y] as Cell);
+    const holes = this.game.holeCells(pl);
     if (holes.length) this.strokeEdges(outlineEdges(holes));
   }
 

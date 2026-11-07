@@ -11,7 +11,7 @@ function memKV(): KV & { data: Map<string, string> } {
 
 describe('色分け', () => {
   it('完成形で辺を接する駒どうしは、どのレベルでも違う色になる', () => {
-    for (const lv of LEVELS) {
+    for (const lv of LEVELS.filter((l) => l.solution.length)) {
       const colors = pieceColors(lv);
       const pieces = piecesOf(lv);
       const owner = new Map<string, string>();

@@ -59,13 +59,33 @@ export interface Selection {
   moved: boolean;
 }
 
+/** 中身が変わるたびに rev を1つ進める Map（置いた駒の一覧。描き直し・数え直しの目印にする） */
+export class TrackedMap<K, V> extends Map<K, V> {
+  rev = 0;
+  override set(k: K, v: V): this { this.rev++; return super.set(k, v); }
+  override delete(k: K): boolean { this.rev++; return super.delete(k); }
+  override clear(): void { this.rev++; super.clear(); }
+}
+
+/** 駒のある向きの形（駒の番号×8＋向きごとに1回だけ作って使い回す） */
+interface Oriented {
+  cells: Cell[];
+  holes: Cell[];
+  anchor: Cell;
+  w: number;
+  h: number;
+}
+
 export class Game {
   readonly pieces: PieceDef[];
   readonly size: { w: number; h: number };
   readonly total: number;
   private readonly board: Set<string>;
-  readonly placements = new Map<string, Placement>();
+  readonly placements = new TrackedMap<string, Placement>();
   sel: Selection | null = null;
+  private readonly shapes = new Map<number, Oriented>();
+  /** マスごとに、そこに置いてある駒（置いた順）。placements が変わったら作り直す（大きい盤面で毎回全部の駒を調べないため） */
+  private occ: { rev: number; map: Map<string, string[]>; conflicts: Set<string> } | null = null;
 
   constructor(readonly level: LevelDef) {
     this.pieces = piecesOf(level);
@@ -81,22 +101,71 @@ export class Game {
     return out;
   }
 
+  /** 駒のある向きの形・穴・アンカー・大きさ */
+  oriented(piece: number, o: number): Oriented {
+    const k = piece * 8 + o;
+    let v = this.shapes.get(k);
+    if (!v) {
+      const cells = orient(this.pieces[piece].cells, o);
+      const { w, h } = sizeOf(cells);
+      v = { cells, holes: holesOf(cells), anchor: anchorOf(cells), w, h };
+      this.shapes.set(k, v);
+    }
+    return v;
+  }
+
   /** 駒が占めるマス（穴あき駒の穴のマスも含む。§6.2） */
   occupied(pl: Placement): Cell[] {
-    const shape = orient(this.pieces[pl.piece].cells, pl.o);
-    return [...shape, ...holesOf(shape)].map(([x, y]) => [x + pl.x, y + pl.y] as Cell);
+    const v = this.oriented(pl.piece, pl.o);
+    const out: Cell[] = [];
+    for (const [x, y] of v.cells) out.push([x + pl.x, y + pl.y]);
+    for (const [x, y] of v.holes) out.push([x + pl.x, y + pl.y]);
+    return out;
   }
 
   /** 駒の形だけ（穴を除く）。描くとき用 */
   shapeCells(pl: Placement): Cell[] {
-    return orient(this.pieces[pl.piece].cells, pl.o).map(([x, y]) => [x + pl.x, y + pl.y] as Cell);
+    return this.oriented(pl.piece, pl.o).cells.map(([x, y]) => [x + pl.x, y + pl.y] as Cell);
+  }
+
+  /** 駒の穴のマス（盤面の上の位置） */
+  holeCells(pl: Placement): Cell[] {
+    return this.oriented(pl.piece, pl.o).holes.map(([x, y]) => [x + pl.x, y + pl.y] as Cell);
+  }
+
+  /** 駒を囲む長方形（マス。x0・y0 から幅 w・高さ h） */
+  boxOf(pl: Placement): { x: number; y: number; w: number; h: number } {
+    const v = this.oriented(pl.piece, pl.o);
+    return { x: pl.x, y: pl.y, w: v.w, h: v.h };
+  }
+
+  /** 置いた駒の一覧が変わった回数（描き直しの目印） */
+  get rev(): number {
+    return this.placements.rev;
+  }
+
+  /** マスごとの置いた駒と、重なり・はみ出しのマス（置いた駒が変わったときだけ作り直す） */
+  private occupancy(): { map: Map<string, string[]>; conflicts: Set<string> } {
+    if (this.occ && this.occ.rev === this.placements.rev) return this.occ;
+    const map = new Map<string, string[]>();
+    const conflicts = new Set<string>();
+    for (const [key, pl] of this.placements) {
+      for (const [x, y] of this.occupied(pl)) {
+        const k = cellKey(x, y);
+        const list = map.get(k);
+        if (list) { list.push(key); conflicts.add(k); } else map.set(k, [key]);
+        if (!this.board.has(k)) conflicts.add(k);
+      }
+    }
+    this.occ = { rev: this.placements.rev, map, conflicts };
+    return this.occ;
   }
 
   /** 選んでいる駒の置き場所（盤面に触れる前は null） */
   selPlacement(): Placement | null {
     const s = this.sel;
     if (!s || !s.at) return null;
-    const a = anchorOf(orient(this.pieces[s.ref.piece].cells, s.o));
+    const a = this.oriented(s.ref.piece, s.o).anchor;
     return { piece: s.ref.piece, copy: s.ref.copy, o: s.o, x: s.at[0] - a[0], y: s.at[1] - a[1] };
   }
 
@@ -107,7 +176,7 @@ export class Game {
     const pl = this.placements.get(key);
     if (pl) {
       this.placements.delete(key);
-      const a = anchorOf(orient(this.pieces[pl.piece].cells, pl.o));
+      const a = this.oriented(pl.piece, pl.o).anchor;
       this.sel = { ref, o: pl.o, at: [pl.x + a[0], pl.y + a[1]], origin: pl, moved: false };
     } else {
       this.sel = { ref, o: 0, at: null, origin: null, moved: false };
@@ -147,8 +216,7 @@ export class Game {
     const pl = this.selPlacement();
     const out = new Set<string>();
     if (!pl) return out;
-    const others = new Set<string>();
-    for (const p of this.placements.values()) for (const [x, y] of this.occupied(p)) others.add(cellKey(x, y));
+    const others = this.occupancy().map;
     for (const [x, y] of this.occupied(pl)) {
       const k = cellKey(x, y);
       if (!this.board.has(k) || others.has(k)) out.add(k);
@@ -207,7 +275,7 @@ export class Game {
       const { piece, copy, o, x, y } = pl as Placement;
       if (!this.pieces[piece] || copy < 0 || copy >= this.level.count || o < 0 || o > 7) continue;
       if (this.placements.has(refKey({ piece, copy }))) continue;
-      const a = anchorOf(orient(this.pieces[piece].cells, o));
+      const a = this.oriented(piece, o).anchor;
       const at: Cell = [x + a[0], y + a[1]];
       // アンカーは盤面を囲む長方形の中にしか置けない（moveTo と同じ）。重なり・はみ出しは PC では置けるので戻す
       if (at[0] < 0 || at[1] < 0 || at[0] >= this.size.w || at[1] >= this.size.h) continue;
@@ -219,25 +287,13 @@ export class Game {
 
   /** 置いた駒どうしの重なりと、盤面からのはみ出しのマス（PC で無理に置いたとき） */
   conflictCells(): Set<string> {
-    const seen = new Set<string>();
-    const out = new Set<string>();
-    for (const pl of this.placements.values()) {
-      for (const [x, y] of this.occupied(pl)) {
-        const k = cellKey(x, y);
-        if (!this.board.has(k) || seen.has(k)) out.add(k);
-        seen.add(k);
-      }
-    }
-    return out;
+    return this.occupancy().conflicts;
   }
 
   /** そのマスに置いてある駒（選んでいる駒は除く。重なっていれば後から置いた駒） */
   placedAt(cell: Cell): string | null {
-    let hit: string | null = null;
-    for (const [key, pl] of this.placements) {
-      if (this.occupied(pl).some(([x, y]) => x === cell[0] && y === cell[1])) hit = key;
-    }
-    return hit;
+    const list = this.occupancy().map.get(cellKey(cell[0], cell[1]));
+    return list ? list[list.length - 1] : null;
   }
 
   /** リストで「置いた」と出すか（置いてあった駒を選んだだけで、まだ動かしていないときも「置いた」） */
@@ -254,14 +310,7 @@ export class Game {
   /** 完成：全部の駒が確定していて、盤面の全マスが駒のマスか駒の穴で覆われている（§6.2） */
   isComplete(): boolean {
     if (this.sel || this.placements.size !== this.total) return false;
-    const covered = new Set<string>();
-    for (const pl of this.placements.values()) {
-      for (const [x, y] of this.occupied(pl)) {
-        const k = cellKey(x, y);
-        if (!this.board.has(k) || covered.has(k)) return false;
-        covered.add(k);
-      }
-    }
-    return covered.size === this.board.size;
+    const { map, conflicts } = this.occupancy();
+    return conflicts.size === 0 && map.size === this.board.size;
   }
 }

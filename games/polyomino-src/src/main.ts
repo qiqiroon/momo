@@ -2,7 +2,7 @@
 // 遊ぶ画面のレベルはアドレスの # に入れる（例 #4-legacy）。再読み込みや戻るボタンで同じ画面に戻れる
 
 import { Game, refKey } from './core/game';
-import { levelById, type LevelDef } from './core/levels';
+import { levelById, loadPieces, piecesReady, type LevelDef } from './core/levels';
 import { formatTime, loadSave, recordBest, Stopwatch, writeSave, type KV } from './core/progress';
 import { changeLangMode, initLang, type LangMode } from './i18n/langMode';
 import { BoardControl } from './ui/boardControl';
@@ -65,7 +65,8 @@ function newPlay(level: LevelDef): Play {
     game.restore(s.placements);
     return { game, watch: new Stopwatch(s.elapsed), phase: 'play', result: null };
   }
-  return { game, watch: new Stopwatch(0), phase: 'reveal', result: null };
+  // 完成形を持たないレベル（解の保証なし）は、見せる完成形が無いので、すぐ遊び始める
+  return { game, watch: new Stopwatch(0), phase: level.solution.length ? 'reveal' : 'play', result: null };
 }
 
 const isIOS = (): boolean =>
@@ -154,7 +155,14 @@ function showGame(level: LevelDef): void {
   const aside = document.createElement('aside');
   aside.id = 'piece-list';
   aside.setAttribute('aria-label', S.pieces);
-  main.append(wrap, aside);
+  const splitter = document.createElement('div');
+  splitter.className = 'splitter';
+  splitter.setAttribute('role', 'separator');
+  splitter.setAttribute('aria-orientation', 'vertical');
+  splitter.title = S.splitter;
+  splitter.setAttribute('aria-label', S.splitter);
+  main.append(wrap, splitter, aside);
+  setupSplitter(main, splitter, aside);
 
   sec.append(bar, main);
   screen.append(sec);
@@ -163,7 +171,8 @@ function showGame(level: LevelDef): void {
   let list: PieceList | null = null;
   const refreshBar = () => {
     clock.textContent = formatTime(pl.watch.value(performance.now()));
-    reset.disabled = pl.phase !== 'play' || (g.placements.size === 0 && !g.sel);
+    // 完成形を持つレベルは、盤面が空でも押せる（見本をもう一度見るため）
+    reset.disabled = pl.phase !== 'play' || (g.placements.size === 0 && !g.sel && !level.solution.length);
     hintBtn.disabled = pl.phase !== 'play';
   };
   let hint: HintRunner | null = null;
@@ -232,7 +241,7 @@ function showGame(level: LevelDef): void {
     again.className = 'primary';
     again.textContent = S.playAgain;
     again.addEventListener('click', () => {
-      play = { game: g, watch: new Stopwatch(0), phase: 'reveal', result: null };
+      play = { game: g, watch: new Stopwatch(0), phase: level.solution.length ? 'reveal' : 'play', result: null };
       g.reset();
       showGame(level);
     });
@@ -249,16 +258,54 @@ function showGame(level: LevelDef): void {
     if (animate) again.focus({ preventScroll: true });
   };
 
-  reset.addEventListener('click', () => {
-    if (!window.confirm(S.resetConfirm)) return;
+  // 確かめの窓はページの中に出す。window.confirm は、表示されずにすぐ「いいえ」が返る環境があり
+  // （アプリ内のブラウザなど。2026-11-07 確認）、そこではボタンが動かなかった
+  const askReset = (onYes: () => void) => {
+    if (wrap.querySelector('.complete')) return;
+    const box = document.createElement('div');
+    box.className = 'complete confirm-box';
+    const card = document.createElement('div');
+    card.className = 'complete-card';
+    card.setAttribute('role', 'alertdialog');
+    const msg = document.createElement('p');
+    msg.textContent = S.resetConfirm;
+    const yes = document.createElement('button');
+    yes.type = 'button';
+    yes.className = 'primary';
+    yes.textContent = S.reset;
+    const no = document.createElement('button');
+    no.type = 'button';
+    no.textContent = S.cancel;
+    const close = () => { box.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    yes.addEventListener('click', () => { close(); onYes(); });
+    no.addEventListener('click', close);
+    box.addEventListener('click', (e) => { if (e.target === box) close(); });
+    document.addEventListener('keydown', onKey);
+    const btns = document.createElement('div');
+    btns.className = 'complete-buttons';
+    btns.append(yes, no);
+    card.append(msg, btns);
+    box.append(card);
+    wrap.append(box);
+    no.focus({ preventScroll: true });
+  };
+
+  // 最初から：遊び始めと同じ形に戻す。完成形を持つレベルは、開始時の完成形の見本から見せ直す（2026-11-07 利用者の指示）
+  const restart = () => {
+    if (pl.phase !== 'play') return;
     hint!.stop();
+    pl.watch.stop(performance.now());
+    delete saved.games[level.id];
+    persist();
     g.reset();
-    pl.watch = new Stopwatch(0);
-    startClock();
-    view.fit();
-    list!.update();
-    saveProgress();
-    refreshBar();
+    play = { game: g, watch: new Stopwatch(0), phase: level.solution.length ? 'reveal' : 'play', result: null };
+    showGame(level);
+  };
+  // 盤面に何も無いときは、確かめずにすぐ戻す（失うものが無い）
+  reset.addEventListener('click', () => {
+    if (g.placements.size === 0 && !g.sel) restart();
+    else askReset(restart);
   });
 
   const timer = window.setInterval(refreshBar, 500);
@@ -288,6 +335,41 @@ function showGame(level: LevelDef): void {
   view.invalidate();
 }
 
+/** 駒リストの幅（ドラッグで変えた幅。全部のレベルで同じ。localStorage が使えなければその場だけ） */
+const LIST_W_KEY = 'momo-polyomino-listw';
+
+/** 盤面と駒リストの境目をドラッグして、駒リストの幅を変える（2026-11-06 利用者の指示） */
+function setupSplitter(main: HTMLElement, bar: HTMLElement, aside: HTMLElement): void {
+  const clampW = (w: number) => Math.round(Math.max(76, Math.min(w, main.clientWidth - 160)));
+  let savedW = 0;
+  try { savedW = Number(kv?.getItem(LIST_W_KEY)) || 0; } catch { savedW = 0; }
+  if (savedW) aside.style.width = `${clampW(savedW)}px`;
+  let drag: { id: number; x: number; w: number } | null = null;
+  bar.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    try { bar.setPointerCapture(e.pointerId); } catch { /* 捕まえられなくても動かせる */ }
+    drag = { id: e.pointerId, x: e.clientX, w: aside.getBoundingClientRect().width };
+    bar.classList.add('dragging');
+  });
+  bar.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    aside.style.width = `${clampW(drag.w - (e.clientX - drag.x))}px`; // 左へ動かすとリストが広がる
+  });
+  const end = (e: PointerEvent) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    drag = null;
+    bar.classList.remove('dragging');
+    try { kv?.setItem(LIST_W_KEY, String(Math.round(aside.getBoundingClientRect().width))); } catch { /* 保存できなくても遊べる */ }
+  };
+  bar.addEventListener('pointerup', end);
+  bar.addEventListener('pointercancel', end);
+  bar.addEventListener('dblclick', () => {
+    aside.style.width = '';
+    try { window.localStorage.removeItem(LIST_W_KEY); } catch { /* 同上 */ }
+  });
+}
+
 /** 紙吹雪（オレンジと白の小さな四角。CSS で落とす） */
 function confetti(): HTMLElement {
   const box = document.createElement('div');
@@ -306,11 +388,27 @@ function confetti(): HTMLElement {
   return box;
 }
 
+let routeSeq = 0;
+
 function route(): void {
   const id = decodeURIComponent(location.hash.replace(/^#/, ''));
   const level = id ? levelById(id) : undefined;
-  if (level) showGame(level);
-  else showLevelSelect();
+  const seq = ++routeSeq;
+  if (!level) { showLevelSelect(); return; }
+  if (piecesReady(level)) { showGame(level); return; }
+  // 駒の多いレベル（9 以上）は、駒を別のファイルから読み込んでから
+  saveProgress();
+  disposeGame();
+  play = null;
+  document.body.classList.add('in-game');
+  const msg = document.createElement('p');
+  msg.className = 'loading';
+  msg.textContent = S.loading;
+  screen.replaceChildren(msg);
+  loadPieces(level).then(
+    () => { if (seq === routeSeq) showGame(level); },
+    () => { if (seq === routeSeq) msg.textContent = S.loadFailed; },
+  );
 }
 
 /** 言語に合わせて、画面の文言を入れ直す（i18n-spec：applyLang） */

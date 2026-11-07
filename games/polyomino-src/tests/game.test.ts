@@ -34,7 +34,7 @@ describe('駒の操作', () => {
   const lv = levelById('5-legacy')!;
 
   it('完成形をそのまま置くと完成になる', () => {
-    for (const level of LEVELS) {
+    for (const level of LEVELS.filter((l) => l.solution.length)) {
       const g = new Game(level);
       for (const pl of level.solution) g.placements.set(refKey(pl), pl);
       expect(g.isComplete(), level.id).toBe(true);

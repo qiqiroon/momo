@@ -262,7 +262,12 @@ export class BoardControl {
   }
 
   private up(e: PointerEvent, cancelled = false): void {
-    if (e.pointerType === 'mouse') { this.mouseUp(e, cancelled); return; }
+    if (e.pointerType === 'mouse') {
+      // 左ボタン以外（ホイールクリック＝裏返すだけ・右クリック）を離しても、置かない
+      if (e.button !== 0 && !cancelled) return;
+      this.mouseUp(e, cancelled);
+      return;
+    }
     if (!this.pointers.delete(e.pointerId)) return;
     const g = this.gesture;
     if (g && g.kind === 'press' && g.id === e.pointerId && !g.moved && !cancelled) {
@@ -413,7 +418,9 @@ export class BoardControl {
 
   private updateCursor(e: PointerEvent): void {
     let c = 'default';
-    if (this.mouseHold) c = 'grabbing';
+    // つかんでいる間は矢印を消す（縮小して駒が小さいと、矢印に隠れて駒が見えないため。2026-11-06 利用者の指示）
+    if (this.mouseHold && this.game.sel) c = 'none';
+    else if (this.mouseHold) c = 'grabbing';
     else if (!this.locked) {
       const p = this.local(e);
       if (this.game.placedAt(this.view.toCell(p.x, p.y))) c = 'grab';
@@ -536,9 +543,15 @@ export class BoardControl {
     const sp = this.game.selPlacement();
     // 選んだが、まだ盤面に触れていない（指）／マウスでつかんでいる：盤面の上に案内を出す
     const mouse = !!this.mouseHold && !!sel;
-    this.hint.hidden = !(sel && (!sel.at || mouse));
-    if (sel && mouse) this.hint.textContent = S.mouseHint(pieceLabel(this.game.level, sel.ref));
-    else if (sel && !sel.at) this.hint.textContent = S.placeHint(pieceLabel(this.game.level, sel.ref));
+    // 穴あきの駒を持っているときは、穴は埋めなくてよいことを添える（§4.8.4）
+    const holey = !!sel && this.game.pieces[sel.ref.piece].holes.length > 0;
+    this.hint.hidden = !(sel && (!sel.at || mouse || holey));
+    let text = '';
+    if (sel && mouse) text = S.mouseHint(pieceLabel(this.game.level, sel.ref));
+    else if (sel && !sel.at) text = S.placeHint(pieceLabel(this.game.level, sel.ref));
+    if (holey) text = text ? `${text}\n${S.holeNote}` : S.holeNote;
+    if (sel && this.hint.textContent !== text) this.hint.textContent = text;
+    if (!this.mouseHold && this.canvas.style.cursor === 'none') this.canvas.style.cursor = 'default';
 
     this.tools.hidden = !sp || mouse;
     this.toListBtn.hidden = !sel?.origin;

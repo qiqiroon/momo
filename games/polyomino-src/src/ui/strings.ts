@@ -10,15 +10,21 @@ const ja = {
   lang: '言語',
   selectLevel: 'レベルを選ぶ',
   levelLabel: (n: number) => `LEVEL ${n}`,
-  variant: { simple: 'シンプル', legacy: 'レガシー' } as Record<'simple' | 'legacy', string>,
+  variant: { simple: 'バリエーション', legacy: 'レガシー' } as Record<'simple' | 'legacy', string>,
   /** 駒の大きさの呼び名（n マスの駒） */
   family: (n: number) =>
-    (['', 'モノミノ', 'ドミノ', 'トロミノ', 'テトロミノ', 'ペントミノ', 'ヘキソミノ', 'ヘプトミノ', 'オクトミノ'][n] || `${n}マスの駒`),
+    (['', 'モノミノ', 'ドミノ', 'トロミノ', 'テトロミノ', 'ペントミノ', 'ヘキソミノ', 'ヘプトミノ', 'オクトミノ', 'ノノミノ', 'デコミノ'][n] || `${n}マスの駒`),
   /** 例：「5 種 × 2 個・40 マス」 */
   levelInfo: (kinds: number, count: number, cells: number) =>
     `${kinds} 種${count > 1 ? ` × ${count} 個` : ''}・${cells} マス`,
   legacyNote: 'レガシー＝昔からあるプラスチックのパズルと同じ形の枠',
-  simpleNote: 'シンプル＝このゲームで用意した形の枠',
+  simpleNote: 'バリエーション＝このゲームで用意した形の枠',
+  /** 解の保証なしのレベル（§5.2） */
+  unproven: '解けると証明されていません',
+  noSampleNote: 'LEVEL 8 は完成できる形ですが、はじめの完成形の見本とヒントはありません',
+  unprovenNote: 'LEVEL 9 から先は、枠の形を機械で決めています。完成できるかどうかは分かっていません（ヒントと、はじめの完成形の見本はありません）',
+  loading: '駒を用意しています…',
+  loadFailed: '駒を読み込めませんでした。通信のよい所で、もう一度開いてください',
   back: 'レベル選択へ',
   backTitle: 'レベルを選ぶ画面に戻る',
   pieces: '駒',
@@ -34,6 +40,13 @@ const ja = {
   flip: '裏返す（左右）',
   confirm: 'ここに置く',
   toList: 'リストへ戻す',
+  /** 穴あきの駒を持ったとき（仕様書 §4.8.4） */
+  holeNote: 'この駒の穴は埋めなくてよい（穴の下のマスも埋まった扱い）',
+  /** 駒リストの左上の番号の欄（§3.2.1） */
+  findLabel: '駒の番号',
+  findPlaceholder: '番号',
+  /** 盤面と駒リストの境目（ドラッグで幅を変える） */
+  splitter: '盤面と駒リストの境目（左右にドラッグで幅を変える・ダブルクリックで元の幅）',
   /** ヒント（§8） */
   hint: 'ヒント',
   hintTitle: '今の置き方から完成できる駒を1つ、正しい場所に仮置きします',
@@ -81,13 +94,18 @@ const en: Strings = {
   lang: 'Language',
   selectLevel: 'Choose a level',
   levelLabel: (n) => `LEVEL ${n}`,
-  variant: { simple: 'Simple', legacy: 'Legacy' },
+  variant: { simple: 'Variation', legacy: 'Legacy' },
   family: (n) =>
-    (['', 'Monomino', 'Domino', 'Tromino', 'Tetromino', 'Pentomino', 'Hexomino', 'Heptomino', 'Octomino'][n] || `${n}-omino`),
+    (['', 'Monomino', 'Domino', 'Tromino', 'Tetromino', 'Pentomino', 'Hexomino', 'Heptomino', 'Octomino', 'Nonomino', 'Decomino'][n] || `${n}-omino`),
   levelInfo: (kinds, count, cells) =>
     `${kinds} ${kinds === 1 ? 'kind' : 'kinds'}${count > 1 ? ` × ${count}` : ''} · ${cells} ${cells === 1 ? 'square' : 'squares'}`,
   legacyNote: 'Legacy = the same frame as the classic plastic puzzle',
-  simpleNote: 'Simple = a frame made for this game',
+  simpleNote: 'Variation = a frame made for this game',
+  unproven: 'Not proven solvable',
+  noSampleNote: 'LEVEL 8 can be completed, but there are no hints and no sample solution at the start.',
+  unprovenNote: 'From LEVEL 9 on, the frame is chosen by a program. Nobody knows whether it can be completed (no hints and no sample solution at the start).',
+  loading: 'Getting the pieces ready…',
+  loadFailed: 'Could not load the pieces. Please open it again with a good connection.',
   back: 'Levels',
   backTitle: 'Back to the level list',
   pieces: 'Pieces',
@@ -100,6 +118,10 @@ const en: Strings = {
   flip: 'Flip (left-right)',
   confirm: 'Place here',
   toList: 'Back to the list',
+  holeNote: 'No need to fill this piece\'s hole (the cells under it count as filled)',
+  findLabel: 'Piece number',
+  findPlaceholder: 'No.',
+  splitter: 'Border between the board and the piece list (drag sideways to resize, double-click to reset)',
   hint: 'Hint',
   hintTitle: 'Place one piece where it fits in a solution from your current board',
   hintComputing: 'Working out a hint…',
@@ -142,11 +164,16 @@ const zh: Strings = {
   lang: '语言',
   selectLevel: '选择等级',
   levelLabel: (n) => `LEVEL ${n}`,
-  variant: { simple: '简单', legacy: '传统' },
+  variant: { simple: '变体', legacy: '传统' },
   family: (n) => (n === 2 ? '多米诺骨牌' : `${n}格骨牌`),
   levelInfo: (kinds, count, cells) => `${kinds} 种${count > 1 ? ` × ${count} 个` : ''}，${cells} 格`,
   legacyNote: '传统＝与经典塑料拼图相同形状的框',
-  simpleNote: '简单＝本游戏准备的框',
+  simpleNote: '变体＝本游戏准备的框',
+  unproven: '尚未证明可以完成',
+  noSampleNote: 'LEVEL 8 可以完成，但没有提示，开始时也不展示完成示例。',
+  unprovenNote: '从 LEVEL 9 开始，框的形状由程序决定。是否能够完成尚不清楚（没有提示，开始时也不展示完成示例）。',
+  loading: '正在准备骨牌…',
+  loadFailed: '无法读取骨牌。请在网络良好的地方重新打开。',
   back: '等级列表',
   backTitle: '返回选择等级的画面',
   pieces: '骨牌',
@@ -159,6 +186,10 @@ const zh: Strings = {
   flip: '翻转（左右）',
   confirm: '放在这里',
   toList: '放回列表',
+  holeNote: '这块骨牌的孔不必填（孔下的格子也算已填）',
+  findLabel: '骨牌编号',
+  findPlaceholder: '编号',
+  splitter: '棋盘与骨牌列表的分界（左右拖动改变宽度，双击恢复）',
   hint: '提示',
   hintTitle: '根据当前棋盘，把一块骨牌暂放到能完成的位置',
   hintComputing: '正在计算提示…',
@@ -224,8 +255,8 @@ const CAT_VOCAB: Record<CatBase, { error: string[]; calm: string[]; normal: stri
     normal: ['喵', '喵喵', '喵呜', '喵！'],
   },
 };
-const ERROR_KEYS = new Set<string>(['resetConfirm', 'hintNone', 'hintConflict', 'hintTimeout']);
-const CALM_KEYS = new Set(['legacyNote', 'simpleNote', 'revealHint', 'iosNotice', 'mouseHint']);
+const ERROR_KEYS = new Set<string>(['resetConfirm', 'hintNone', 'hintConflict', 'hintTimeout', 'loadFailed']);
+const CALM_KEYS = new Set(['legacyNote', 'simpleNote', 'revealHint', 'iosNotice', 'mouseHint', 'noSampleNote', 'unprovenNote', 'loading', 'holeNote', 'splitter']);
 /** 猫語にしない文言（名前・数の書式） */
 const KEEP_KEYS = new Set(['title', 'levelLabel']);
 /**

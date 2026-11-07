@@ -8,10 +8,10 @@ import { boardCells, type Placement } from './levels';
 /** 今の盤面（確定した駒だけ）から、残りの空きマスと残りの駒を作る */
 export function buildProblem(game: Game): HintProblem {
   const filled = new Set<string>();
-  for (const pl of game.placements.values()) for (const [x, y] of game.occupied(pl)) filled.add(x + ',' + y);
+  for (const pl of game.boardPlacements()) for (const [x, y] of game.occupied(pl)) filled.add(x + ',' + y);
   const empty = boardCells(game.level).filter(([x, y]) => !filled.has(x + ',' + y));
   const units = game.refs()
-    .filter((r) => !game.placements.has(refKey(r)))
+    .filter((r) => !game.placements.has(refKey(r)) || game.isParked(refKey(r))) // 外に逃がした駒も残りの駒
     .map((r) => ({ piece: r.piece, copy: r.copy, cells: game.pieces[r.piece].cells as Cell[] }));
   return { empty, units, n: game.level.n };
 }
@@ -32,7 +32,7 @@ export function startHint(game: Game): HintStart {
   const problem = buildProblem(game);
   if (!problem.units.length) return { kind: 'full' };
   const base = (p: number) => game.pieces[p].cells;
-  const known = fromKnownSolution(game.level.solution, [...game.placements.values()], base);
+  const known = fromKnownSolution(game.level.solution, game.boardPlacements(), base);
   if (known) {
     const pl = pickHint(known, problem.empty, base);
     if (pl) return { kind: 'ready', placement: pl };

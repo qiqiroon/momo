@@ -90,8 +90,14 @@ export class BoardView {
 
   // ── 見る位置と大きさ
 
+  /** 見せる範囲（盤面＋駒を逃がしておける余白。マス） */
+  private get areaSize(): { w: number; h: number } {
+    const a = this.game.area;
+    return { w: a.x1 - a.x0, h: a.y1 - a.y0 };
+  }
+
   fitScale(): number {
-    const { w, h } = this.game.size;
+    const { w, h } = this.areaSize;
     return Math.max(2, Math.min((this.width - MARGIN * 2) / w, (this.height - MARGIN * 2) / h, MAX_CELL));
   }
 
@@ -133,24 +139,29 @@ export class BoardView {
   /** 盤面が画面より小さい向きは真ん中に、大きい向きは端が画面の内側に入りすぎないようにする */
   private clamp(): void {
     if (this.fitted) this.scale = this.fitScale();
-    const { w, h } = this.game.size;
+    // 余白も含めた範囲の左上（画面上）で考え、tx・ty（盤面の左上）に戻す
+    const { w, h } = this.areaSize;
+    const ox = this.game.area.x0 * this.scale, oy = this.game.area.y0 * this.scale;
     const bw = this.scale * w, bh = this.scale * h;
-    this.tx = bw + MARGIN * 2 <= this.width + 0.5
+    const ax = bw + MARGIN * 2 <= this.width + 0.5
       ? (this.width - bw) / 2
-      : Math.min(MARGIN, Math.max(this.width - bw - MARGIN, this.tx));
-    this.ty = bh + MARGIN * 2 <= this.height + 0.5
+      : Math.min(MARGIN, Math.max(this.width - bw - MARGIN, this.tx + ox));
+    const ay = bh + MARGIN * 2 <= this.height + 0.5
       ? (this.height - bh) / 2
-      : Math.min(MARGIN, Math.max(this.height - bh - MARGIN, this.ty));
+      : Math.min(MARGIN, Math.max(this.height - bh - MARGIN, this.ty + oy));
+    this.tx = ax - ox;
+    this.ty = ay - oy;
   }
 
   /** それぞれの向きに、まだ見えていない盤面があるか（スクロールボタンを出す向き） */
   canPan(): { left: boolean; right: boolean; up: boolean; down: boolean } {
-    const { w, h } = this.game.size;
+    const { w, h } = this.areaSize;
+    const ax = this.tx + this.game.area.x0 * this.scale, ay = this.ty + this.game.area.y0 * this.scale;
     return {
-      left: this.tx < MARGIN - 0.5,
-      right: this.tx + this.scale * w > this.width - MARGIN + 0.5,
-      up: this.ty < MARGIN - 0.5,
-      down: this.ty + this.scale * h > this.height - MARGIN + 0.5,
+      left: ax < MARGIN - 0.5,
+      right: ax + this.scale * w > this.width - MARGIN + 0.5,
+      up: ay < MARGIN - 0.5,
+      down: ay + this.scale * h > this.height - MARGIN + 0.5,
     };
   }
 

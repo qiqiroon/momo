@@ -17,8 +17,11 @@ import { S } from './strings';
 type Gesture =
   /** 何も選んでいないときの押下：離せば置いた駒を選ぶ、動かせば盤面のスクロール */
   | { kind: 'press'; id: number; sx: number; sy: number; x: number; y: number; moved: boolean }
-  /** 選んでいる駒を指で動かす（grab＝つかんだマスからアンカーまでのずれ） */
-  | { kind: 'move'; id: number; grab: Cell }
+  /**
+   * 選んでいる駒を指で動かす（grab＝つかんだマスからアンカーまでのずれ）。
+   * 動かし始めたら、駒を指の上へ lift px 持ち上げて動かす（小さい駒が指に隠れないように。2026-11-07 利用者の指示）
+   */
+  | { kind: 'move'; id: number; grab: Cell; sx: number; sy: number; lift: number | null }
   | { kind: 'pan'; id: number; x: number; y: number }
   | { kind: 'pinch'; d: number; mx: number; my: number }
   /** マウス：つかんでいる駒を置くための押下（離したら置く） */
@@ -29,6 +32,10 @@ type Gesture =
 
 /** 押したまま、これ以上動いたら「ドラッグ」とみなす（px） */
 const DRAG_PX = 6;
+/** 指で動かす駒を、指先からどれだけ上に離すか（px）。駒がこれより大きく見えていれば持ち上げない */
+const LIFT_GAP = 48;
+const LIFT_MAX = 170;
+const LIFT_BIG = 140;
 
 const parseKey = (key: string): PieceRef => {
   const [piece, copy] = key.split(':').map(Number);
@@ -104,10 +111,14 @@ export class BoardControl {
     this.on(canvas, 'pointermove', (e) => this.move(e as PointerEvent));
     this.on(canvas, 'pointerup', (e) => this.up(e as PointerEvent));
     this.on(canvas, 'pointercancel', (e) => this.up(e as PointerEvent, true));
+    // 指を離した知らせが届かなかった指を残さない（残ると、次に触れた指が2本目になり、ずっと拡大縮小になる）
+    this.on(canvas, 'lostpointercapture', (e) => { if ((e as PointerEvent).pointerType !== 'mouse') this.up(e as PointerEvent, true); });
     this.on(canvas, 'wheel', (e) => this.wheel(e as WheelEvent), { passive: false });
     this.on(canvas, 'contextmenu', (e) => { e.preventDefault(); this.cancel(); });
     this.on(canvas, 'auxclick', (e) => e.preventDefault());
     this.on(window, 'keydown', (e) => this.key(e as KeyboardEvent));
+    // iPhone の Safari は touch-action だけではページの拡大を止めきれないので、遊ぶ画面の間は二本指の拡大を止める
+    this.on(document, 'gesturestart', (e) => e.preventDefault());
 
     view.onDraw = () => this.layout();
   }
@@ -167,9 +178,9 @@ export class BoardControl {
     }
   }
 
-  /** 置く。マウスでつかんでいるときは、重なり・はみ出しがあっても置く */
+  /** 置く。重なり・はみ出しがあっても置ける（重なりがある間は完成にならないだけ。指でも同じ。2026-11-07 利用者の指示） */
   confirm(): void {
-    if (this.game.confirm(!!this.mouseHold)) {
+    if (this.game.confirm(true)) {
       this.mouseHold = null;
       this.changed();
     }
@@ -200,6 +211,11 @@ export class BoardControl {
     if (this.locked) { this.onLockedTap?.(); return; }
     if (e.pointerType === 'mouse') { this.mouseDown(e); return; }
     this.mouseHold = null; // 指で触れたら、指の操作に切り替える
+    if (e.isPrimary) {
+      // ほかに触れている指がない最初の指：前の指が残っていたら捨てる（拡大縮小から抜けられなくなるのを防ぐ）
+      this.pointers.clear();
+      this.gesture = null;
+    }
     this.canvas.setPointerCapture(e.pointerId);
     const p = this.local(e);
     this.pointers.set(e.pointerId, p);
@@ -219,14 +235,16 @@ export class BoardControl {
     const sp = this.game.selPlacement();
     if (sp && sel.at && this.game.occupied(sp).some(([x, y]) => x === cell[0] && y === cell[1])) {
       // 選んでいる駒をつかんだ：つかんだ所を保ったまま動かす
-      this.gesture = { kind: 'move', id: e.pointerId, grab: [sel.at[0] - cell[0], sel.at[1] - cell[1]] };
+      this.gesture = { kind: 'move', id: e.pointerId, grab: [sel.at[0] - cell[0], sel.at[1] - cell[1]], sx: p.x, sy: p.y, lift: null };
       return;
     }
     // 駒の外に触れた：駒がそこへ来る（§4.3）。
     // 触れた所にほかの駒があれば、そのあとのドラッグは盤面のスクロール（駒は盤面の上で止まったまま。§4.4）
     const onOther = this.game.placedAt(cell) !== null;
     if (this.game.moveTo(cell)) this.changed();
-    this.gesture = onOther ? { kind: 'pan', id: e.pointerId, x: p.x, y: p.y } : { kind: 'move', id: e.pointerId, grab: [0, 0] };
+    this.gesture = onOther
+      ? { kind: 'pan', id: e.pointerId, x: p.x, y: p.y }
+      : { kind: 'move', id: e.pointerId, grab: [0, 0], sx: p.x, sy: p.y, lift: null };
   }
 
   private move(e: PointerEvent): void {
@@ -256,7 +274,11 @@ export class BoardControl {
       g.x = p.x;
       g.y = p.y;
     } else if (g.kind === 'move') {
-      const c = this.view.toCell(p.x, p.y);
+      if (g.lift === null) {
+        if (Math.hypot(p.x - g.sx, p.y - g.sy) <= DRAG_PX) return;
+        g.lift = this.liftFor(g.sy);
+      }
+      const c = this.view.toCell(p.x, p.y - g.lift);
       if (this.game.moveTo([c[0] + g.grab[0], c[1] + g.grab[1]])) this.changed();
     }
   }
@@ -279,6 +301,15 @@ export class BoardControl {
       }
     }
     if (g?.kind === 'pinch' || this.pointers.size === 0) this.gesture = null;
+  }
+
+  /** 指で動かし始めたときの持ち上げる量：駒の下の端が指先より LIFT_GAP 上に来るように（大きく見えている駒は持ち上げない） */
+  private liftFor(fingerY: number): number {
+    const sp = this.game.selPlacement();
+    if (!sp) return 0;
+    const r = this.view.rectOf(this.game.occupied(sp));
+    if (Math.max(r.w, r.h) >= LIFT_BIG) return 0;
+    return Math.min(LIFT_MAX, Math.max(0, r.y + r.h - fingerY) + LIFT_GAP);
   }
 
   // ── マウス（PC）
@@ -556,7 +587,8 @@ export class BoardControl {
     this.tools.hidden = !sp || mouse;
     this.toListBtn.hidden = !sel?.origin;
     if (sp) {
-      this.okBtn.disabled = !this.game.canConfirm();
+      // 重なり・はみ出しがあっても置ける（完成にならないだけ。ボタンの見た目は変えない。2026-11-07 利用者の指示）
+      this.okBtn.disabled = false;
       const r = this.view.rectOf(this.game.occupied(sp));
       const tw = this.tools.offsetWidth, th = this.tools.offsetHeight;
       const W = this.view.width, H = this.view.height;

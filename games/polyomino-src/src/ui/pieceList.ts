@@ -1,5 +1,6 @@
 // 右側の駒リスト（仕様書 §3.2）。
-// 未配置の駒を上・配置済みを下に並べる。未配置はオレンジ、配置済みはグレー。
+// 未配置の駒を上・外に逃がした駒を真ん中・配置済みを下に並べる。未配置はオレンジ、外に逃がした駒は茶色、配置済みはグレー
+// （外の駒は見失いやすいので、リストで分かるようにする。2026-11-07 利用者の指示）。
 // リストの駒は回転・裏返しをせず、常に基準の向きで出す。
 // 指：押す（指を離す）と選ぶ。ドラッグはリストのスクロール（§4.2）。
 // マウス：押した瞬間に駒をつかむ。そのまま盤面までドラッグして離せば置ける（2026-11-06 利用者の指示）。
@@ -33,7 +34,7 @@ export class PieceList {
 
   /**
    * @param onPick 未配置の駒を押した（選ぶ／選んでいる駒なら取り消す）
-   * @param onShow 置いた駒を押した（盤面のその駒の位置へ動かすだけ）
+   * @param onShow 置いた駒・外に逃がした駒を押した（盤面のその駒の位置へ動かすだけ）
    */
   constructor(
     private readonly root: HTMLElement,
@@ -130,7 +131,7 @@ export class PieceList {
       const label = pieceLabel(this.game.level, ref);
       item.setAttribute('aria-label', S.pieceAria(label));
       const activate = (mouse: boolean) => {
-        if (this.game.isPlaced(key) && !(this.game.sel && refKey(this.game.sel.ref) === key)) this.onShow(key);
+        if (this.game.stateOf(key) !== 'free' && !(this.game.sel && refKey(this.game.sel.ref) === key)) this.onShow(key);
         else this.onPick(ref, mouse);
       };
       item.draggable = false;
@@ -162,7 +163,7 @@ export class PieceList {
       shapeSvg(p.cells, p.holes, {
         cell: this.cell,
         // 立体に描くため色は #rrggbb で（--orange-mid と同じ色）
-        fill: state === 'placed' ? '#555555' : '#ea580c',
+        fill: state === 'placed' ? '#555555' : state === 'parked' ? '#9a6a48' : '#ea580c',
         stroke: '#000',
         strokeWidth: 1.2,
         holeFill: 'var(--surface2)',
@@ -186,9 +187,9 @@ export class PieceList {
     this.count.textContent = S.remaining(total - this.game.placedCount(), total);
     const selKey = this.game.sel ? refKey(this.game.sel.ref) : null;
     const refs = this.game.refs();
-    const free = refs.filter((r) => !this.game.isPlaced(refKey(r)));
-    const done = refs.filter((r) => this.game.isPlaced(refKey(r)));
-    const want = [...free, ...done].map((r) => this.byKey.get(refKey(r))!);
+    const st = new Map(refs.map((r) => [refKey(r), this.game.stateOf(refKey(r))]));
+    const of = (s: string) => refs.filter((r) => st.get(refKey(r)) === s);
+    const want = [...of('free'), ...of('parked'), ...of('placed')].map((r) => this.byKey.get(refKey(r))!);
     const top = this.items.scrollTop;
     want.forEach((el, i) => {
       if (this.items.children[i] !== el) this.items.insertBefore(el, this.items.children[i] ?? null);
@@ -196,12 +197,12 @@ export class PieceList {
     for (const ref of refs) {
       const key = refKey(ref);
       const el = this.byKey.get(key)!;
-      const placed = this.game.isPlaced(key);
-      const state = placed ? 'placed' : 'free';
+      const state = st.get(key)!;
       if (el.dataset.state !== state) {
         const first = !el.dataset.state;
         el.dataset.state = state;
-        el.classList.toggle('placed', placed);
+        el.classList.toggle('placed', state === 'placed');
+        el.classList.toggle('parked', state === 'parked');
         if (!this.lazy) this.paint(el);
         else if (first) this.placeholder(el);
         else if (this.near(el)) this.paint(el); // 見えている駒はすぐ描き直す。見えていない駒は見えてから
@@ -242,7 +243,7 @@ export class PieceList {
       return false;
     }
     const key = refKey(ref);
-    if (this.game.isPlaced(key)) this.onShow(key);
+    if (this.game.stateOf(key) !== 'free') this.onShow(key);
     this.toTop(key);
     return true;
   }

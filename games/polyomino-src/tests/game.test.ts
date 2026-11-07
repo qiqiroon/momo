@@ -74,6 +74,52 @@ describe('駒の操作', () => {
     expect(g.placedAt([1, 1])).toBe('1:0'); // 重なっていれば後から置いた駒
   });
 
+  it('盤面の外に逃がせる：盤面に1マスもかからない駒は、はみ出しにならず、置いた数にも入らない', () => {
+    const g = new Game(lv);
+    expect(g.pad).toBe(5);
+    g.select({ piece: 9, copy: 0 }); // X（3×3）
+    g.moveTo([-50, -50]); // 置ける範囲（盤面のまわり 5 マス）の左上の角に寄る
+    expect(g.selPlacement()).toMatchObject({ x: -5, y: -5 });
+    expect(g.problemCells().size).toBe(0);
+    expect(g.confirm()).toBe(true);
+    expect(g.stateOf('9:0')).toBe('parked');
+    expect(g.isPlaced('9:0')).toBe(false);
+    expect(g.placedCount()).toBe(0);
+    expect(g.conflictCells().size).toBe(0);
+    expect(g.placedAt([-4, -4])).toBe('9:0'); // 外の駒も押してつかめる
+
+    // 一部だけ盤面にかかる駒は、これまで通りはみ出し
+    g.select({ piece: 9, copy: 0 });
+    g.moveTo([-1, 4]); // X の中心が盤面の1つ左：右の腕だけ盤面にかかる
+    expect(g.problemCells().size).toBeGreaterThan(0);
+    g.cancel();
+
+    // 外の駒を選んだだけ（動かす前）は、リストでも外の駒のまま
+    g.select({ piece: 9, copy: 0 });
+    expect(g.stateOf('9:0')).toBe('parked');
+    g.cancel();
+
+    // 保存から戻しても外の駒のまま。全部置いても外の駒があれば完成にならない
+    const g2 = new Game(lv);
+    g2.restore([...g.placements.values()]);
+    expect(g2.stateOf('9:0')).toBe('parked');
+    for (const pl of lv.solution) if (refKey(pl) !== '9:0') g2.placements.set(refKey(pl), pl);
+    expect(g2.isComplete()).toBe(false);
+    g2.placements.set('9:0', lv.solution.find((p) => refKey(p) === '9:0')!);
+    expect(g2.isComplete()).toBe(true);
+  });
+
+  it('回すと置ける範囲からはみ出すときは、範囲の中へ寄る', () => {
+    const g = new Game(lv);
+    g.select({ piece: 1, copy: 0 }); // I（向き0 は横長か縦長のどちらか）
+    g.moveTo([-50, -50]);
+    g.rotate(1);
+    const pl = g.selPlacement()!;
+    const b = g.boxOf(pl);
+    expect(b.x).toBeGreaterThanOrEqual(g.area.x0);
+    expect(b.y).toBeGreaterThanOrEqual(g.area.y0);
+  });
+
   it('置いた駒を選んで動かし、取り消すと元の場所へ戻る。動かすまではリストで「置いた」のまま', () => {
     const g = new Game(lv);
     g.select({ piece: 9, copy: 0 });

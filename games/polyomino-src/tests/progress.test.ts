@@ -64,12 +64,12 @@ describe('保存', () => {
     expect(loadSave(null).games).toEqual({});
   });
 
-  it('置き場所を戻す：おかしな値・同じ駒の2つ目・アンカーが盤面の外のものは捨てる。重なりは戻す（PC では置けるため）', () => {
+  it('置き場所を戻す：おかしな値・同じ駒の2つ目・置ける範囲（盤面のまわりの余白）の外のものは捨てる。重なりは戻す（PC では置けるため）', () => {
     const lv = levelById('5-legacy')!;
     const g = new Game(lv);
     const [a, b] = lv.solution;
     const c = lv.solution[2];
-    g.restore([a, b, { ...a }, { ...b, piece: 99 }, { piece: 3, copy: 0, o: 0, x: -5, y: 0 }, null, 'x', { ...c, x: a.x, y: a.y }]);
+    g.restore([a, b, { ...a }, { ...b, piece: 99 }, { piece: 3, copy: 0, o: 0, x: -20, y: 0 }, null, 'x', { ...c, x: a.x, y: a.y }]);
     expect([...g.placements.keys()].sort()).toEqual([refKey(a), refKey(b), refKey(c)].sort());
     expect(g.conflictCells().size).toBeGreaterThan(0);
     expect(g.isComplete()).toBe(false);

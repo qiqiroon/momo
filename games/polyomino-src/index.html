@@ -115,7 +115,8 @@
       .level-notes { margin: 14px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--text-muted); }
 
       /* ── 遊ぶ画面 */
-      #game { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+      /* 遊ぶ画面では、ページ全体の拡大（ピンチ）をさせない。盤面の拡大縮小はアプリがする */
+      #game { flex: 1; min-height: 0; display: flex; flex-direction: column; touch-action: pan-x pan-y; }
       #game-bar { display: flex; align-items: center; gap: 10px; padding: 4px 12px;
         background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
       #game-title { font-family: 'Fredoka One', 'Noto Sans JP', 'Noto Sans SC', sans-serif; font-size: 15px; }
@@ -145,6 +146,7 @@
       .piece-item svg { display: block; max-width: 100%; height: auto; }
       .piece-item .name { font-size: 11px; color: var(--text-muted); line-height: 1; }
       .piece-item.placed { opacity: .55; }
+      .piece-item.parked { opacity: .9; }
       .piece-item.selected { border-color: var(--orange-light); background: var(--bg-selected); box-shadow: 0 0 0 1px var(--orange-light) inset; }
       .list-scroll { flex-shrink: 0; margin: 3px 6px; padding: 0; height: 22px; font-size: 10px; line-height: 1; color: var(--text-muted); }
       .list-scroll[hidden] { display: none; }

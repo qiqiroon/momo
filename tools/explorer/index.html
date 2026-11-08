@@ -7,22 +7,15 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>MOMO Explorer</title>
-<!-- ★バージョン正本（唯一）: 画面の版表示もこの値を読む -->
-<script>window.APP_VERSION = "2.02";</script>
-<!-- 共通言語ライブラリ momo-lang（読み込むだけ・変更しない / defer不可・本体スクリプトより前） -->
-<script src="/momo/lib/momo-lang/momo-lang.js"></script>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="icon" type="image/x-icon" href="favicon.ico">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<title>MOMO Explorer - 統合ファイル管理 | MOMO Works</title>
 <meta name="description" content="複数ストレージを 1 画面で扱える統合ファイル管理ツール。ローカルフォルダや Google Drive 等を統一 UI で操作。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/explorer/">
 <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/tools/explorer/">
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/tools/explorer/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/tools/explorer/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/tools/explorer/">
-<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/explorer/">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/tools/explorer/">
 <meta property="og:title" content="MOMO Explorer - 統合ファイル管理">
 <meta property="og:description" content="複数ストレージを 1 画面で扱える統合ファイル管理ツール。ローカルフォルダや Google Drive 等を統一 UI で操作。">
@@ -30,6 +23,14 @@
 <meta property="og:locale" content="ja_JP">
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<!-- ★バージョン正本（唯一）: 画面の版表示もこの値を読む -->
+<script>window.APP_VERSION = "2.03";</script>
+<!-- 共通言語ライブラリ momo-lang（読み込むだけ・変更しない / defer不可・本体スクリプトより前） -->
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 /* =====================================================
@@ -736,6 +737,7 @@ html, body {
 @media (max-width:640px){.site-footer{padding:22px 14px 32px;}}
 </style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
+<script src="/momo/lib/momo-about.js"></script>
 </head>
 <body>
 
@@ -885,18 +887,8 @@ html, body {
 <!-- iOS webkitdirectory フォールバック用 隠しinput -->
 <input type="file" id="ios-folder-input" webkitdirectory multiple style="display:none">
 
-<!-- SEO 説明フッター -->
-<footer class="site-footer">
-  <div class="site-footer-inner">
-    <h2 id="footAbout">MOMO Explorer について</h2>
-    <p id="footDesc">MOMO Explorer は、ローカルフォルダや Google Drive など複数のストレージを 1 つの画面でまとめて扱える統合ファイル管理ツールです。コピー・移動・削除・フォルダ作成などを、ストレージをまたいで同じ操作感で行えます。ブラウザだけで動き、アカウント登録やインストールは不要です。</p>
-    <div class="foot-links">
-      <a href="../../" id="footTop">MOMO Works トップ</a>
-      <a href="../../games/" id="footGames">ゲーム一覧</a>
-      <a href="../../tools/" id="footTools">ツール一覧</a>
-    </div>
-  </div>
-</footer>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Explorer について</summary><div class="momo-about-body"><p>MOMO Explorer は、パソコンのフォルダや Google ドライブなど、いくつもの保存先を 1 つの画面でまとめて扱えるファイル管理の道具です。</p><p>コピー・移動・削除・フォルダ作成などを、保存先をまたいで同じ操作で行えます。</p><p>ブラウザだけで動き、アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Explorer について", "body": ["MOMO Explorer は、パソコンのフォルダや Google ドライブなど、いくつもの保存先を 1 つの画面でまとめて扱えるファイル管理の道具です。", "コピー・移動・削除・フォルダ作成などを、保存先をまたいで同じ操作で行えます。", "ブラウザだけで動き、アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Explorer", "body": ["MOMO Explorer is a file manager that handles several storages — folders on your computer, Google Drive and more — in a single screen.", "Copy, move, delete and create folders across storages with the same operations.", "It runs entirely in your browser. No account, no installation."]}, "zh": {"title": "关于 MOMO Explorer", "body": ["MOMO Explorer 是一款文件管理工具，可在同一个界面中操作电脑中的文件夹、Google Drive 等多个存储。", "可跨存储以相同的操作进行复制、移动、删除和新建文件夹等。", "完全在浏览器中运行，无需注册账号，也无需安装。"]}}</script>
 
 <script>
 /* =====================================================
@@ -3153,11 +3145,7 @@ function applyLang() {
   const pyLabel = document.getElementById('py-label');
   if (pyLabel) pyLabel.textContent = pyReady ? t('pyodideReady') : t('pyodideInit');
   // SEO 説明フッター
-  const _fa=document.getElementById('footAbout'); if(_fa) _fa.textContent=t('footAbout');
-  const _fd=document.getElementById('footDesc'); if(_fd) _fd.innerHTML=t('footDesc');
-  const _ft=document.getElementById('footTop'); if(_ft) _ft.textContent=t('footTop');
-  const _fg=document.getElementById('footGames'); if(_fg) _fg.textContent=t('footGames');
-  const _fo=document.getElementById('footTools'); if(_fo) _fo.textContent=t('footTools');
+  if (window.MomoAbout) MomoAbout.apply(currentLang);  // 説明欄（lib/momo-about.js）
   // アドレスバー
   const addrInput = document.getElementById('addr-input');
   if (addrInput) addrInput.placeholder = t('addrPlaceholder');

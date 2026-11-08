@@ -652,19 +652,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Karaoke - MOMO Works</title>
-<!-- favicon (本番統合: SVG / PNG / ICO / apple-touch-icon の 4 形式) -->
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="icon" type="image/x-icon" href="favicon.ico">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-<!-- SEO Phase 1 -->
+<title>MOMO Karaoke - カラオケツール | MOMO Works</title>
 <meta name="description" content="任意の音楽をカラオケに変えるブラウザツール。ローカル音源と .lrc を読み込み、歌詞を表示しながら歌える。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/karaoke/">
 <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/tools/karaoke/">
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/tools/karaoke/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/tools/karaoke/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/tools/karaoke/">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/tools/karaoke/">
 <meta property="og:title" content="MOMO Karaoke - カラオケツール">
 <meta property="og:description" content="任意の音楽をカラオケに変えるブラウザツール。ローカル音源と .lrc を読み込み、歌詞を表示しながら歌える。">
@@ -672,6 +668,12 @@
 <meta property="og:locale" content="ja_JP">
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<!-- favicon (本番統合: SVG / PNG / ICO / apple-touch-icon の 4 形式) -->
+<!-- SEO Phase 1 -->
 <!-- Google Identity Services (OAuth) — used by momo_gdrive.py -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- Google API client — used for Picker -->
@@ -1691,6 +1693,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
 .debug-summary b { color: var(--orange-light); }
 
 </style>
+<script src="/momo/lib/momo-about.js"></script>
 </head>
 <body>
 
@@ -1767,7 +1770,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v3.08</span>
+                <span class="version-tag" id="version-tag">v3.09</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2407,9 +2410,11 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
     </div>
 
     <footer>
-        <a href="https://qiqiroon.github.io/momo/" id="footer-back" style="color: var(--text-muted); text-decoration: none;">← MOMO Works に戻る</a><br><br>
+        <a href="https://qiqiroon.github.io/momo/" id="footer-back" style="color: var(--text-muted); text-decoration: none;">MOMO Works トップ</a><br><br>
         © MOMO Works
     </footer>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Karaoke について</summary><div class="momo-about-body"><p>MOMO Karaoke は、手元の曲をカラオケにするブラウザの道具です。</p><p>お手元の音源と歌詞ファイル（.lrc）を読み込むと、曲に合わせて歌詞を表示しながら歌えます。曲の歌声を消したり、キー（音程）を変えたりもできます。</p><p>曲や歌詞はお使いの端末の中で扱われます。アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Karaoke について", "body": ["MOMO Karaoke は、手元の曲をカラオケにするブラウザの道具です。", "お手元の音源と歌詞ファイル（.lrc）を読み込むと、曲に合わせて歌詞を表示しながら歌えます。曲の歌声を消したり、キー（音程）を変えたりもできます。", "曲や歌詞はお使いの端末の中で扱われます。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Karaoke", "body": ["MOMO Karaoke turns your own music into karaoke, right in your browser.", "Load your audio and a lyrics file (.lrc), and sing along with the lyrics shown in time with the song. You can also remove the vocals and change the key.", "Your songs and lyrics are handled on your own device. No account, no installation."]}, "zh": {"title": "关于 MOMO Karaoke", "body": ["MOMO Karaoke 是一款把你手中的歌曲变成卡拉OK的浏览器工具。", "载入你的音频和歌词文件（.lrc），就能一边看着随歌曲显示的歌词一边演唱。还可以消除原唱人声、调整音调（Key）。", "歌曲和歌词都在你自己的设备中处理。无需注册账号，也无需安装。"]}}</script>
 
 </div>
 
@@ -2648,7 +2653,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v3.08';
+const APP_VERSION = 'v3.09';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

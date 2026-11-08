@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '2.12';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '2.13';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -206,8 +206,7 @@
     set('lbl-rooms', 'lobby.rooms'); set('btn-refresh', 'lobby.refresh');
     set('btn-lobby-back', 'nav.back'); set('btn-room-leave', 'nav.back');
     set('btn-setup-back', 'nav.back'); set('setup-title', 'setup.title');
-    set('foot-about', 'foot.about'); set('foot-desc', 'foot.desc');
-    set('foot-top', 'foot.top'); set('foot-games', 'foot.games'); set('foot-tools', 'foot.tools');
+    if (window.MomoAbout) MomoAbout.apply();  // 説明欄（lib/momo-about.js）（言語はページの lang から）
     $('btn-gear').title = t('set.open');
     $('seg-scope').children[0].textContent = t('sw.standard');
     $('seg-scope').children[1].textContent = t('sw.special');

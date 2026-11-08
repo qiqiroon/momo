@@ -27,7 +27,7 @@
             searchInitMsg: "キーワードを入力して検索してください。",
             searchPlaceholder: "曲名 アーティスト名",
             searchBtn: "検索",
-            footerBack: "← MOMO Works に戻る",
+            footerBack: "MOMO Works トップ",
             startMsg: "処理を開始しました。",
             fileCount: "対象ファイル: {n} 件",
             waiting: "5秒待機中...",
@@ -95,7 +95,7 @@
             searchInitMsg: "Enter a keyword to search.",
             searchPlaceholder: "Title, Artist",
             searchBtn: "Search",
-            footerBack: "← Back to MOMO Works",
+            footerBack: "MOMO Works Home",
             startMsg: "Process started.",
             fileCount: "Files found: {n}",
             waiting: "Waiting 5s...",
@@ -163,7 +163,7 @@
             searchInitMsg: "请输入关键词进行搜索。",
             searchPlaceholder: "歌名、歌手名",
             searchBtn: "搜索",
-            footerBack: "← 返回 MOMO Works",
+            footerBack: "MOMO Works 首页",
             startMsg: "已开始处理。",
             fileCount: "目标文件: {n} 件",
             waiting: "等待5秒...",
@@ -356,13 +356,7 @@
         setText('tapBtn', d.tapBtn);
         setText('undoTapBtn', d.undoTap);
 
-        // SEO 説明フッター (footDesc のみ innerHTML、他は textContent)
-        setText('footAbout', d.footAbout);
-        const footDescEl = document.getElementById('footDesc');
-        if (footDescEl && d.footDesc) footDescEl.innerHTML = d.footDesc;
-        setText('footTop', d.footTop);
-        setText('footGames', d.footGames);
-        setText('footTools', d.footTools);
+        if (window.MomoAbout) MomoAbout.apply(MOMO.state.curLang);  // 説明欄（lib/momo-about.js）
 
         // 案件⑦: select の value は langMode (auto を含む) に合わせる
         document.querySelectorAll('.lang-select').forEach(s => {

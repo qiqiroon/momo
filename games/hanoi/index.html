@@ -3,18 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Hanoi</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="icon" type="image/x-icon" href="favicon.ico">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<title>MOMO Hanoi - ハノイの塔パズル | MOMO Works</title>
 <meta name="description" content="ブラウザで遊べる無料のハノイの塔パズル。円盤の枚数を選んで最少手数を目指す。登録不要・インストール不要。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/games/hanoi/">
 <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/hanoi/">
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/hanoi/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/hanoi/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/hanoi/">
-<link rel="canonical" href="https://qiqiroon.github.io/momo/games/hanoi/">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/games/hanoi/">
 <meta property="og:title" content="MOMO Hanoi - ハノイの塔パズル">
 <meta property="og:description" content="ブラウザで遊べる無料のハノイの塔パズル。円盤の枚数を選んで最少手数を目指す。登録不要・インストール不要。">
@@ -22,6 +19,10 @@
 <meta property="og:locale" content="ja_JP">
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0a0a0a;--surface:#111;--surface2:#1a1a1a;--orange:#c2410c;--orangeL:#ea580c;--orangeB:#fb923c;--orange-dim:#7c2d12;--orange-pale:#431407;--text:#e5e5e5;--text-muted:#737373;--border:#2a2a2a;--border-strong:#444;--bg-selected:rgba(194,65,12,0.15);}
@@ -111,6 +112,7 @@ body.in-game .site-footer{display:none;}
 </style>
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
+<script src="/momo/lib/momo-about.js"></script>
 </head>
 <body>
 
@@ -170,7 +172,7 @@ body.in-game .site-footer{display:none;}
     </g>
   </svg>
   <div class="title-block">
-    <h1><span class="momo">MOMO</span><span class="hanoi">Hanoi</span><span class="version-tag" id="version-tag">v2.01</span></h1>
+    <h1><span class="momo">MOMO</span><span class="hanoi">Hanoi</span><span class="version-tag" id="version-tag">v2.02</span></h1>
     <div class="subtitle" id="subtitle">Tower Defence of Hanoi</div>
   </div>
 </header>
@@ -236,17 +238,8 @@ body.in-game .site-footer{display:none;}
 </div>
 
 <!-- SEO 説明フッター（タイトル画面のみ表示） -->
-<footer class="site-footer">
-  <div class="site-footer-inner">
-    <h2 id="footAbout">MOMO Hanoi について</h2>
-    <p id="footDesc">MOMO Hanoi は、ブラウザで遊べる無料のハノイの塔パズルです。円盤の枚数を選び、すべての円盤を別の杭へ移して最少手数を目指します。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。</p>
-    <div class="foot-links">
-      <a href="../../" id="footTop">MOMO Works トップ</a>
-      <a href="../../games/" id="footGames">ゲーム一覧</a>
-      <a href="../../tools/" id="footTools">ツール一覧</a>
-    </div>
-  </div>
-</footer>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Hanoi について</summary><div class="momo-about-body"><p>MOMO Hanoi は、ブラウザで遊べるハノイの塔のパズルです。</p><p>円盤の枚数を選び、すべての円盤を別の杭へ移します。小さい円盤の上に大きい円盤は置けません。最少の手数で移しきれるか挑戦しましょう。</p><p>アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Hanoi について", "body": ["MOMO Hanoi は、ブラウザで遊べるハノイの塔のパズルです。", "円盤の枚数を選び、すべての円盤を別の杭へ移します。小さい円盤の上に大きい円盤は置けません。最少の手数で移しきれるか挑戦しましょう。", "アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Hanoi", "body": ["MOMO Hanoi is a Tower of Hanoi puzzle you can play in your browser.", "Choose the number of disks and move them all to another peg. A larger disk can never sit on a smaller one. Can you finish in the fewest moves?", "No account, no installation."]}, "zh": {"title": "关于 MOMO Hanoi", "body": ["MOMO Hanoi 是一款可在浏览器中游玩的汉诺塔益智游戏。", "选择圆盘数量，把所有圆盘移到另一根柱子上。大圆盘不能放在小圆盘上面。挑战用最少的步数完成吧。", "无需注册账号，也无需安装。"]}}</script>
 
 <script>
 const canvas = document.getElementById('gameCanvas');
@@ -951,11 +944,7 @@ function applyLangHanoi() {
   const sb = document.getElementById('saveBtn');
   if (!sb.disabled) sb.textContent = t('saveBtn');
   document.getElementById('retryBtn').textContent = t('retryBtn');
-  const fA = document.getElementById('footAbout'); if (fA) fA.textContent = t('footAbout');
-  const fD = document.getElementById('footDesc'); if (fD) fD.innerHTML = t('footDesc');
-  const fTop = document.getElementById('footTop'); if (fTop) fTop.textContent = t('footTop');
-  const fG = document.getElementById('footGames'); if (fG) fG.textContent = t('footGames');
-  const fT = document.getElementById('footTools'); if (fT) fT.textContent = t('footTools');
+  if (window.MomoAbout) MomoAbout.apply(currentLang);  // 説明欄（lib/momo-about.js）
   // ドロップダウンは langMode を表示 (auto を「Auto」として見せる)
   const sel = document.getElementById('lang-select');
   if (sel) sel.value = langMode;

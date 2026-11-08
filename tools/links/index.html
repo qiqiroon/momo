@@ -3,26 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MOMO Links</title>
-<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="icon" type="image/x-icon" href="favicon.ico">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-<!-- v4.31 案件①: ホーム画面に追加した時に独立アプリ(全画面)として開く。iOSは記憶(localStorage)が長持ちしやすくなる -->
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0a0a0a">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="MOMO Links">
+<title>MOMO Links - タブ式ブックマーク管理 | MOMO Works</title>
 <meta name="description" content="タブ式のブックマーク管理ツール。ブラウザで複数フォルダを並列管理。ローカル保存、登録不要・インストール不要。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/links/">
 <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/tools/links/">
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/tools/links/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/tools/links/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/tools/links/">
-<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/links/">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/tools/links/">
 <meta property="og:title" content="MOMO Links - タブ式ブックマーク管理">
 <meta property="og:description" content="タブ式のブックマーク管理ツール。ブラウザで複数フォルダを並列管理。ローカル保存、登録不要・インストール不要。">
@@ -30,6 +19,18 @@
 <meta property="og:locale" content="ja_JP">
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- v4.31 案件①: ホーム画面に追加した時に独立アプリ(全画面)として開く。iOSは記憶(localStorage)が長持ちしやすくなる -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="MOMO Links">
 <!-- v4.35 案件⑦: 言語切り替えの共通ルーチン(全アプリ共通・lib集約)。本体スクリプトより先に読む(defer不可) -->
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <style>
@@ -768,6 +769,7 @@ main{animation:fadeUp .25s .05s ease both;}
 @media (max-width:640px){.icon-cell{width:64px;}.icon-fav{width:32px;height:32px;}}
 </style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
+<script src="/momo/lib/momo-about.js"></script>
 </head>
 <body>
 <header>
@@ -825,7 +827,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.80</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.81</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -953,18 +955,8 @@ main{animation:fadeUp .25s .05s ease both;}
 </main>
 </div>
 
-<!-- SEO 説明フッター -->
-<footer class="site-footer">
-  <div class="site-footer-inner">
-    <h2 id="footAbout">MOMO Links について</h2>
-    <p id="footDesc">MOMO Links は、ブラウザだけで使えるタブ式のブックマーク管理ツールです。複数のフォルダ（タグ）を並べて整理でき、保存したデータはお使いの端末内に残るため、アカウント登録もインストールも必要ありません。ブックマークのエクスポート／インポートや、Chrome 用ブックマーク HTML の書き出しにも対応しています。</p>
-    <div class="foot-links">
-      <a href="../../" id="footTop">MOMO Works トップ</a>
-      <a href="../../games/" id="footGames">ゲーム一覧</a>
-      <a href="../../tools/" id="footTools">ツール一覧</a>
-    </div>
-  </div>
-</footer>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Links について</summary><div class="momo-about-body"><p>MOMO Links は、ブラウザだけで使えるタブ式のブックマーク管理の道具です。</p><p>いくつものフォルダ（タグ）を並べて整理できます。ブックマークの書き出しと読み込み、Chrome 用のブックマーク HTML の書き出しにも対応しています。Google ドライブを使えば、ほかの端末と同期することもできます。</p><p>保存したデータはお使いの端末の中に残ります。アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Links について", "body": ["MOMO Links は、ブラウザだけで使えるタブ式のブックマーク管理の道具です。", "いくつものフォルダ（タグ）を並べて整理できます。ブックマークの書き出しと読み込み、Chrome 用のブックマーク HTML の書き出しにも対応しています。Google ドライブを使えば、ほかの端末と同期することもできます。", "保存したデータはお使いの端末の中に残ります。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Links", "body": ["MOMO Links is a tabbed bookmark manager that runs entirely in your browser.", "Organize your bookmarks across multiple folders (tags) side by side. Export and import bookmarks, and generate bookmark HTML for Chrome. With Google Drive, you can also sync with your other devices.", "Your data stays on your own device. No account, no installation."]}, "zh": {"title": "关于 MOMO Links", "body": ["MOMO Links 是一款完全在浏览器中运行的标签式书签管理工具。", "可以把多个文件夹（标签）并排整理书签。支持书签的导出与导入，以及生成 Chrome 用书签 HTML。使用 Google Drive 还可以与其他设备同步。", "数据保存在你自己的设备中。无需注册账号，也无需安装。"]}}</script>
 
 <!-- PIN入力ダイアログ -->
 <!-- v4.68: contenteditable div に置換。input type="password" を使わないことでブラウザのパスワードマネージャの
@@ -3440,8 +3432,7 @@ function applyLang(){
   if(typeof updateSyncStatus==='function') updateSyncStatus();   // ②: 言語切替で状態表示の文言も更新
   ph('secretPinNew1',t('pinSetupPlaceholder1')); ph('secretPinNew2',t('pinSetupPlaceholder2'));
   const sb=g('secretBadge');if(sb)sb.textContent=t('secretBadge');
-  tx('footAbout',t('footAbout')); ih('footDesc',t('footDesc'));
-  tx('footTop',t('footTop')); tx('footGames',t('footGames')); tx('footTools',t('footTools'));
+  if (window.MomoAbout) MomoAbout.apply(currentLang);  // 説明欄（lib/momo-about.js）
 
   document.querySelectorAll('.lang-select').forEach(s=>s.value=langMode);
   const _hl=currentLang==='cat'

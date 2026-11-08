@@ -3,20 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MOMO Noise</title>
-  <!-- index.html v0.06 (MOMO Noise v2.01 で共通ライブラリ momo-lang を採用) -->
-  <link rel="stylesheet" href="style.css">
-  <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="icon" type="image/x-icon" href="favicon.ico">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <title>MOMO Noise - 雑音録音ツール | MOMO Works</title>
 <meta name="description" content="録音・クリッピングで効果音を作るブラウザツール。マイク録音、音声切り出し、ピッチ調整、メトロノーム同期。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/noise/">
 <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/tools/noise/">
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/tools/noise/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/tools/noise/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/tools/noise/">
-<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/noise/">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/tools/noise/">
 <meta property="og:title" content="MOMO Noise - 雑音録音ツール">
 <meta property="og:description" content="録音・クリッピングで効果音を作るブラウザツール。マイク録音、音声切り出し、ピッチ調整、メトロノーム同期。">
@@ -24,10 +19,17 @@
 <meta property="og:locale" content="ja_JP">
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <!-- index.html v0.06 (MOMO Noise v2.01 で共通ライブラリ momo-lang を採用) -->
+  <link rel="stylesheet" href="style.css">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 <!-- 案件⑦: 言語ルーチン共通ライブラリ (defer 不可・本体スクリプトより前) -->
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
+<script src="/momo/lib/momo-about.js"></script>
 </head>
 <body>
 
@@ -198,18 +200,8 @@
 
 <div id="toast"></div>
 
-<!-- SEO 説明フッター -->
-<footer class="site-footer">
-  <div class="site-footer-inner">
-    <h2 id="footAbout">MOMO Noise について</h2>
-    <p id="footDesc">MOMO Noise は、マイク録音した音や読み込んだ音声ファイルを切り出して効果音ボタンを作れるブラウザツールです。無音カットによる音声の自動トリミング、ピッチ調整、メトロノームとの同期再生に対応し、作ったボタンセットは Google Drive に保存・読み込みできます。インストール不要でスマホでもそのまま動きます。</p>
-    <div class="foot-links">
-      <a href="../../" id="footTop">MOMO Works トップ</a>
-      <a href="../../games/" id="footGames">ゲーム一覧</a>
-      <a href="../../tools/" id="footTools">ツール一覧</a>
-    </div>
-  </div>
-</footer>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Noise について</summary><div class="momo-about-body"><p>MOMO Noise は、効果音のボタンを作るブラウザの道具です。</p><p>マイクで録音した音や、読み込んだ音声ファイルを切り出して、押すと鳴るボタンにします。前後の無音の自動カット、音程の調整、メトロノームに合わせた再生に対応しています。作ったボタンの組は Google ドライブに保存・読み込みできます。</p><p>スマホのブラウザでもそのまま動きます。インストールは要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Noise について", "body": ["MOMO Noise は、効果音のボタンを作るブラウザの道具です。", "マイクで録音した音や、読み込んだ音声ファイルを切り出して、押すと鳴るボタンにします。前後の無音の自動カット、音程の調整、メトロノームに合わせた再生に対応しています。作ったボタンの組は Google ドライブに保存・読み込みできます。", "スマホのブラウザでもそのまま動きます。インストールは要りません。"]}, "en": {"title": "About MOMO Noise", "body": ["MOMO Noise is a browser tool for making sound-effect buttons.", "Record from your mic or clip a loaded audio file, and turn it into a button that plays when pressed. It trims silence automatically, adjusts pitch, and plays in sync with a metronome. Save and load your button sets with Google Drive.", "It runs right in your phone's browser. No installation needed."]}, "zh": {"title": "关于 MOMO Noise", "body": ["MOMO Noise 是一款制作音效按钮的浏览器工具。", "把麦克风录下的声音或载入的音频文件剪切出来，做成一按就响的按钮。支持首尾静音自动裁切、音调调整以及与节拍器同步播放。制作好的按钮组可以保存到 Google Drive 并随时载入。", "在手机浏览器中也能直接使用，无需安装。"]}}</script>
 
 <script src="versions.js"></script>
 <script src="audio.js"></script>

@@ -199,18 +199,7 @@ function applyLang() {
     sub.textContent = txt;
     sub.classList.toggle('zh', effLang === 'zh');
   }
-  // SEO 説明フッター (cat 時も catBase の実体言語を採用)
-  {
-    const fLang = currentLang === 'cat' ? catBase : currentLang;
-    const fd = (k) => (I18N[fLang] && I18N[fLang][k]) || I18N.ja[k];
-    const setT = (id, k) => { const e = document.getElementById(id); if (e) e.textContent = fd(k); };
-    const fa = document.getElementById('footDesc');
-    if (fa) fa.innerHTML = fd('footDesc');
-    setT('footAbout', 'footAbout');
-    setT('footTop',   'footTop');
-    setT('footGames', 'footGames');
-    setT('footTools', 'footTools');
-  }
+  if (window.MomoAbout) MomoAbout.apply(currentLang === 'cat' ? catBase : currentLang);  // 説明欄（lib/momo-about.js）
   renderEditList();
   renderControls();
 }
@@ -940,6 +929,8 @@ async function init() {
 document.addEventListener('DOMContentLoaded', () => {
   // バージョンをTAP前のスプラッシュ画面に表示
   showVersions();
+  // 説明欄（lib/momo-about.js）は TAP の前から見えるので、ここでも言語を合わせる（applyLang は TAP の後）
+  if (window.MomoAbout) MomoAbout.apply(currentLang === 'cat' ? catBase : currentLang);
 
   const splash = document.getElementById('splash');
   const main   = document.getElementById('main');

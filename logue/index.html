@@ -7,8 +7,9 @@
 <title>MOMO Logue</title>
 <!-- ============================================================
   MOMO Logue — トップ（エントリー一覧）
-  バージョン: v1.02
+  バージョン: v1.03
   変更履歴:
+    v1.03 - 名乗りを MOMO Works に統一（by MOMO → by MOMO Works）・戻るリンクを「MOMO Works トップ」に
     v1.02 - エントリー004を公開中止（一覧から削除・番号004は欠番）
     v1.01 - 言語選択を共通ライブラリ momo-lang 化（Auto＝端末言語の自動判定を追加、選択は記憶方式に統一、エントリーリンクの ?lang= 受け渡しを廃止）
     v1.00 - 初版
@@ -55,14 +56,14 @@
 <div class="container">
   <header>
     <h1>MOMO <span>Logue</span></h1>
-    <p class="tagline" id="tagline">独り言 by MOMO</p>
+    <p class="tagline" id="tagline">独り言 by MOMO Works</p>
   </header>
   
   <div class="section-label">ENTRIES</div>
   <ul class="entry-list" id="entry-list"></ul>
   
   <div style="margin-top: 30px;">
-    <a href="../" id="back-link" style="color: var(--text-muted); text-decoration: none; font-size: 0.8rem;">← MOMO Works</a>
+    <a href="../" id="back-link" style="color: var(--text-muted); text-decoration: none; font-size: 0.8rem;">MOMO Works トップ</a>
   </div>
 </div>
 
@@ -79,9 +80,9 @@ const ENTRIES = [
 ];
 
 const I18N = {
-  ja: { tagline: '独り言 by MOMO', back: '← MOMO Works', foot: '© MOMO Works' },
-  en: { tagline: 'Soliloquy by MOMO', back: '← MOMO Works', foot: '© MOMO Works' },
-  zh: { tagline: 'MOMO 的独白', back: '← MOMO Works', foot: '© MOMO Works' },
+  ja: { tagline: '独り言 by MOMO Works', back: 'MOMO Works トップ', foot: '© MOMO Works' },
+  en: { tagline: 'Soliloquy by MOMO Works', back: 'MOMO Works Home', foot: '© MOMO Works' },
+  zh: { tagline: 'MOMO Works 的独白', back: 'MOMO Works 首页', foot: '© MOMO Works' },
   cat: { tagline: 'Nyaa?', back: 'Nyaa...', foot: 'Nyaa.' }
 };
 

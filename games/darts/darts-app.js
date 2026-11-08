@@ -1990,6 +1990,7 @@ function t(key, params) {
 // data-i18n* 属性を一括反映
 function applyI18nAttrs(root) {
   const scope = root || document;
+  if (!root && window.MomoAbout) MomoAbout.apply(_currentLang);  // 説明欄（lib/momo-about.js）
   scope.querySelectorAll('[data-i18n]').forEach(el => {
     el.textContent = t(el.dataset.i18n);
   });

@@ -3,18 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Player</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="icon" type="image/x-icon" href="favicon.ico">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<title>MOMO Player - HDD 直結音楽プレイヤー | MOMO Works</title>
 <meta name="description" content="ローカル HDD の音楽ファイルを直接再生するブラウザ音楽プレイヤー。大規模ライブラリ管理、歌詞表示、同期歌詞 (.lrc) 対応。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/player/">
 <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/tools/player/">
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/tools/player/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/tools/player/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/tools/player/">
-<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/player/">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/tools/player/">
 <meta property="og:title" content="MOMO Player - HDD 直結音楽プレイヤー">
 <meta property="og:description" content="ローカル HDD の音楽ファイルを直接再生するブラウザ音楽プレイヤー。大規模ライブラリ管理、歌詞表示、同期歌詞 (.lrc) 対応。">
@@ -22,6 +19,10 @@
 <meta property="og:locale" content="ja_JP">
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <style>
@@ -37,6 +38,7 @@
 </style>
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
+<script src="/momo/lib/momo-about.js"></script>
 </head>
 <body>
 <div id="app">
@@ -82,7 +84,7 @@
           <div id="left-title-name">
             <span class="momo">MOMO</span>
             <span class="player">Player</span>
-            <span class="version-tag" id="left-title-ver">v12.02</span>
+            <span class="version-tag" id="left-title-ver">v12.03</span>
           </div>
           <div id="left-title-sub">HDD-Bound Music Player</div>
         </div>
@@ -311,18 +313,8 @@
 
 <!-- v8: DB確認ダイアログは廃止 -->
 
-<!-- SEO 説明フッター -->
-<footer class="site-footer">
-  <div class="site-footer-inner">
-    <h2 id="footAbout">MOMO Player について</h2>
-    <p id="footDesc">MOMO Player は、パソコン内の HDD にある音楽ファイルをブラウザだけで直接再生できる音楽プレイヤーです。アプリのインストールや会員登録は不要で、大規模なライブラリ管理・歌詞表示・同期歌詞 (.lrc) 表示に対応しています。</p>
-    <div class="foot-links">
-      <a href="../../" id="footTop">MOMO Works トップ</a>
-      <a href="../../games/" id="footGames">ゲーム一覧</a>
-      <a href="../../tools/" id="footTools">ツール一覧</a>
-    </div>
-  </div>
-</footer>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Player について</summary><div class="momo-about-body"><p>MOMO Player は、パソコンの中の音楽ファイルを、ブラウザだけで直接再生できる音楽プレイヤーです。</p><p>大きな音楽ライブラリの管理、歌詞の表示、時間の付いた歌詞（.lrc）の表示に対応しています。MP3・FLAC・WAV・OGG・Opus など、いろいろな形式の曲を再生できます。</p><p>アプリのインストールも会員登録も要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Player について", "body": ["MOMO Player は、パソコンの中の音楽ファイルを、ブラウザだけで直接再生できる音楽プレイヤーです。", "大きな音楽ライブラリの管理、歌詞の表示、時間の付いた歌詞（.lrc）の表示に対応しています。MP3・FLAC・WAV・OGG・Opus など、いろいろな形式の曲を再生できます。", "アプリのインストールも会員登録も要りません。"]}, "en": {"title": "About MOMO Player", "body": ["MOMO Player is a music player that plays the music files on your computer directly, right in your browser.", "It handles large music libraries and shows lyrics, including synced lyrics (.lrc). It plays many formats, including MP3, FLAC, WAV, OGG and Opus.", "No installation, no sign-up."]}, "zh": {"title": "关于 MOMO Player", "body": ["MOMO Player 是一款只用浏览器就能直接播放电脑中音乐文件的音乐播放器。", "支持大规模音乐库管理、歌词显示以及同步歌词（.lrc）显示。可以播放 MP3、FLAC、WAV、OGG、Opus 等多种格式。", "无需安装应用，也无需注册。"]}}</script>
 
 <script>
 'use strict';
@@ -631,11 +623,7 @@ function applyLang() {
   if (el('sleep-set-btn')) el('sleep-set-btn').textContent = t('sleepSet');
   if (el('sleep-cancel-btn')) el('sleep-cancel-btn').textContent = t('sleepCancel');
   // SEO 説明フッター
-  if (el('footAbout')) el('footAbout').textContent = t('footAbout');
-  if (el('footDesc')) el('footDesc').innerHTML = t('footDesc');
-  if (el('footTop')) el('footTop').textContent = t('footTop');
-  if (el('footGames')) el('footGames').textContent = t('footGames');
-  if (el('footTools')) el('footTools').textContent = t('footTools');
+  if (window.MomoAbout) MomoAbout.apply(currentLang);  // 説明欄（lib/momo-about.js）
 }
 // v12.01: 言語切替ハンドラ（<select onchange> から呼ばれる）
 // 案件⑦: 保存ルール(ローカルモード+明示のみ共有momoLang)は共通ルーチンに委譲。catBase/applyLangはアプリ固有。

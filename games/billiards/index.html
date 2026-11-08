@@ -5,18 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>MOMO Billiards</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<title>MOMO Billiards - 台もルールも選べるビリヤード | MOMO Works</title>
 <meta name="description" content="台の形もルールも選べるブラウザ・ビリヤード。ナインボール／エイトボール／ポケット・ローテーション／キャロムに加え、変わった形の台と変則ルールも。ローカル・AI・オンライン対戦で。4言語対応・登録不要・インストール不要。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/games/billiards/">
 <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/billiards/">
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/billiards/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/billiards/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/billiards/">
-<link rel="canonical" href="https://qiqiroon.github.io/momo/games/billiards/">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/games/billiards/">
-<meta property="og:title" content="MOMO Billiards">
+<meta property="og:title" content="MOMO Billiards - 台もルールも選べるビリヤード">
 <meta property="og:description" content="Any Shape, Any Rule, One Cue — 台の形もルールも選べるブラウザ・ビリヤード。">
+<meta property="og:image" content="https://qiqiroon.github.io/momo/games/billiards/apple-touch-icon.png">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22MOMO%20Billiards%22%2C%22short_name%22%3A%22Billiards%22%2C%22display%22%3A%22standalone%22%2C%22orientation%22%3A%22portrait%22%2C%22background_color%22%3A%22%230a0a0a%22%2C%22theme_color%22%3A%22%230a0a0a%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22favicon.svg%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
@@ -513,6 +521,7 @@ body.debug #dbg{display:block;}
 .room .meta{font-size:11px;color:var(--text-muted);}
 .room .mode{font-size:11px;color:var(--orange-light);}
 </style>
+<script src="/momo/lib/momo-about.js"></script>
 </head>
 <body>
 
@@ -577,17 +586,8 @@ body.debug #dbg{display:block;}
       <div class="fmt-list" id="opts-format"></div>
     </div>
   </div>
-  <footer class="site-footer">
-    <div class="site-footer-inner">
-      <h2 id="foot-about">MOMO Billiards について</h2>
-      <p id="foot-desc"></p>
-      <div class="foot-links">
-        <a href="../../" id="foot-top">MOMO Works トップ</a>
-        <a href="../" id="foot-games">ゲーム一覧</a>
-        <a href="../../tools/" id="foot-tools">ツール一覧</a>
-      </div>
-    </div>
-  </footer>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Billiards について</summary><div class="momo-about-body"><p>MOMO Billiards は、ナインボール・エイトボール・ポケットローテーション・キャロムを、本格的な物理演算で遊べるブラウザのビリヤードです。</p><p>普通の台のほかに、変わった形の台や、バンパー・障害物のある台、変則ルールも選べます。同じ端末での対戦、AI との対戦、ひとりでの練習に加えて、オンライン対戦と観戦にも対応しています。</p><p>パソコンでも、スマホの縦画面でも遊べます。アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Billiards について", "body": ["MOMO Billiards は、ナインボール・エイトボール・ポケットローテーション・キャロムを、本格的な物理演算で遊べるブラウザのビリヤードです。", "普通の台のほかに、変わった形の台や、バンパー・障害物のある台、変則ルールも選べます。同じ端末での対戦、AI との対戦、ひとりでの練習に加えて、オンライン対戦と観戦にも対応しています。", "パソコンでも、スマホの縦画面でも遊べます。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Billiards", "body": ["MOMO Billiards is a browser billiards game with full physics, offering nine-ball, eight-ball, pocket rotation and carom.", "Besides the standard table, you can choose unusually shaped tables, tables with bumpers and obstacles, and offbeat rules. Play on one device, against the AI, or alone for practice — and play or watch online.", "It works on PC and on phones in portrait. No account, no installation."]}, "zh": {"title": "关于 MOMO Billiards", "body": ["MOMO Billiards 是一款配备完整物理演算的浏览器台球游戏，可游玩九球、八球、落袋轮转与开伦。", "除了标准球台，还可以选择异形球台、带有缓冲器和障碍物的球台，以及变则规则。支持同一设备对战、人机对战、单人练习，以及在线对战与观战。", "电脑和手机竖屏都能游玩。无需注册账号，也无需安装。"]}}</script>
 </div>
 
 <!-- ══════════ 設定（ローカル／AI／練習。通信対戦ではホストの部屋の中に出る） ══════════ -->

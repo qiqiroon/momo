@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Lyrics 内部バージョン: v2.03
+<!-- MOMO Lyrics 内部バージョン: v2.04
+       v2.04 - 名乗りを MOMO Works に統一・ページの頭（説明文・正規の URL・SNS の札・アイコン）をそろえた・畳んだ説明欄（MOMO Lyrics について）を付けた（2026-11-08）
        v2.03 - 猫語のときもサブタイトルは鳴き声にせず、元が中国語なら中国語・日本語/英語なら英語で出す
      変更履歴:
        v2.02 - 修正事項26090310 対応:
@@ -83,19 +84,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MOMO Lyrics - MOMO Works</title>
-
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="icon" type="image/x-icon" href="favicon.ico">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <title>MOMO Lyrics - 歌詞メタデータ管理 | MOMO Works</title>
 <meta name="description" content="楽曲の歌詞メタデータを一括管理するブラウザツール。同期歌詞 (.lrc) の作成・編集、TAP 入力。登録不要・インストール不要。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/lyrics/">
 <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/tools/lyrics/">
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/tools/lyrics/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/tools/lyrics/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/tools/lyrics/">
-<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/lyrics/">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/tools/lyrics/">
 <meta property="og:title" content="MOMO Lyrics - 歌詞メタデータ管理">
 <meta property="og:description" content="楽曲の歌詞メタデータを一括管理するブラウザツール。同期歌詞 (.lrc) の作成・編集、TAP 入力。登録不要・インストール不要。">
@@ -103,11 +100,17 @@
 <meta property="og:locale" content="ja_JP">
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+
     <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/momo_lyrics.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
+<script src="/momo/lib/momo-about.js"></script>
 </head>
 <body>
 
@@ -163,7 +166,7 @@
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="lyrics">Lyrics</span>
-                <span class="version-tag" id="version-tag">v2.03</span>
+                <span class="version-tag" id="version-tag">v2.04</span>
             </h1>
             <div class="subtitle" id="header-sub">Lyric Meta-Data Manager</div>
         </div>
@@ -278,18 +281,8 @@
     </footer>
 </div>
 
-<!-- SEO 説明フッター -->
-<footer class="site-footer">
-  <div class="site-footer-inner">
-    <h2 id="footAbout">MOMO Lyrics について</h2>
-    <p id="footDesc">MOMO Lyrics は、楽曲の歌詞メタデータをブラウザだけで一括管理できるツールです。フォルダ内の音楽ファイル(MP3/M4A/FLAC)のタグ情報などから歌詞を自動保存できるほか、同期歌詞(.lrc)の作成・編集や、再生に合わせて行をタップしてタイミングを付ける TAP 入力にも対応しています。アカウント登録もインストールも不要で、データはお使いの端末内に残ります。</p>
-    <div class="foot-links">
-      <a href="../../" id="footTop">MOMO Works トップ</a>
-      <a href="../../games/" id="footGames">ゲーム一覧</a>
-      <a href="../../tools/" id="footTools">ツール一覧</a>
-    </div>
-  </div>
-</footer>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Lyrics について</summary><div class="momo-about-body"><p>MOMO Lyrics は、曲の歌詞をブラウザだけでまとめて管理できる道具です。</p><p>フォルダの中の音楽ファイル（MP3・M4A・FLAC）のタグなどから歌詞を集めて保存できます。時間の付いた歌詞（.lrc）の作成と編集、曲に合わせて行をタップしてタイミングを付ける TAP 入力にも対応しています。</p><p>データはお使いの端末の中に残ります。アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Lyrics について", "body": ["MOMO Lyrics は、曲の歌詞をブラウザだけでまとめて管理できる道具です。", "フォルダの中の音楽ファイル（MP3・M4A・FLAC）のタグなどから歌詞を集めて保存できます。時間の付いた歌詞（.lrc）の作成と編集、曲に合わせて行をタップしてタイミングを付ける TAP 入力にも対応しています。", "データはお使いの端末の中に残ります。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Lyrics", "body": ["MOMO Lyrics lets you manage song lyrics in bulk, right in your browser.", "Collect and save lyrics from the tags of the audio files (MP3, M4A, FLAC) in a folder. Create and edit synced lyrics (.lrc), and use TAP input — tap each line in time with the music to set its timing.", "Your data stays on your own device. No account, no installation."]}, "zh": {"title": "关于 MOMO Lyrics", "body": ["MOMO Lyrics 是一款只用浏览器就能批量管理歌曲歌词的工具。", "可从文件夹内音频文件（MP3、M4A、FLAC）的标签等收集并保存歌词。支持同步歌词（.lrc）的制作与编辑，以及随音乐点击每一行来设置时间的 TAP 输入。", "数据保存在你自己的设备中。无需注册账号，也无需安装。"]}}</script>
 
 <script src="js/i18n.js"></script>
 <script src="js/lrc.js"></script>

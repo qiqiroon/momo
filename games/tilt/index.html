@@ -5,18 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>MOMO Tilt</title>
-  <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="icon" type="image/x-icon" href="favicon.ico">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <title>MOMO Tilt - スマホ傾けゲーム | MOMO Works</title>
 <meta name="description" content="スマホを傾けて迷路の中のボールを穴に落とすブラウザゲーム。ジャイロセンサーで操作する物理パズル。登録不要・インストール不要。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/games/tilt/">
 <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/tilt/">
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/tilt/">
 <link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/tilt/">
 <link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/tilt/">
-<link rel="canonical" href="https://qiqiroon.github.io/momo/games/tilt/">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/games/tilt/">
 <meta property="og:title" content="MOMO Tilt - スマホ傾けゲーム">
 <meta property="og:description" content="スマホを傾けて迷路の中のボールを穴に落とすブラウザゲーム。ジャイロセンサーで操作する物理パズル。登録不要・インストール不要。">
@@ -24,6 +21,10 @@
 <meta property="og:locale" content="ja_JP">
 <meta property="og:locale:alternate" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -274,6 +275,7 @@
   #titleOverlay>.site-footer{width:100%;flex-shrink:0;}
   @media (max-width:640px){.site-footer{padding:22px 14px 32px;}}
 </style>
+<script src="/momo/lib/momo-about.js"></script>
 </head>
 <body>
 
@@ -354,7 +356,7 @@
         </g>
       </svg>
       <div class="title-block">
-        <h1><span class="momo">MOMO</span><span class="tilt">Tilt</span><span class="version-tag" id="version-tag">v2.01</span></h1>
+        <h1><span class="momo">MOMO</span><span class="tilt">Tilt</span><span class="version-tag" id="version-tag">v2.02</span></h1>
         <div class="subtitle" id="subtitle">Tilt the World, Balance the Fate</div>
       </div>
     </header>
@@ -363,17 +365,8 @@
     <div class="kbd-hint" id="kbdHint"></div>
   </div>
   <!-- SEO 説明フッター（タイトル画面内・下部、プレイ中はタイトルごと非表示） -->
-  <footer class="site-footer">
-    <div class="site-footer-inner">
-      <h2 id="footAbout">MOMO Tilt について</h2>
-      <p id="footDesc">MOMO Tilt は、スマホを傾けて迷路の中のボールを穴に落とすブラウザゲームです。端末のジャイロセンサーを使って、転がるボールを物理的に操作します。アカウント登録もインストールも不要で、ブラウザだけですぐに遊べます。</p>
-      <div class="foot-links">
-        <a href="../../" id="footTop">MOMO Works トップ</a>
-        <a href="../../games/" id="footGames">ゲーム一覧</a>
-        <a href="../../tools/" id="footTools">ツール一覧</a>
-      </div>
-    </div>
-  </footer>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Tilt について</summary><div class="momo-about-body"><p>MOMO Tilt は、スマホを傾けて遊ぶ迷路のゲームです。</p><p>スマホのジャイロで、迷路の中のボールを転がし、穴に落とします。ボールの動きは物理演算なので、傾け方の強さで転がる速さが変わります。</p><p>アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Tilt について", "body": ["MOMO Tilt は、スマホを傾けて遊ぶ迷路のゲームです。", "スマホのジャイロで、迷路の中のボールを転がし、穴に落とします。ボールの動きは物理演算なので、傾け方の強さで転がる速さが変わります。", "アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Tilt", "body": ["MOMO Tilt is a maze game you play by tilting your phone.", "Use your phone's gyroscope to roll the ball through the maze and drop it into the hole. The ball moves with real physics, so the harder you tilt, the faster it rolls.", "No account, no installation."]}, "zh": {"title": "关于 MOMO Tilt", "body": ["MOMO Tilt 是一款倾斜手机来游玩的迷宫游戏。", "利用手机的陀螺仪让迷宫中的小球滚动，并让它落入洞中。小球的运动采用物理演算，倾斜得越多，滚得越快。", "无需注册账号，也无需安装。"]}}</script>
 </div>
 
 <!-- 2: Maze preview bar -->
@@ -507,17 +500,7 @@
     document.getElementById('spdLabelText').textContent     = t('spdLabel');
     document.getElementById('wallRepLabelText').textContent = t('wallRepLabel');
 
-    // SEO footer
-    const fAbout = document.getElementById('footAbout');
-    if (fAbout) fAbout.textContent = t('footAbout');
-    const fDesc = document.getElementById('footDesc');
-    if (fDesc) fDesc.innerHTML = t('footDesc');
-    const fTop = document.getElementById('footTop');
-    if (fTop) fTop.textContent = t('footTop');
-    const fGames = document.getElementById('footGames');
-    if (fGames) fGames.textContent = t('footGames');
-    const fTools = document.getElementById('footTools');
-    if (fTools) fTools.textContent = t('footTools');
+    if (window.MomoAbout) MomoAbout.apply(currentLang);  // 説明欄（lib/momo-about.js）
   }
 
   // Sync select on load (langMode を表示: auto は「Auto」)

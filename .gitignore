@@ -24,3 +24,8 @@ games/sudoku-src/public/data/
 # Windows thumbnail cache (never publish)
 Thumbs.db
 **/Thumbs.db
+
+# ★材料（ソース分離型アプリの -src フォルダ）は公開リポに記録しない（2026-11-07 利用者の指示）。
+#   公開するのは出来上がり（games/<app>/・tools/<app>/）だけ。材料は手元にだけ置く。
+#   すでに記録した分は履歴に残るが、これ以上は増やさない。見張り＝.git/hooks/pre-commit
+*-src/

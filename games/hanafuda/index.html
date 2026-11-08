@@ -4,8 +4,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>MOMO Hanafuda</title>
+<title>MOMO Hanafuda - 花札（こいこい・八八） | MOMO Works</title>
+<meta name="description" content="MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/games/hanafuda/">
+<link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/hanafuda/">
+<link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/hanafuda/">
+<link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/hanafuda/">
+<link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/hanafuda/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
+<meta property="og:url" content="https://qiqiroon.github.io/momo/games/hanafuda/">
+<meta property="og:title" content="MOMO Hanafuda - 花札（こいこい・八八）">
+<meta property="og:description" content="MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。">
+<meta property="og:image" content="https://qiqiroon.github.io/momo/games/hanafuda/apple-touch-icon.png">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <!-- スマホでフルスクリーン相当（ホーム画面に追加した時に URL バー等が消える）。非 PWA でも通常表示で動く。ピンチズームは抑止しない -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -13,19 +31,6 @@
 <meta name="apple-mobile-web-app-title" content="Hanafuda">
 <meta name="theme-color" content="#0a0a0a">
 <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22MOMO%20Hanafuda%22%2C%22short_name%22%3A%22Hanafuda%22%2C%22display%22%3A%22standalone%22%2C%22orientation%22%3A%22portrait%22%2C%22background_color%22%3A%22%230a0a0a%22%2C%22theme_color%22%3A%22%230a0a0a%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22favicon.svg%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
-<meta name="description" content="MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。">
-<link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/hanafuda/">
-<link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/hanafuda/">
-<link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/hanafuda/">
-<link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/hanafuda/">
-<link rel="canonical" href="https://qiqiroon.github.io/momo/games/hanafuda/">
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://qiqiroon.github.io/momo/games/hanafuda/">
-<meta property="og:title" content="MOMO Hanafuda — Floral Deck, Subtle Hazard">
-<meta property="og:description" content="MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。">
-<meta property="og:locale" content="ja_JP">
-<meta property="og:locale:alternate" content="en_US">
-<meta property="og:locale:alternate" content="zh_CN">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <!-- 言語切り替えの共通ルーチン（全アプリ共通・lib集約）。本体スクリプトより先に読む（defer不可） -->
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
@@ -828,6 +833,7 @@
   .pm-chat-send{flex:0 0 auto;font-size:.72rem;padding:2px 9px;border:none;border-radius:.4em;cursor:pointer;
     font-weight:700;background:var(--orange,#e88c2a);color:#1a1a1a;}
 </style>
+<script src="/momo/lib/momo-about.js"></script>
 </head>
 <body>
 
@@ -1328,7 +1334,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.14</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.15</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1394,7 +1400,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.14</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.15</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1530,7 +1536,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.14</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.15</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1593,7 +1599,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.14</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.15</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1906,17 +1912,8 @@
 </div></div>
 
 <!-- ============ SEO FOOTER ============ -->
-<footer class="site-footer">
-  <div class="site-footer-inner">
-    <h2 data-i18n="foot.about">MOMO Hanafuda について</h2>
-    <p data-i18n="foot.desc">MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。</p>
-    <div class="foot-links">
-      <a href="../../" data-i18n="foot.top">MOMO Works トップ</a>
-      <a href="../../games/" data-i18n="foot.games">ゲーム一覧</a>
-      <a href="../../tools/" data-i18n="foot.tools">ツール一覧</a>
-    </div>
-  </div>
-</footer>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Hanafuda について</summary><div class="momo-about-body"><p>MOMO Hanafuda は、花札をブラウザで遊べるゲームです。「こいこい」と「八八」に対応しています。</p><p>CPU との対戦と、オンラインでの 2 人対戦ができ、ほかの人の対局を観戦することもできます。</p><p>パソコンでも、スマホの縦画面でも遊べます。アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Hanafuda について", "body": ["MOMO Hanafuda は、花札をブラウザで遊べるゲームです。「こいこい」と「八八」に対応しています。", "CPU との対戦と、オンラインでの 2 人対戦ができ、ほかの人の対局を観戦することもできます。", "パソコンでも、スマホの縦画面でも遊べます。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Hanafuda", "body": ["MOMO Hanafuda lets you play the Japanese card game Hanafuda in your browser, with both Koi-Koi and Hachi-Hachi.", "Play against the CPU or one-on-one online, and watch other people's games.", "It works on PC and on phones in portrait. No account, no installation."]}, "zh": {"title": "关于 MOMO Hanafuda", "body": ["MOMO Hanafuda 是一款可在浏览器中游玩的花札游戏，支持“来来（Koi-Koi）”和“八八”。", "可以与电脑对战，也可以在线双人对战，还能观看他人的对局。", "电脑和手机竖屏都能游玩。无需注册账号，也无需安装。"]}}</script>
 
 <!-- ===== 共通マッチングモジュール（WS シグナリング + WebRTC P2P） ===== -->
 <script src="../matchmaking/momo-matchmaking.js?v=1.02"></script>
@@ -2553,7 +2550,7 @@ const I18N = {
     'game.tolobby': 'Back to Lobby',
     'foot.about': 'About MOMO Hanafuda',
     'foot.desc': 'MOMO Hanafuda lets you play the Japanese card game Hanafuda online against another player, in your browser. 4-language UI, works on PC and mobile portrait. No account, no install.',
-    'foot.top': 'MOMO Works Top',
+    'foot.top': 'MOMO Works Home',
     'foot.games': 'All Games',
     'foot.tools': 'All Tools',
     'notice.disconnect.title': 'Connection Lost',
@@ -2982,6 +2979,7 @@ function t(key, params) {
 
 function applyLang() {
   document.documentElement.setAttribute('lang', _currentLang === 'cat' ? 'ja' : _currentLang);
+  if (window.MomoAbout) MomoAbout.apply(_currentLang);  // 説明欄（lib/momo-about.js）
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.dataset.i18n;
     const txt = t(key);

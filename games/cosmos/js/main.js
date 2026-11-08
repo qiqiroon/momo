@@ -421,6 +421,7 @@
       document.documentElement.lang = L.htmlLang();
       document.querySelectorAll('[data-t]').forEach(el => { el.textContent = L.t(el.dataset.t); });
       document.querySelectorAll('[data-tb]').forEach(el => { el.textContent = L.tBase(el.dataset.tb); });
+      if (window.MomoAbout) MomoAbout.apply(L.baseLang());  // 説明欄（lib/momo-about.js）
       document.querySelectorAll('[data-t-aria]').forEach(el => { const v = L.t(el.dataset.tAria); el.setAttribute('aria-label', v); el.title = v; });
       document.querySelectorAll('.site-header .subtitle').forEach(el => el.classList.toggle('zh', L.baseLang() === 'zh'));
       if (confirmKey) $('confirmMsg').textContent = L.t(confirmKey);

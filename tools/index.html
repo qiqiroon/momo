@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Tools 内部バージョン: v1.19
+<!-- MOMO Tools 内部バージョン: v1.20
      変更履歴:
        v1.11 - MOMO Lyrics カードを追加
        v1.12 - MOMO Explorer カードを追加、猫語(CAT)対応、言語切替をプルダウンに変更
@@ -10,15 +10,32 @@
        v1.16 - 猫語のときもサブタイトルは鳴き声にせず、元が中国語なら中国語・日本語/英語なら英語で出す
        v1.17 - 猫語を選ぶ直前の言語を共通ライブラリから読む（開き直しても中国語のサブタイトルが出る）
        v1.18 - 日本語のときのページの副題を英語で出す
-       v1.19 - MOMO Remaster カードを Music Tools に追加 -->
+       v1.19 - MOMO Remaster カードを Music Tools に追加
+       v1.20 - 名乗りを MOMO Works に統一・ページの頭（説明文・正規の URL・SNS の札・アイコン）をそろえた・畳んだ説明欄（MOMO Tools について）を付けた（2026-11-08） -->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MOMO Tools</title>
-  <meta name="description" content="ブラウザだけで使える無料ツール一覧。タブ式ブックマーク管理・統合ファイル管理・音楽プレイヤー・歌詞管理・効果音作成など。登録不要・インストール不要。">
-  <link rel="canonical" href="https://qiqiroon.github.io/momo/tools/">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-46 -50 92 80'%3E%3Crect x='-46' y='-50' width='92' height='80' rx='8' fill='%23000000'/%3E%3Cg transform='rotate(-12,-12,8.3)'%3E%3Cpath d='M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cg transform='rotate(12,12,8.3)'%3E%3Cpath d='M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z' fill='%23c2410c'/%3E%3C/g%3E%3Cellipse cx='0' cy='1.3' rx='34' ry='26' fill='%23c2410c'/%3E%3Cline x1='-14' y1='1.00' x2='-33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='6.0' x2='-33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-14' y1='10.59' x2='-29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.68' y1='-2.28' x2='-38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-33.44' y1='6.0' x2='-40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='-29.58' y1='14.26' x2='-37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='1.00' x2='33.68' y2='-2.28' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='6.0' x2='33.44' y2='6.0' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='14' y1='10.59' x2='29.58' y2='14.26' stroke='%23000' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.68' y1='-2.28' x2='38' y2='-3' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='33.44' y1='6.0' x2='40' y2='6' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cline x1='29.58' y1='14.26' x2='37' y2='16' stroke='%23c2410c' stroke-width='1.8' stroke-linecap='round'/%3E%3Cellipse cx='-12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='12' cy='-3.7' rx='4.2' ry='5.6' fill='%231a0800'/%3E%3Cellipse cx='-12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Cellipse cx='12' cy='-3.7' rx='2.4' ry='3.5' fill='%23000'/%3E%3Ccircle cx='-10.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Ccircle cx='13.5' cy='-5.2' r='1.0' fill='%23c2410c'/%3E%3Cpath d='M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z' fill='%23000'/%3E%3Cline x1='0' y1='11.3' x2='0' y2='13.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q-5,17.3 -8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M0,13.3 Q5,17.3 8,15.3' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <title>MOMO Tools - ブラウザで使える無料ツール一覧 | MOMO Works</title>
+<meta name="description" content="ブラウザだけで使える無料ツール一覧。タブ式ブックマーク管理・統合ファイル管理・音楽プレイヤー・歌詞管理・効果音作成など。登録不要・インストール不要。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/">
+<link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/tools/">
+<link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/tools/">
+<link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/tools/">
+<link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/tools/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
+<meta property="og:url" content="https://qiqiroon.github.io/momo/tools/">
+<meta property="og:title" content="MOMO Tools - ブラウザで使える無料ツール一覧">
+<meta property="og:description" content="ブラウザだけで使える無料ツール一覧。タブ式ブックマーク管理・統合ファイル管理・音楽プレイヤー・歌詞管理・効果音作成など。登録不要・インストール不要。">
+<meta property="og:image" content="https://qiqiroon.github.io/momo/apple-touch-icon.png">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
+<link rel="icon" type="image/x-icon" href="../favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -301,7 +318,6 @@
       color: var(--orange-light);
     }
 
-
     .page-footer {
       margin-top: 60px;
       text-align: center;
@@ -328,6 +344,7 @@
   </style>
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
+<script src="/momo/lib/momo-about.js"></script>
 </head>
 <body>
 
@@ -575,10 +592,9 @@
     </div>
   </div>
 
-  <!-- Footer -->
-  <footer class="page-footer">
-    <a href="https://qiqiroon.github.io/momo/" id="footer-back">← MOMO Works に戻る</a>
-  </footer>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Tools について</summary><div class="momo-about-body"><p>MOMO Tools は、ブラウザだけで使える無料のツール集です。アカウント登録もインストールも要りません。扱うファイルや音声は、お使いの端末の中で処理されます（Google ドライブなどへの保存を選んだときを除く）。</p><p>ブックマーク管理・ファイル管理・音楽プレイヤー・歌詞の作成と管理・カラオケ・効果音づくり・録音の修復とリマスター・考えの整理（KJ法）の道具があります。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Tools について", "body": ["MOMO Tools は、ブラウザだけで使える無料のツール集です。アカウント登録もインストールも要りません。扱うファイルや音声は、お使いの端末の中で処理されます（Google ドライブなどへの保存を選んだときを除く）。", "ブックマーク管理・ファイル管理・音楽プレイヤー・歌詞の作成と管理・カラオケ・効果音づくり・録音の修復とリマスター・考えの整理（KJ法）の道具があります。"]}, "en": {"title": "About MOMO Tools", "body": ["MOMO Tools is a collection of free tools that run in your browser. No account, no installation. Your files and audio are processed on your own device (unless you choose to save to Google Drive or similar).", "There are tools for bookmarks, file management, music playback, creating and managing lyrics, karaoke, making sound effects, restoring and remastering recordings, and organizing ideas with the KJ method."]}, "zh": {"title": "关于 MOMO Tools", "body": ["MOMO Tools 是只用浏览器就能使用的免费工具合集。无需注册账号，也无需安装。你处理的文件和音频都在你自己的设备中处理（选择保存到 Google Drive 等时除外）。", "包括书签管理、文件管理、音乐播放、歌词的制作与管理、卡拉OK、音效制作、录音的修复与母带处理，以及用 KJ 法整理想法的工具。"]}}</script>
+
 
 </div>
 
@@ -642,7 +658,7 @@
       noiseOpen:       '今すぐ使う',
       noiseIphone:     '🍎 iPhone',
       noiseAndroid:    '🤖 Android',
-      footerBack:      '← MOMO Works に戻る',
+      footerBack:      'MOMO Works トップ',
     },
     en: {
       headerSub:       'A collection of browser-based tools',
@@ -702,7 +718,7 @@
       noiseOpen:       'Open Now',
       noiseIphone:     '🍎 iPhone',
       noiseAndroid:    '🤖 Android',
-      footerBack:      '← Back to MOMO Works',
+      footerBack:      'MOMO Works Home',
     },
     zh: {
       headerSub:       '便捷的网页工具合集',
@@ -762,7 +778,7 @@
       noiseOpen:       '立即使用',
       noiseIphone:     '🍎 iPhone',
       noiseAndroid:    '🤖 Android',
-      footerBack:      '← 返回 MOMO Works',
+      footerBack:      'MOMO Works 首页',
     },
   };
 
@@ -880,7 +896,7 @@
       el.textContent = text;
       el.classList.toggle('zh-subtitle', subtitleLang === 'zh');
     });
-    document.getElementById('footer-back').textContent      = t('footerBack');
+    if (window.MomoAbout) MomoAbout.apply(currentLang);  // 説明欄（lib/momo-about.js）
     document.querySelectorAll('.lang-select').forEach(s => s.value = langMode);
     document.documentElement.lang = currentLang === 'zh' ? 'zh-Hans' : (currentLang === 'cat' ? catBase : currentLang);
   }

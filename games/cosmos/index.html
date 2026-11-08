@@ -6,9 +6,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#0a0a0a">
-<title>MOMO Cosmos</title>
+<title>MOMO Cosmos - 天体を育てる落ち物パズル | MOMO Works</title>
 <meta name="description" content="同じ天体どうしをぶつけて、ひとつ大きな天体に育てていく落ち物パズル。天体を育てて、あなたの宇宙を作りましょう。ブラウザだけで遊べます。">
 <link rel="canonical" href="https://qiqiroon.github.io/momo/games/cosmos/">
+<link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/cosmos/">
+<link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/cosmos/">
+<link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/cosmos/">
+<link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/cosmos/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
+<meta property="og:url" content="https://qiqiroon.github.io/momo/games/cosmos/">
+<meta property="og:title" content="MOMO Cosmos - 天体を育てる落ち物パズル">
+<meta property="og:description" content="同じ天体どうしをぶつけて、ひとつ大きな天体に育てていく落ち物パズル。天体を育てて、あなたの宇宙を作りましょう。ブラウザだけで遊べます。">
+<meta property="og:image" content="https://qiqiroon.github.io/momo/games/cosmos/apple-touch-icon.png">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -17,10 +30,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=M+PLUS+Rounded+1c:wght@400;700;800&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <!-- 公開のたびに ?v= を版に合わせる（古いファイルが残って新旧が混ざるのを防ぐ） -->
-<link rel="stylesheet" href="css/cosmos.css?v=0.21">
+<link rel="stylesheet" href="css/cosmos.css?v=0.22">
 <!-- 共通言語ルーチン（defer 不可・本体スクリプトより前） -->
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
+<script src="/momo/lib/momo-about.js"></script>
 </head>
 <body class="at-title">
 <!-- 猫のマーク＋右下に土星（第25章。アイコン4点 favicon.* はこの絵から作る：L:\momo\claude\cosmos-icon\make_icons.mjs） -->
@@ -235,17 +249,8 @@
     <p class="home-meta"><span data-t="highScore"></span> <b id="titleHigh">0</b><span id="titleClear" hidden><img class="clear-mark" src="assets/img/galaxy.webp" alt=""><span data-t="clearMark"></span> <b id="titleClearN">0</b></span></p>
   </div>
 
-  <footer class="site-footer">
-    <div class="site-footer-inner">
-      <h2 data-tb="footAbout"></h2>
-      <p data-tb="footDesc"></p>
-      <div class="foot-links">
-        <a href="../../" data-tb="footTop"></a>
-        <a href="../../games/" data-tb="footGames"></a>
-        <a href="../../tools/" data-tb="footTools"></a>
-      </div>
-    </div>
-  </footer>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Cosmos について</summary><div class="momo-about-body"><p>MOMO Cosmos は、同じ天体どうしをぶつけて、ひとつ大きな天体に育てていく落ち物パズルです。</p><p>月から始めて、ぶつけるたびに天体は大きく育っていきます。どこまで育てられるか、点数を伸ばしていきましょう。難易度を選べ、点数がたまるとアイテムがもらえます。</p><p>天体を育てて、あなたの宇宙を作りましょう。ブラウザだけで遊べ、登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Cosmos について", "body": ["MOMO Cosmos は、同じ天体どうしをぶつけて、ひとつ大きな天体に育てていく落ち物パズルです。", "月から始めて、ぶつけるたびに天体は大きく育っていきます。どこまで育てられるか、点数を伸ばしていきましょう。難易度を選べ、点数がたまるとアイテムがもらえます。", "天体を育てて、あなたの宇宙を作りましょう。ブラウザだけで遊べ、登録もインストールも要りません。"]}, "en": {"title": "About MOMO Cosmos", "body": ["MOMO Cosmos is a falling-block puzzle where you merge matching celestial bodies into bigger ones.", "Start with the Moon; every merge grows your bodies larger. See how far you can grow them and push your score up. You can choose the difficulty, and you earn items as your score builds.", "Grow your bodies and build a universe of your own. Plays in your browser — no sign-up, no install."]}, "zh": {"title": "关于 MOMO Cosmos", "body": ["MOMO Cosmos 是一款让相同天体相撞、合成更大天体的下落式益智游戏。", "从月球开始，每次相撞天体都会变得更大。看看你能培育到哪一步，不断提高分数吧。可以选择难度，分数累积后还能获得道具。", "培育天体，创造属于你的宇宙吧。在浏览器中即可游玩，无需注册和安装。"]}}</script>
 </div>
 
 <!-- 右上の歯車と言語（第3.3節。TITLE〜SILENCE で常に操作できる） -->
@@ -372,14 +377,14 @@ THE SOFTWARE.</pre>
   <div id="dbgInfo"></div>
 </div>
 
-<script src="js/vendor/matter.min.js?v=0.21"></script>
-<script src="js/config.js?v=0.21"></script>
-<script src="js/i18n.js?v=0.21"></script>
-<script src="js/game.js?v=0.21"></script>
-<script src="js/render.js?v=0.21"></script>
-<script src="js/input.js?v=0.21"></script>
-<script src="js/sound.js?v=0.21"></script>
-<script src="js/ending.js?v=0.21"></script>
-<script src="js/main.js?v=0.21"></script>
+<script src="js/vendor/matter.min.js?v=0.22"></script>
+<script src="js/config.js?v=0.22"></script>
+<script src="js/i18n.js?v=0.22"></script>
+<script src="js/game.js?v=0.22"></script>
+<script src="js/render.js?v=0.22"></script>
+<script src="js/input.js?v=0.22"></script>
+<script src="js/sound.js?v=0.22"></script>
+<script src="js/ending.js?v=0.22"></script>
+<script src="js/main.js?v=0.22"></script>
 </body>
 </html>

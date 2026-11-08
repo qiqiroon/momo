@@ -113,6 +113,7 @@ body.in-game .site-footer{display:none;}
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 <script src="/momo/lib/momo-about.js"></script>
+<script src="/momo/lib/momo-rating.js"></script>
 </head>
 <body>
 
@@ -172,7 +173,7 @@ body.in-game .site-footer{display:none;}
     </g>
   </svg>
   <div class="title-block">
-    <h1><span class="momo">MOMO</span><span class="hanoi">Hanoi</span><span class="version-tag" id="version-tag">v2.02</span></h1>
+    <h1><span class="momo">MOMO</span><span class="hanoi">Hanoi</span><span class="version-tag" id="version-tag">v2.03</span></h1>
     <div class="subtitle" id="subtitle">Tower Defence of Hanoi</div>
   </div>
 </header>
@@ -239,6 +240,7 @@ body.in-game .site-footer{display:none;}
 
 <!-- SEO 説明フッター（タイトル画面のみ表示） -->
 <footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Hanoi について</summary><div class="momo-about-body"><p>MOMO Hanoi は、ブラウザで遊べるハノイの塔のパズルです。</p><p>円盤の枚数を選び、すべての円盤を別の杭へ移します。小さい円盤の上に大きい円盤は置けません。最少の手数で移しきれるか挑戦しましょう。</p><p>アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-rating-data">{"app":"games/hanoi","avg":0,"count":0}</script>
 <script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Hanoi について", "body": ["MOMO Hanoi は、ブラウザで遊べるハノイの塔のパズルです。", "円盤の枚数を選び、すべての円盤を別の杭へ移します。小さい円盤の上に大きい円盤は置けません。最少の手数で移しきれるか挑戦しましょう。", "アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Hanoi", "body": ["MOMO Hanoi is a Tower of Hanoi puzzle you can play in your browser.", "Choose the number of disks and move them all to another peg. A larger disk can never sit on a smaller one. Can you finish in the fewest moves?", "No account, no installation."]}, "zh": {"title": "关于 MOMO Hanoi", "body": ["MOMO Hanoi 是一款可在浏览器中游玩的汉诺塔益智游戏。", "选择圆盘数量，把所有圆盘移到另一根柱子上。大圆盘不能放在小圆盘上面。挑战用最少的步数完成吧。", "无需注册账号，也无需安装。"]}}</script>
 
 <script>
@@ -468,6 +470,7 @@ function checkWin(){
 
 function endGame(won){
   gameState='result';cancelAnimationFrame(frameId);
+  if(window.MomoRating)setTimeout(()=>MomoRating.prompt(),1500);  // 評価の声かけ（lib/momo-rating.js・1端末1回）
   const mult=cfg.scoreMult;
   const timeBonus=won?Math.round(Math.max(0,3000-Math.floor(elapsed/1000))*5*mult):0;
   const hpBonus=Math.round(Math.floor(hp)*20*mult);

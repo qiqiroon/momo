@@ -2,7 +2,7 @@
 // MOMO Karaoke v2 — データレイヤ (meta.js)
 // =============================================================================
 // Phase 3 (2026-05-23): meta.json / _app_settings.json / カラオケフォルダ概念
-// 仕様書: L:/momo/tools/karaoke/momo_karaoke_v2_spec.md §3.5〜§3.7 / §9
+// 仕様書: D:/momo/tools/karaoke/momo_karaoke_v2_spec.md §3.5〜§3.7 / §9
 //
 // 設計方針:
 // - Phase 2 (ストレージ抽象化) はスキップ → ローカル/Drive 二択を直接呼ぶ

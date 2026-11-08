@@ -2945,7 +2945,7 @@ const BilliardsRules = (() => {
    *   その結果、上級者は 6打 → **3打**（3周とも同じ）・中級者は中央値 8打で順序が戻った。
    *   **他の7ホールは1打も動いていない**（実測で確認：3/1/3/2/4/4/2 が前後で一致）。
    *
-   *   測定の生データと読み取り＝`L:/momo/claude/billiards-checks/par_result_20260907.md`
+   *   測定の生データと読み取り＝`D:/momo/claude/billiards-checks/par_result_20260907.md`
    *   （星型の測り直し＝同じ場所の `star_result_20260912.md`）
    */
   const GOLF_PAR = {

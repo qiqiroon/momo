@@ -1,6 +1,6 @@
 /* MOMO Lyrics スタイルシート
    v1.10: 既存<style>を外部化し、プレイモード/トグル/プレビュー等の新規CSSを追加
-   デザイン仕様書(L:/momo/works/docs/design/design-spec-v1_0.md)のダーク×オレンジ体系に準拠 */
+   デザイン仕様書(D:/momo/works/docs/design/design-spec-v1_0.md)のダーク×オレンジ体系に準拠 */
 
 /* ── デザイン仕様書準拠のCSS変数 ── */
 :root {

@@ -2,7 +2,7 @@ MOMO Remaster — プログラム版 ⇔ 文書版 対応の目印
 （バージョン管理ルール v1.0 準拠。新しい版を公開する節目に書き換える）
 
 プログラム v0.01  ⇔  下の仕様書の版   2026-10-29
-  文書の置き場所（非公開・ローカル）: L:\momo\tools\remaster\spec\output\
+  文書の置き場所（非公開・ローカル）: D:\momo\tools\remaster\spec\output\
 emaster\spec\output\
     MOMO_Remaster_フェーズ1実装計画_v0_15.md
     MOMO_Remaster_概要仕様書_v0_18.md

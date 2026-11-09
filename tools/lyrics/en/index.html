@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
+<!-- MOMO Lyrics 内部バージョン: v2.04
+       v2.04 - 名乗りを MOMO Works に統一・ページの頭（説明文・正規の URL・SNS の札・アイコン）をそろえた・畳んだ説明欄（MOMO Lyrics について）を付けた（2026-11-08）
+       v2.03 - 猫語のときもサブタイトルは鳴き声にせず、元が中国語なら中国語・日本語/英語なら英語で出す
+     変更履歴:
+       v2.02 - 修正事項26090310 対応:
+               履歴(プレイ画面のリスト)を「取り込んだ順(先に取り込んだものが上)」に統一、
+               プレイ画面に無効化ボタン追加(実ファイルがある時のみ)、
+               未保存の変更表示を歌詞の下へ移動し常に同じ高さを占める形に(行送り防止)、
+               「全体オフセット」という概念を全廃(offsetタグは読み捨て・書き出さない。
+                 全体ずらしは「この行以後全部反映」で行う)、
+               各行に時間を常時表示(左:時間 / 中:タイトル印 / 右:歌詞・すべて左寄せ)、
+               1行目タイトルのチェックは「アプリが0秒タイトル行を足した時だけ」既定ON、
+               「この行以後全部反映」チェックボックス追加、
+               保存ボタンを 変更なし=白枠黒地 / 変更あり=オレンジ に、
+               「1行づつ再生」チェックボックス追加(±での自動切替を廃止)、
+               現在行の検出を音源イベント任せから画面更新ごとの確認に変更
+                 (実測: 遅れ 平均135ms/最大282ms → 平均3.6ms/最大6.9ms)
+       v2.01 - 案件⑦: 言語選択を共通ライブラリ momo-lang に切替
+               (auto/ja/en/zh/cat の auto を追加、appId=lyrics、langModeをローカル保存、
+                明示選択時のみ共有 momoLang に書き込み)
+       v2.00 - Phase 2/3 仕上げ (ヘッダー統一・サブタイトル・favicon更新)
+       v1.01 - 待機メッセージ・初期メッセージの3言語対応、folderLabel/searchLabelの多言語化、バージョン表示追加
+       v1.10 - プレイモード追加(要件4)、既存LRCスキップ(要件1)、0秒情報追加(要件2)、プレビュー(要件3)、
+               オフセット調整と保存(要件5)、txt→TAP(要件6)、書き戻し(要件7)、4言語対応(ja/en/zh/cat)
+               ファイルを css/momo_lyrics.css と js/*.js に分割
+       v1.11 - 変更1.txt対応:
+               プレビュー開/閉ラベル切替、歌詞ウィンドウ内スクロール+リサイズ、シークバー色改善、
+               オフセット符号反転(マイナスで遅延)、保存時のUser activation維持(confirm削除+requestPermission)、
+               差分表示、0秒情報行の保持、負値0丸め、LRC/TXT開く時の音源自動ロード(multiple選択)、
+               TAP後のハイライト/スクロール修正、±0.1s前後行クランプ、TXT→LRC同フォルダ保存、
+               TXT 0秒情報追加、保存後audio 0復帰
+       v1.12 - 変更2.txt対応:
+               プレビュー▼▲を全言語統一、スクロール真因修正(getBoundingClientRect)、
+               カスタムシークバー(オレンジ丸+進捗線)、行ごとの差分表示、
+               findCurrentLineIndexで未割当行スキップ(TAP最終行スクロール根本修正)、
+               LRC/TXT同名音源baseName一致優先、プレイ画面に0秒情報追加トグル、
+               TAP押下時発火(pointerdown)
+       v1.13 - 変更3.txt対応:
+               個別検索の部分一致対応(「曲名 / アーティスト」区切り)、
+               スクロールnearest判定で視界内なら据え置き、シークバー色コントラスト強化、
+               行差分をoriginalTimeMs方式に変更(同テキスト複数行も正しく)、
+               .lrc/.txt開いた時の同名音源2段階ピッカー化、
+               プレイ画面の0秒情報トグル廃止→曲名/アーティスト入力欄+追加ボタン、
+               履歴選択時audio 0復帰、ポーズ中行クリック→1行プレビュー、
+               フォルダ一括結果のリスト表示+プレビュー+無効化ボタン
+       v1.14 - 変更4.txt対応:
+               .lrc/.txt 開く操作を showDirectoryPicker に変更し、フォルダ内の同名音源を
+               完全自動でロード(ユーザー選択不要)。各履歴エントリに音源を紐付け、
+               履歴選択時に音源を自動切替。標準 audio コントロールを非表示にし
+               カスタム再生/停止+シークバーのみで表示(2本→1本)。歌詞ウィンドウの
+               min-height を 100px に縮小、デフォルト280px。一時停止中に±でも1行プレビュー継続
+       v1.15 - ファイル選択UX修正:
+               ボタンラベルを「.lrcのあるフォルダを開く」に明示化(4言語)、ヒント文追加、
+               権限モードを 'read' に変更(保存時のみ readwrite を要求)、
+               scanDirectory で getFile() を遅延化、エラー時 alert 表示
+       v1.16 - ファイル選択UIに戻す:
+               フォルダ選択(showDirectoryPicker)では複数lrcから選べない問題を解消するため、
+               showOpenFilePicker(multiple:true) によるファイル選択方式に変更。
+               .lrc/.txt と音源ファイルを Ctrl+クリックで同時選択可能。
+               baseName 一致の音源を自動ペアリング。
+       v1.17 - ライブラリ登録方式:
+               音楽ライブラリのルートフォルダを登録し、IndexedDB に永続化。
+               起動時に1回だけ権限承認すれば、フォルダツリーから .lrc/.txt をクリックして開ける。
+               フォルダは展開時に遅延スキャン(直下のみ)、同フォルダの同名音源を自動ロード。
+               File System Access API の制約に沿った最良UX。
+       v1.18 - シークバー/タイトル/リサイズ修正:
+               シークバーを標準 audio controls に戻す(倍速・音量を回復)。
+               ポーズ中の±はポーズ維持して位置だけ変更(自動再生しない)。
+               1行プレビュー終了で対象行先頭に戻る(次行に移らない)。
+               歌詞ウィンドウのサイズ変更を独自ドラッグハンドルで実装(resize:vertical の代替)。
+               1行目左にタイトルチェックボックス。ON=0秒固定/編集対象外、OFF=通常行。
+       v1.19 - 行ロック+1行プレビュー連動:
+               ユーザー選択行 (focusedIdx) を独立管理。±押下や1行プレビュー中は
+               この行を current にロックし、findCurrentLineIndex の自動切替を抑制。
+               連続±押下でも対象行が変動しない。ポーズ中の±は対象行を1回だけ再生し、
+               終了時に対象行先頭で停止(次行に進まず、別行への自動切替もしない)。
+       v1.20 - 行クリック連発でも1行プレビュー維持:
+               プレビュー中(oneLineStopAt>=0)なら audio.paused でなくても
+               「クリックされた新しい行の1行プレビュー」に切り替えるよう修正。
+               ユーザーが明示的に再生ボタンを押した場合のみ通常再生に移行。 -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+<meta name="momo-fixed-lang" content="en">
+<base href="/momo/tools/lyrics/">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOMO Lyrics - Lyrics Metadata Manager | MOMO Works</title>
+<meta name="description" content="A browser tool to manage lyrics metadata for your music in one place. Create and edit synced lyrics (.lrc) with TAP input. No sign-up, no install.">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/tools/lyrics/en/">
+<link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/tools/lyrics/ja/">
+<link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/tools/lyrics/en/">
+<link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/tools/lyrics/zh/">
+<link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/tools/lyrics/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
+<meta property="og:url" content="https://qiqiroon.github.io/momo/tools/lyrics/en/">
+<meta property="og:title" content="MOMO Lyrics - Lyrics Metadata Manager">
+<meta property="og:description" content="A browser tool to manage lyrics metadata for your music in one place. Create and edit synced lyrics (.lrc) with TAP input. No sign-up, no install.">
+<meta property="og:image" content="https://qiqiroon.github.io/momo/tools/lyrics/apple-touch-icon.png">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="ja_JP">
+<meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="/momo/tools/lyrics/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/momo/tools/lyrics/favicon-32.png">
+<link rel="icon" type="image/x-icon" href="/momo/tools/lyrics/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/momo/tools/lyrics/apple-touch-icon.png">
+
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/momo/tools/lyrics/css/momo_lyrics.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+<script src="/momo/lib/momo-analytics.js" defer></script>
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
+<script src="/momo/lib/momo-about.js"></script>
+<script src="/momo/lib/momo-rating.js"></script>
+</head>
+<body>
+
+<div id="lang-switcher">
+    <select id="lang-select" class="lang-select">
+        <option value="auto">Auto</option>
+        <option value="ja">日本語</option>
+        <option value="en">EN</option>
+        <option value="zh">中文</option>
+        <option value="cat">CAT</option>
+    </select>
+</div>
+
+<div class="page-wrap">
+    <header class="site-header">
+        <svg class="cat-icon" viewBox="-46 -50 100 110" aria-hidden="true">
+                <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="var(--orange)"/></g>
+                <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="var(--orange)"/></g>
+                <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="var(--orange)"/>
+                <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/><ellipse cx="12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+                <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+                <!-- 髭 (他アイコンと統一: 黒 + オレンジ先端) -->
+                <line x1="-14" y1="1" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="-14" y1="6" x2="-33.44" y2="6"     stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="-33.68" y1="-2.28" x2="-38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="-33.44" y1="6"     x2="-40" y2="6"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="-29.58" y1="14.26" x2="-37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="14" y1="1" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="14" y1="6" x2="33.44" y2="6"     stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="33.68" y1="-2.28" x2="38" y2="-3" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="33.44" y1="6"     x2="40" y2="6"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+                <line x1="29.58" y1="14.26" x2="37" y2="16" stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+                <!-- Lyrics 固有: 歌詞の行 5 本 (等間隔) + 八分音符 2 連 (白黒灰) -->
+                <g id="lyrics-overlay">
+                    <!-- 線 5 本: 等間隔 (y=4,13,22,31,40 / 間隔 9px)、 左端 x=2 で揃え -->
+                    <!-- 上 2 本は短く (音符の左で止まる)、 下 3 本はフル幅で 全体が長方形シルエット -->
+                    <line x1="2" y1="4"  x2="23" y2="4"  stroke="#e5e5e5" stroke-width="5" stroke-linecap="round"/>
+                    <line x1="2" y1="13" x2="19" y2="13" stroke="#e5e5e5" stroke-width="5" stroke-linecap="round"/>
+                    <line x1="2" y1="22" x2="50" y2="22" stroke="#e5e5e5" stroke-width="5" stroke-linecap="round"/>
+                    <line x1="2" y1="31" x2="50" y2="31" stroke="#e5e5e5" stroke-width="5" stroke-linecap="round"/>
+                    <line x1="2" y1="40" x2="50" y2="40" stroke="#e5e5e5" stroke-width="5" stroke-linecap="round"/>
+                    <!-- 右上: 八分音符 2 連 (旗で繋がる) -->
+                    <ellipse cx="33"   cy="14"   rx="4.2" ry="3.2" fill="#f5f5f5" stroke="#000" stroke-width="0.6" transform="rotate(-15 33 14)"/>
+                    <ellipse cx="47.5" cy="11.5" rx="4.2" ry="3.2" fill="#f5f5f5" stroke="#000" stroke-width="0.6" transform="rotate(-15 47.5 11.5)"/>
+                    <line x1="37"   y1="13" x2="37"   y2="-8" stroke="#f5f5f5" stroke-width="2.2" stroke-linecap="round"/>
+                    <line x1="51.5" y1="10" x2="51.5" y2="-8" stroke="#f5f5f5" stroke-width="2.2" stroke-linecap="round"/>
+                    <path d="M 36 -8 L 52.6 -8 L 52.6 -2.5 L 36 -2.5 Z" fill="#f5f5f5" stroke="#000" stroke-width="0.55" stroke-linejoin="round"/>
+                </g>
+            </svg>
+        <div class="title-block">
+            <h1>
+                <span class="momo">MOMO</span>
+                <span class="lyrics">Lyrics</span>
+                <span class="version-tag" id="version-tag">v2.06</span>
+            </h1>
+            <div class="subtitle" id="header-sub">Lyric Meta-Data Manager</div>
+        </div>
+    </header>
+
+    <div class="tab-container">
+        <button class="tab-btn active" id="tab-folder" onclick="MOMO.app.switchTab('folder')">フォルダ一括処理</button>
+        <button class="tab-btn" id="tab-search" onclick="MOMO.app.switchTab('search')">個別検索保存</button>
+        <button class="tab-btn" id="tab-play" onclick="MOMO.app.switchTab('play')">プレイ</button>
+    </div>
+
+    <div id="folder-section" class="tool-card">
+        <div class="section-label"><span id="folder-label">Folder Batch Processing</span></div>
+        <p id="folder-desc" style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">選択したフォルダ内の音楽ファイル(MP3/M4A/FLAC)を解析し、歌詞を自動保存します。</p>
+        <div class="search-box">
+            <button id="startBtn" class="momo-btn">フォルダを選択して開始</button>
+            <span id="status-msg" style="align-self: center; font-weight: bold; color: var(--orange-mid); font-size: 14px;"></span>
+        </div>
+        <label class="toggle-row">
+            <input type="checkbox" id="toggle-add-info-folder">
+            <span id="label-add-info-folder">曲名・アーティスト情報を0秒に追加</span>
+        </label>
+        <div id="log"><div class="entry"><span id="log-init-msg">待機中... フォルダを選択してください。</span></div></div>
+        <div id="folderResults" class="folder-results hidden"></div>
+    </div>
+
+    <div id="search-section" class="tool-card hidden">
+        <div class="section-label"><span id="search-label">Manual Lyrics Search</span></div>
+        <div class="search-box">
+            <input type="text" id="query" placeholder="曲名 アーティスト名" autocomplete="off">
+            <button id="searchBtn" class="momo-btn">検索</button>
+        </div>
+        <label class="toggle-row">
+            <input type="checkbox" id="toggle-add-info-search">
+            <span id="label-add-info-search">曲名・アーティスト情報を0秒に追加</span>
+        </label>
+        <div id="resultsList"><div class="entry"><span id="search-init-msg">キーワードを入力して検索してください。</span></div></div>
+    </div>
+
+    <div id="play-section" class="tool-card hidden">
+        <div class="section-label"><span id="play-label">Play Mode</span></div>
+
+        <div class="play-source-area">
+            <div class="library-controls">
+                <div id="library-register-row" class="library-register hidden">
+                    <button id="registerLibraryBtn" class="momo-btn">音楽フォルダを登録</button>
+                </div>
+                <div id="library-loaded-row" class="library-loaded hidden">
+                    <button id="openLibraryBtn" class="momo-btn">ライブラリを開く</button>
+                    <button id="changeLibraryBtn" class="momo-btn-small">変更</button>
+                    <span id="library-name" class="library-name"></span>
+                </div>
+            </div>
+            <p id="open-hint" class="open-hint">※音楽ライブラリのルートフォルダを登録すると、フォルダツリーから歌詞(.lrc/.txt)を選んで開けます。同名の音源は自動的に読み込まれます。</p>
+            <div id="library-tree" class="library-tree hidden"></div>
+            <div id="historyList" class="history-list">
+                <div class="entry"><span id="history-empty-msg">ダウンロード済み歌詞はここに表示されます</span></div>
+            </div>
+        </div>
+
+        <div class="audio-controls hidden" id="audio-controls">
+            <button id="chooseAudioBtn" class="momo-btn">音源ファイルを選択</button>
+            <span id="audio-file-name" class="audio-file-name"></span>
+            <audio id="audio-player" controls preload="metadata"></audio>
+        </div>
+
+        <div class="info-add-row hidden" id="info-add-row">
+            <input type="text" id="info-title-input" placeholder="曲名" autocomplete="off">
+            <input type="text" id="info-artist-input" placeholder="アーティスト" autocomplete="off">
+            <button id="addInfoBtn" class="momo-btn">追加</button>
+        </div>
+
+        <div id="lyrics-view" class="lyrics-view hidden"></div>
+        <div id="lyrics-resize-handle" class="lyrics-resize-handle hidden" aria-label="resize"></div>
+
+        <!-- v2.02: 未保存の変更表示は歌詞の下・操作のすぐ上へ。
+             出ても消えても高さが変わらないので、下のボタンの位置がずれない。 -->
+        <div id="diff-banner" class="diff-banner hidden"></div>
+
+        <div class="adjust-controls hidden" id="adjust-controls">
+            <div class="adjust-row">
+                <label id="label-current-line">現在行:</label>
+                <button id="offsetMinusBtn" class="momo-btn-small">−0.1s</button>
+                <button id="offsetPlusBtn" class="momo-btn-small">+0.1s</button>
+                <label class="toggle-inline">
+                    <input type="checkbox" id="toggle-apply-following">
+                    <span id="label-apply-following">この行以後全部反映</span>
+                </label>
+            </div>
+            <div class="adjust-row">
+                <label class="toggle-inline">
+                    <input type="checkbox" id="toggle-one-line-play">
+                    <span id="label-one-line-play">1行づつ再生</span>
+                </label>
+            </div>
+            <div class="adjust-row">
+                <button id="saveLyricsBtn" class="momo-btn save-btn">保存</button>
+                <button id="disableLyricsBtn" class="momo-btn-small">無効化</button>
+                <span id="save-status" class="save-status"></span>
+            </div>
+        </div>
+
+        <div class="tap-controls hidden" id="tap-controls">
+            <button id="tapBtn" class="momo-btn momo-btn-tap">TAP</button>
+            <button id="undoTapBtn" class="momo-btn">Undo</button>
+            <span id="tap-progress"></span>
+        </div>
+    </div>
+
+    <footer style="text-align:center; color: var(--text-muted); font-size: 12px; padding: 24px 0;">
+        © MOMO Works
+    </footer>
+</div>
+
+<footer class="site-footer momo-about" id="momo-about" data-lang="en"><details><summary>About MOMO Lyrics</summary><div class="momo-about-body"><p>MOMO Lyrics lets you manage song lyrics in bulk, right in your browser.</p><p>Collect and save lyrics from the tags of the audio files (MP3, M4A, FLAC) in a folder. Create and edit synced lyrics (.lrc), and use TAP input — tap each line in time with the music to set its timing.</p><p>Your data stays on your own device. No account, no installation.</p><div class="momo-about-links"><a href="/momo/">MOMO Works Home</a><a href="/momo/games/">Games</a><a href="/momo/tools/">Tools</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-rating-data">{"app":"tools/lyrics","avg":0,"count":0}</script>
+<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":"WebApplication","name":"MOMO Lyrics","url":"https://qiqiroon.github.io/momo/tools/lyrics/en/","description":"A browser tool to manage lyrics metadata for your music in one place. Create and edit synced lyrics (.lrc) with TAP input. No sign-up, no install.","image":"https://qiqiroon.github.io/momo/tools/lyrics/apple-touch-icon.png","applicationCategory":"MultimediaApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Lyrics について", "body": ["MOMO Lyrics は、曲の歌詞をブラウザだけでまとめて管理できる道具です。", "フォルダの中の音楽ファイル（MP3・M4A・FLAC）のタグなどから歌詞を集めて保存できます。時間の付いた歌詞（.lrc）の作成と編集、曲に合わせて行をタップしてタイミングを付ける TAP 入力にも対応しています。", "データはお使いの端末の中に残ります。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Lyrics", "body": ["MOMO Lyrics lets you manage song lyrics in bulk, right in your browser.", "Collect and save lyrics from the tags of the audio files (MP3, M4A, FLAC) in a folder. Create and edit synced lyrics (.lrc), and use TAP input — tap each line in time with the music to set its timing.", "Your data stays on your own device. No account, no installation."]}, "zh": {"title": "关于 MOMO Lyrics", "body": ["MOMO Lyrics 是一款只用浏览器就能批量管理歌曲歌词的工具。", "可从文件夹内音频文件（MP3、M4A、FLAC）的标签等收集并保存歌词。支持同步歌词（.lrc）的制作与编辑，以及随音乐点击每一行来设置时间的 TAP 输入。", "数据保存在你自己的设备中。无需注册账号，也无需安装。"]}}</script>
+
+<script src="/momo/tools/lyrics/js/i18n.js"></script>
+<script src="/momo/tools/lyrics/js/lrc.js"></script>
+<script src="/momo/tools/lyrics/js/api.js"></script>
+<script src="/momo/tools/lyrics/js/folder.js"></script>
+<script src="/momo/tools/lyrics/js/search.js"></script>
+<script src="/momo/tools/lyrics/js/play.js"></script>
+<script src="/momo/tools/lyrics/js/tap.js"></script>
+<script src="/momo/tools/lyrics/js/library.js"></script>
+<script src="/momo/tools/lyrics/js/app.js"></script>
+</body>
+</html>

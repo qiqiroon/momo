@@ -30,9 +30,28 @@
   </url>
   <url>
     <loc>https://qiqiroon.github.io/momo/games/hanoi/</loc>
-    <lastmod>2026-05-21</lastmod>
+    <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
+  </url>
+  <!-- 言語の固定ページ（2026-11-09 試し。計画 works/docs/guidelines/momo-works-lang-url-plan） -->
+  <url>
+    <loc>https://qiqiroon.github.io/momo/games/hanoi/ja/</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://qiqiroon.github.io/momo/games/hanoi/en/</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://qiqiroon.github.io/momo/games/hanoi/zh/</loc>
+    <lastmod>2026-11-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://qiqiroon.github.io/momo/games/reversi/</loc>

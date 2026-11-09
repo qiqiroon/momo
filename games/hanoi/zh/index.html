@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="momo-fixed-lang" content="zh">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOMO Hanoi - 汉诺塔益智游戏 | MOMO Works</title>
+<meta name="description" content="可在浏览器中免费游玩的汉诺塔益智游戏。选择圆盘数量，挑战最少步数。无需注册，无需安装。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/games/hanoi/zh/">
+<link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/hanoi/ja/">
+<link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/hanoi/en/">
+<link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/hanoi/zh/">
+<link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/hanoi/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
+<meta property="og:url" content="https://qiqiroon.github.io/momo/games/hanoi/zh/">
+<meta property="og:title" content="MOMO Hanoi - 汉诺塔益智游戏">
+<meta property="og:description" content="可在浏览器中免费游玩的汉诺塔益智游戏。选择圆盘数量，挑战最少步数。无需注册，无需安装。">
+<meta property="og:image" content="https://qiqiroon.github.io/momo/games/hanoi/apple-touch-icon.png">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:locale:alternate" content="ja_JP">
+<meta property="og:locale:alternate" content="en_US">
+<link rel="icon" type="image/svg+xml" href="/momo/games/hanoi/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/momo/games/hanoi/favicon-32.png">
+<link rel="icon" type="image/x-icon" href="/momo/games/hanoi/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/momo/games/hanoi/apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/momo/games/hanoi/hanoi.css">
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
+<script src="/momo/lib/momo-analytics.js" defer></script>
+<script src="/momo/lib/momo-about.js"></script>
+<script src="/momo/lib/momo-rating.js"></script>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <select id="lang-select" class="lang-select" onchange="onLangChange(this.value)">
+    <option value="auto">Auto</option>
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
+<!-- ── 共通ヘッダー (app-card-design v1.0 / v2.00 で適用) ── -->
+<header class="site-header">
+  <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 100 110" aria-hidden="true">
+    <!-- 猫本体 (MOMO Works 共通) -->
+    <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+    <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+    <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+    <line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-14" y1="6.0"  x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-33.68" y1="-2.28" x2="-38" y2="-3"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-33.44" y1="6.0"   x2="-40" y2="6"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="-29.58" y1="14.26" x2="-37" y2="16"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="6.0"  x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="33.68" y1="-2.28" x2="38" y2="-3"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="33.44" y1="6.0"   x2="40" y2="6"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="29.58" y1="14.26" x2="37" y2="16"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+    <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+    <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+    <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+    <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+    <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+    <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+    <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+    <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M0,13.3 Q5,17.3  8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- ハノイ円盤+串 (右下、 中心 (26,22)、 仕様書 §2.3 推奨 半径27 サイズ) -->
+    <g id="hanoi-overlay">
+      <!-- 台座 (横幅 52) -->
+      <rect x="0" y="46" width="52" height="3" rx="0.8" fill="#888" stroke="#000" stroke-width="0.5"/>
+      <!-- 串 (高さ 50) -->
+      <rect x="24.75" y="-4" width="2.5" height="50" fill="#cccccc" stroke="#000" stroke-width="0.4"/>
+      <!-- 串の天辺の球 -->
+      <circle cx="26" cy="-4" r="2.2" fill="#e0e0e0" stroke="#000" stroke-width="0.5"/>
+      <!-- 円盤 5 枚 (下から大→小、 グラデーションでハノイらしさ) -->
+      <ellipse cx="26" cy="44" rx="25" ry="2.6" fill="#f0f0f0" stroke="#000" stroke-width="0.6"/>
+      <ellipse cx="26" cy="38.5" rx="21" ry="2.6" fill="#dadada" stroke="#000" stroke-width="0.6"/>
+      <ellipse cx="26" cy="33" rx="17" ry="2.6" fill="#c4c4c4" stroke="#000" stroke-width="0.6"/>
+      <ellipse cx="26" cy="27.5" rx="13" ry="2.6" fill="#aeaeae" stroke="#000" stroke-width="0.6"/>
+      <ellipse cx="26" cy="22" rx="9"  ry="2.6" fill="#989898" stroke="#000" stroke-width="0.6"/>
+    </g>
+  </svg>
+  <div class="title-block">
+    <h1><span class="momo">MOMO</span><span class="hanoi">Hanoi</span><span class="version-tag" id="version-tag">v2.05</span></h1>
+    <div class="subtitle" id="subtitle">Tower Defence of Hanoi</div>
+  </div>
+</header>
+
+<div id="screen-title" class="screen active">
+  <div>
+    <div class="diff-label" id="diff-label">難易度を選択</div>
+    <div class="diff-buttons">
+      <button class="diff-btn selected" data-diff="easy">EASY</button>
+      <button class="diff-btn" data-diff="hard">HARD</button>
+      <button class="diff-btn" data-diff="apocalypse">APOCALYPSE</button>
+    </div>
+  </div>
+  <button class="start-btn" id="startBtn">START GAME</button>
+  <div class="rule-box" id="rule-box">
+    <strong id="rule-title">ルール</strong><br>
+    <span id="rule1">・左の柱からゴール柱へ全円盤を移動させよ</span><br>
+    <span id="rule2">・柱をクリックして移動元→移動先を選択（複数同時移動OK）</span><br>
+    <span id="rule3">・小さい円盤の上に大きい円盤は置けない</span><br>
+    <span id="rule4">・移動中の円盤がある柱へは別の円盤を発進できない</span><br>
+    <span id="rule5">・着地で砲弾発射 → UFOを撃墜！</span><br>
+    <span id="rule6">・砲弾が移動中の円盤に当たると爆発、円盤は出発地点へ戻る</span><br>
+    <span id="rule7">・UFOの爆弾が地面HPを削る。0でゲームオーバー</span>
+  </div>
+  <div class="ranking-box" id="titleRanking">
+    <div class="ranking-header">🏆 Hall of Fame</div>
+    <div class="ranking-empty">まだ記録がありません</div>
+  </div>
+</div>
+
+<div id="screen-game" class="screen">
+  <div class="hud">
+    <div class="hud-item"><div class="hud-label">Score</div><div class="hud-value" id="hudScore">0</div></div>
+    <div class="hud-item"><div class="hud-label">Kills</div><div class="hud-value" id="hudKills">0</div></div>
+    <div class="hp-wrap">
+      <div class="hp-label-row"><span>GROUND HP</span><span id="hpText">100</span></div>
+      <div class="hp-bar-bg"><div class="hp-bar-fill" id="hpBar" style="width:100%"></div></div>
+    </div>
+    <div class="hud-item"><div class="hud-label">Time</div><div class="hud-value white" id="hudTime">0:00</div></div>
+    <div class="hud-item"><div class="hud-label">Diff</div><div class="hud-value" id="hudDiff">-</div></div>
+  </div>
+  <canvas id="gameCanvas" width="860" height="500"></canvas>
+  <div class="move-hint" id="moveHint">柱をクリックして移動元を選択</div>
+</div>
+
+<div id="screen-result" class="screen">
+  <div class="result-title" id="resultTitle">GAME OVER</div>
+  <div class="result-sub" id="resultSub"></div>
+  <div class="score-box">
+    <div class="score-detail">Final Score</div>
+    <div class="score-big" id="resultScore">0</div>
+    <div class="score-detail" id="resultDetail"></div>
+  </div>
+  <div class="name-row">
+    <input class="name-input" id="nameInput" placeholder="名前を入力してランキング登録" maxlength="12">
+    <button class="save-btn" id="saveBtn">登録</button>
+  </div>
+  <button class="retry-btn" id="retryBtn">もう一度</button>
+  <div class="ranking-box" id="resultRanking">
+    <div class="ranking-header">🏆 Hall of Fame</div>
+    <div class="ranking-empty">まだ記録がありません</div>
+  </div>
+</div>
+
+<!-- SEO 説明フッター（タイトル画面のみ表示） -->
+<footer class="site-footer momo-about" id="momo-about" data-lang="zh"><details><summary>关于 MOMO Hanoi</summary><div class="momo-about-body"><p>MOMO Hanoi 是一款可在浏览器中游玩的汉诺塔益智游戏。</p><p>选择圆盘数量，把所有圆盘移到另一根柱子上。大圆盘不能放在小圆盘上面。挑战用最少的步数完成吧。</p><p>无需注册账号，也无需安装。</p><div class="momo-about-links"><a href="/momo/">MOMO Works 首页</a><a href="/momo/games/">游戏列表</a><a href="/momo/tools/">工具列表</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-rating-data">{"app":"games/hanoi","avg":0,"count":0}</script>
+<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":["VideoGame","WebApplication"],"name":"MOMO Hanoi","url":"https://qiqiroon.github.io/momo/games/hanoi/zh/","description":"可在浏览器中免费游玩的汉诺塔益智游戏。选择圆盘数量，挑战最少步数。无需注册，无需安装。","image":"https://qiqiroon.github.io/momo/games/hanoi/apple-touch-icon.png","applicationCategory":"GameApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Hanoi について", "body": ["MOMO Hanoi は、ブラウザで遊べるハノイの塔のパズルです。", "円盤の枚数を選び、すべての円盤を別の杭へ移します。小さい円盤の上に大きい円盤は置けません。最少の手数で移しきれるか挑戦しましょう。", "アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Hanoi", "body": ["MOMO Hanoi is a Tower of Hanoi puzzle you can play in your browser.", "Choose the number of disks and move them all to another peg. A larger disk can never sit on a smaller one. Can you finish in the fewest moves?", "No account, no installation."]}, "zh": {"title": "关于 MOMO Hanoi", "body": ["MOMO Hanoi 是一款可在浏览器中游玩的汉诺塔益智游戏。", "选择圆盘数量，把所有圆盘移到另一根柱子上。大圆盘不能放在小圆盘上面。挑战用最少的步数完成吧。", "无需注册账号，也无需安装。"]}}</script>
+
+<script src="/momo/games/hanoi/hanoi.js"></script>
+</body>
+</html>

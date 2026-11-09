@@ -1694,6 +1694,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
 
 </style>
 <script src="/momo/lib/momo-about.js"></script>
+<script src="/momo/lib/momo-rating.js"></script>
 </head>
 <body>
 
@@ -1770,7 +1771,7 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="karaoke">Karaoke</span>
-                <span class="version-tag" id="version-tag">v3.09</span>
+                <span class="version-tag" id="version-tag">v3.10</span>
             </h1>
             <div class="subtitle" id="header-sub">Turn Any Track into Karaoke</div>
         </div>
@@ -2414,6 +2415,8 @@ footer { margin-top: auto; padding: 40px 0; font-size: 12px; color: var(--text-m
         © MOMO Works
     </footer>
 <footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Karaoke について</summary><div class="momo-about-body"><p>MOMO Karaoke は、手元の曲をカラオケにするブラウザの道具です。</p><p>お手元の音源と歌詞ファイル（.lrc）を読み込むと、曲に合わせて歌詞を表示しながら歌えます。曲の歌声を消したり、キー（音程）を変えたりもできます。</p><p>曲や歌詞はお使いの端末の中で扱われます。アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-rating-data">{"app":"tools/karaoke","avg":0,"count":0}</script>
+<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":"WebApplication","name":"MOMO Karaoke","url":"https://qiqiroon.github.io/momo/tools/karaoke/","description":"任意の音楽をカラオケに変えるブラウザツール。ローカル音源と .lrc を読み込み、歌詞を表示しながら歌える。","image":"https://qiqiroon.github.io/momo/tools/karaoke/apple-touch-icon.png","applicationCategory":"MultimediaApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
 <script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Karaoke について", "body": ["MOMO Karaoke は、手元の曲をカラオケにするブラウザの道具です。", "お手元の音源と歌詞ファイル（.lrc）を読み込むと、曲に合わせて歌詞を表示しながら歌えます。曲の歌声を消したり、キー（音程）を変えたりもできます。", "曲や歌詞はお使いの端末の中で扱われます。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Karaoke", "body": ["MOMO Karaoke turns your own music into karaoke, right in your browser.", "Load your audio and a lyrics file (.lrc), and sing along with the lyrics shown in time with the song. You can also remove the vocals and change the key.", "Your songs and lyrics are handled on your own device. No account, no installation."]}, "zh": {"title": "关于 MOMO Karaoke", "body": ["MOMO Karaoke 是一款把你手中的歌曲变成卡拉OK的浏览器工具。", "载入你的音频和歌词文件（.lrc），就能一边看着随歌曲显示的歌词一边演唱。还可以消除原唱人声、调整音调（Key）。", "歌曲和歌词都在你自己的设备中处理。无需注册账号，也无需安装。"]}}</script>
 
 </div>
@@ -2653,7 +2656,7 @@ window.addEventListener('unhandledrejection', e => {
 })();
 
 // ============== APP VERSION ==============
-const APP_VERSION = 'v3.09';
+const APP_VERSION = 'v3.10';
 
 // iOS detection — used early in env dump
 const IS_IOS = (() => {

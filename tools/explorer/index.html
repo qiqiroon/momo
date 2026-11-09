@@ -28,7 +28,7 @@
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <!-- ★バージョン正本（唯一）: 画面の版表示もこの値を読む -->
-<script>window.APP_VERSION = "2.03";</script>
+<script>window.APP_VERSION = "2.04";</script>
 <!-- 共通言語ライブラリ momo-lang（読み込むだけ・変更しない / defer不可・本体スクリプトより前） -->
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -738,6 +738,7 @@ html, body {
 </style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 <script src="/momo/lib/momo-about.js"></script>
+<script src="/momo/lib/momo-rating.js"></script>
 </head>
 <body>
 
@@ -888,6 +889,8 @@ html, body {
 <input type="file" id="ios-folder-input" webkitdirectory multiple style="display:none">
 
 <footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Explorer について</summary><div class="momo-about-body"><p>MOMO Explorer は、パソコンのフォルダや Google ドライブなど、いくつもの保存先を 1 つの画面でまとめて扱えるファイル管理の道具です。</p><p>コピー・移動・削除・フォルダ作成などを、保存先をまたいで同じ操作で行えます。</p><p>ブラウザだけで動き、アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-rating-data">{"app":"tools/explorer","avg":0,"count":0}</script>
+<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":"WebApplication","name":"MOMO Explorer","url":"https://qiqiroon.github.io/momo/tools/explorer/","description":"複数ストレージを 1 画面で扱える統合ファイル管理ツール。ローカルフォルダや Google Drive 等を統一 UI で操作。","image":"https://qiqiroon.github.io/momo/tools/explorer/apple-touch-icon.png","applicationCategory":"UtilitiesApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
 <script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Explorer について", "body": ["MOMO Explorer は、パソコンのフォルダや Google ドライブなど、いくつもの保存先を 1 つの画面でまとめて扱えるファイル管理の道具です。", "コピー・移動・削除・フォルダ作成などを、保存先をまたいで同じ操作で行えます。", "ブラウザだけで動き、アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Explorer", "body": ["MOMO Explorer is a file manager that handles several storages — folders on your computer, Google Drive and more — in a single screen.", "Copy, move, delete and create folders across storages with the same operations.", "It runs entirely in your browser. No account, no installation."]}, "zh": {"title": "关于 MOMO Explorer", "body": ["MOMO Explorer 是一款文件管理工具，可在同一个界面中操作电脑中的文件夹、Google Drive 等多个存储。", "可跨存储以相同的操作进行复制、移动、删除和新建文件夹等。", "完全在浏览器中运行，无需注册账号，也无需安装。"]}}</script>
 
 <script>

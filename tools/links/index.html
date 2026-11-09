@@ -770,6 +770,7 @@ main{animation:fadeUp .25s .05s ease both;}
 </style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 <script src="/momo/lib/momo-about.js"></script>
+<script src="/momo/lib/momo-rating.js"></script>
 </head>
 <body>
 <header>
@@ -827,7 +828,7 @@ main{animation:fadeUp .25s .05s ease both;}
       </g>
     </svg>
     <div class="logo-text">
-      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.81</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
+      <div class="logo-title">MOMO <span class="brand-link">Links</span><span class="version-tag" id="versionBadge">v4.82</span><span id="secretBadge" style="display:none">🔒 SECRET</span></div>
       <div class="logo-sub" id="logoSub">Tab-Based Bookmark Manager</div>
     </div>
   </div>
@@ -956,6 +957,8 @@ main{animation:fadeUp .25s .05s ease both;}
 </div>
 
 <footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Links について</summary><div class="momo-about-body"><p>MOMO Links は、ブラウザだけで使えるタブ式のブックマーク管理の道具です。</p><p>いくつものフォルダ（タグ）を並べて整理できます。ブックマークの書き出しと読み込み、Chrome 用のブックマーク HTML の書き出しにも対応しています。Google ドライブを使えば、ほかの端末と同期することもできます。</p><p>保存したデータはお使いの端末の中に残ります。アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-rating-data">{"app":"tools/links","avg":0,"count":0}</script>
+<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":"WebApplication","name":"MOMO Links","url":"https://qiqiroon.github.io/momo/tools/links/","description":"タブ式のブックマーク管理ツール。ブラウザで複数フォルダを並列管理。ローカル保存、登録不要・インストール不要。","image":"https://qiqiroon.github.io/momo/tools/links/apple-touch-icon.png","applicationCategory":"UtilitiesApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
 <script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Links について", "body": ["MOMO Links は、ブラウザだけで使えるタブ式のブックマーク管理の道具です。", "いくつものフォルダ（タグ）を並べて整理できます。ブックマークの書き出しと読み込み、Chrome 用のブックマーク HTML の書き出しにも対応しています。Google ドライブを使えば、ほかの端末と同期することもできます。", "保存したデータはお使いの端末の中に残ります。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Links", "body": ["MOMO Links is a tabbed bookmark manager that runs entirely in your browser.", "Organize your bookmarks across multiple folders (tags) side by side. Export and import bookmarks, and generate bookmark HTML for Chrome. With Google Drive, you can also sync with your other devices.", "Your data stays on your own device. No account, no installation."]}, "zh": {"title": "关于 MOMO Links", "body": ["MOMO Links 是一款完全在浏览器中运行的标签式书签管理工具。", "可以把多个文件夹（标签）并排整理书签。支持书签的导出与导入，以及生成 Chrome 用书签 HTML。使用 Google Drive 还可以与其他设备同步。", "数据保存在你自己的设备中。无需注册账号，也无需安装。"]}}</script>
 
 <!-- PIN入力ダイアログ -->

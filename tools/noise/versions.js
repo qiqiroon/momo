@@ -2,14 +2,14 @@
 'use strict';
 
 const VERSIONS = {
-  app: '2.02',
+  app: '2.03',
   modules: {
     app:   '0.17',
     audio: '0.04',
     drive: '0.03',
     metro: '0.03',
     style: '0.06',
-    html:  '0.07',
+    html:  '0.08',
   },
   history: [
     { app: '1.00', modules: { app:'0.01', audio:'0.01', drive:'0.01', metro:'0.01', style:'0.01', html:'0.01' }, note: '初版' },
@@ -29,5 +29,6 @@ const VERSIONS = {
     { app: '1.14', modules: { app:'0.15', audio:'0.04', drive:'0.03', metro:'0.03', style:'0.06', html:'0.04' }, note: '録音/停止を1つのトグルボタンに統一・押下中のみオレンジ・常時色残りを根絶' },
     { app: '2.01', modules: { app:'0.16', audio:'0.04', drive:'0.03', metro:'0.03', style:'0.06', html:'0.06' }, note: '案件⑦: 言語選択を共通ライブラリ momo-lang に移行 (Auto 追加・appId=noise)' },
     { app: '2.02', modules: { app:'0.17', audio:'0.04', drive:'0.03', metro:'0.03', style:'0.06', html:'0.07' }, note: '名乗りを MOMO Works に統一・ページの頭（説明文・正規の URL・SNS の札・アイコン）をそろえた・畳んだ説明欄（MOMO Noise について）を付けた（2026-11-08）' },
+    { app: '2.03', modules: { app:'0.17', audio:'0.04', drive:'0.03', metro:'0.03', style:'0.06', html:'0.08' }, note: '説明欄に評価の欄（★）を付けた（2026-11-09）' },
   ]
 };

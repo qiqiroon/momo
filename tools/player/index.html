@@ -39,6 +39,7 @@
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 <script src="/momo/lib/momo-about.js"></script>
+<script src="/momo/lib/momo-rating.js"></script>
 </head>
 <body>
 <div id="app">
@@ -84,7 +85,7 @@
           <div id="left-title-name">
             <span class="momo">MOMO</span>
             <span class="player">Player</span>
-            <span class="version-tag" id="left-title-ver">v12.03</span>
+            <span class="version-tag" id="left-title-ver">v12.04</span>
           </div>
           <div id="left-title-sub">HDD-Bound Music Player</div>
         </div>
@@ -314,6 +315,8 @@
 <!-- v8: DB確認ダイアログは廃止 -->
 
 <footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Player について</summary><div class="momo-about-body"><p>MOMO Player は、パソコンの中の音楽ファイルを、ブラウザだけで直接再生できる音楽プレイヤーです。</p><p>大きな音楽ライブラリの管理、歌詞の表示、時間の付いた歌詞（.lrc）の表示に対応しています。MP3・FLAC・WAV・OGG・Opus など、いろいろな形式の曲を再生できます。</p><p>アプリのインストールも会員登録も要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-rating-data">{"app":"tools/player","avg":0,"count":0}</script>
+<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":"WebApplication","name":"MOMO Player","url":"https://qiqiroon.github.io/momo/tools/player/","description":"ローカル HDD の音楽ファイルを直接再生するブラウザ音楽プレイヤー。大規模ライブラリ管理、歌詞表示、同期歌詞 (.lrc) 対応。","image":"https://qiqiroon.github.io/momo/tools/player/apple-touch-icon.png","applicationCategory":"MultimediaApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
 <script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Player について", "body": ["MOMO Player は、パソコンの中の音楽ファイルを、ブラウザだけで直接再生できる音楽プレイヤーです。", "大きな音楽ライブラリの管理、歌詞の表示、時間の付いた歌詞（.lrc）の表示に対応しています。MP3・FLAC・WAV・OGG・Opus など、いろいろな形式の曲を再生できます。", "アプリのインストールも会員登録も要りません。"]}, "en": {"title": "About MOMO Player", "body": ["MOMO Player is a music player that plays the music files on your computer directly, right in your browser.", "It handles large music libraries and shows lyrics, including synced lyrics (.lrc). It plays many formats, including MP3, FLAC, WAV, OGG and Opus.", "No installation, no sign-up."]}, "zh": {"title": "关于 MOMO Player", "body": ["MOMO Player 是一款只用浏览器就能直接播放电脑中音乐文件的音乐播放器。", "支持大规模音乐库管理、歌词显示以及同步歌词（.lrc）显示。可以播放 MP3、FLAC、WAV、OGG、Opus 等多种格式。", "无需安装应用，也无需注册。"]}}</script>
 
 <script>

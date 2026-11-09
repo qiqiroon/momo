@@ -111,6 +111,7 @@
 <script src="/momo/lib/momo-analytics.js" defer></script>
 <script src="/momo/lib/momo-lang/momo-lang.js"></script>
 <script src="/momo/lib/momo-about.js"></script>
+<script src="/momo/lib/momo-rating.js"></script>
 </head>
 <body>
 
@@ -166,7 +167,7 @@
             <h1>
                 <span class="momo">MOMO</span>
                 <span class="lyrics">Lyrics</span>
-                <span class="version-tag" id="version-tag">v2.04</span>
+                <span class="version-tag" id="version-tag">v2.05</span>
             </h1>
             <div class="subtitle" id="header-sub">Lyric Meta-Data Manager</div>
         </div>
@@ -282,6 +283,8 @@
 </div>
 
 <footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Lyrics について</summary><div class="momo-about-body"><p>MOMO Lyrics は、曲の歌詞をブラウザだけでまとめて管理できる道具です。</p><p>フォルダの中の音楽ファイル（MP3・M4A・FLAC）のタグなどから歌詞を集めて保存できます。時間の付いた歌詞（.lrc）の作成と編集、曲に合わせて行をタップしてタイミングを付ける TAP 入力にも対応しています。</p><p>データはお使いの端末の中に残ります。アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-rating-data">{"app":"tools/lyrics","avg":0,"count":0}</script>
+<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":"WebApplication","name":"MOMO Lyrics","url":"https://qiqiroon.github.io/momo/tools/lyrics/","description":"楽曲の歌詞メタデータを一括管理するブラウザツール。同期歌詞 (.lrc) の作成・編集、TAP 入力。登録不要・インストール不要。","image":"https://qiqiroon.github.io/momo/tools/lyrics/apple-touch-icon.png","applicationCategory":"MultimediaApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
 <script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Lyrics について", "body": ["MOMO Lyrics は、曲の歌詞をブラウザだけでまとめて管理できる道具です。", "フォルダの中の音楽ファイル（MP3・M4A・FLAC）のタグなどから歌詞を集めて保存できます。時間の付いた歌詞（.lrc）の作成と編集、曲に合わせて行をタップしてタイミングを付ける TAP 入力にも対応しています。", "データはお使いの端末の中に残ります。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Lyrics", "body": ["MOMO Lyrics lets you manage song lyrics in bulk, right in your browser.", "Collect and save lyrics from the tags of the audio files (MP3, M4A, FLAC) in a folder. Create and edit synced lyrics (.lrc), and use TAP input — tap each line in time with the music to set its timing.", "Your data stays on your own device. No account, no installation."]}, "zh": {"title": "关于 MOMO Lyrics", "body": ["MOMO Lyrics 是一款只用浏览器就能批量管理歌曲歌词的工具。", "可从文件夹内音频文件（MP3、M4A、FLAC）的标签等收集并保存歌词。支持同步歌词（.lrc）的制作与编辑，以及随音乐点击每一行来设置时间的 TAP 输入。", "数据保存在你自己的设备中。无需注册账号，也无需安装。"]}}</script>
 
 <script src="js/i18n.js"></script>

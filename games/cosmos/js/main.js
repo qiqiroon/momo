@@ -128,7 +128,7 @@
       if (game.state !== 'ENDROLL') return;
       if (!game.rollDone) game.skipRoll();
       else if ($('rollEnd').hidden) { $('endroll').classList.add('results'); $('rollEnd').hidden = false; $('rollHint').hidden = true; }
-      else toTitle();
+      else { toTitle(); if (window.MomoRating) setTimeout(() => MomoRating.prompt(), 1500); }  // 評価の声かけ（lib/momo-rating.js・1端末1回）
     }
     $('endroll').addEventListener('click', tapRoll);
     document.addEventListener('keydown', e => {

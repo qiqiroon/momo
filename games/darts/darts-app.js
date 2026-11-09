@@ -1011,6 +1011,7 @@ function processShot(throwerState, shot, throwerRole) {
     setTimeout(() => {
       _pendingTurnDisplay = null;
       showEndScreen({ winner, finishedState: throwerState });
+      if (window.MomoRating) setTimeout(() => MomoRating.prompt(), 1500);  // 評価の声かけ（lib/momo-rating.js・1端末1回）
     }, delayMs);
     return;
   }

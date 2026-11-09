@@ -834,6 +834,7 @@
     font-weight:700;background:var(--orange,#e88c2a);color:#1a1a1a;}
 </style>
 <script src="/momo/lib/momo-about.js"></script>
+<script src="/momo/lib/momo-rating.js"></script>
 </head>
 <body>
 
@@ -1334,7 +1335,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.15</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.16</span></h1>
       <div class="header-sub" id="subtitle-lobby">Floral Deck, Subtle Hazard</div>
     </div>
     <div id="top-controls">
@@ -1400,7 +1401,7 @@
   <header class="site-header">
     <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
     <div class="title-block">
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.15</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.16</span></h1>
       <div class="header-sub" id="subtitle-room">Floral Deck, Subtle Hazard</div>
     </div>
   </header>
@@ -1536,7 +1537,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.15</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.16</span></h1>
     </div>
     <div class="header-sub" id="subtitle-game">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1599,7 +1600,7 @@
   <div class="titleblock">
     <div class="site-header">
       <svg class="app-icon" viewBox="-46 -50 92 80"><use href="#momoHana"/></svg>
-      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.15</span></h1>
+      <h1>MOMO&nbsp;<span class="svc">Hanafuda</span><span class="version-tag">v3.16</span></h1>
     </div>
     <div class="header-sub">Floral Deck, Subtle Hazard</div>
   </div>
@@ -1913,6 +1914,8 @@
 
 <!-- ============ SEO FOOTER ============ -->
 <footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Hanafuda について</summary><div class="momo-about-body"><p>MOMO Hanafuda は、花札をブラウザで遊べるゲームです。「こいこい」と「八八」に対応しています。</p><p>CPU との対戦と、オンラインでの 2 人対戦ができ、ほかの人の対局を観戦することもできます。</p><p>パソコンでも、スマホの縦画面でも遊べます。アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-rating-data">{"app":"games/hanafuda","avg":0,"count":0}</script>
+<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":["VideoGame","WebApplication"],"name":"MOMO Hanafuda","url":"https://qiqiroon.github.io/momo/games/hanafuda/","description":"MOMO Hanafuda は花札をオンライン2人対戦で遊べるブラウザゲームです。4言語対応・PCとスマホの縦画面に対応。アカウント登録もインストールも不要です。","image":"https://qiqiroon.github.io/momo/games/hanafuda/apple-touch-icon.png","applicationCategory":"GameApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
 <script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Hanafuda について", "body": ["MOMO Hanafuda は、花札をブラウザで遊べるゲームです。「こいこい」と「八八」に対応しています。", "CPU との対戦と、オンラインでの 2 人対戦ができ、ほかの人の対局を観戦することもできます。", "パソコンでも、スマホの縦画面でも遊べます。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Hanafuda", "body": ["MOMO Hanafuda lets you play the Japanese card game Hanafuda in your browser, with both Koi-Koi and Hachi-Hachi.", "Play against the CPU or one-on-one online, and watch other people's games.", "It works on PC and on phones in portrait. No account, no installation."]}, "zh": {"title": "关于 MOMO Hanafuda", "body": ["MOMO Hanafuda 是一款可在浏览器中游玩的花札游戏，支持“来来（Koi-Koi）”和“八八”。", "可以与电脑对战，也可以在线双人对战，还能观看他人的对局。", "电脑和手机竖屏都能游玩。无需注册账号，也无需安装。"]}}</script>
 
 <!-- ===== 共通マッチングモジュール（WS シグナリング + WebRTC P2P） ===== -->
@@ -7432,6 +7435,7 @@ function h88ShowMatchEnd() {
   }
   document.getElementById('ovH88End').classList.add('show');
   if (st.online && !state.vsAI) h88RenderEndWait(); else { const _w = document.getElementById('h88-end-wait'); if (_w) _w.textContent = ''; }
+  if (window.MomoRating) setTimeout(() => MomoRating.prompt(), 1500);  // 評価の声かけ（lib/momo-rating.js・1端末1回）
   if (iWin) launchKusudama88();
   // v2.13: 勝利のファンファーレは「終局＝総合得点勝ち」でくす玉と一緒に鳴らす（こいこい準拠）
   // #2(v2.77): 観戦者は勝敗の音を鳴らさない（中立）
@@ -10071,6 +10075,7 @@ function renderGameEndFromData() {
     else if (draw) playSfx('pu'); // v1.40: 引き分け＝相手に役が出た時と同じ音
     else playSfx('lose');
     setBgm('fanfare'); // BGM 停止
+    if (window.MomoRating) setTimeout(() => MomoRating.prompt(), 1500);  // 評価の声かけ（lib/momo-rating.js・1端末1回）
   }
 }
 // 勝利時：くす玉画像を出し直し＋紙吹雪を降らせる（見た目のみ）

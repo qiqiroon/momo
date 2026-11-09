@@ -1845,6 +1845,7 @@ body.in-game .site-footer{display:none;}
 </style>
 <script src="/momo/lib/momo-analytics.js" defer></script>
 <script src="/momo/lib/momo-about.js"></script>
+<script src="/momo/lib/momo-rating.js"></script>
 </head>
 <body>
 
@@ -1905,7 +1906,7 @@ body.in-game .site-footer{display:none;}
     <h1>
       <span class="momo">MOMO</span>
       <span class="darts">Darts</span>
-      <span class="version-tag" id="version-tag">v2.23</span>
+      <span class="version-tag" id="version-tag">v2.24</span>
     </h1>
     <div class="subtitle" id="subtitle">Concealed Edge, Single Touch</div>
   </div>
@@ -2546,6 +2547,8 @@ body.in-game .site-footer{display:none;}
 
 <!-- SEO 説明フッター（プレイ中は非表示） -->
 <footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Darts について</summary><div class="momo-about-body"><p>MOMO Darts は、スマホで遊ぶ 3D のダーツです。スマホのジャイロで的を見回し、画面に触れてダーツを投げます。</p><p>01（301・501・701）やカウントアップなど、ダーツでよく遊ばれるルールを、AI との対戦やオンラインでの対人対戦で遊べます。</p><p>アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-rating-data">{"app":"games/darts","avg":0,"count":0}</script>
+<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":["VideoGame","WebApplication"],"name":"MOMO Darts","url":"https://qiqiroon.github.io/momo/games/darts/","description":"スマホで遊ぶブラウザ 3D ダーツゲーム。ジャイロで的を見回し、タッチで投げる。オンライン対戦・クリケット・AI 対戦対応。","image":"https://qiqiroon.github.io/momo/games/darts/apple-touch-icon.png","applicationCategory":"GameApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
 <script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Darts について", "body": ["MOMO Darts は、スマホで遊ぶ 3D のダーツです。スマホのジャイロで的を見回し、画面に触れてダーツを投げます。", "01（301・501・701）やカウントアップなど、ダーツでよく遊ばれるルールを、AI との対戦やオンラインでの対人対戦で遊べます。", "アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Darts", "body": ["MOMO Darts is a 3D darts game for your phone. Look around the board with your phone's gyroscope and tap the screen to throw.", "Play the popular darts games — 01 (301, 501, 701), Count-Up and more — against the AI or against other people online.", "No account, no installation."]}, "zh": {"title": "关于 MOMO Darts", "body": ["MOMO Darts 是一款在手机上游玩的 3D 飞镖游戏。用手机的陀螺仪环视靶盘，点击屏幕投掷飞镖。", "可以与 AI 或在线与其他玩家进行 01（301、501、701）、计分赛（Count-Up）等常见的飞镖玩法。", "无需注册账号，也无需安装。"]}}</script>
 
 <!-- ===== ES Modules エントリー（段階2-A は骨組みのみ） ===== -->

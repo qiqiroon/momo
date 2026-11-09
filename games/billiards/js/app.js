@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const APP_VER = '2.13';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
+  const APP_VER = '2.14';               // デプロイのたびに 0.01 繰り上げる（11.8.2節）
   const T = BilliardsTable, E = BilliardsEngine, RU = BilliardsRules, F = BilliardsField;
   const I = BilliardsI18N, AU = BilliardsAudio, NET = BilliardsNet;
   const t = (k, p) => I.t(k, p);
@@ -1796,6 +1796,7 @@
     renderHUD();
     renderResult();
     openResult();                           // 盤面は消さない。上に重ねて出す
+    if (window.MomoRating) setTimeout(() => MomoRating.prompt(), 1500);  // 評価の声かけ（lib/momo-rating.js・1端末1回）
   }
 
   // ══════════════════════════════════════════════

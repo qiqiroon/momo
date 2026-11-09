@@ -363,6 +363,7 @@ class Game {
 
     _setGameOver() {
         this.state = STATE.OVER;
+        if (window.MomoRating) setTimeout(() => MomoRating.prompt(), 1500);  // 評価の声かけ（lib/momo-rating.js・1端末1回）
         const gs = this.gs;
         const current = {stage: gs.stage, score: gs.score, current: true};
         const scores = this._loadScores();

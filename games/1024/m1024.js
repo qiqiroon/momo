@@ -26,7 +26,14 @@
       rMax: '一番大きい札', rSize: '盤面', rDiff: '難易度', rTime: '時間',
       again: 'もう一度', toTitle: 'タイトルへ', viewBoard: '盤面を見る', backResult: '結果に戻る',
       confirmMsg: 'いまのゲームは消えます。よろしいですか。', yes: 'はい', no: 'いいえ',
-      range: '{a}〜{b}', goalIn: '（GOAL {g}）'
+      range: '{a}〜{b}', goalIn: '（GOAL {g}）',
+      howto4: '3D では、奥・手前のボタン（キーは Q・E）で奥行きの向きにも滑ります。キューブの外をドラッグすると全体が回ります。',
+      setTitle: '設定', setSe: '効果音', setMute: 'ミュート', setVersion: 'バージョン', setClose: '閉じる',
+      soundTitle: '音を再生しますか？', soundBody: '効果音を再生してもよろしいですか？（あとで歯車の設定から変えられます）',
+      soundNo: '再生しない', soundYes: '再生する',
+      back: '奥', front: '手前', tip3d: 'キューブの外をドラッグすると全体が回ります',
+      alphaLabel: '透明度',
+      clearSub: 'GOAL {g} を作った！', overSub: 'もう動かせる向きがありません'
     },
     en: {
       sizeLabel: 'BOARD SIZE', spawnLabel: 'Spawns: ', diffLabel: 'DIFFICULTY',
@@ -40,7 +47,14 @@
       rMax: 'Best tile', rSize: 'Board', rDiff: 'Difficulty', rTime: 'Time',
       again: 'Play again', toTitle: 'Title', viewBoard: 'View board', backResult: 'Back to results',
       confirmMsg: 'The current game will be lost. Continue?', yes: 'Yes', no: 'No',
-      range: '{a}–{b}', goalIn: ' (GOAL {g})'
+      range: '{a}–{b}', goalIn: ' (GOAL {g})',
+      howto4: 'In 3D, the Back and Front buttons (keys Q and E) slide the tiles in depth too. Drag outside the cube to rotate the whole board.',
+      setTitle: 'Settings', setSe: 'Sound effects', setMute: 'Mute', setVersion: 'Version', setClose: 'Close',
+      soundTitle: 'Play sound?', soundBody: 'Is it OK to play sound effects? (You can change this later from the gear settings.)',
+      soundNo: "Don't play", soundYes: 'Play',
+      back: 'Back', front: 'Front', tip3d: 'Drag outside the cube to rotate the whole board',
+      alphaLabel: 'Opacity',
+      clearSub: 'You made GOAL {g}!', overSub: 'No more moves left'
     },
     zh: {
       sizeLabel: '盘面大小', spawnLabel: '出现数字：', diffLabel: '难度',
@@ -54,11 +68,19 @@
       rMax: '最大方块', rSize: '盘面', rDiff: '难度', rTime: '时间',
       again: '再玩一次', toTitle: '返回标题', viewBoard: '查看盘面', backResult: '返回结果',
       confirmMsg: '当前游戏将被清除。确定吗？', yes: '是', no: '否',
-      range: '{a}～{b}', goalIn: '（GOAL {g}）'
+      range: '{a}～{b}', goalIn: '（GOAL {g}）',
+      howto4: '3D 模式下，用“向里”“向外”按钮（Q、E 键）也能沿纵深方向滑动。拖动立方体外侧可旋转整体。',
+      setTitle: '设置', setSe: '音效', setMute: '静音', setVersion: '版本', setClose: '关闭',
+      soundTitle: '要播放声音吗？', soundBody: '可以播放音效吗？（之后可以在齿轮设置中更改）',
+      soundNo: '不播放', soundYes: '播放',
+      back: '向里', front: '向外', tip3d: '拖动立方体外侧可旋转整体',
+      alphaLabel: '透明度',
+      clearSub: '做出了 GOAL {g}！', overSub: '已经无法移动了'
     }
   };
   // 猫語にしない言葉（確かめの文言・数字の書き方。仕様書 §13.2）
-  var CAT_KEEP = { confirmMsg: 1, yes: 1, no: 1, range: 1, goalIn: 1, pauseAria: 1, zoomOutAria: 1, zoomInAria: 1 };
+  var CAT_KEEP = { confirmMsg: 1, yes: 1, no: 1, range: 1, goalIn: 1, pauseAria: 1, zoomOutAria: 1, zoomInAria: 1,
+    soundTitle: 1, soundBody: 1, soundNo: 1, soundYes: 1, setTitle: 1 };
   var SUBTITLE = { ja: 'Pick a Board, Chase One Number', en: 'Pick a Board, Chase One Number', zh: '任选盘面，只追一数' };
   var LANG_APP_ID = '1024';
   var LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -102,6 +124,7 @@
     document.documentElement.lang = base === 'zh' ? 'zh-Hans' : base;
     $('lang-select').value = langMode;
     refreshTitle();
+    $('board-tip').textContent = game && game.dim === 3 ? t('tip3d') : '';
     if (game && (mode === 'CLEAR' || mode === 'GAME_OVER')) fillResult();
     if (window.MomoAbout) MomoAbout.apply(lang);   // 説明欄（lib/momo-about.js）
   }
@@ -116,20 +139,42 @@
   function load(key, def) { try { var v = localStorage.getItem('m1024.' + key); return v == null ? def : JSON.parse(v); } catch (e) { return def; } }
   function save(key, v) { try { localStorage.setItem('m1024.' + key, JSON.stringify(v)); } catch (e) {} }
 
-  var sel = { size: load('size', 4), difficulty: load('difficulty', 'NORMAL') };
+  function clampInt(v, lo, hi, def) { v = Math.round(+v); return v >= lo && v <= hi ? v : def; }
+  var sel = {
+    mode: load('mode', 2) === 3 ? 3 : 2,
+    size2: clampInt(load('size2', load('size', 4)), C.MIN_SIZE, C.MAX_SIZE, 4),
+    size3: clampInt(load('size3', 3), C.MIN_SIZE_3D, C.MAX_SIZE_3D, 3),
+    difficulty: C.DIFFICULTIES.indexOf(load('difficulty', 'NORMAL')) >= 0 ? load('difficulty', 'NORMAL') : 'NORMAL'
+  };
+  function curSize() { return sel.mode === 3 ? sel.size3 : sel.size2; }
+  function sizeLabel(N, dim) { return dim === 3 ? N + '×' + N + '×' + N : N + '×' + N; }
   var game = null;          // ゲームの記録
   var timer = { running: false, since: 0 };
   var mode = 'TITLE';       // TITLE / PLAYING / PAUSED / CLEAR / GAME_OVER
+  var cam = null;           // 3D の視点（§17.5）
+  var endFx = null;         // クリア・ゲームオーバーの演出（§17.1）
+  function snd(name, opt) { if (window.M1024Sound) M1024Sound.play(name, opt); }
 
   // ── タイトル画面 ──
-  function buildTitle() {
-    var box = $('size-buttons');
-    for (var N = C.MIN_SIZE; N <= C.MAX_SIZE; N++) {
+  function buildSizes() {
+    var box = $('size-buttons'); box.innerHTML = '';
+    var lo = sel.mode === 3 ? C.MIN_SIZE_3D : C.MIN_SIZE, hi = sel.mode === 3 ? C.MAX_SIZE_3D : C.MAX_SIZE;
+    for (var N = lo; N <= hi; N++) {
       var b = document.createElement('button');
       b.className = 'size-btn'; b.textContent = N; b.dataset.size = N;
-      b.addEventListener('click', function (e) { sel.size = +e.currentTarget.dataset.size; save('size', sel.size); refreshTitle(); });
+      b.addEventListener('click', function (e) {
+        var v = +e.currentTarget.dataset.size;
+        if (sel.mode === 3) { sel.size3 = v; save('size3', v); } else { sel.size2 = v; save('size2', v); }
+        refreshTitle();
+      });
       box.appendChild(b);
     }
+  }
+  function buildTitle() {
+    buildSizes();
+    Array.prototype.forEach.call(document.querySelectorAll('.mode-btn'), function (b) {
+      b.addEventListener('click', function () { sel.mode = +b.dataset.mode; save('mode', sel.mode); buildSizes(); refreshTitle(); });
+    });
     Array.prototype.forEach.call(document.querySelectorAll('.diff-btn'), function (b) {
       b.addEventListener('click', function () { sel.difficulty = b.dataset.diff; save('difficulty', sel.difficulty); refreshTitle(); });
     });
@@ -137,16 +182,24 @@
     refreshTitle();
   }
   function refreshTitle() {
-    Array.prototype.forEach.call(document.querySelectorAll('.size-btn'), function (b) { b.classList.toggle('selected', +b.dataset.size === sel.size); });
+    var N = curSize(), dim = sel.mode;
+    $('screen-title').classList.toggle('is3d', dim === 3);
+    Array.prototype.forEach.call(document.querySelectorAll('.mode-btn'), function (b) { b.classList.toggle('selected', +b.dataset.mode === dim); });
+    Array.prototype.forEach.call(document.querySelectorAll('.size-btn'), function (b) { b.classList.toggle('selected', +b.dataset.size === N); });
     Array.prototype.forEach.call(document.querySelectorAll('.diff-btn'), function (b) { b.classList.toggle('selected', b.dataset.diff === sel.difficulty); });
-    var N = sel.size;
-    $('size-name').textContent = N + '×' + N;
-    $('size-goal').textContent = fmt(Math.pow(2, C.goalNFor(N)));
-    $('size-spawn').textContent = t('range', { a: 1, b: Math.pow(2, C.maxSpawnN(N)) });
+    $('size-name').textContent = sizeLabel(N, dim);
+    $('size-goal').textContent = fmt(Math.pow(2, C.goalNFor(N, dim)));
+    $('size-spawn').textContent = t('range', { a: 1, b: Math.pow(2, C.maxSpawnN(N, dim)) });
     $('diff-desc').textContent = t(sel.difficulty);
     // 小さな盤面の絵
-    var cv = $('size-preview'), x = cv.getContext('2d'), s = cv.width, gap = N > 10 ? 1 : 2, cell = (s - gap * (N + 1)) / N;
-    x.clearRect(0, 0, s, s); x.fillStyle = '#1f2937'; x.fillRect(0, 0, s, s); x.fillStyle = '#3b4a5e';
+    var cv = $('size-preview'), x = cv.getContext('2d'), s = cv.width;
+    x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, s, s); x.fillStyle = '#1f2937'; x.fillRect(0, 0, s, s);
+    if (dim === 3) {
+      M1024Three.draw(x, s, s, M1024Three.makeCam(), { N: N, tiles: [], colorOf: colorOf, label: function () { return { text: '', font: '' }; } });
+      return;
+    }
+    var gap = N > 10 ? 1 : 2, cell = (s - gap * (N + 1)) / N;
+    x.fillStyle = '#3b4a5e';
     for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) x.fillRect(gap + c * (cell + gap), gap + r * (cell + gap), cell, cell);
   }
   function fmt(v) { return v.toLocaleString('en-US'); }
@@ -162,17 +215,24 @@
   // ── ゲーム ──
   function startGame() {
     var seed = new URLSearchParams(location.search).get('seed');
-    var ng = C.newGame({ size: sel.size, difficulty: sel.difficulty, seed: seed != null ? +seed : undefined });
+    var ng = C.newGame({ size: curSize(), dim: sel.mode, difficulty: sel.difficulty, seed: seed != null ? +seed : undefined });
     game = ng.state;
+    var tg = new URLSearchParams(location.search).get('goaln');   // 確かめ用：?goaln=4 で GOAL を 16 にする
+    if (tg) game.goalN = +tg;
     overlay('overlay-result', false); overlay('overlay-pause', false); $('back-result').hidden = true;
     document.body.classList.remove('paused');
+    endFx = null; stopConfetti();
     show('game');
     mode = 'PLAYING';
     timerStart();
+    $('depth-btns').hidden = true;   // 3D は3軸の矢印（gizmo）で6つの向きを押す
+    $('gizmo').hidden = game.dim !== 3; $('dpad').hidden = game.dim === 3; $('alpha-ctl').hidden = game.dim !== 3;
+    $('board-tip').textContent = game.dim === 3 ? t('tip3d') : '';
+    cam = game.dim === 3 ? M1024Three.makeCam() : null;
     // 全体表示で真ん中に置いてから、この大きさで最後に使ったズーム率にする（§8.1）
     view = { z: 1, zMax: 1, bx: 0, by: 0 }; tier = null;
     layout();
-    var zs = +load('zoom.' + game.size, 1);
+    var zs = game.dim === 3 ? 1 : +load('zoom.' + game.size, 1);
     if (zs > 1) setZoom(zs, W / 2, H / 2);
     startAnim(null, ng.events); renderHud();
   }
@@ -182,41 +242,111 @@
 
   // ── 操作の記録（不具合の調査用）。最新 300 件。window.m1024Log で読める ──
   var LOG = window.m1024Log = [];
-  function board(s) { return s ? s.grid.map(function (row) { return row.map(function (t) { return t ? Math.pow(2, t.n) : 0; }).join(','); }) : null; }
+  function board(s) {
+    if (!s) return null;
+    function row(r) { return r.map(function (t) { return t ? Math.pow(2, t.n) : 0; }).join(','); }
+    return s.dim === 3 ? s.grid.map(function (pl) { return pl.map(row).join(' / '); }) : s.grid.map(row);
+  }
   function logIt(o) {
     o.t = new Date().toISOString().slice(11, 23); o.mode = mode;
     LOG.push(o); if (LOG.length > 300) LOG.shift();
   }
 
-  function doMove(dir, src) {
+  // sv：画面の向き（揺れの向き）。ボタン・払う操作から来たときだけ
+  function doMove(dir, src, sv) {
     if (mode !== 'PLAYING') { logIt({ src: src, dir: dir, note: '遊んでいない状態なので無視' }); return; }
+    if (!dir) { logIt({ src: src, note: '向きが決まらないので無視' }); return; }
     var r = C.move(game, dir);
     logIt({ src: src, dir: dir, moved: r.moved, before: board(game), after: r.moved ? board(r.state) : null });
-    if (!r.moved) { shake(dir); return; }
+    if (!r.moved) { shake(dir, sv); snd('bump'); return; }
     var prev = game.grid;
     game = r.state;
+    // 音（§17.3）：滑る → 合体 → 出現
+    snd('slide', { count: r.events.slides.length });
+    if (r.events.merges.length) {
+      var mx = 0; r.events.merges.forEach(function (m) { if (m.n > mx) mx = m.n; });
+      setTimeout(function () { snd('merge', { n: mx }); }, SLIDE_MS * 0.8);
+    }
+    if (r.events.spawns.length) setTimeout(function () { snd('spawn'); }, SLIDE_MS + 30);
     startAnim(prev, r.events); renderHud();
     if (game.status === 'CLEAR' || game.status === 'GAME_OVER') finish();
   }
 
+  // §17.1 クリアとゲームオーバーで、演出・音・待ち時間・結果の札を分ける
+  var FX_CLEAR_MS = 1600, FX_OVER_MS = 700;
   function finish() {
     timerStop();
     mode = game.status;
-    var rt = $('result-title');
-    rt.textContent = mode === 'CLEAR' ? 'CLEAR' : 'GAME OVER';
-    rt.classList.toggle('clear', mode === 'CLEAR');
+    var clear = mode === 'CLEAR';
+    $('result-title').textContent = clear ? 'CLEAR!' : 'GAME OVER';
+    $('result-panel').classList.toggle('is-clear', clear);
+    $('result-panel').classList.toggle('is-over', !clear);
     fillResult();
-    setTimeout(function () { overlay('overlay-result', true); }, 250);
-    if (window.MomoRating) setTimeout(function () { MomoRating.prompt(); }, 1500);   // 評価の声かけ（1端末1回）
+    endFx = { clear: clear, t0: performance.now() + (clear ? SLIDE_MS : 0) };
+    setTimeout(function () {
+      if (!game || mode !== (clear ? 'CLEAR' : 'GAME_OVER')) return;
+      snd(clear ? 'clear' : 'over');
+      if (clear) startConfetti(); else shake(null, [1, 0], 10);
+    }, clear ? SLIDE_MS + POP_MS : SLIDE_MS + POP_MS);
+    loop();
+    var me = game;
+    setTimeout(function () { if (game === me) overlay('overlay-result', true); }, clear ? FX_CLEAR_MS : FX_OVER_MS);
+    if (window.MomoRating) setTimeout(function () { MomoRating.prompt(); }, (clear ? FX_CLEAR_MS : FX_OVER_MS) + 1300);   // 評価の声かけ（1端末1回）
   }
   function fillResult() {
+    $('result-sub').textContent = mode === 'CLEAR' ? t('clearSub', { g: fmt(Math.pow(2, game.goalN)) }) : t('overSub');
     $('r-score').textContent = fmt(game.score);
     $('r-max').textContent = fmt(Math.pow(2, game.maxN));
-    $('r-size').textContent = game.size + '×' + game.size + t('goalIn', { g: fmt(Math.pow(2, game.goalN)) });
+    $('r-size').textContent = sizeLabel(game.size, game.dim) + t('goalIn', { g: fmt(Math.pow(2, game.goalN)) });
     $('r-diff').textContent = game.difficulty;
     var sec = Math.floor(game.playMs / 1000);
     $('r-time').textContent = Math.floor(sec / 60) + ':' + ('0' + sec % 60).slice(-2);
     $('r-moves').textContent = fmt(game.moves);
+  }
+  // 演出の進み：クリアは札が光って膨らむ、ゲームオーバーは盤面が暗く色が抜ける
+  function fxNow() {
+    if (!endFx) return { glow: 0, pulse: 1, dim: 0 };
+    var el = performance.now() - endFx.t0;
+    if (endFx.clear) {
+      var q = Math.max(0, Math.min(1, el / 900));
+      return { glow: el < 0 ? 0 : Math.max(0.35, Math.sin(Math.min(1, el / 500) * Math.PI / 2)), pulse: 1 + 0.28 * Math.sin(q * Math.PI), dim: 0 };
+    }
+    return { glow: 0, pulse: 1, dim: Math.max(0, Math.min(1, el / 600)) * 0.8 };
+  }
+
+  // ── 紙吹雪（クリアだけ） ──
+  var confettiRun = null;
+  function startConfetti() {
+    var c = $('fx'), x = c.getContext('2d'), dpr = window.devicePixelRatio || 1;
+    var w = window.innerWidth, h = window.innerHeight;
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    var COLS = ['#FBBF24', '#FDE68A', '#FB923C', '#FFFFFF', '#F472B6', '#7DD3FC', '#86EFAC'];
+    var ps = [], rc = $('board').getBoundingClientRect(), ox = rc.left + rc.width / 2, oy = rc.top + rc.height / 2;
+    for (var i = 0; i < 170; i++) {
+      var burst = i < 90, a = Math.random() * Math.PI * 2, sp = 4 + Math.random() * 9;
+      ps.push({
+        x: burst ? ox : Math.random() * w, y: burst ? oy : -20 - Math.random() * h * 0.5,
+        vx: burst ? Math.cos(a) * sp : (Math.random() - 0.5) * 2, vy: burst ? Math.sin(a) * sp - 5 : 2 + Math.random() * 3,
+        r: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.4, s: 5 + Math.random() * 6, col: COLS[i % COLS.length]
+      });
+    }
+    var t0 = performance.now(), me = {};
+    confettiRun = me;
+    (function step(now) {
+      if (confettiRun !== me) return;
+      var el = now - t0;
+      x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+      x.globalAlpha = el > 2600 ? Math.max(0, 1 - (el - 2600) / 700) : 1;
+      ps.forEach(function (p) {
+        p.vy += 0.22; p.vx *= 0.985; p.vy *= 0.985; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+        x.save(); x.translate(p.x, p.y); x.rotate(p.r); x.fillStyle = p.col; x.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); x.restore();
+      });
+      if (el < 3300) requestAnimationFrame(step); else stopConfetti();
+    })(t0);
+  }
+  function stopConfetti() {
+    confettiRun = null;
+    var c = $('fx'); c.getContext('2d').clearRect(0, 0, c.width, c.height);
   }
 
   function pause() {
@@ -233,6 +363,7 @@
   function toTitle() {
     overlay('overlay-pause', false); overlay('overlay-result', false); $('back-result').hidden = true;
     document.body.classList.remove('paused');
+    endFx = null; stopConfetti();
     timerStop(); mode = 'TITLE'; game = null; show('title'); refreshTitle();
   }
 
@@ -307,11 +438,14 @@
     }
     if (game) save(zoomKey(), z);
   }
+  var Z3 = [0.55, 3];
+  function zoom3(z) { cam.zoom = Math.max(Z3[0], Math.min(Z3[1], z)); requestRender(); }
   function zoomBy(f, px, py) {
+    if (game && game.dim === 3) { zoom3(cam.zoom * f); return; }
     setZoom(view.z * f, px == null ? W / 2 : px, py == null ? H / 2 : py);
     requestRender();
   }
-  function fitAll() { view.z = 1; clampView(); updateGeo(); requestRender(); }
+  function fitAll() { if (game && game.dim === 3) { M1024Three.home(cam); requestRender(); return; } view.z = 1; clampView(); updateGeo(); requestRender(); }
 
   // ── 動き（§11）。滑る → 合体した札が膨らむ・新しい札が現れる ──
   // 「動きを減らす」設定（prefers-reduced-motion）でも、札の動きは同じ速さで出す。
@@ -329,7 +463,7 @@
     (ev.spawns || []).forEach(function (s) {
       if (!s) return;
       spawned[s.id] = true;
-      if (!cellVisible(s.at[0], s.at[1])) outside.push(s.at);
+      if (s.at.length === 2 && !cellVisible(s.at[0], s.at[1])) outside.push(s.at);
     });
     (ev.slides || []).forEach(function (s) { moving[s.id] = s; });
     anim = { t0: performance.now(), prev: prevGrid, slideMs: slideMs, merged: merged, spawned: spawned, moving: moving };
@@ -346,7 +480,8 @@
       var now = performance.now();
       if (anim && now - anim.t0 >= anim.slideMs + POP_MS) { anim = null; render(); }
       if (flash && now - flash.t0 >= FLASH_MS) { flash = null; render(); }
-      if (anim || shakeAnim || flash) requestAnimationFrame(step); else looping = false;
+      var fxOn = endFx && now - endFx.t0 < 1400;
+      if (anim || shakeAnim || flash || fxOn) requestAnimationFrame(step); else looping = false;
     })();
   }
   function easeOut(q) { return 1 - Math.pow(1 - q, 3); }
@@ -360,7 +495,8 @@
 
   function render() {
     if (!game) return;
-    var N = game.size, g = geo;
+    if (game.dim === 3) { render3D(); return; }
+    var N = game.size, g = geo, fx = fxNow();
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, H);
     var ox = 0, oy = 0;
@@ -399,11 +535,91 @@
         if (anim && anim.merged[t.id]) s = 1 + 0.18 * Math.sin(Math.PI * k2);
         else if (anim && anim.spawned[t.id]) s = k2 <= 0 ? 0 : easeOutBack(k2);
         if (s <= 0.01) continue;
-        p = cellXY(r, c); drawTile(p[0], p[1], t.n, s, rad);
+        p = cellXY(r, c);
+        if (fx.glow && t.n >= game.goalN) { s *= fx.pulse; drawGlow(p[0] + g.cell / 2, p[1] + g.cell / 2, g.cell * s, fx.glow); }
+        drawTile(p[0], p[1], t.n, s, rad);
       }
+    }
+    if (fx.dim) {   // ゲームオーバー：色を抜いて暗くする
+      ctx.save();
+      ctx.globalCompositeOperation = 'saturation'; ctx.fillStyle = 'rgba(128,128,128,' + fx.dim + ')';
+      roundRect(g.bx, g.by, B, B, Math.min(12, g.cell * 0.3)); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = 'rgba(0,0,0,' + 0.5 * fx.dim + ')';
+      roundRect(g.bx, g.by, B, B, Math.min(12, g.cell * 0.3)); ctx.fill();
+      ctx.restore();
     }
     ctx.restore();
     drawMinimap();
+  }
+  function drawGlow(cx, cy, size, k) {
+    var gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 1.1);
+    gr.addColorStop(0, 'rgba(253,230,138,' + 0.75 * k + ')'); gr.addColorStop(1, 'rgba(253,230,138,0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, size * 1.1, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ── 3D の描画（§17.5）。描き方は m1024-3d.js ──
+  function render3D() {
+    var N = game.size, fx = fxNow(), now = performance.now(), tiles = [];
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    var bg = ctx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H * 0.45, Math.max(W, H) * 0.75);
+    bg.addColorStop(0, '#1b2638'); bg.addColorStop(1, '#090c13');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    var el = anim ? now - anim.t0 : Infinity, all = C.allPos(N, 3);
+    if (anim && anim.prev && el < anim.slideMs) {
+      var q = easeOut(el / anim.slideMs);
+      all.forEach(function (p) {
+        var t = C.get(anim.prev, p); if (!t) return;
+        var mv = anim.moving[t.id];
+        var pos = mv ? [0, 1, 2].map(function (i) { return mv.from[i] + (mv.to[i] - mv.from[i]) * q; }) : p;
+        tiles.push({ pos: pos, n: t.n, s: 1, home: mv ? mv.to : p, goal: t.n >= game.goalN, glow: t.n >= game.goalN ? 0.35 : 0 });
+      });
+    } else {
+      var k2 = anim ? Math.max(0, Math.min(1, (el - anim.slideMs) / POP_MS)) : 1;
+      all.forEach(function (p) {
+        var t = C.get(game.grid, p); if (!t) return;
+        var s = 1, goal = t.n >= game.goalN;
+        if (anim && anim.merged[t.id]) s = 1 + 0.18 * Math.sin(Math.PI * k2);
+        else if (anim && anim.spawned[t.id]) s = k2 <= 0 ? 0 : easeOutBack(k2);
+        if (goal && fx.glow) s *= fx.pulse;
+        tiles.push({ pos: p, n: t.n, s: s, home: p, goal: goal, glow: goal ? Math.max(0.35, fx.glow) : 0 });
+      });
+    }
+    var sh = shakeAnim ? [shakeAnim.dx * shakeAnim.k, shakeAnim.dy * shakeAnim.k] : null;
+    M1024Three.draw(ctx, W, H, cam, { N: N, tiles: tiles, colorOf: colorOf, label: label3, dim: fx.dim, shake: sh, alpha: ALPHA_3D });
+    drawGizmo();
+  }
+  // 3D の札の透け具合（1＝不透明）。2026-11-14 利用者の希望で試す。?alpha=0.5 のように変えて見られる
+  // スライダーで変えられる（ゲーム画面の盤面の左上。3D のときだけ）。端末に覚える。最初は 0.5
+  var ALPHA_3D = Math.max(0.1, Math.min(1, +load('alpha3d', 0.5) || 0.5));
+  function showAlpha() { $('alpha-range').value = ALPHA_3D; $('alpha-v').textContent = ALPHA_3D.toFixed(2); }
+  $('alpha-range').addEventListener('input', function (e) {
+    ALPHA_3D = +e.target.value; save('alpha3d', ALPHA_3D); showAlpha(); requestRender();
+  });
+  $('alpha-range').addEventListener('change', function (e) { e.target.blur(); });   // 矢印キーが札の操作に戻るように
+  showAlpha();
+  // 3D の向きの矢印（3軸の座標の形）。回すたびに描き直す
+  var gz = $('gizmo'), gzHot = null;
+  function drawGizmo() {
+    if (gz.hidden || !cam) return;
+    var w = gz.clientWidth || 132, h = gz.clientHeight || 112, d = window.devicePixelRatio || 1;
+    if (gz.width !== Math.round(w * d)) { gz.width = Math.round(w * d); gz.height = Math.round(h * d); }
+    var x = gz.getContext('2d'); x.setTransform(d, 0, 0, d, 0, 0);
+    M1024Three.drawGizmo(x, w, h, cam, gzHot);
+  }
+  gz.addEventListener('click', function (e) {
+    if (!game || game.dim !== 3) return;
+    var rc = gz.getBoundingClientRect(), a = M1024Three.gizmoHit(rc.width, rc.height, cam, e.clientX - rc.left, e.clientY - rc.top);
+    if (!a) return;
+    gzHot = a.dir; setTimeout(function () { if (gzHot === a.dir) { gzHot = null; drawGizmo(); } }, 160);
+    doMove(a.dir, 'gizmo:' + a.dir, [a.x, a.y]);
+    drawGizmo();
+  });
+  // 3D の札の文字：入る大きさなら数字、小さければ n
+  function label3(n, size) {
+    var FONT = "px 'Fredoka One', sans-serif", lab = String(Math.pow(2, n));
+    var f = lab.length <= 2 ? 0.55 : lab.length === 3 ? 0.44 : lab.length === 4 ? 0.34 : 0.28;
+    if (size * f >= 9) return { text: lab, font: Math.round(size * f) + FONT };
+    return { text: String(n), font: Math.max(7, Math.round(size * 0.55)) + FONT };
   }
 
   // §8.2 札の文字：数字／2ⁿ／n
@@ -450,7 +666,7 @@
 
   // ── §8.4 小さな全体図（拡大中だけ。右上） ──
   function minimapRect() {
-    if (view.z <= 1.001 || !game) return null;
+    if (view.z <= 1.001 || !game || game.dim === 3) return null;
     var m = Math.round(Math.min(120, Math.max(72, Math.min(W, H) * 0.28)));
     return { x: W - m - 8, y: 8, s: m };
   }
@@ -491,8 +707,10 @@
   }
 
   // §7.4 動かない向きは、その向きに少し揺れて戻る（150ms）
-  function shake(dir) {
-    var amp = 6, v = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[dir];
+  function shake(dir, sv, amp) {
+    amp = amp || 6;
+    var v = sv ? [sv[0] / (Math.hypot(sv[0], sv[1]) || 1), sv[1] / (Math.hypot(sv[0], sv[1]) || 1)]
+      : ({ left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] }[dir] || [0, -0.6]);
     var t0 = performance.now();
     var me = { dx: v[0] * amp, dy: v[1] * amp, k: 0 };
     shakeAnim = me;   // 揺れの途中で次の揺れが来たら、新しい方だけを続ける
@@ -509,7 +727,12 @@
   var KEYS = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', a: 'left', d: 'right', w: 'up', s: 'down', A: 'left', D: 'right', W: 'up', S: 'down' };
   function canView() { return game && (mode === 'PLAYING' || mode === 'CLEAR' || mode === 'GAME_OVER'); }
   document.addEventListener('keydown', function (e) {
-    if (mode === 'PLAYING' && KEYS[e.key]) { e.preventDefault(); doMove(KEYS[e.key], 'key:' + e.key); return; }
+    if ($('overlay-settings').hidden === false || $('overlay-sound').hidden === false) return;
+    if (e.target && e.target.tagName === 'INPUT') return;   // スライダーを動かしている間は札を動かさない
+    if (mode === 'PLAYING' && KEYS[e.key]) { e.preventDefault(); screenMove(KEYS[e.key], 'key:' + e.key); return; }
+    if (mode === 'PLAYING' && game.dim === 3 && (e.key === 'q' || e.key === 'Q' || e.key === 'e' || e.key === 'E')) {
+      e.preventDefault(); depthMove(e.key.toLowerCase() === 'q' ? 'back' : 'front', 'key:' + e.key); return;
+    }
     if (canView()) {
       if (e.key === '+' || e.key === '=' || e.key === ';') { zoomBy(1.25); return; }
       if (e.key === '-' || e.key === '_') { zoomBy(0.8); return; }
@@ -523,6 +746,7 @@
     if (!canView()) return;
     e.preventDefault();
     var rc = cv.getBoundingClientRect(), px = e.clientX - rc.left, py = e.clientY - rc.top;
+    if (game.dim === 3) { zoom3(cam.zoom * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015))); return; }
     if (e.ctrlKey) { setZoom(view.z * Math.exp(-e.deltaY * 0.01), px, py); }
     else if (e.shiftKey) panBy(-(e.deltaY || e.deltaX), 0);
     else panBy(-e.deltaX, -e.deltaY);
@@ -543,13 +767,13 @@
   function pinchStart() {
     var ids = Object.keys(pts); if (ids.length < 2) return;
     var a = pts[ids[0]], b = pts[ids[1]], rc = cv.getBoundingClientRect();
-    pinch = { ids: [ids[0], ids[1]], d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: view.z,
+    pinch = { ids: [ids[0], ids[1]], d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: game.dim === 3 ? cam.zoom : view.z,
       mx: (a.x + b.x) / 2 - rc.left, my: (a.y + b.y) / 2 - rc.top };
     pinch.wx = (pinch.mx - view.bx) / view.z; pinch.wy = (pinch.my - view.by) / view.z;
   }
   var area = $('screen-game'), downs = {};
   area.addEventListener('pointerdown', function (e) {
-    if (e.target.closest('button')) return;
+    if (e.target.closest('button, #gizmo, #alpha-ctl')) return;
     if (canView() && minimapHit(e.clientX, e.clientY)) return;
     // 前の操作の「離した」を拾えていなかったら、前の操作は捨てて取り直す。
     // マウス・ペンは1本しかないので、「2本目」は指（touch）のときだけ
@@ -567,8 +791,17 @@
       return;
     }
     gest = { id: e.pointerId, x: e.clientX, y: e.clientY, cancel: false };
+    // 3D：キューブの外をつかんだら、滑らせずに全体を回す（§17.5）
+    if (game && game.dim === 3 && canView()) {
+      var rc = cv.getBoundingClientRect(), lx = e.clientX - rc.left, ly = e.clientY - rc.top;
+      if (!M1024Three.inside(M1024Three.outline(cam, W, H, game.size), lx, ly)) { gest.rotate = true; gest.lx = e.clientX; gest.ly = e.clientY; }
+    }
   });
   area.addEventListener('pointermove', function (e) {
+    if (gest && gest.rotate && !gest.cancel && e.pointerId === gest.id) {
+      M1024Three.rotateBy(cam, e.clientX - gest.lx, e.clientY - gest.ly);
+      gest.lx = e.clientX; gest.ly = e.clientY; requestRender();
+    }
     if (!pts[e.pointerId]) return;
     pts[e.pointerId] = { x: e.clientX, y: e.clientY };
     if (!pinch || !pts[pinch.ids[0]] || !pts[pinch.ids[1]]) return;
@@ -576,6 +809,7 @@
     var d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
     var mx = (a.x + b.x) / 2 - rc.left, my = (a.y + b.y) / 2 - rc.top;
     // つまんだ点が指の真ん中に付いてくるように：ズームと移動を同時に
+    if (game.dim === 3) { zoom3(pinch.z0 * d / pinch.d0); return; }
     view.z = Math.max(1, Math.min(view.zMax, pinch.z0 * d / pinch.d0));
     view.bx = mx - pinch.wx * view.z; view.by = my - pinch.wy * view.z;
     clampView(); updateGeo(); requestRender();
@@ -587,15 +821,75 @@
     if (pinch && pinch.ids.indexOf(String(e.pointerId)) >= 0) pinch = null;
     if (gest && e.pointerId === gest.id) {
       var dx = Math.round(e.clientX - gest.x), dy = Math.round(e.clientY - gest.y);
-      var dir = judge && !gest.cancel ? dirFrom(dx, dy) : null;
       var src = e.pointerType + ' dx=' + dx + ' dy=' + dy;
-      if (dir) doMove(dir, src);
+      var dir = null;
+      if (judge && !gest.cancel && !gest.rotate) dir = game && game.dim === 3 ? (Math.hypot(dx, dy) >= 30 ? M1024Three.dirFor(cam, dx, dy) : null) : dirFrom(dx, dy);
+      if (gest.rotate) logIt({ src: src, note: '全体を回した' });
+      else if (dir) doMove(dir, src, [dx, dy]);
       else logIt({ src: src, note: !judge ? '取り消された（pointercancel）' : gest.cancel ? '指2本目が触れたので無視' : '向きが決まらないので無視' });
     }
     if (!Object.keys(downs).length) { gest = null; pinch = null; }   // 指を全部離したら次の操作へ
   }
   area.addEventListener('pointerup', function (e) { release(e, true); });
   area.addEventListener('pointercancel', function (e) { release(e, false); });
+
+  var SCREEN_V = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
+  // 画面の向きで滑らせる（2D はそのまま。3D は画面の向きにいちばん近い盤面の向き）
+  function screenMove(d, src) {
+    var v = SCREEN_V[d];
+    doMove(game.dim === 3 ? M1024Three.dirFor(cam, v[0], v[1]) : d, src, v);
+  }
+  function depthMove(which, src) { doMove(M1024Three.depthDirs(cam)[which], src, null); }
+  Array.prototype.forEach.call(document.querySelectorAll('.arrow-btn'), function (b) {
+    b.addEventListener('click', function () {
+      if (!game) return;
+      if (b.dataset.dir) screenMove(b.dataset.dir, 'btn:' + b.dataset.dir);
+      else if (b.dataset.depth && game.dim === 3) depthMove(b.dataset.depth, 'btn:' + b.dataset.depth);
+    });
+  });
+
+  // 音の設定。端末に覚える。「再生しない」はこの間だけ鳴らさない（保存しない）
+  var SND = load('sound', null) || {};
+  SND = { vol: clampInt(SND.vol, 0, 100, 70), mute: !!SND.mute };
+  var quiet = false, audioAsked = false, hiddenAt = 0, pendingBtn = null;
+  var LONG_MS = 60 * 60 * 1000;   // 1時間以上離れたら、もう一度聞く（他のゲームと同じ）
+  function applySound() {
+    if (window.M1024Sound) { M1024Sound.setVolume(SND.vol / 100); M1024Sound.setMute(SND.mute || quiet); }
+    [['se-vol', 'se-mute', 'se-v'], ['m-se-vol', 'm-se-mute', 'm-se-v']].forEach(function (ids) {
+      $(ids[0]).value = SND.vol; $(ids[1]).checked = SND.mute || quiet; $(ids[2]).textContent = SND.vol;
+    });
+  }
+  ['se-vol', 'm-se-vol'].forEach(function (id) {
+    $(id).addEventListener('input', function (e) { SND.vol = +e.target.value; save('sound', SND); applySound(); });
+    $(id).addEventListener('change', function () { snd('spawn'); });   // 音量を変えたら試しに鳴らす
+  });
+  ['se-mute', 'm-se-mute'].forEach(function (id) {
+    $(id).addEventListener('change', function (e) { SND.mute = e.target.checked; quiet = false; save('sound', SND); applySound(); });
+  });
+  $('gear-btn').addEventListener('click', function () {
+    $('set-version').textContent = $('version-tag').textContent;
+    if (window.M1024Sound && audioAsked) M1024Sound.unlock();
+    applySound(); overlay('overlay-settings', true);
+  });
+  $('set-close').addEventListener('click', function () { overlay('overlay-settings', false); });
+  $('overlay-settings').addEventListener('pointerdown', function (e) { if (e.target === e.currentTarget) overlay('overlay-settings', false); });
+  function soundAnswer(play) {
+    quiet = !play; audioAsked = true;
+    if (window.M1024Sound) M1024Sound.unlock();
+    applySound(); overlay('overlay-sound', false);
+    var b = pendingBtn; pendingBtn = null; if (b) b.click();
+  }
+  $('sound-yes').addEventListener('click', function () { soundAnswer(true); });
+  $('sound-no').addEventListener('click', function () { soundAnswer(false); });
+  // 音を出す操作（START・もう一度・RESUME）の最初の押下を止めて、確かめを出す
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('#start-btn, #again-btn, #resume-btn');
+    if (!b) return;
+    if (audioAsked) { if (window.M1024Sound) M1024Sound.unlock(); return; }
+    e.preventDefault(); e.stopImmediatePropagation();
+    pendingBtn = b; applySound(); overlay('overlay-sound', true);
+  }, true);
+  applySound();
 
   $('zoom-out').addEventListener('click', function () { zoomBy(0.8); });
   $('zoom-in').addEventListener('click', function () { zoomBy(1.25); });
@@ -613,9 +907,14 @@
   $('view-btn').addEventListener('click', function () { overlay('overlay-result', false); $('back-result').hidden = false; });
   $('back-result').addEventListener('click', function () { $('back-result').hidden = true; overlay('overlay-result', true); });
 
-  document.addEventListener('visibilitychange', function () { if (document.hidden) pause(); });
+  // ページが隠れたら止めて音も止める。1時間以上たって戻ったら、次の操作でもう一度聞く（§17.4）
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { hiddenAt = Date.now(); pause(); if (window.M1024Sound) M1024Sound.suspend(); return; }
+    if (audioAsked && hiddenAt && Date.now() - hiddenAt >= LONG_MS) audioAsked = false;
+    else if (audioAsked && window.M1024Sound) M1024Sound.resume();
+  });
   window.addEventListener('resize', function () { layout(); render(); });
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { render(); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { M1024Three.clearLabels(); render(); });
 
   $('lang-select').addEventListener('change', function (e) { onLangChange(e.target.value); });
   buildTitle();

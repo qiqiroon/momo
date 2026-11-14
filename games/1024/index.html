@@ -33,6 +33,7 @@
 <body>
 
 <div id="lang-switcher">
+  <button class="gear-btn" id="gear-btn" type="button" aria-label="設定" data-i18n-aria="setTitle"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54A.48.48 0 0 0 13.92 2h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.72 8.47a.49.49 0 0 0 .12.61l2.03 1.58c-.05.3-.07.63-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg></button>
   <select id="lang-select" class="lang-select" aria-label="Language">
     <option value="auto">Auto</option>
     <option value="ja">日本語</option>
@@ -86,13 +87,17 @@
   </g>
 </svg>
   <div class="title-block">
-    <h1><span class="momo">MOMO</span><span class="app">1024</span><span class="version-tag" id="version-tag">v1.00</span></h1>
+    <h1><span class="momo">MOMO</span><span class="app">1024</span><span class="version-tag" id="version-tag">v1.01</span></h1>
     <div class="subtitle" id="subtitle">Pick a Board, Chase One Number</div>
   </div>
 </header>
 
 <!-- ── タイトル画面 ── -->
 <main id="screen-title" class="screen active">
+  <div class="mode-buttons" id="mode-buttons">
+    <button class="mode-btn" data-mode="2">2D</button>
+    <button class="mode-btn" data-mode="3">3D</button>
+  </div>
   <section class="pick">
     <div class="pick-label" data-i18n="sizeLabel">盤面の大きさ</div>
     <div class="size-buttons" id="size-buttons"></div>
@@ -120,6 +125,7 @@
     <p data-i18n="howto1">上下左右に払う（PC は矢印キー）と、盤面の札が全部その向きへ滑ります。</p>
     <p data-i18n="howto2">同じ数字がぶつかると合体して倍になります。1回の動きで、1枚が合体するのは1回までです。</p>
     <p data-i18n="howto3">動くたびに、空いているマスに新しい札が1枚出ます。GOAL の数字を作ればクリア。空きがなくなり、どの向きにも動かせなくなったらゲームオーバーです。</p>
+    <p data-i18n="howto4">3D では、奥・手前のボタン（キーは Q・E）で奥行きの向きにも滑ります。キューブの外をドラッグすると全体が回ります。</p>
   </details>
 </main>
 
@@ -134,6 +140,8 @@
   </div>
   <div class="board-wrap" id="board-wrap">
     <canvas id="board"></canvas>
+    <div class="board-tip" id="board-tip"></div>
+    <label class="alpha-ctl" id="alpha-ctl" hidden><span data-i18n="alphaLabel">透明度</span><input type="range" id="alpha-range" min="0.1" max="1" step="0.05"><span class="v" id="alpha-v"></span></label>
   </div>
   <div class="bottom-bar">
     <div class="zoom-btns">
@@ -141,7 +149,19 @@
       <button class="icon-btn wide" id="zoom-fit" data-i18n="zoomFit">全体</button>
       <button class="icon-btn" id="zoom-in" aria-label="拡大" data-i18n-aria="zoomInAria">＋</button>
     </div>
-    <div class="hint"><span data-i18n="hint1">払う・矢印キーで滑らせる</span><br><span data-i18n="hint2">指2本でズーム</span></div>
+    <div class="pad-wrap">
+      <div class="depth-btns" id="depth-btns" hidden>
+        <button class="icon-btn wide arrow-btn" data-depth="back" data-i18n="back">奥</button>
+        <button class="icon-btn wide arrow-btn" data-depth="front" data-i18n="front">手前</button>
+      </div>
+      <canvas id="gizmo" hidden aria-label="向きの矢印"></canvas>
+      <div class="dpad" id="dpad">
+        <button class="icon-btn arrow-btn up" data-dir="up" aria-label="上">▲</button>
+        <button class="icon-btn arrow-btn left" data-dir="left" aria-label="左">◀</button>
+        <button class="icon-btn arrow-btn right" data-dir="right" aria-label="右">▶</button>
+        <button class="icon-btn arrow-btn down" data-dir="down" aria-label="下">▼</button>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -156,8 +176,10 @@
 </div>
 
 <div class="overlay" id="overlay-result" hidden>
-  <div class="panel">
+  <div class="panel result-panel" id="result-panel">
+    <div class="result-star" id="result-star" aria-hidden="true">★</div>
     <div class="panel-title" id="result-title">CLEAR</div>
+    <div class="result-sub" id="result-sub"></div>
     <table class="result-table">
       <tr><th>SCORE</th><td id="r-score"></td></tr>
       <tr><th data-i18n="rMax">一番大きい札</th><td id="r-max"></td></tr>
@@ -173,6 +195,34 @@
 </div>
 <button class="back-result" id="back-result" hidden data-i18n="backResult">結果に戻る</button>
 
+<!-- 設定（§17.4）。開いてもゲームは止めない -->
+<div class="overlay" id="overlay-settings" hidden>
+  <div class="panel set-panel">
+    <div class="set-title" data-i18n="setTitle">設定</div>
+    <div class="srow">
+      <div class="srow-head"><span data-i18n="setSe">効果音</span><span class="v" id="se-v"></span></div>
+      <div class="vline"><input type="range" id="se-vol" min="0" max="100" step="1"><label class="mute"><input type="checkbox" id="se-mute"><span data-i18n="setMute">ミュート</span></label></div>
+    </div>
+    <div class="srow srow-line"><span data-i18n="setVersion">バージョン</span><span class="v" id="set-version"></span></div>
+    <button class="start-btn" id="set-close" data-i18n="setClose">閉じる</button>
+  </div>
+</div>
+
+<!-- 音の確かめ（§17.4。他のゲームと同じ。最初に音を出す操作と、1時間以上離れて戻ったあとの操作で出す） -->
+<div class="overlay" id="overlay-sound" hidden>
+  <div class="panel set-panel">
+    <div class="set-title" data-i18n="soundTitle">音を再生しますか？</div>
+    <p class="set-text" data-i18n="soundBody">効果音を再生してもよろしいですか？（あとで歯車の設定から変えられます）</p>
+    <div class="srow">
+      <div class="srow-head"><span data-i18n="setSe">効果音</span><span class="v" id="m-se-v"></span></div>
+      <div class="vline"><input type="range" id="m-se-vol" min="0" max="100" step="1"><label class="mute"><input type="checkbox" id="m-se-mute"><span data-i18n="setMute">ミュート</span></label></div>
+    </div>
+    <div class="set-btns"><button class="sub-btn" id="sound-no" data-i18n="soundNo">再生しない</button><button class="start-btn" id="sound-yes" data-i18n="soundYes">再生する</button></div>
+  </div>
+</div>
+
+<canvas id="fx" aria-hidden="true"></canvas>
+
 <div class="overlay" id="overlay-confirm" hidden>
   <div class="panel">
     <div class="panel-msg" data-i18n="confirmMsg">いまのゲームは消えます。よろしいですか。</div>
@@ -186,6 +236,8 @@
 <script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":["VideoGame","WebApplication"],"name":"MOMO 1024","url":"https://qiqiroon.github.io/momo/games/1024/","description":"ブラウザで遊べる無料の数字合体パズル。4×4 から 16×16 まで盤面を選び、札を滑らせて同じ数字を合体させ、GOAL の数字を目指す。登録不要・インストール不要。","image":"https://qiqiroon.github.io/momo/games/1024/apple-touch-icon.png","applicationCategory":"GameApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
 <script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO 1024 について", "body": ["MOMO 1024 は、ブラウザで遊べる数字合体パズルです。", "盤面を上下左右に払うと、札が全部その向きへ滑ります。同じ数字の札がぶつかると合体して倍になります。盤面は 4×4 から 16×16 まで選べ、広い盤面ほど GOAL の数字も大きくなります。", "アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO 1024", "body": ["MOMO 1024 is a number-merging puzzle you can play in your browser.", "Swipe the board up, down, left or right and every tile slides that way. When two tiles with the same number collide, they merge into one with double the value. Choose any board from 4×4 to 16×16; the bigger the board, the bigger the goal number.", "No account, no installation."]}, "zh": {"title": "关于 MOMO 1024", "body": ["MOMO 1024 是一款可在浏览器中游玩的数字合并益智游戏。", "向上下左右滑动盘面，所有方块都会朝那个方向移动。两个相同数字的方块相撞时，会合并成一个数值翻倍的方块。盘面可在 4×4 到 16×16 之间选择，盘面越大，目标数字也越大。", "无需注册账号，也无需安装。"]}}</script>
 <script src="m1024-core.js"></script>
+<script src="m1024-sound.js"></script>
+<script src="m1024-3d.js"></script>
 <script src="m1024.js"></script>
 </body>
 </html>

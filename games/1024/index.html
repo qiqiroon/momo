@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>MOMO 1024 - 盤面を選べる数字合体パズル | MOMO Works</title>
-<meta name="description" content="ブラウザで遊べる無料の数字合体パズル。4×4 から 16×16 まで盤面を選び、札を滑らせて同じ数字を合体させ、GOAL の数字を目指す。登録不要・インストール不要。">
+<title>MOMO 1024 - 平面・立方体・4次元・5次元の数字合体パズル | MOMO Works</title>
+<meta name="description" content="ブラウザで遊べる無料の数字合体パズル。いつもの 4×4 の平面から 16×16 まで広げられ、さらに立方体（3次元）、4次元、5次元の盤面まで遊べる。札を滑らせて同じ数字を合体させ、GOAL の数字を目指す。登録不要・インストール不要。">
 <link rel="canonical" href="https://qiqiroon.github.io/momo/games/1024/">
 <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/1024/ja/">
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/1024/en/">
@@ -13,8 +13,8 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MOMO Works">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/games/1024/">
-<meta property="og:title" content="MOMO 1024 - 盤面を選べる数字合体パズル">
-<meta property="og:description" content="ブラウザで遊べる無料の数字合体パズル。4×4 から 16×16 まで盤面を選び、札を滑らせて同じ数字を合体させ、GOAL の数字を目指す。登録不要・インストール不要。">
+<meta property="og:title" content="MOMO 1024 - 平面・立方体・4次元・5次元の数字合体パズル">
+<meta property="og:description" content="ブラウザで遊べる無料の数字合体パズル。いつもの 4×4 の平面から 16×16 まで広げられ、さらに立方体（3次元）、4次元、5次元の盤面まで遊べる。札を滑らせて同じ数字を合体させ、GOAL の数字を目指す。登録不要・インストール不要。">
 <meta property="og:image" content="https://qiqiroon.github.io/momo/games/1024/apple-touch-icon.png">
 <meta property="og:locale" content="ja_JP">
 <meta property="og:locale:alternate" content="en_US">
@@ -87,7 +87,7 @@
   </g>
 </svg>
   <div class="title-block">
-    <h1><span class="momo">MOMO</span><span class="app">1024</span><span class="version-tag" id="version-tag">v1.02</span></h1>
+    <h1><span class="momo">MOMO</span><span class="app">1024</span><span class="version-tag" id="version-tag">v1.03</span></h1>
     <div class="subtitle" id="subtitle">Pick a Board, Chase One Number</div>
   </div>
 </header>
@@ -109,6 +109,7 @@
         <div class="size-name" id="size-name">4×4</div>
         <div class="size-detail">GOAL <b id="size-goal">1024</b></div>
         <div class="size-detail"><span data-i18n="spawnLabel">出る数字：</span><span id="size-spawn">1〜2</span></div>
+        <div class="size-detail" id="size-count"></div>
       </div>
     </div>
   </section>
@@ -116,8 +117,8 @@
     <div class="pick-label" data-i18n="diffLabel">難易度</div>
     <div class="diff-buttons" id="diff-buttons">
       <button class="diff-btn" data-diff="EASY">EASY</button>
-      <button class="diff-btn" data-diff="NORMAL">NORMAL</button>
       <button class="diff-btn" data-diff="HARD">HARD</button>
+      <button class="diff-btn" data-diff="APO">APO</button>
     </div>
     <div class="diff-desc" id="diff-desc"></div>
   </section>
@@ -126,7 +127,7 @@
     <summary data-i18n="howtoTitle">遊び方</summary>
     <p data-i18n="howto1">上下左右に払う（PC は矢印キー）と、盤面の札が全部その向きへ滑ります。</p>
     <p data-i18n="howto2">同じ数字がぶつかると合体して倍になります。1回の動きで、1枚が合体するのは1回までです。</p>
-    <p data-i18n="howto3">動くたびに、空いているマスに新しい札が1枚出ます。GOAL の数字を作ればクリア。空きがなくなり、どの向きにも動かせなくなったらゲームオーバーです。</p>
+    <p data-i18n="howto3">動くたびに、空いているマスに新しい札が出ます（出る枚数と数字は、盤面と難易度で変わります）。GOAL の数字を作ればクリア。空きがなくなり、どの向きにも動かせなくなったらゲームオーバーです。</p>
     <p data-i18n="howto4">3D では、奥・手前のボタン（キーは Q・E）で奥行きの向きにも滑ります。キューブの外をドラッグすると全体が回ります。</p>
     <p data-i18n="howto5">4D は立方体が一列に、5D は立方体が縦横に並びます。3軸の矢印の左の図で立方体を押すと、大きく映す立方体が替わります。図の端の矢印（キーは Z・X、5D の縦は C・V）で、立方体の間でも札が滑ります。</p>
   </details>
@@ -139,7 +140,8 @@
     <div class="hud-item"><div class="hud-label">GOAL</div><div class="hud-value gold" id="hud-goal">1024</div></div>
     <div class="hud-item"><div class="hud-label">SCORE</div><div class="hud-value" id="hud-score">0</div></div>
     <div class="hud-item"><div class="hud-label" data-i18n="moves">手数</div><div class="hud-value small" id="hud-moves">0</div></div>
-    <div class="hud-item"><div class="hud-label" id="hud-diff">NORMAL</div><div class="hud-next" id="hud-next"></div></div>
+    <div class="hud-item"><div class="hud-label" id="hud-diff">HARD</div><div class="hud-next" id="hud-next"></div></div>
+    <button class="gear-btn hud-gear" id="gear-btn-game" type="button" aria-label="設定" data-i18n-aria="setTitle"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54A.48.48 0 0 0 13.92 2h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.72 8.47a.49.49 0 0 0 .12.61l2.03 1.58c-.05.3-.07.63-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg></button>
   </div>
   <div class="board-wrap" id="board-wrap">
     <canvas id="legend" aria-hidden="true"></canvas>
@@ -237,10 +239,10 @@
   </div>
 </div>
 
-<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO 1024 について</summary><div class="momo-about-body"><p>MOMO 1024 は、ブラウザで遊べる数字合体パズルです。</p><p>盤面を上下左右に払うと、札が全部その向きへ滑ります。同じ数字の札がぶつかると合体して倍になります。盤面は 4×4 から 16×16 まで選べ、広い盤面ほど GOAL の数字も大きくなります。</p><p>アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO 1024 について</summary><div class="momo-about-body"><p>MOMO 1024 は、ブラウザで遊べる数字合体パズルです。</p><p>盤面を上下左右に払うと、札が全部その向きへ滑ります。同じ数字の札がぶつかると合体して倍になります。盤面はいつもの 4×4 の平面から 16×16 まで広げられ、さらに立方体（3次元）、4次元、5次元まで広げられます。難易度は EASY・HARD・APO の3つで、HARD 以上は向きを順番に押すだけではクリアできないように調整しています。</p><p>アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
 <script type="application/json" id="momo-rating-data">{"app":"games/1024","avg":0,"count":0}</script>
-<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":["VideoGame","WebApplication"],"name":"MOMO 1024","url":"https://qiqiroon.github.io/momo/games/1024/","description":"ブラウザで遊べる無料の数字合体パズル。4×4 から 16×16 まで盤面を選び、札を滑らせて同じ数字を合体させ、GOAL の数字を目指す。登録不要・インストール不要。","image":"https://qiqiroon.github.io/momo/games/1024/apple-touch-icon.png","applicationCategory":"GameApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
-<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO 1024 について", "body": ["MOMO 1024 は、ブラウザで遊べる数字合体パズルです。", "盤面を上下左右に払うと、札が全部その向きへ滑ります。同じ数字の札がぶつかると合体して倍になります。盤面は 4×4 から 16×16 まで選べ、広い盤面ほど GOAL の数字も大きくなります。", "アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO 1024", "body": ["MOMO 1024 is a number-merging puzzle you can play in your browser.", "Swipe the board up, down, left or right and every tile slides that way. When two tiles with the same number collide, they merge into one with double the value. Choose any board from 4×4 to 16×16; the bigger the board, the bigger the goal number.", "No account, no installation."]}, "zh": {"title": "关于 MOMO 1024", "body": ["MOMO 1024 是一款可在浏览器中游玩的数字合并益智游戏。", "向上下左右滑动盘面，所有方块都会朝那个方向移动。两个相同数字的方块相撞时，会合并成一个数值翻倍的方块。盘面可在 4×4 到 16×16 之间选择，盘面越大，目标数字也越大。", "无需注册账号，也无需安装。"]}}</script>
+<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":["VideoGame","WebApplication"],"name":"MOMO 1024","url":"https://qiqiroon.github.io/momo/games/1024/","description":"ブラウザで遊べる無料の数字合体パズル。いつもの 4×4 の平面から 16×16 まで広げられ、さらに立方体（3次元）、4次元、5次元の盤面まで遊べる。札を滑らせて同じ数字を合体させ、GOAL の数字を目指す。登録不要・インストール不要。","image":"https://qiqiroon.github.io/momo/games/1024/apple-touch-icon.png","applicationCategory":"GameApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO 1024 について", "body": ["MOMO 1024 は、ブラウザで遊べる数字合体パズルです。", "盤面を上下左右に払うと、札が全部その向きへ滑ります。同じ数字の札がぶつかると合体して倍になります。盤面はいつもの 4×4 の平面から 16×16 まで広げられ、さらに立方体（3次元）、4次元、5次元まで広げられます。難易度は EASY・HARD・APO の3つで、HARD 以上は向きを順番に押すだけではクリアできないように調整しています。", "アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO 1024", "body": ["MOMO 1024 is a number-merging puzzle you can play in your browser.", "Swipe the board up, down, left or right and every tile slides that way. When two tiles with the same number collide, they merge into one with double the value. Start on the classic 4×4 board, widen it up to 16×16, and go further to a cube (3D), 4D and 5D. There are three difficulties, EASY, HARD and APO; from HARD up, just pressing every direction in turn will not clear the board.", "No account, no installation."]}, "zh": {"title": "关于 MOMO 1024", "body": ["MOMO 1024 是一款可在浏览器中游玩的数字合并益智游戏。", "向上下左右滑动盘面，所有方块都会朝那个方向移动。两个相同数字的方块相撞时，会合并成一个数值翻倍的方块。盘面可从常见的 4×4 平面扩展到 16×16，还能进一步扩展到立方体（三维）、四维、五维。难度分为 EASY、HARD、APO 三种；HARD 及以上，只按顺序轮流按各个方向是无法过关的。", "无需注册账号，也无需安装。"]}}</script>
 <script src="m1024-core.js"></script>
 <script src="m1024-sound.js"></script>
 <script src="m1024-3d.js"></script>

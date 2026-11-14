@@ -18,11 +18,12 @@
   var I18N = {
     ja: {
       sizeLabel: '盤面の大きさ', spawnLabel: '出る数字：', diffLabel: '難易度',
-      EASY: '小さい数字が出やすい。次の札が3個見える', NORMAL: '標準。次の札が1個見える', HARD: '大きい数字も出やすい。次の札は見えない',
+      EASY: '向きを順番に押すだけでも、運がよければクリアできる強さ。次の札が3個見える', HARD: '向きを順番に押すだけでは、まずクリアできない強さ。次の札が1個見える', APO: 'HARD よりさらに混む。次の札は見えない',
+      perMove: '1手で {k} 枚', perMoves: '{k}手に1枚',
       howtoTitle: '遊び方',
       howto1: '上下左右に払う（PC は矢印キー）と、盤面の札が全部その向きへ滑ります。',
       howto2: '同じ数字がぶつかると合体して倍になります。1回の動きで、1枚が合体するのは1回までです。',
-      howto3: '動くたびに、空いているマスに新しい札が1枚出ます。GOAL の数字を作ればクリア。空きがなくなり、どの向きにも動かせなくなったらゲームオーバーです。',
+      howto3: '動くたびに、空いているマスに新しい札が出ます（出る枚数と数字は、盤面と難易度で変わります）。GOAL の数字を作ればクリア。空きがなくなり、どの向きにも動かせなくなったらゲームオーバーです。',
       pauseAria: '一時停止', moves: '手数', zoomOutAria: '縮小', zoomInAria: '拡大', zoomFit: '全体',
       hint1: '払う・矢印キーで滑らせる', hint2: '指2本でズーム',
       rMax: '一番大きい札', rSize: '盤面', rDiff: '難易度', rTime: '時間',
@@ -41,11 +42,12 @@
     },
     en: {
       sizeLabel: 'BOARD SIZE', spawnLabel: 'Spawns: ', diffLabel: 'DIFFICULTY',
-      EASY: 'Small numbers appear more often. You can see the next 3 tiles.', NORMAL: 'Standard. You can see the next tile.', HARD: 'Big numbers appear more often too. The next tile is hidden.',
+      EASY: 'Just pressing every direction in turn can clear it with luck. You can see the next 3 tiles.', HARD: 'Pressing every direction in turn will almost never clear it. You can see the next tile.', APO: 'Even more crowded than HARD. The next tile is hidden.',
+      perMove: '{k} per move', perMoves: '1 every {k} moves',
       howtoTitle: 'How to play',
       howto1: 'Swipe up, down, left or right (arrow keys on a PC) and every tile on the board slides that way.',
       howto2: 'When two equal numbers collide, they merge and double. Each tile can merge only once per move.',
-      howto3: 'After every move, a new tile appears in an empty cell. Make the GOAL number to clear. When the board is full and nothing can move, the game is over.',
+      howto3: 'After every move, new tiles appear in empty cells (how many and how big depends on the board and the difficulty). Make the GOAL number to clear. When the board is full and nothing can move, the game is over.',
       pauseAria: 'Pause', moves: 'MOVES', zoomOutAria: 'Zoom out', zoomInAria: 'Zoom in', zoomFit: 'Fit',
       hint1: 'Swipe or use arrow keys to slide', hint2: 'Pinch with two fingers to zoom',
       rMax: 'Best tile', rSize: 'Board', rDiff: 'Difficulty', rTime: 'Time',
@@ -64,11 +66,12 @@
     },
     zh: {
       sizeLabel: '盘面大小', spawnLabel: '出现数字：', diffLabel: '难度',
-      EASY: '容易出现小数字。可以看到接下来的3个方块', NORMAL: '标准。可以看到下一个方块', HARD: '大数字也容易出现。看不到下一个方块',
+      EASY: '只按顺序轮流按各个方向，运气好也能过关。可以看到接下来的3个方块', HARD: '只按顺序轮流按各个方向，几乎无法过关。可以看到下一个方块', APO: '比 HARD 更拥挤。看不到下一个方块',
+      perMove: '每步 {k} 个', perMoves: '每 {k} 步 1 个',
       howtoTitle: '玩法',
       howto1: '向上下左右滑动（电脑用方向键），盘面上所有方块都会朝那个方向移动。',
       howto2: '相同数字相撞时会合并并翻倍。每次移动中，每个方块最多合并一次。',
-      howto3: '每次移动后，空格中会出现一个新方块。做出 GOAL 数字即过关。盘面填满且任何方向都无法移动时，游戏结束。',
+      howto3: '每次移动后，空格中会出现新方块（出现的数量和数字取决于盘面和难度）。做出 GOAL 数字即过关。盘面填满且任何方向都无法移动时，游戏结束。',
       pauseAria: '暂停', moves: '步数', zoomOutAria: '缩小', zoomInAria: '放大', zoomFit: '全局',
       hint1: '滑动或方向键移动', hint2: '双指缩放',
       rMax: '最大方块', rSize: '盘面', rDiff: '难度', rTime: '时间',
@@ -87,7 +90,7 @@
     }
   };
   // 猫語にしない言葉（確かめの文言・数字の書き方。仕様書 §13.2）
-  var CAT_KEEP = { confirmMsg: 1, yes: 1, no: 1, range: 1, goalIn: 1, pauseAria: 1, zoomOutAria: 1, zoomInAria: 1,
+  var CAT_KEEP = { perMove: 1, perMoves: 1, confirmMsg: 1, yes: 1, no: 1, range: 1, goalIn: 1, pauseAria: 1, zoomOutAria: 1, zoomInAria: 1,
     soundTitle: 1, soundBody: 1, soundNo: 1, soundYes: 1, setTitle: 1 };
   var SUBTITLE = { ja: 'Pick a Board, Chase One Number', en: 'Pick a Board, Chase One Number', zh: '任选盘面，只追一数' };
   var LANG_APP_ID = '1024';
@@ -154,7 +157,7 @@
     size3: clampInt(load('size3', 3), C.MIN_SIZE_3D, C.MAX_SIZE_3D, 3),
     size4: clampInt(load('size4', 3), C.MIN_SIZE_HI, C.MAX_SIZE_HI, 3),
     size5: clampInt(load('size5', 2), C.MIN_SIZE_HI, C.MAX_SIZE_HI, 2),
-    difficulty: C.DIFFICULTIES.indexOf(load('difficulty', 'NORMAL')) >= 0 ? load('difficulty', 'NORMAL') : 'NORMAL'
+    difficulty: (function (d) { d = d === 'NORMAL' ? 'HARD' : d; return C.DIFFICULTIES.indexOf(d) >= 0 ? d : 'EASY'; })(load('difficulty', 'EASY'))
   };
   function curSize() { return sel['size' + sel.mode]; }
   function sizeLabel(N, dim) { var a = []; for (var i = 0; i < dim; i++) a.push(N); return a.join('×'); }
@@ -201,7 +204,9 @@
     Array.prototype.forEach.call(document.querySelectorAll('.diff-btn'), function (b) { b.classList.toggle('selected', b.dataset.diff === sel.difficulty); });
     $('size-name').textContent = sizeLabel(N, dim);
     $('size-goal').innerHTML = goalHTML(C.goalNFor(N, dim));
-    $('size-spawn').textContent = t('range', { a: 1, b: Math.pow(2, C.maxSpawnN(N, dim)) });
+    $('size-spawn').textContent = t('range', { a: 1, b: fmt(Math.pow(2, C.spawnTopN(N, dim, sel.difficulty))) });
+    var k = C.spawnsPerMove(N, dim, sel.difficulty);   // 1手で出る札（§20）
+    $('size-count').textContent = k >= 1 ? t('perMove', { k: k }) : t('perMoves', { k: Math.round(1 / k) });
     $('diff-desc').textContent = t(sel.difficulty);
     // 小さな盤面の絵
     var cv = $('size-preview'), x = cv.getContext('2d'), s = cv.width;
@@ -234,7 +239,7 @@
     game = ng.state;
     var tg = new URLSearchParams(location.search).get('goaln');   // 確かめ用：?goaln=4 で GOAL を 16 にする
     if (tg) game.goalN = +tg;
-    showResult(false); overlay('overlay-pause', false); $('back-result').hidden = true;
+    showResult(false, true); overlay('overlay-pause', false); $('back-result').hidden = true;
     document.body.classList.remove('paused');
     endFx = null; stopConfetti();
     show('game');
@@ -242,7 +247,11 @@
     timerStart();
     $('depth-btns').hidden = true;   // 3D は3軸の矢印（gizmo）で6つの向きを押す
     $('gizmo').hidden = game.dim < 3; $('dpad').hidden = game.dim >= 3; $('alpha-ctl').hidden = game.dim < 3;
-    $('lattice').hidden = game.dim < 4; document.body.classList.toggle('hidim', game.dim >= 4);
+    $('lattice').hidden = game.dim < 4; document.body.classList.toggle('hidim', game.dim >= 4); document.body.classList.toggle('dim5', game.dim === 5);
+    // 4D・5D はズームのボタンを盤面の右上へ（下の段は並びの図に譲る。§21）
+    var zb = document.querySelector('.zoom-btns');
+    if (game.dim >= 4) { zb.classList.add('zoom-float'); $('board-wrap').appendChild(zb); }
+    else { zb.classList.remove('zoom-float'); document.querySelector('.bottom-bar').insertBefore(zb, document.querySelector('.bottom-bar').firstChild); }
     $('board-tip').textContent = tipFor(game.dim);
     cam = game.dim >= 3 ? M1024Three.makeCam() : null;
     cube4 = { w: 0, v: 0 };
@@ -313,12 +322,13 @@
     if (window.MomoRating) setTimeout(function () { MomoRating.prompt(); }, (clear ? FX_CLEAR_MS : FX_OVER_MS) + 1300);   // 評価の声かけ（1端末1回）
   }
   // 結果の板は画面の下に出し、その分だけ盤面の場所を縮めて、盤面全体が板の上に見えるようにする（§19.7）
-  function showResult(on) {
+  // noDraw：描き直さない（新しいゲームを始める途中・タイトルへ戻るとき。3D 以上はまだ視点が無く、描くと止まるため。v1.02 の不具合）
+  function showResult(on, noDraw) {
     overlay('overlay-result', on);
     var bb = document.querySelector('.bottom-bar');
     if (on) { bb.style.visibility = 'hidden'; bb.style.overflow = 'hidden'; bb.style.height = ($('result-panel').offsetHeight + 4) + 'px'; }
     else { bb.style.visibility = ''; bb.style.overflow = ''; bb.style.height = ''; }
-    if (game) { layout(); render(); drawLegend(); }
+    if (game && !noDraw) { layout(); render(); drawLegend(); }
   }
   // クリアした札が見えるようにする：4D・5D はその札のある立方体を映し、2D の拡大中はその札を真ん中へ
   function showGoalTile() {
@@ -401,7 +411,7 @@
   var confirmThen = null;
   function confirmDiscard(fn) { confirmThen = fn; overlay('overlay-confirm', true); }
   function toTitle() {
-    overlay('overlay-pause', false); showResult(false); $('back-result').hidden = true;
+    overlay('overlay-pause', false); showResult(false, true); $('back-result').hidden = true;
     document.body.classList.remove('paused');
     endFx = null; stopConfetti();
     timerStop(); mode = 'TITLE'; game = null; show('title'); refreshTitle();
@@ -411,7 +421,7 @@
     $('hud-goal').innerHTML = goalHTML(game.goalN);
     $('hud-score').textContent = fmt(game.score);
     $('hud-moves').textContent = fmt(game.moves);
-    $('hud-diff').textContent = game.difficulty + ' / NEXT';
+    $('hud-diff').textContent = game.difficulty + '・NEXT';
     var box = $('hud-next'); box.innerHTML = '';
     var next = C.visibleNext(game);
     if (!next.length) { box.textContent = '—'; return; }
@@ -752,9 +762,15 @@
     if (powPx(cell, maxN) >= READ_PX * (prev == null ? 1 : k1)) return 1;
     return 2;
   }
+  // べきの数字（§22）：赤い字。白い字の札は、白い字に赤い縁
+  var EXP_RED = '#D0102A';
+  function expText(x, str, px, py, size, white) {
+    if (white) { x.save(); x.lineJoin = 'round'; x.lineWidth = Math.max(2, size * 0.18); x.strokeStyle = EXP_RED; x.strokeText(str, px, py); x.fillStyle = '#FFFFFF'; x.fillText(str, px, py); x.restore(); }
+    else { x.save(); x.fillStyle = EXP_RED; x.fillText(str, px, py); x.restore(); }
+  }
   function writeLabel(x, cx, cy, cell, n, tr) {
     x.textBaseline = 'middle';
-    var y = cy + cell * 0.03;
+    var y = cy + cell * 0.03, white = /^#fff/i.test(String(x.fillStyle));
     if (tr === 0) {
       x.font = numPx(cell, n) + 'px ' + FONTF; x.textAlign = 'center';
       x.fillText(String(Math.pow(2, n)), cx, y);
@@ -764,10 +780,11 @@
       var w2 = textW('2') * base, wn = textW(ns) * sup, left = cx - (w2 + wn + base * 0.04) / 2;
       x.textAlign = 'left';
       x.font = base + 'px ' + FONTF; x.fillText('2', left, y + base * 0.1);
-      x.font = sup + 'px ' + FONTF; x.fillText(ns, left + w2 + base * 0.04, y - base * 0.28);
+      x.font = sup + 'px ' + FONTF; expText(x, ns, left + w2 + base * 0.04, y - base * 0.28, sup, white);
     } else {
-      x.font = nPx(cell, n) + 'px ' + FONTF; x.textAlign = 'center';
-      x.fillText(String(n), cx, y);
+      var np = nPx(cell, n);
+      x.font = np + 'px ' + FONTF; x.textAlign = 'center';
+      expText(x, String(n), cx, y, np, white);
     }
   }
 
@@ -1015,11 +1032,13 @@
   ['se-mute', 'm-se-mute'].forEach(function (id) {
     $(id).addEventListener('change', function (e) { SND.mute = e.target.checked; quiet = false; save('sound', SND); applySound(); });
   });
-  $('gear-btn').addEventListener('click', function () {
+  function openSettings() {
     $('set-version').textContent = $('version-tag').textContent;
     if (window.M1024Sound && audioAsked) M1024Sound.unlock();
     applySound(); overlay('overlay-settings', true);
-  });
+  }
+  $('gear-btn').addEventListener('click', openSettings);
+  $('gear-btn-game').addEventListener('click', openSettings);   // ゲーム画面の歯車（§21）
   $('set-close').addEventListener('click', function () { overlay('overlay-settings', false); });
   $('overlay-settings').addEventListener('pointerdown', function (e) { if (e.target === e.currentTarget) overlay('overlay-settings', false); });
   function soundAnswer(play) {

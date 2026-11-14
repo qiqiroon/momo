@@ -95,6 +95,12 @@
       var q = rot(cam, toWorld(N, t.pos));
       return { t: t, q: q, depth: fr.dist - q[2] };
     }).sort(function (a, b) { return b.depth - a.depth; });
+    // 数字の出し方を盤面でそろえる（§22・§23）。2D と同じ3段：0＝普通の数字／1＝2 と小さい n／2＝n だけ
+    //   映っている札のどれか1枚でも読めなければ、全部を次の段にする。斜めの面も考えて、立方体の一辺の 8 割で見る
+    var sizes = list.map(function (it) { return { n: it.t.n, size: proj(fr, it.q).k * TILE * 0.8 }; });
+    var mode = sizes.every(function (z) { return z.size * fitOf(String(Math.pow(2, z.n))) >= 9; }) ? 0
+      : sizes.every(function (z) { return z.size * fitPow(z.n) >= 9; }) ? 1 : 2;
+    o = Object.assign({}, o, { labelMode: mode });
     var alpha = o.alpha == null ? 1 : o.alpha;
     if (alpha >= 1) list.forEach(function (it) { drawCube(ctx, fr, cam, it.q, it.t, o); });
     else {
@@ -248,10 +254,11 @@
       var ux = pu.x - a.x, uy = pu.y - a.y, vx = pv.x - a.x, vy = pv.y - a.y;
       var scr = Math.min(Math.hypot(ux, uy), Math.hypot(vx, vy)) * 2;   // 画面での面の短い辺
       if (scr < 7) return;
-      // 数字は面の縁いっぱいに書く（§19.2）。小さすぎて読めなければ n だけにする
-      var lab = String(Math.pow(2, t.n)), color = o.dim ? 'rgba(0,0,0,0.6)' : col[1];
-      var img = labelImg(lab, color, !!o.deferText);
-      if (scr * img.fit < 9) img = labelImg(String(t.n), color, !!o.deferText);
+      // 数字は面の縁いっぱいに書く（§19.2）。べき（n）だけのときは赤（§22）
+      var md = o.labelMode || 0, color = o.dim ? 'rgba(0,0,0,0.6)' : col[1];
+      var img = md === 1 ? powImg(t.n, color, !!o.deferText, !o.dim)
+        : labelImg(md === 2 ? String(t.n) : String(Math.pow(2, t.n)), color, !!o.deferText, md === 2 && !o.dim);
+      if (scr * img.fit < 4) return;
       ctx.save();
       ctx.transform(ux, uy, vx, vy, a.x, a.y);
       ctx.globalAlpha = Math.min(1, 0.35 + f.facing);
@@ -271,8 +278,44 @@
   // 数字の絵（面の半分を 1 とした正方形 [-1,1] に収まる）。文字・大きさ・色ごとに一度だけ作る
   var LABELS = {}, LABEL_PX = 128;
   // edge：縁取りを付ける（札を透かすとき。透けた暗い所に重なっても読めるように）。文字が白なら暗い縁、それ以外は白い縁
-  function labelImg(lab, color, edge) {
-    var k = lab + '|' + color + '|' + (edge ? 1 : 0);
+  // べきの数字の色（§22）。白い字の札では、白い字に赤い縁
+  var EXP_RED = '#D0102A';
+  var FITS = {};
+  function fitOf(lab) {
+    if (FITS[lab] == null) { var c = document.createElement('canvas').getContext('2d'); c.font = "100px 'Fredoka One', sans-serif"; FITS[lab] = Math.min(0.72, 0.86 / (c.measureText(lab).width / 100)); }
+    return FITS[lab];
+  }
+  // 「2」と上付きの n の形（§23）。字の大きさは「2」の大きさ ÷ 面の一辺
+  function fitPow(n) {
+    var k = '^' + n;
+    if (FITS[k] == null) { var c = document.createElement('canvas').getContext('2d'); c.font = "100px 'Fredoka One', sans-serif";
+      FITS[k] = Math.min(0.72 * 0.86, 0.86 / (c.measureText('2').width / 100 + c.measureText(String(n)).width / 100 * 0.6 + 0.04)); }
+    return FITS[k];
+  }
+  // red：上付きの n を赤くする（ゲームオーバーで暗くしているときは赤くしない）
+  function powImg(n, color, edge, red) {
+    var k = '^' + n + '|' + color + '|' + (edge ? 1 : 0) + '|' + (red ? 1 : 0);
+    if (LABELS[k]) return LABELS[k];
+    var c = document.createElement('canvas'); c.width = c.height = LABEL_PX;
+    var x = c.getContext('2d'), base = fitPow(n) * LABEL_PX, sup = base * 0.6, ns = String(n);
+    c.fit = fitPow(n);
+    x.font = "100px 'Fredoka One', sans-serif";
+    var w2 = x.measureText('2').width / 100 * base, wn = x.measureText(ns).width / 100 * sup;
+    var left = LABEL_PX / 2 - (w2 + wn + base * 0.04) / 2, y = LABEL_PX / 2 + LABEL_PX * 0.02, white = /^#fff/i.test(color);
+    x.textAlign = 'left'; x.textBaseline = 'middle'; x.lineJoin = 'round';
+    x.font = base + "px 'Fredoka One', sans-serif";
+    if (edge) { x.lineWidth = Math.max(3, base * 0.14); x.strokeStyle = white ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.9)'; x.strokeText('2', left, y + base * 0.1); }
+    x.fillStyle = color; x.fillText('2', left, y + base * 0.1);
+    x.font = sup + "px 'Fredoka One', sans-serif";
+    var sx = left + w2 + base * 0.04, sy = y - base * 0.28;
+    if (red && white) { x.lineWidth = Math.max(3, sup * 0.2); x.strokeStyle = EXP_RED; x.strokeText(ns, sx, sy); x.fillStyle = '#FFFFFF'; }
+    else if (red) { if (edge) { x.lineWidth = Math.max(3, sup * 0.16); x.strokeStyle = 'rgba(255,255,255,0.9)'; x.strokeText(ns, sx, sy); } x.fillStyle = EXP_RED; }
+    else x.fillStyle = color;
+    x.fillText(ns, sx, sy);
+    return (LABELS[k] = c);
+  }
+  function labelImg(lab, color, edge, exp) {
+    var k = lab + '|' + color + '|' + (edge ? 1 : 0) + '|' + (exp ? 1 : 0);
     if (LABELS[k]) return LABELS[k];
     var c = document.createElement('canvas'); c.width = c.height = LABEL_PX;
     var x = c.getContext('2d');
@@ -281,6 +324,17 @@
     c.fit = px / LABEL_PX;   // 字の大きさ ÷ 面の一辺
     x.font = px + "px 'Fredoka One', sans-serif";
     x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = color;
+    if (exp) {   // べき：普通は赤い字。白い字の札は、白い字に赤い縁
+      var white = /^#fff/i.test(color);
+      x.lineJoin = 'round';
+      if (white) { x.lineWidth = Math.max(4, px * 0.18); x.strokeStyle = EXP_RED; x.strokeText(lab, LABEL_PX / 2, LABEL_PX / 2 + LABEL_PX * 0.02); x.fillStyle = '#FFFFFF'; }
+      else {
+        if (edge) { x.lineWidth = Math.max(3, px * 0.14); x.strokeStyle = 'rgba(255,255,255,0.9)'; x.strokeText(lab, LABEL_PX / 2, LABEL_PX / 2 + LABEL_PX * 0.02); }
+        x.fillStyle = EXP_RED;
+      }
+      x.fillText(lab, LABEL_PX / 2, LABEL_PX / 2 + LABEL_PX * 0.02);
+      return (LABELS[k] = c);
+    }
     if (edge) {
       x.lineJoin = 'round'; x.lineWidth = Math.max(3, px * 0.14);
       x.strokeStyle = /^#fff/i.test(color) ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.9)';
@@ -289,7 +343,7 @@
     x.fillText(lab, LABEL_PX / 2, LABEL_PX / 2 + LABEL_PX * 0.02);
     return (LABELS[k] = c);
   }
-  function clearLabels() { LABELS = {}; }   // 字形（Web フォント）が読み込まれたら作り直す
+  function clearLabels() { LABELS = {}; FITS = {}; }   // 字形（Web フォント）が読み込まれたら作り直す
 
   // 盤面の外枠を画面に映した形（凸の多角形）。中を払えば滑る、外をドラッグすれば回る
   function outline(cam, W, H, N) {
@@ -434,6 +488,8 @@
     return { cubes: cubes, arrows: arrows, sp: LSP };
   }
   // 並びの図を画面に映す（正射影）。いまの向きで、図全体が枠に収まる大きさにする
+  // 矢印は押しやすいよう、画面で一定の大きさの丸いボタン（半径 ARW_R）にして、並びの端の外に置く（§21）
+  var ARW_R = 16, ARW_GAP = 3;
   function latticeGeo(dim, N, cam, w, h) {
     var m = latticeModel(dim, N), pts = [];
     function P(v) { var q = rot(cam, v); return [q[0], -q[1], q[2]]; }
@@ -442,14 +498,27 @@
       for (var i = 0; i < 8; i++) { var p = P([cb.c[0] + (i & 1 ? 0.5 : -0.5), cb.c[1] + (i & 2 ? 0.5 : -0.5), cb.c[2] + (i & 4 ? 0.5 : -0.5)]); cb.corners.push(p); pts.push(p); }
       cb.q = P(cb.c);
     });
-    m.arrows.forEach(function (a) { a.qa = P(a.a); a.qb = P(a.b); pts.push(a.qb); });
+    m.arrows.forEach(function (a) { a.qa = P(a.a); a.qb = P(a.b); });
     var x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
     pts.forEach(function (p) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); });
-    var pad = 10, k = Math.min((w - pad * 2) / (x1 - x0 || 1), (h - pad * 2) / (y1 - y0 || 1));
+    // 矢印のボタンが並びの外に出る分を、向きに合わせて空けておく
+    var padX = 6, padY = 6, B = ARW_R * 2 + ARW_GAP;
+    m.arrows.forEach(function (a) {
+      var dx = a.qb[0] - a.qa[0], dy = a.qb[1] - a.qa[1], l = Math.hypot(dx, dy) || 1;
+      padX = Math.max(padX, Math.abs(dx / l) * B + 4); padY = Math.max(padY, Math.abs(dy / l) * B + 4);
+    });
+    var k = Math.min((w - padX * 2) / (x1 - x0 || 1), (h - padY * 2) / (y1 - y0 || 1));
     var ox = w / 2 - (x0 + x1) / 2 * k, oy = h / 2 - (y0 + y1) / 2 * k;
     function S(p) { return [ox + p[0] * k, oy + p[1] * k]; }
     m.cubes.forEach(function (cb) { cb.s = cb.corners.map(S); cb.sc = S(cb.q); });
-    m.arrows.forEach(function (a) { a.sa = S(a.qa); a.sb = S(a.qb); });
+    m.arrows.forEach(function (a) {
+      // 並びの端（a.a）から、画面での向きに、ボタン1つ分だけ外へ。ただし枠からはみ出さない
+      var e = S(a.qa), dx = a.qb[0] - a.qa[0], dy = a.qb[1] - a.qa[1], l = Math.hypot(dx, dy);
+      var ux = l < 1e-6 ? (a.dir.indexOf('minus') >= 0 ? -1 : 1) : dx / l, uy = l < 1e-6 ? 0 : dy / l;
+      var cx = e[0] + ux * (ARW_R + ARW_GAP), cy = e[1] + uy * (ARW_R + ARW_GAP);
+      a.c = [Math.max(ARW_R + 1, Math.min(w - ARW_R - 1, cx)), Math.max(ARW_R + 1, Math.min(h - ARW_R - 1, cy))];
+      a.u = [ux, uy];
+    });
     m.k = k;
     return m;
   }
@@ -470,27 +539,26 @@
       CUBE_EDGES.forEach(function (e) { var a = cb.s[e[0]], b = cb.s[e[1]]; ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); });
       ctx.stroke();
     });
-    m.arrows.forEach(function (a) {
-      var on = hot === a.dir, tx = a.sb[0], ty = a.sb[1], sx = a.sa[0], sy = a.sa[1];
-      var ang = Math.atan2(ty - sy, tx - sx), hl = 10;
-      ctx.strokeStyle = ctx.fillStyle = on ? '#ffffff' : LCOL[a.ax];
-      ctx.lineWidth = 4; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(tx - Math.cos(ang) * hl * 0.6, ty - Math.sin(ang) * hl * 0.6); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(tx, ty);
-      ctx.lineTo(tx - Math.cos(ang - 0.5) * hl, ty - Math.sin(ang - 0.5) * hl);
-      ctx.lineTo(tx - Math.cos(ang + 0.5) * hl, ty - Math.sin(ang + 0.5) * hl);
+    m.arrows.forEach(function (a) {   // 丸いボタンに、向きの三角
+      var on = hot === a.dir, cx = a.c[0], cy = a.c[1], ux = a.u[0], uy = a.u[1], r = ARW_R;
+      ctx.fillStyle = on ? '#ffffff' : LCOL[a.ax];
+      ctx.globalAlpha = on ? 1 : 0.92;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#111827';
+      var t = r * 0.62, px = -uy, py = ux;
+      ctx.beginPath();
+      ctx.moveTo(cx + ux * t, cy + uy * t);
+      ctx.lineTo(cx - ux * t * 0.6 + px * t * 0.8, cy - uy * t * 0.6 + py * t * 0.8);
+      ctx.lineTo(cx - ux * t * 0.6 - px * t * 0.8, cy - uy * t * 0.6 - py * t * 0.8);
       ctx.closePath(); ctx.fill();
     });
   }
-  // 押した点：矢印なら {arrow}、立方体なら {cube:{w,v}}
+  // 押した点：矢印なら {arrow}、立方体なら {cube:{w,v}}。矢印は丸より少し広く拾う
   function latticeHit(w, h, cam, dim, N, x, y) {
     var m = latticeGeo(dim, N, cam, w, h), best = null, bd = 1e9;
-    m.arrows.forEach(function (a) {
-      var dx = a.sb[0] - a.sa[0], dy = a.sb[1] - a.sa[1], t = Math.max(0, Math.min(1, ((x - a.sa[0]) * dx + (y - a.sa[1]) * dy) / (dx * dx + dy * dy || 1)));
-      var d = Math.hypot(x - (a.sa[0] + dx * t), y - (a.sa[1] + dy * t));
-      if (d < bd) { bd = d; best = { arrow: a }; }
-    });
-    if (bd < 16) return best;
+    m.arrows.forEach(function (a) { var d = Math.hypot(x - a.c[0], y - a.c[1]); if (d < bd) { bd = d; best = { arrow: a }; } });
+    if (bd < ARW_R + 8) return best;
     best = null; bd = 1e9;
     m.cubes.forEach(function (cb) { var d = Math.hypot(x - cb.sc[0], y - cb.sc[1]); if (d < bd) { bd = d; best = { cube: { w: cb.w, v: cb.v } }; } });
     return bd < Math.max(14, m.k * m.sp * 0.75) ? best : null;

@@ -13,16 +13,30 @@
   var MIN_SIZE_3D = 2, MAX_SIZE_3D = 5;     // 3D（§17.5）
   var MIN_SIZE_HI = 2, MAX_SIZE_HI = 4;     // 4D・5D（§18）
   var GOAL_CAP_HI = 13;                     // 4D・5D のゴールの上限 2^13＝8192（§18。遊び切れる長さにする）
-  var DIFFICULTIES = ['EASY', 'NORMAL', 'HARD'];
+  // ただし 4D 4 と 5D 4 は、8192 では出る札の強さをどう上げても「向きを順番に押すだけ」でクリアできたため、
+  // 順番押しが詰まるところまでゴールを上げる（§20。tools/find_levels.js で確かめた）
+  var GOAL_HI = { '4:4': 15, '5:4': 19, '2:16': 15 };
+  // §20 難易度：EASY＝向きを順番に押すだけでもクリアできる強さ／HARD＝それではクリアできない強さ／APO＝その上
+  var DIFFICULTIES = ['EASY', 'HARD', 'APO'];
+  var OLD_DIFF = { NORMAL: 'HARD' };   // v1.02 までの名前
 
-  // §4.2 重みの表（8×8 基準・%）。添字が n
-  var WEIGHTS = {
-    EASY:   [50, 30, 12, 5, 2.5, 0.5, 0.25, 0.12, 0.06, 0.03],
-    NORMAL: [40, 30, 15, 8, 5,   2,   1.2,  0.7,  0.4,  0.25],
-    HARD:   [30, 25, 20, 12, 8,  5,   3.5,  2.5,  1.75, 1.25]
+  // §4.2 出る数字の重みの元（8×8 基準・%）。添字が n
+  var BASE_W = [50, 30, 12, 5, 2.5, 0.5, 0.25, 0.12, 0.06, 0.03];
+  // §20 強さの目盛り。[1手で出る札の倍率 m, 数字の散らばり β, GOAL との段差 gap]
+  //   1手で出る札 ＝ max(1, round(マスの数 ÷ 16 × m))。m＝0 は1枚、m が負なら |m| 手に1枚
+  //   出る数字のいちばん上 ＝ min(元の最大, GOAL − gap)
+  //   出る数字 ＝ (1−β)×元の重み ＋ β×「いちばん上まで同じ割合」
+  //   目盛り1 が v1.02 までのルール（EASY の重み）と同じ
+  var LEVELS = [[-2, 0, 4], [0, 0, 4], [0, 0.4, 5], [0, 1, 5], [0.25, 1, 5], [0.5, 1, 5], [0.75, 1, 5], [1, 1, 5],
+    [1.5, 1, 5], [2, 1, 5], [3, 1, 5], [4, 1, 5], [6, 1, 5], [8, 1, 5], [12, 1, 5], [16, 1, 5]];
+  // 盤面ごとの目盛り [EASY, HARD, APO]。tools/find_levels.js で決めた（§20）。無い盤面は [0, 1, 2]
+  var LEVEL_TABLE = {
+    '2:4': [0, 1, 2], '2:5': [1, 2, 3], '2:6': [5, 6, 7], '2:7': [6, 7, 8], '2:8': [6, 7, 8], '2:9': [6, 7, 8],
+    '2:10': [6, 7, 8], '2:11': [6, 7, 8], '2:12': [7, 8, 9], '2:13': [9, 10, 14], '2:14': [6, 7, 8], '2:15': [8, 9, 14], '2:16': [6, 7, 9],
+    '3:2': [0, 1, 2], '3:3': [6, 7, 8], '3:4': [5, 6, 7], '3:5': [6, 7, 9], '4:2': [0, 1, 2], '5:2': [1, 2, 3], '4:3': [5, 6, 7], '5:3': [10, 11, 15], '4:4': [5, 6, 8], '5:4': [5, 6, 7]
   };
   // §10.3 次の札をいくつ見せるか
-  var NEXT_VISIBLE = { EASY: 3, NORMAL: 1, HARD: 0 };
+  var NEXT_VISIBLE = { EASY: 3, HARD: 1, APO: 0 };
   var QUEUE_LEN = 3;
 
   // 向き → [軸, 行き先の端（0 か N-1）]。2D の軸は 0=r 1=c、3D の軸は 0=d 1=r 2=c
@@ -40,33 +54,44 @@
   // §2.4 ゴール：64×マスの数 に一番近い2の累乗（2D は 6 + round(2·log2 N) と同じ）。4D・5D は 8192 で頭打ち（§18）
   function goalNFor(N, dim) {
     dim = normDim(dim);
-    if (dim === 2) return 6 + Math.round(2 * Math.log2(N));
+    if (GOAL_HI[dim + ':' + N]) return GOAL_HI[dim + ':' + N] + TUNE.goalAdd;
+    if (dim === 2) return 6 + Math.round(2 * Math.log2(N)) + TUNE.goalAdd;
     var g = 6 + Math.round(Math.log2(cellsOf(N, dim)));
-    return dim >= 4 ? Math.min(g, GOAL_CAP_HI) : g;
+    return (dim >= 4 ? Math.min(g, GOAL_CAP_HI) : g) + TUNE.goalAdd;
   }
-  // 調整用のつまみ（調べる道具 tools/sim_spawn.js から変える。0 は使わない）
-  var TUNE = { spawnDiv: 0, spawnGap: 0, flatTo: 0 };
-  // §4.1。3D 以上は同じマスの数の正方形の一辺に読み替える（§17.5）
+  // 調べる道具（tools/find_levels.js）から目盛りを直接決めるためのつまみ。null なら表を使う
+  var TUNE = { level: null, goalAdd: 0 };
+  // §4.1 元の重みで出せる最大。3D 以上は同じマスの数の正方形の一辺に読み替える（§17.5）
   function maxSpawnN(N, dim) {
     dim = normDim(dim);
-    var m = dim >= 3 ? Math.max(1, Math.min(Math.round(Math.sqrt(cellsOf(N, dim))) - 3, 9)) : Math.min(N - 3, 9);
-    if (TUNE.spawnGap) m = Math.max(1, Math.min(m, goalNFor(N, dim) - TUNE.spawnGap));
-    return m;
+    return dim >= 3 ? Math.max(1, Math.min(Math.round(Math.sqrt(cellsOf(N, dim))) - 3, 9)) : Math.min(N - 3, 9);
   }
-  function spawnsPerMove(N, dim) { return TUNE.spawnDiv ? Math.max(1, Math.round(cellsOf(N, dim) / TUNE.spawnDiv)) : 1; }
+  function levelsOf(N, dim) { return LEVEL_TABLE[normDim(dim) + ':' + N] || [1, 2, 3]; }
+  function levelOf(N, dim, difficulty) {
+    if (TUNE.level != null) return TUNE.level;
+    var i = DIFFICULTIES.indexOf(OLD_DIFF[difficulty] || difficulty);
+    return levelsOf(N, dim)[i < 0 ? 0 : i];
+  }
+  // 1手で出る札の数（1 未満なら、何手かに1枚）
+  function spawnsPerMove(N, dim, difficulty) {
+    var m = LEVELS[levelOf(N, dim, difficulty)][0];
+    return m < 0 ? 1 / -m : m ? Math.max(1, Math.round(cellsOf(N, dim) / 16 * m)) : 1;
+  }
+  // 元の重みで出せる最大（GOAL との段差で頭打ち）と、散らばりも含めた出る数字のいちばん上
+  function baseTopN(N, dim, difficulty) { return Math.max(1, Math.min(maxSpawnN(N, dim), goalNFor(N, dim) - LEVELS[levelOf(N, dim, difficulty)][2])); }
+  function spawnTopN(N, dim, difficulty) {
+    var L = LEVELS[levelOf(N, dim, difficulty)];
+    return L[1] > 0 ? Math.max(1, goalNFor(N, dim) - L[2]) : baseTopN(N, dim, difficulty);
+  }
   // §4.5
   function startTiles(N, dim) { return Math.round(cellsOf(N, dim) / 8); }
 
   // §4.2 出せる n だけ残して確率にする
   function spawnDist(N, difficulty, dim) {
-    if (TUNE.flatTo) {   // 調べる用：ゴールの TUNE.flatTo 段下までを、だいたい同じ割合で出す
-      var top = Math.max(1, goalNFor(N, dim) - TUNE.flatTo), f = [];
-      for (var i = 0; i <= top; i++) f.push(1);
-      return f.map(function (x) { return x / f.length; });
-    }
-    var w = WEIGHTS[difficulty].slice(0, maxSpawnN(N, dim) + 1);
-    var sum = w.reduce(function (a, b) { return a + b; }, 0);
-    return w.map(function (x) { return x / sum; });
+    var b = LEVELS[levelOf(N, dim, difficulty)][1], top = spawnTopN(N, dim, difficulty);
+    var w = BASE_W.slice(0, baseTopN(N, dim, difficulty) + 1), sum = w.reduce(function (a, x) { return a + x; }, 0), out = [];
+    for (var n = 0; n <= top; n++) out.push((1 - b) * (n < w.length ? w[n] / sum : 0) + b / (top + 1));
+    return out;
   }
 
   // §4.4 mulberry32。状態は整数1つで、記録に入れられる
@@ -135,7 +160,7 @@
   }
 
   function newGame(opts) {
-    var N = opts.size, d = opts.difficulty, dim = normDim(opts.dim);
+    var N = opts.size, d = OLD_DIFF[opts.difficulty] || opts.difficulty, dim = normDim(opts.dim);
     var rg = sizeRange(dim);
     if (!(N >= rg[0] && N <= rg[1])) throw new Error('size');
     if (DIFFICULTIES.indexOf(d) < 0) throw new Error('difficulty');
@@ -144,7 +169,7 @@
       size: N, dim: dim, difficulty: d, goalN: goalNFor(N, dim),
       grid: makeGrid(N, dim), queue: [], score: 0, moves: 0, maxN: 0,
       playMs: 0, idCounter: 0, seed: seed, rng: seed,
-      status: 'PLAYING', spawnPerMove: opts.spawnPerMove || spawnsPerMove(N, dim)
+      status: 'PLAYING', spawnPerMove: opts.spawnPerMove || spawnsPerMove(N, dim, d)
     };
     var spawns = [], k = startTiles(N, dim);
     for (var i = 0; i < k; i++) spawns.push(spawnAt(state, drawN(state)));
@@ -240,7 +265,10 @@
     if (s.maxN >= s.goalN) {
       s.status = 'CLEAR';
     } else {
-      for (var x = 0; x < s.spawnPerMove; x++) {
+      // 1手で出す数。1 未満の割合なら、端数を持ち越して何手かに1枚出す
+      var due = (s.spawnAcc || 0) + s.spawnPerMove, k = Math.floor(due + 1e-9);
+      s.spawnAcc = due - k;
+      for (var x = 0; x < k; x++) {
         if (!emptyCells(g).length) break;
         spawns.push(spawnAt(s, takeFromQueue(s)));
       }
@@ -270,7 +298,8 @@
   return {
     MIN_SIZE: MIN_SIZE, MAX_SIZE: MAX_SIZE, MIN_SIZE_3D: MIN_SIZE_3D, MAX_SIZE_3D: MAX_SIZE_3D,
     MIN_SIZE_HI: MIN_SIZE_HI, MAX_SIZE_HI: MAX_SIZE_HI, sizeRange: sizeRange, dirsOf: dirsOf,
-    DIFFICULTIES: DIFFICULTIES, WEIGHTS: WEIGHTS, NEXT_VISIBLE: NEXT_VISIBLE,
+    DIFFICULTIES: DIFFICULTIES, BASE_W: BASE_W, LEVELS: LEVELS, LEVEL_TABLE: LEVEL_TABLE, NEXT_VISIBLE: NEXT_VISIBLE,
+    levelsOf: levelsOf, levelOf: levelOf, spawnTopN: spawnTopN,
     DIRS2: DIRS2, DIRS3: DIRS3, DIRS4: DIRS4, DIRS5: DIRS5,
     TUNE: TUNE, spawnsPerMove: spawnsPerMove,
     goalNFor: goalNFor, maxSpawnN: maxSpawnN, startTiles: startTiles, spawnDist: spawnDist,

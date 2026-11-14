@@ -3,6 +3,11 @@
 html,body{height:100%;}
 body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;display:flex;flex-direction:column;align-items:center;overflow-x:hidden;overscroll-behavior:none;}
 button{font-family:inherit;}
+/* 携帯で長押ししても文字を選ばない・拡大しない（2026-11-14 利用者の指摘）。入力欄だけは選べる */
+html,body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+input,select,textarea{-webkit-user-select:auto;user-select:auto;}
+body.in-game{touch-action:none;}
+canvas{-webkit-touch-callout:none;}
 
 /* ── 共通ヘッダー ── */
 .site-header{display:flex;align-items:flex-start;gap:10px;margin:44px 0 12px;width:100%;max-width:460px;padding:0 16px;}
@@ -56,6 +61,11 @@ body.in-game .site-header .subtitle{font-size:13px;}
 .icon-btn{background:var(--surface2);border:1px solid var(--border-strong);color:var(--text);width:40px;height:40px;border-radius:10px;font-size:1.1rem;cursor:pointer;flex-shrink:0;}
 .board-wrap{flex:1;width:100%;min-height:0;display:flex;align-items:center;justify-content:center;position:relative;}
 #board{display:block;border-radius:10px;}
+/* 左端の、色と数字の尺度（§19.4） */
+#legend{position:absolute;left:0;top:50%;transform:translateY(-50%);display:block;pointer-events:none;}
+/* GOAL の 2 のべき乗（1,024 =2¹⁰） */
+.pow{font-size:0.62em;color:#d6b25e;margin-left:0.25em;white-space:nowrap;}
+.pow sup{font-size:0.7em;vertical-align:0.6em;line-height:0;}
 .bottom-bar{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:8px;flex-shrink:0;}
 .zoom-btns{display:flex;gap:6px;}
 .icon-btn.wide{width:auto;padding:0 12px;font-size:0.9rem;}
@@ -138,10 +148,34 @@ body:lang(zh-Hans){font-family:'Noto Sans SC','Noto Sans JP',sans-serif;}
 
 /* ── 3D の向きの矢印（3軸の座標の形。§17.2） ── */
 #gizmo{width:156px;height:124px;display:block;touch-action:none;cursor:pointer;}
-#gizmo[hidden],.dpad[hidden]{display:none;}
+#gizmo[hidden],.dpad[hidden],#lattice[hidden]{display:none;}
+/* ── 4D・5D：3軸の矢印の左に立方体の並びの図（§18.2）。幅が足りないので、ズームのボタンを縦に積む ── */
+#lattice{width:150px;height:124px;display:block;touch-action:none;cursor:pointer;flex-shrink:1;min-width:110px;}
+body.hidim .zoom-btns{flex-direction:column;gap:3px;}
+body.hidim .zoom-btns .icon-btn{width:46px;height:36px;padding:0;font-size:0.85rem;}
+body.hidim .pad-wrap{gap:2px;min-width:0;}
+body.hidim #gizmo{width:136px;}
+.mode-buttons{max-width:320px;}
 
 /* ── 3D の札の透明度（ゲーム画面の盤面の左上。§17.6） ── */
 .alpha-ctl{position:absolute;top:6px;left:8px;display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;background:rgba(10,14,22,0.7);font-size:0.72rem;color:var(--text-muted);}
 .alpha-ctl[hidden]{display:none;}
 .alpha-ctl input{width:96px;accent-color:var(--orangeL);}
 .alpha-ctl .v{min-width:2.4em;text-align:right;}
+
+/* ── 結果は画面の下の板にして、盤面を隠さない（§19.7）。暗い幕は掛けない ── */
+#overlay-result{align-items:flex-end;background:transparent;padding:0 8px calc(env(safe-area-inset-bottom,0px) + 8px);pointer-events:none;}
+#overlay-result .result-panel{pointer-events:auto;width:min(520px,100%);min-width:0;padding:10px 14px 12px;gap:6px;}
+.result-head{display:flex;align-items:center;gap:8px;}
+.result-panel .panel-title{font-size:1.9rem;line-height:1.1;}
+.result-panel.is-clear .panel-title{font-size:2.1rem;}
+.result-panel.is-over .panel-title{font-size:1.7rem;}
+.result-star{font-size:1.7rem;}
+.result-panel.is-clear .result-star{display:inline-block;}
+.result-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 10px;width:100%;}
+.result-grid div{display:flex;flex-direction:column;align-items:center;min-width:0;}
+.result-grid span{font-size:0.66rem;color:var(--text-muted);white-space:nowrap;}
+.result-grid b{font-family:'Fredoka One','Noto Sans JP',sans-serif;font-weight:400;font-size:0.95rem;white-space:nowrap;}
+.result-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:2px;}
+.result-btns .start-btn{font-size:1.05rem;padding:9px 20px;}
+.result-btns .sub-btn{min-width:0;padding:9px 14px;font-size:0.9rem;}

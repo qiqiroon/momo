@@ -1,7 +1,8 @@
 /* MOMO 1024 — ルールの処理（画面に依存しない）。仕様書 v0.02 §2〜§6、3D は §17.5
    ブラウザでは window.M1024Core、Node では require() で使う。
    盤面：2D は grid[r][c]、3D は grid[d][r][c]（d＝奥行き。0 が最初の向きでいちばん手前）。
-   位置はどちらも配列（2D は [r, c]、3D は [d, r, c]）。 */
+   4D は grid[w][d][r][c]（w＝立方体の並びの何番目。左から）、5D は grid[v][w][d][r][c]（v＝並びの平面の何段目。上から）。
+   位置は配列（2D は [r, c]、3D は [d, r, c]、4D は [w, d, r, c]、5D は [v, w, d, r, c]）。 */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.M1024Core = factory();
@@ -10,6 +11,8 @@
 
   var MIN_SIZE = 4, MAX_SIZE = 16;          // 2D
   var MIN_SIZE_3D = 2, MAX_SIZE_3D = 5;     // 3D（§17.5）
+  var MIN_SIZE_HI = 2, MAX_SIZE_HI = 4;     // 4D・5D（§18）
+  var GOAL_CAP_HI = 13;                     // 4D・5D のゴールの上限 2^13＝8192（§18。遊び切れる長さにする）
   var DIFFICULTIES = ['EASY', 'NORMAL', 'HARD'];
 
   // §4.2 重みの表（8×8 基準・%）。添字が n
@@ -25,21 +28,42 @@
   // 向き → [軸, 行き先の端（0 か N-1）]。2D の軸は 0=r 1=c、3D の軸は 0=d 1=r 2=c
   var DIRS2 = { up: [0, 0], down: [0, 1], left: [1, 0], right: [1, 1] };
   var DIRS3 = { front: [0, 0], back: [0, 1], up: [1, 0], down: [1, 1], left: [2, 0], right: [2, 1] };
-  function dirsOf(dim) { return dim === 3 ? DIRS3 : DIRS2; }
+  // 4D・5D：3D の向きの軸を後ろへずらし、前に立方体の並びの軸を足す。wminus＝並びの左へ、vminus＝並びの上へ
+  function shifted(k) { var o = {}; for (var d in DIRS3) o[d] = [DIRS3[d][0] + k, DIRS3[d][1]]; return o; }
+  var DIRS4 = shifted(1); DIRS4.wminus = [0, 0]; DIRS4.wplus = [0, 1];
+  var DIRS5 = shifted(2); DIRS5.vminus = [0, 0]; DIRS5.vplus = [0, 1]; DIRS5.wminus = [1, 0]; DIRS5.wplus = [1, 1];
+  function dirsOf(dim) { return dim === 5 ? DIRS5 : dim === 4 ? DIRS4 : dim === 3 ? DIRS3 : DIRS2; }
+  function normDim(dim) { return dim === 3 || dim === 4 || dim === 5 ? dim : 2; }
+  function sizeRange(dim) { dim = normDim(dim); return dim === 2 ? [MIN_SIZE, MAX_SIZE] : dim === 3 ? [MIN_SIZE_3D, MAX_SIZE_3D] : [MIN_SIZE_HI, MAX_SIZE_HI]; }
 
-  function cellsOf(N, dim) { return Math.pow(N, dim === 3 ? 3 : 2); }
-  // §2.4 ゴール：64×マスの数 に一番近い2の累乗（2D は 6 + round(2·log2 N) と同じ）
-  function goalNFor(N, dim) { return dim === 3 ? 6 + Math.round(Math.log2(cellsOf(N, 3))) : 6 + Math.round(2 * Math.log2(N)); }
-  // §4.1。3D は同じマスの数の正方形の一辺に読み替える（§17.5）
-  function maxSpawnN(N, dim) {
-    if (dim === 3) return Math.max(1, Math.min(Math.round(Math.sqrt(cellsOf(N, 3))) - 3, 9));
-    return Math.min(N - 3, 9);
+  function cellsOf(N, dim) { return Math.pow(N, normDim(dim)); }
+  // §2.4 ゴール：64×マスの数 に一番近い2の累乗（2D は 6 + round(2·log2 N) と同じ）。4D・5D は 8192 で頭打ち（§18）
+  function goalNFor(N, dim) {
+    dim = normDim(dim);
+    if (dim === 2) return 6 + Math.round(2 * Math.log2(N));
+    var g = 6 + Math.round(Math.log2(cellsOf(N, dim)));
+    return dim >= 4 ? Math.min(g, GOAL_CAP_HI) : g;
   }
+  // 調整用のつまみ（調べる道具 tools/sim_spawn.js から変える。0 は使わない）
+  var TUNE = { spawnDiv: 0, spawnGap: 0, flatTo: 0 };
+  // §4.1。3D 以上は同じマスの数の正方形の一辺に読み替える（§17.5）
+  function maxSpawnN(N, dim) {
+    dim = normDim(dim);
+    var m = dim >= 3 ? Math.max(1, Math.min(Math.round(Math.sqrt(cellsOf(N, dim))) - 3, 9)) : Math.min(N - 3, 9);
+    if (TUNE.spawnGap) m = Math.max(1, Math.min(m, goalNFor(N, dim) - TUNE.spawnGap));
+    return m;
+  }
+  function spawnsPerMove(N, dim) { return TUNE.spawnDiv ? Math.max(1, Math.round(cellsOf(N, dim) / TUNE.spawnDiv)) : 1; }
   // §4.5
   function startTiles(N, dim) { return Math.round(cellsOf(N, dim) / 8); }
 
   // §4.2 出せる n だけ残して確率にする
   function spawnDist(N, difficulty, dim) {
+    if (TUNE.flatTo) {   // 調べる用：ゴールの TUNE.flatTo 段下までを、だいたい同じ割合で出す
+      var top = Math.max(1, goalNFor(N, dim) - TUNE.flatTo), f = [];
+      for (var i = 0; i <= top; i++) f.push(1);
+      return f.map(function (x) { return x / f.length; });
+    }
     var w = WEIGHTS[difficulty].slice(0, maxSpawnN(N, dim) + 1);
     var sum = w.reduce(function (a, b) { return a + b; }, 0);
     return w.map(function (x) { return x / sum; });
@@ -65,25 +89,26 @@
     return dist.length - 1;
   }
 
-  // ── 盤面の読み書き（2D・3D 共通） ──
-  function get(grid, p) { return p.length === 3 ? grid[p[0]][p[1]][p[2]] : grid[p[0]][p[1]]; }
-  function put(grid, p, v) { if (p.length === 3) grid[p[0]][p[1]][p[2]] = v; else grid[p[0]][p[1]] = v; }
+  // ── 盤面の読み書き（何次元でも同じ） ──
+  function get(grid, p) { var g = grid; for (var i = 0; i < p.length - 1; i++) g = g[p[i]]; return g[p[p.length - 1]]; }
+  function put(grid, p, v) { var g = grid; for (var i = 0; i < p.length - 1; i++) g = g[p[i]]; g[p[p.length - 1]] = v; }
+  // 位置の一覧。先頭の軸がいちばん上の桁（2D は行ごと、3D は層ごと）
   function allPos(N, dim) {
-    var out = [];
-    if (dim === 3) { for (var d = 0; d < N; d++) for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) out.push([d, r, c]); }
-    else { for (var r2 = 0; r2 < N; r2++) for (var c2 = 0; c2 < N; c2++) out.push([r2, c2]); }
+    var out = [], total = Math.pow(N, dim);
+    for (var k = 0; k < total; k++) {
+      var p = new Array(dim), x = k;
+      for (var i = dim - 1; i >= 0; i--) { p[i] = x % N; x = Math.floor(x / N); }
+      out.push(p);
+    }
     return out;
   }
   function makeGrid(N, dim) {
-    function plane() { var g = []; for (var r = 0; r < N; r++) { g.push([]); for (var c = 0; c < N; c++) g[r].push(null); } return g; }
-    if (dim !== 3) return plane();
-    var g3 = []; for (var d = 0; d < N; d++) g3.push(plane()); return g3;
+    var g = [];
+    for (var i = 0; i < N; i++) g.push(dim > 1 ? makeGrid(N, dim - 1) : null);
+    return g;
   }
-  function cloneGrid(grid, dim) {
-    if (dim === 3) return grid.map(function (pl) { return pl.map(function (row) { return row.slice(); }); });
-    return grid.map(function (row) { return row.slice(); });
-  }
-  function gridDim(grid) { return Array.isArray(grid[0][0]) ? 3 : 2; }
+  function cloneGrid(grid) { return grid.map(function (x) { return Array.isArray(x) ? cloneGrid(x) : x; }); }
+  function gridDim(grid) { var d = 0, g = grid; while (Array.isArray(g)) { d++; g = g[0]; } return d; }
 
   function emptyCells(grid) {
     var N = grid.length, dim = gridDim(grid);
@@ -110,16 +135,16 @@
   }
 
   function newGame(opts) {
-    var N = opts.size, d = opts.difficulty, dim = opts.dim === 3 ? 3 : 2;
-    var lo = dim === 3 ? MIN_SIZE_3D : MIN_SIZE, hi = dim === 3 ? MAX_SIZE_3D : MAX_SIZE;
-    if (!(N >= lo && N <= hi)) throw new Error('size');
+    var N = opts.size, d = opts.difficulty, dim = normDim(opts.dim);
+    var rg = sizeRange(dim);
+    if (!(N >= rg[0] && N <= rg[1])) throw new Error('size');
     if (DIFFICULTIES.indexOf(d) < 0) throw new Error('difficulty');
     var seed = (opts.seed != null ? opts.seed : (Date.now() ^ (Math.random() * 4294967296))) | 0;
     var state = {
       size: N, dim: dim, difficulty: d, goalN: goalNFor(N, dim),
       grid: makeGrid(N, dim), queue: [], score: 0, moves: 0, maxN: 0,
       playMs: 0, idCounter: 0, seed: seed, rng: seed,
-      status: 'PLAYING', spawnPerMove: opts.spawnPerMove || 1
+      status: 'PLAYING', spawnPerMove: opts.spawnPerMove || spawnsPerMove(N, dim)
     };
     var spawns = [], k = startTiles(N, dim);
     for (var i = 0; i < k; i++) spawns.push(spawnAt(state, drawN(state)));
@@ -137,7 +162,7 @@
   function cloneState(s) {
     var o = {};
     for (var k in s) o[k] = s[k];
-    o.grid = cloneGrid(s.grid, s.dim || 2);
+    o.grid = cloneGrid(s.grid);
     o.queue = s.queue.slice();
     return o;
   }
@@ -151,12 +176,14 @@
     for (var x = 0; x < dim; x++) if (x !== axis) others.push(x);
     var count = Math.pow(N, dim - 1);
     for (var k = 0; k < count; k++) {
-      var line = [], u = k % N, v = Math.floor(k / N);
+      // k を N 進数に読み、上の桁から others に割り当てる（2D・3D の並び順は前と同じ）
+      var digits = new Array(others.length), x = k;
+      for (var j = others.length - 1; j >= 0; j--) { digits[j] = x % N; x = Math.floor(x / N); }
+      var line = [];
       for (var i = 0; i < N; i++) {
         var p = new Array(dim);
         p[axis] = toEnd ? N - 1 - i : i;
-        p[others[0]] = dim === 3 ? v : k;
-        if (dim === 3) p[others[1]] = u;
+        for (var j2 = 0; j2 < others.length; j2++) p[others[j2]] = digits[j2];
         line.push(p);
       }
       lines.push(line);
@@ -222,7 +249,7 @@
     return { state: s, moved: true, events: { dir: dir, slides: slides, merges: merges, spawns: spawns, gained: gained } };
   }
 
-  // §6 空きがあるか、隣り合う同じ数字があれば動かせる（3D は奥行きの隣も見る）
+  // §6 空きがあるか、隣り合う同じ数字があれば動かせる（3D 以上は全部の軸の隣を見る）
   function canMove(grid) {
     var N = grid.length, dim = gridDim(grid), ps = allPos(N, dim);
     for (var i = 0; i < ps.length; i++) {
@@ -242,8 +269,10 @@
 
   return {
     MIN_SIZE: MIN_SIZE, MAX_SIZE: MAX_SIZE, MIN_SIZE_3D: MIN_SIZE_3D, MAX_SIZE_3D: MAX_SIZE_3D,
+    MIN_SIZE_HI: MIN_SIZE_HI, MAX_SIZE_HI: MAX_SIZE_HI, sizeRange: sizeRange, dirsOf: dirsOf,
     DIFFICULTIES: DIFFICULTIES, WEIGHTS: WEIGHTS, NEXT_VISIBLE: NEXT_VISIBLE,
-    DIRS2: DIRS2, DIRS3: DIRS3,
+    DIRS2: DIRS2, DIRS3: DIRS3, DIRS4: DIRS4, DIRS5: DIRS5,
+    TUNE: TUNE, spawnsPerMove: spawnsPerMove,
     goalNFor: goalNFor, maxSpawnN: maxSpawnN, startTiles: startTiles, spawnDist: spawnDist,
     newGame: newGame, move: move, canMove: canMove, visibleNext: visibleNext,
     emptyCells: emptyCells, get: get, allPos: allPos

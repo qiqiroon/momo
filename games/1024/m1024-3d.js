@@ -8,6 +8,7 @@
   var HOME = { yaw: -32 * DEG, pitch: 26 * DEG };
   var TILE = 0.62;          // 札の立方体の一辺（マスの間隔を 1 として）
   var LIGHT = norm([-0.45, 0.8, 0.55]);
+  var FRONT_LIT = 0.72 + 0.28 * LIGHT[2];   // 正面を向いた面の明るさ
 
   function norm(v) { var l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
 
@@ -146,7 +147,8 @@
   var OPT = { bands: true, text: true, hull: true };   // 重さを測るときだけ切り替える   // 面の平らな部分の大きさ（残りが丸い角の部分）
   function drawCube(ctx, fr, cam, center, t, o) {
     if (t.s <= 0.01) return;
-    var half = TILE / 2 * t.s, col = o.colorOf(t.n), dimK = o.dim ? 1 - 0.55 * o.dim : 1;
+    var TL = o.tile || TILE;   // 札の一辺（2D の平面の札は画面の px で渡す）
+    var half = TL / 2 * t.s, col = o.colorOf(t.n), dimK = o.dim ? 1 - 0.55 * o.dim : 1;
     var faces = [], all = [], litSum = 0;
     function P(v) { return proj(fr, [center[0] + v[0], center[1] + v[1], center[2] + v[2]]); }
     FACES.forEach(function (fc) {
@@ -158,6 +160,7 @@
       var pts = fc[1].map(function (sg) { var w = rot(cam, [sg[0] * half, sg[1] * half, sg[2] * half]); var q = P(w); return [q.x, q.y]; });
       pts.forEach(function (q) { all.push(q); });
       var lit = 0.72 + 0.28 * Math.max(0, nrm[0] * LIGHT[0] + nrm[1] * LIGHT[1] + nrm[2] * LIGHT[2]);   // 元の色より明るくしない
+      if (o.flat) lit = Math.min(1, lit / FRONT_LIT);   // 2D：正面の面を元の色そのままにする
       litSum += lit;
       var U = rot(cam, fc[2]), V = rot(cam, fc[3]);
       faces.push({ pts: pts, corners: fc[1], lit: lit, facing: facing, nrm: nrm, U: U, V: V });
@@ -165,11 +168,11 @@
     if (!faces.length) return;
     var pc = P([0, 0, 0]);
     if (t.glow) {   // クリアの演出・ゴールの札：金の光
-      var R = pc.k * TILE * 1.35 * t.s, g = ctx.createRadialGradient(pc.x, pc.y, 0, pc.x, pc.y, R);
+      var R = pc.k * TL * 1.35 * t.s, g = ctx.createRadialGradient(pc.x, pc.y, 0, pc.x, pc.y, R);
       g.addColorStop(0, 'rgba(253,230,138,' + 0.6 * t.glow + ')'); g.addColorStop(1, 'rgba(253,230,138,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(pc.x, pc.y, R, 0, Math.PI * 2); ctx.fill();
     }
-    var size = pc.k * TILE * t.s;   // 画面での札の大きさのめやす
+    var size = pc.k * TL * t.s;   // 画面での札の大きさのめやす
     // 丸い角の立方体（2026-11-14 利用者と3度直した）
     //   ・面はその面の色（元の色より明るくしない）
     //   ・2つの面が見えている辺：A の面の色 → B の面の色 のグラデーション
@@ -245,17 +248,18 @@
       var ux = pu.x - a.x, uy = pu.y - a.y, vx = pv.x - a.x, vy = pv.y - a.y;
       var scr = Math.min(Math.hypot(ux, uy), Math.hypot(vx, vy)) * 2;   // 画面での面の短い辺
       if (scr < 7) return;
-      var lab = String(Math.pow(2, t.n));
-      var fs = lab.length <= 2 ? 1.05 : lab.length === 3 ? 0.82 : lab.length === 4 ? 0.64 : 0.52;   // 面の半分を 1 として
-      if (scr / 2 * fs < 6) { lab = String(t.n); fs = 1.0; }
+      // 数字は面の縁いっぱいに書く（§19.2）。小さすぎて読めなければ n だけにする
+      var lab = String(Math.pow(2, t.n)), color = o.dim ? 'rgba(0,0,0,0.6)' : col[1];
+      var img = labelImg(lab, color, !!o.deferText);
+      if (scr * img.fit < 9) img = labelImg(String(t.n), color, !!o.deferText);
       ctx.save();
       ctx.transform(ux, uy, vx, vy, a.x, a.y);
       ctx.globalAlpha = Math.min(1, 0.35 + f.facing);
-      ctx.drawImage(labelImg(lab, fs, o.dim ? 'rgba(0,0,0,0.6)' : col[1], !!o.deferText), -1, -1, 2, 2);
+      ctx.drawImage(img, -1, -1, 2, 2);
       ctx.restore();
     }); }
     if (o.deferText) return { text: drawText };
-    drawText(ctx);
+    if (!o.noText) drawText(ctx);
   }
 
   var SCRATCH = null;
@@ -267,15 +271,18 @@
   // 数字の絵（面の半分を 1 とした正方形 [-1,1] に収まる）。文字・大きさ・色ごとに一度だけ作る
   var LABELS = {}, LABEL_PX = 128;
   // edge：縁取りを付ける（札を透かすとき。透けた暗い所に重なっても読めるように）。文字が白なら暗い縁、それ以外は白い縁
-  function labelImg(lab, fs, color, edge) {
-    var k = lab + '|' + fs + '|' + color + '|' + (edge ? 1 : 0);
+  function labelImg(lab, color, edge) {
+    var k = lab + '|' + color + '|' + (edge ? 1 : 0);
     if (LABELS[k]) return LABELS[k];
     var c = document.createElement('canvas'); c.width = c.height = LABEL_PX;
     var x = c.getContext('2d');
-    x.font = Math.round(fs * LABEL_PX / 2) + "px 'Fredoka One', sans-serif";
+    x.font = "100px 'Fredoka One', sans-serif";
+    var px = Math.min(LABEL_PX * 0.72, LABEL_PX * 0.86 / (x.measureText(lab).width / 100));   // 面の縁いっぱい
+    c.fit = px / LABEL_PX;   // 字の大きさ ÷ 面の一辺
+    x.font = px + "px 'Fredoka One', sans-serif";
     x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = color;
     if (edge) {
-      x.lineJoin = 'round'; x.lineWidth = Math.max(3, fs * LABEL_PX * 0.07);
+      x.lineJoin = 'round'; x.lineWidth = Math.max(3, px * 0.14);
       x.strokeStyle = /^#fff/i.test(color) ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.9)';
       x.strokeText(lab, LABEL_PX / 2, LABEL_PX / 2 + LABEL_PX * 0.02);
     }
@@ -381,7 +388,124 @@
     return bd < 24 ? best : null;
   }
 
+  /* ── 2D の札（§18.1）。画面と平行な1枚の平面に、角の丸い立方体を並べたように描く ──
+     視点は画面の真ん中の正面、少し離れた所。札の前の面がちょうど (x, y, cell) の四角になるように置くので、
+     真ん中から離れた札ほど、真ん中の側の横の面が少し見える。数字は呼んだ側が前の面に書く */
+  function flatFrame(W, H) { var D = Math.max(W, H) * 2.6; return { W: W, H: H, N: 1, dist: D, f: D, cx: W / 2, cy: H / 2 }; }
+  // 遠い札（真ん中から離れた札）を先に描くための並べ替えの値
+  function flatOrder(W, H, x, y) { return Math.hypot(x - W / 2, y - H / 2); }
+  // 立方体の丸い面をそのまま描くと 16×16 で1回 70ms かかったため（2026-11-14 測定）、
+  // 奥の面から前の面まで、角の丸い四角を少しずつずらして重ねる軽い描き方にする（正面からの見た目は同じ）
+  function rr(ctx, x, y, w, h, r) {
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function drawFlat(ctx, fr, x, y, cell, s, n, colorOf) {
+    var size = cell * s, half = size / 2, r = size * 0.16, col = colorOf(n);
+    var k = fr.dist / (fr.dist + size);   // 奥の面の縮み（真ん中へ寄る）
+    var bx = fr.cx + (x - fr.cx) * k, by = fr.cy + (y - fr.cy) * k, bh = half * k;
+    var shift = Math.hypot(x - bx, y - by), layers = Math.max(1, Math.min(4, Math.ceil(shift / 1.5)));
+    ctx.fillStyle = shade(col[0], 0.74);
+    ctx.beginPath();
+    for (var i = 0; i < layers; i++) {   // 横の面（奥 → 前の手前まで）
+      var q = i / layers, cx = bx + (x - bx) * q, cy = by + (y - by) * q, hh = bh + (half - bh) * q;
+      rr(ctx, cx - hh, cy - hh, hh * 2, hh * 2, r * hh / half);
+    }
+    ctx.fill();
+    ctx.fillStyle = col[0];
+    ctx.beginPath(); rr(ctx, x - half, y - half, size, size, r); ctx.fill();
+  }
+
+  /* ── 4D・5D の立方体の並びの図（§18.2）。3軸の矢印の左に置く ──
+     立方体は枠だけ。4D は横一列（左が w=0）、5D は縦横の平面（上が v=0）。全体を回すと一緒に回る。
+     並びの端の矢印を押すと、立方体の間で札が滑る。立方体を押すと、大きく映す立方体が替わる */
+  // 立方体の中心の間隔（立方体の一辺を 1 として）は latticeModel の中で決める
+  var LCOL = { w: '#c084fc', v: '#fbbf24' };
+  function latticeModel(dim, N) {
+    var LSP = dim === 5 ? 2.1 : 1.6;   // 5D は縦横に並ぶので、重ならないよう広めに
+    var cubes = [], arrows = [], h = (N - 1) / 2, rows = dim === 5 ? N : 1, endX = h * LSP + 0.5, endY = (rows - 1) / 2 * LSP + 0.5;
+    for (var v = 0; v < rows; v++) for (var w = 0; w < N; w++) cubes.push({ w: w, v: v, c: [(w - h) * LSP, ((rows - 1) / 2 - v) * LSP, 0] });
+    arrows.push({ dir: 'wminus', ax: 'w', a: [-endX - 0.35, 0, 0], b: [-endX - 1.45, 0, 0] });
+    arrows.push({ dir: 'wplus', ax: 'w', a: [endX + 0.35, 0, 0], b: [endX + 1.45, 0, 0] });
+    if (dim === 5) {
+      arrows.push({ dir: 'vminus', ax: 'v', a: [0, endY + 0.35, 0], b: [0, endY + 1.45, 0] });
+      arrows.push({ dir: 'vplus', ax: 'v', a: [0, -endY - 0.35, 0], b: [0, -endY - 1.45, 0] });
+    }
+    return { cubes: cubes, arrows: arrows, sp: LSP };
+  }
+  // 並びの図を画面に映す（正射影）。いまの向きで、図全体が枠に収まる大きさにする
+  function latticeGeo(dim, N, cam, w, h) {
+    var m = latticeModel(dim, N), pts = [];
+    function P(v) { var q = rot(cam, v); return [q[0], -q[1], q[2]]; }
+    m.cubes.forEach(function (cb) {
+      cb.corners = [];
+      for (var i = 0; i < 8; i++) { var p = P([cb.c[0] + (i & 1 ? 0.5 : -0.5), cb.c[1] + (i & 2 ? 0.5 : -0.5), cb.c[2] + (i & 4 ? 0.5 : -0.5)]); cb.corners.push(p); pts.push(p); }
+      cb.q = P(cb.c);
+    });
+    m.arrows.forEach(function (a) { a.qa = P(a.a); a.qb = P(a.b); pts.push(a.qb); });
+    var x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    pts.forEach(function (p) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); });
+    var pad = 10, k = Math.min((w - pad * 2) / (x1 - x0 || 1), (h - pad * 2) / (y1 - y0 || 1));
+    var ox = w / 2 - (x0 + x1) / 2 * k, oy = h / 2 - (y0 + y1) / 2 * k;
+    function S(p) { return [ox + p[0] * k, oy + p[1] * k]; }
+    m.cubes.forEach(function (cb) { cb.s = cb.corners.map(S); cb.sc = S(cb.q); });
+    m.arrows.forEach(function (a) { a.sa = S(a.qa); a.sb = S(a.qb); });
+    m.k = k;
+    return m;
+  }
+  var CUBE_EDGES = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
+  // sel：大きく映している立方体 {w, v}。hot：押したばかりの矢印
+  function drawLattice(ctx, w, h, cam, dim, N, sel, hot) {
+    var m = latticeGeo(dim, N, cam, w, h);
+    ctx.clearRect(0, 0, w, h);
+    m.cubes.slice().sort(function (a, b) { return a.q[2] - b.q[2]; }).forEach(function (cb) {
+      var on = sel && cb.w === sel.w && cb.v === (sel.v || 0);
+      if (on) {   // 選んでいる立方体は、輪郭を薄く塗る
+        var hp = hull(cb.s);
+        ctx.fillStyle = 'rgba(234,88,12,0.28)'; ctx.beginPath();
+        hp.forEach(function (p, i) { if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); }); ctx.closePath(); ctx.fill();
+      }
+      ctx.strokeStyle = on ? '#fb923c' : 'rgba(148,163,184,0.75)'; ctx.lineWidth = on ? 2 : 1.2;
+      ctx.beginPath();
+      CUBE_EDGES.forEach(function (e) { var a = cb.s[e[0]], b = cb.s[e[1]]; ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); });
+      ctx.stroke();
+    });
+    m.arrows.forEach(function (a) {
+      var on = hot === a.dir, tx = a.sb[0], ty = a.sb[1], sx = a.sa[0], sy = a.sa[1];
+      var ang = Math.atan2(ty - sy, tx - sx), hl = 10;
+      ctx.strokeStyle = ctx.fillStyle = on ? '#ffffff' : LCOL[a.ax];
+      ctx.lineWidth = 4; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(tx - Math.cos(ang) * hl * 0.6, ty - Math.sin(ang) * hl * 0.6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(tx, ty);
+      ctx.lineTo(tx - Math.cos(ang - 0.5) * hl, ty - Math.sin(ang - 0.5) * hl);
+      ctx.lineTo(tx - Math.cos(ang + 0.5) * hl, ty - Math.sin(ang + 0.5) * hl);
+      ctx.closePath(); ctx.fill();
+    });
+  }
+  // 押した点：矢印なら {arrow}、立方体なら {cube:{w,v}}
+  function latticeHit(w, h, cam, dim, N, x, y) {
+    var m = latticeGeo(dim, N, cam, w, h), best = null, bd = 1e9;
+    m.arrows.forEach(function (a) {
+      var dx = a.sb[0] - a.sa[0], dy = a.sb[1] - a.sa[1], t = Math.max(0, Math.min(1, ((x - a.sa[0]) * dx + (y - a.sa[1]) * dy) / (dx * dx + dy * dy || 1)));
+      var d = Math.hypot(x - (a.sa[0] + dx * t), y - (a.sa[1] + dy * t));
+      if (d < bd) { bd = d; best = { arrow: a }; }
+    });
+    if (bd < 16) return best;
+    best = null; bd = 1e9;
+    m.cubes.forEach(function (cb) { var d = Math.hypot(x - cb.sc[0], y - cb.sc[1]); if (d < bd) { bd = d; best = { cube: { w: cb.w, v: cb.v } }; } });
+    return bd < Math.max(14, m.k * m.sp * 0.75) ? best : null;
+  }
+  // 並びの矢印の、画面での向き（動かないときの揺れに使う）
+  function latticeArrowVec(cam, dim, N, dir) {
+    var m = latticeModel(dim, N), a = m.arrows.filter(function (x) { return x.dir === dir; })[0];
+    if (!a) return null;
+    var qa = rot(cam, a.a), qb = rot(cam, a.b);
+    return [qb[0] - qa[0], -(qb[1] - qa[1])];
+  }
+
   window.M1024Three = {
+    flatFrame: flatFrame, flatOrder: flatOrder, drawFlat: drawFlat,
+    drawLattice: drawLattice, latticeHit: latticeHit, latticeArrowVec: latticeArrowVec,
     OPT: OPT, clearLabels: clearLabels,
     drawGizmo: drawGizmo, gizmoHit: gizmoHit, arrows: arrows,
     makeCam: makeCam, home: home, rotateBy: rotateBy, draw: draw,

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="momo-fixed-lang" content="en">
 <base href="/momo/games/1024/">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>MOMO 1024 - Number Merge Puzzle, Pick Your Board | MOMO Works</title>
 <meta name="description" content="A free number-merging puzzle you can play in your browser. Pick a board from 4×4 to 16×16, slide the tiles to merge equal numbers, and chase the goal number. No sign-up, no install.">
 <link rel="canonical" href="https://qiqiroon.github.io/momo/games/1024/en/">
@@ -89,7 +89,7 @@
   </g>
 </svg>
   <div class="title-block">
-    <h1><span class="momo">MOMO</span><span class="app">1024</span><span class="version-tag" id="version-tag">v1.01</span></h1>
+    <h1><span class="momo">MOMO</span><span class="app">1024</span><span class="version-tag" id="version-tag">v1.02</span></h1>
     <div class="subtitle" id="subtitle">Pick a Board, Chase One Number</div>
   </div>
 </header>
@@ -99,6 +99,8 @@
   <div class="mode-buttons" id="mode-buttons">
     <button class="mode-btn" data-mode="2">2D</button>
     <button class="mode-btn" data-mode="3">3D</button>
+    <button class="mode-btn" data-mode="4">4D</button>
+    <button class="mode-btn" data-mode="5">5D</button>
   </div>
   <section class="pick">
     <div class="pick-label" data-i18n="sizeLabel">盤面の大きさ</div>
@@ -128,6 +130,7 @@
     <p data-i18n="howto2">同じ数字がぶつかると合体して倍になります。1回の動きで、1枚が合体するのは1回までです。</p>
     <p data-i18n="howto3">動くたびに、空いているマスに新しい札が1枚出ます。GOAL の数字を作ればクリア。空きがなくなり、どの向きにも動かせなくなったらゲームオーバーです。</p>
     <p data-i18n="howto4">3D では、奥・手前のボタン（キーは Q・E）で奥行きの向きにも滑ります。キューブの外をドラッグすると全体が回ります。</p>
+    <p data-i18n="howto5">4D は立方体が一列に、5D は立方体が縦横に並びます。3軸の矢印の左の図で立方体を押すと、大きく映す立方体が替わります。図の端の矢印（キーは Z・X、5D の縦は C・V）で、立方体の間でも札が滑ります。</p>
   </details>
 </main>
 
@@ -141,6 +144,7 @@
     <div class="hud-item"><div class="hud-label" id="hud-diff">NORMAL</div><div class="hud-next" id="hud-next"></div></div>
   </div>
   <div class="board-wrap" id="board-wrap">
+    <canvas id="legend" aria-hidden="true"></canvas>
     <canvas id="board"></canvas>
     <div class="board-tip" id="board-tip"></div>
     <label class="alpha-ctl" id="alpha-ctl" hidden><span data-i18n="alphaLabel">透明度</span><input type="range" id="alpha-range" min="0.1" max="1" step="0.05"><span class="v" id="alpha-v"></span></label>
@@ -156,6 +160,7 @@
         <button class="icon-btn wide arrow-btn" data-depth="back" data-i18n="back">奥</button>
         <button class="icon-btn wide arrow-btn" data-depth="front" data-i18n="front">手前</button>
       </div>
+      <canvas id="lattice" hidden aria-label="立方体の並び"></canvas>
       <canvas id="gizmo" hidden aria-label="向きの矢印"></canvas>
       <div class="dpad" id="dpad">
         <button class="icon-btn arrow-btn up" data-dir="up" aria-label="上">▲</button>
@@ -179,20 +184,21 @@
 
 <div class="overlay" id="overlay-result" hidden>
   <div class="panel result-panel" id="result-panel">
-    <div class="result-star" id="result-star" aria-hidden="true">★</div>
-    <div class="panel-title" id="result-title">CLEAR</div>
+    <div class="result-head"><span class="result-star" id="result-star" aria-hidden="true">★</span><span class="panel-title" id="result-title">CLEAR</span></div>
     <div class="result-sub" id="result-sub"></div>
-    <table class="result-table">
-      <tr><th>SCORE</th><td id="r-score"></td></tr>
-      <tr><th data-i18n="rMax">一番大きい札</th><td id="r-max"></td></tr>
-      <tr><th data-i18n="rSize">盤面</th><td id="r-size"></td></tr>
-      <tr><th data-i18n="rDiff">難易度</th><td id="r-diff"></td></tr>
-      <tr><th data-i18n="rTime">時間</th><td id="r-time"></td></tr>
-      <tr><th data-i18n="moves">手数</th><td id="r-moves"></td></tr>
-    </table>
-    <button class="start-btn" id="again-btn" data-i18n="again">もう一度</button>
-    <button class="sub-btn" id="totitle-btn" data-i18n="toTitle">タイトルへ</button>
-    <button class="sub-btn" id="view-btn" data-i18n="viewBoard">盤面を見る</button>
+    <div class="result-grid">
+      <div><span>SCORE</span><b id="r-score"></b></div>
+      <div><span data-i18n="rMax">一番大きい札</span><b id="r-max"></b></div>
+      <div><span data-i18n="moves">手数</span><b id="r-moves"></b></div>
+      <div><span data-i18n="rSize">盤面</span><b id="r-size"></b></div>
+      <div><span data-i18n="rDiff">難易度</span><b id="r-diff"></b></div>
+      <div><span data-i18n="rTime">時間</span><b id="r-time"></b></div>
+    </div>
+    <div class="result-btns">
+      <button class="start-btn" id="again-btn" data-i18n="again">もう一度</button>
+      <button class="sub-btn" id="totitle-btn" data-i18n="toTitle">タイトルへ</button>
+      <button class="sub-btn" id="view-btn" data-i18n="viewBoard">盤面を見る</button>
+    </div>
   </div>
 </div>
 <button class="back-result" id="back-result" hidden data-i18n="backResult">結果に戻る</button>

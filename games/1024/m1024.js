@@ -211,7 +211,7 @@
     // 小さな盤面の絵
     var cv = $('size-preview'), x = cv.getContext('2d'), s = cv.width;
     x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, s, s); x.fillStyle = '#1f2937'; x.fillRect(0, 0, s, s);
-    if (dim >= 4) { M1024Three.drawLattice(x, s, s, M1024Three.makeCam(), dim, N, null, null); return; }
+    if (dim >= 4) { M1024Three.drawLattice(x, s, s, M1024Three.makeCam(), dim, N, null, null, true); return; }
     if (dim === 3) {
       M1024Three.draw(x, s, s, M1024Three.makeCam(), { N: N, tiles: [], colorOf: colorOf, label: function () { return { text: '', font: '' }; } });
       return;

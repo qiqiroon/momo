@@ -490,8 +490,9 @@
   // 並びの図を画面に映す（正射影）。いまの向きで、図全体が枠に収まる大きさにする
   // 矢印は押しやすいよう、画面で一定の大きさの丸いボタン（半径 ARW_R）にして、並びの端の外に置く（§21）
   var ARW_R = 16, ARW_GAP = 3;
-  function latticeGeo(dim, N, cam, w, h) {
+  function latticeGeo(dim, N, cam, w, h, noArrows) {
     var m = latticeModel(dim, N), pts = [];
+    if (noArrows) m.arrows = [];   // モード選びの小さな絵は、立方体の並びだけ
     function P(v) { var q = rot(cam, v); return [q[0], -q[1], q[2]]; }
     m.cubes.forEach(function (cb) {
       cb.corners = [];
@@ -524,8 +525,8 @@
   }
   var CUBE_EDGES = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
   // sel：大きく映している立方体 {w, v}。hot：押したばかりの矢印
-  function drawLattice(ctx, w, h, cam, dim, N, sel, hot) {
-    var m = latticeGeo(dim, N, cam, w, h);
+  function drawLattice(ctx, w, h, cam, dim, N, sel, hot, noArrows) {
+    var m = latticeGeo(dim, N, cam, w, h, noArrows);
     ctx.clearRect(0, 0, w, h);
     m.cubes.slice().sort(function (a, b) { return a.q[2] - b.q[2]; }).forEach(function (cb) {
       var on = sel && cb.w === sel.w && cb.v === (sel.v || 0);

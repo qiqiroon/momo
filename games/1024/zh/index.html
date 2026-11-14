@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="momo-fixed-lang" content="zh">
+<base href="/momo/games/1024/">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>MOMO 1024 - 可选盘面的数字合并益智游戏 | MOMO Works</title>
+<meta name="description" content="可在浏览器中免费游玩的数字合并益智游戏。从 4×4 到 16×16 选择盘面，滑动方块合并相同数字，挑战目标数字。无需注册，无需安装。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/games/1024/zh/">
+<link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/1024/ja/">
+<link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/1024/en/">
+<link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/1024/zh/">
+<link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/1024/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
+<meta property="og:url" content="https://qiqiroon.github.io/momo/games/1024/zh/">
+<meta property="og:title" content="MOMO 1024 - 可选盘面的数字合并益智游戏">
+<meta property="og:description" content="可在浏览器中免费游玩的数字合并益智游戏。从 4×4 到 16×16 选择盘面，滑动方块合并相同数字，挑战目标数字。无需注册，无需安装。">
+<meta property="og:image" content="https://qiqiroon.github.io/momo/games/1024/apple-touch-icon.png">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:locale:alternate" content="ja_JP">
+<meta property="og:locale:alternate" content="en_US">
+<link rel="icon" type="image/svg+xml" href="/momo/games/1024/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/momo/games/1024/favicon-32.png">
+<link rel="icon" type="image/x-icon" href="/momo/games/1024/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/momo/games/1024/apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/momo/games/1024/m1024.css">
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
+<script src="/momo/lib/momo-analytics.js" defer></script>
+<script src="/momo/lib/momo-about.js"></script>
+<script src="/momo/lib/momo-rating.js"></script>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <select id="lang-select" class="lang-select" aria-label="Language">
+    <option value="auto">Auto</option>
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
+<!-- ── 共通ヘッダー（app-card-design v1.0） ── -->
+<header class="site-header">
+  <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" viewBox="-46 -50 100 110">
+  <!-- 猫本体 (MOMO Works 共通) -->
+  <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+  <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+  <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+  <line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-14" y1="6.0"  x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-33.68" y1="-2.28" x2="-38" y2="-3"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-33.44" y1="6.0"   x2="-40" y2="6"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="-29.58" y1="14.26" x2="-37" y2="16"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="14" y1="6.0"  x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="33.68" y1="-2.28" x2="38" y2="-3"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="33.44" y1="6.0"   x2="40" y2="6"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="29.58" y1="14.26" x2="37" y2="16"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+  <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+  <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+  <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+  <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+  <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+  <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+  <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+  <line x1="0" y1="11.3" x2="0" y2="13.3" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M0,13.3 Q5,17.3  8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- 右下の絵柄：落ちてくる 4 と、下に並ぶ 8・2（色は札の色の決まりに合わせる） -->
+  <g id="m1024-overlay" stroke="#000" stroke-width="1.6">
+    <rect x="2"  y="24" width="23" height="23" rx="4" fill="#5EEAD4"/>
+    <rect x="27" y="24" width="23" height="23" rx="4" fill="#BFDBFE"/>
+    <rect x="27" y="-2" width="23" height="23" rx="4" fill="#7DD3FC"/>
+    <line x1="33" y1="-9" x2="33" y2="-4" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+    <line x1="44" y1="-9" x2="44" y2="-4" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+    <g stroke="none" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="15" text-anchor="middle">
+      <text x="13.5" y="41" fill="#0B3D36">8</text>
+      <text x="38.5" y="41" fill="#1E3A5F">2</text>
+      <text x="38.5" y="15" fill="#0C3B57">4</text>
+    </g>
+  </g>
+</svg>
+  <div class="title-block">
+    <h1><span class="momo">MOMO</span><span class="app">1024</span><span class="version-tag" id="version-tag">v1.00</span></h1>
+    <div class="subtitle" id="subtitle">Pick a Board, Chase One Number</div>
+  </div>
+</header>
+
+<!-- ── タイトル画面 ── -->
+<main id="screen-title" class="screen active">
+  <section class="pick">
+    <div class="pick-label" data-i18n="sizeLabel">盤面の大きさ</div>
+    <div class="size-buttons" id="size-buttons"></div>
+    <div class="size-info">
+      <canvas id="size-preview" width="72" height="72" aria-hidden="true"></canvas>
+      <div>
+        <div class="size-name" id="size-name">4×4</div>
+        <div class="size-detail">GOAL <b id="size-goal">1024</b></div>
+        <div class="size-detail"><span data-i18n="spawnLabel">出る数字：</span><span id="size-spawn">1〜2</span></div>
+      </div>
+    </div>
+  </section>
+  <section class="pick">
+    <div class="pick-label" data-i18n="diffLabel">難易度</div>
+    <div class="diff-buttons" id="diff-buttons">
+      <button class="diff-btn" data-diff="EASY">EASY</button>
+      <button class="diff-btn" data-diff="NORMAL">NORMAL</button>
+      <button class="diff-btn" data-diff="HARD">HARD</button>
+    </div>
+    <div class="diff-desc" id="diff-desc"></div>
+  </section>
+  <button class="start-btn" id="start-btn">START</button>
+  <details class="howto">
+    <summary data-i18n="howtoTitle">遊び方</summary>
+    <p data-i18n="howto1">上下左右に払う（PC は矢印キー）と、盤面の札が全部その向きへ滑ります。</p>
+    <p data-i18n="howto2">同じ数字がぶつかると合体して倍になります。1回の動きで、1枚が合体するのは1回までです。</p>
+    <p data-i18n="howto3">動くたびに、空いているマスに新しい札が1枚出ます。GOAL の数字を作ればクリア。空きがなくなり、どの向きにも動かせなくなったらゲームオーバーです。</p>
+  </details>
+</main>
+
+<!-- ── ゲーム画面 ── -->
+<main id="screen-game" class="screen">
+  <div class="hud">
+    <button class="icon-btn" id="pause-btn" aria-label="一時停止" data-i18n-aria="pauseAria">⏸</button>
+    <div class="hud-item"><div class="hud-label">GOAL</div><div class="hud-value gold" id="hud-goal">1024</div></div>
+    <div class="hud-item"><div class="hud-label">SCORE</div><div class="hud-value" id="hud-score">0</div></div>
+    <div class="hud-item"><div class="hud-label" data-i18n="moves">手数</div><div class="hud-value small" id="hud-moves">0</div></div>
+    <div class="hud-item"><div class="hud-label" id="hud-diff">NORMAL</div><div class="hud-next" id="hud-next"></div></div>
+  </div>
+  <div class="board-wrap" id="board-wrap">
+    <canvas id="board"></canvas>
+  </div>
+  <div class="bottom-bar">
+    <div class="zoom-btns">
+      <button class="icon-btn" id="zoom-out" aria-label="縮小" data-i18n-aria="zoomOutAria">−</button>
+      <button class="icon-btn wide" id="zoom-fit" data-i18n="zoomFit">全体</button>
+      <button class="icon-btn" id="zoom-in" aria-label="拡大" data-i18n-aria="zoomInAria">＋</button>
+    </div>
+    <div class="hint"><span data-i18n="hint1">払う・矢印キーで滑らせる</span><br><span data-i18n="hint2">指2本でズーム</span></div>
+  </div>
+</main>
+
+<!-- ── 重ねる画面 ── -->
+<div class="overlay" id="overlay-pause" hidden>
+  <div class="panel">
+    <div class="panel-title">PAUSE</div>
+    <button class="start-btn" id="resume-btn">RESUME</button>
+    <button class="sub-btn" id="restart-btn">RESTART</button>
+    <button class="sub-btn" id="title-btn">TITLE</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-result" hidden>
+  <div class="panel">
+    <div class="panel-title" id="result-title">CLEAR</div>
+    <table class="result-table">
+      <tr><th>SCORE</th><td id="r-score"></td></tr>
+      <tr><th data-i18n="rMax">一番大きい札</th><td id="r-max"></td></tr>
+      <tr><th data-i18n="rSize">盤面</th><td id="r-size"></td></tr>
+      <tr><th data-i18n="rDiff">難易度</th><td id="r-diff"></td></tr>
+      <tr><th data-i18n="rTime">時間</th><td id="r-time"></td></tr>
+      <tr><th data-i18n="moves">手数</th><td id="r-moves"></td></tr>
+    </table>
+    <button class="start-btn" id="again-btn" data-i18n="again">もう一度</button>
+    <button class="sub-btn" id="totitle-btn" data-i18n="toTitle">タイトルへ</button>
+    <button class="sub-btn" id="view-btn" data-i18n="viewBoard">盤面を見る</button>
+  </div>
+</div>
+<button class="back-result" id="back-result" hidden data-i18n="backResult">結果に戻る</button>
+
+<div class="overlay" id="overlay-confirm" hidden>
+  <div class="panel">
+    <div class="panel-msg" data-i18n="confirmMsg">いまのゲームは消えます。よろしいですか。</div>
+    <button class="start-btn" id="confirm-yes" data-i18n="yes">はい</button>
+    <button class="sub-btn" id="confirm-no" data-i18n="no">いいえ</button>
+  </div>
+</div>
+
+<footer class="site-footer momo-about" id="momo-about" data-lang="zh"><details><summary>关于 MOMO 1024</summary><div class="momo-about-body"><p>MOMO 1024 是一款可在浏览器中游玩的数字合并益智游戏。</p><p>向上下左右滑动盘面，所有方块都会朝那个方向移动。两个相同数字的方块相撞时，会合并成一个数值翻倍的方块。盘面可在 4×4 到 16×16 之间选择，盘面越大，目标数字也越大。</p><p>无需注册账号，也无需安装。</p><div class="momo-about-links"><a href="/momo/">MOMO Works 首页</a><a href="/momo/games/">游戏列表</a><a href="/momo/tools/">工具列表</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-rating-data">{"app":"games/1024","avg":0,"count":0}</script>
+<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":["VideoGame","WebApplication"],"name":"MOMO 1024","url":"https://qiqiroon.github.io/momo/games/1024/zh/","description":"可在浏览器中免费游玩的数字合并益智游戏。从 4×4 到 16×16 选择盘面，滑动方块合并相同数字，挑战目标数字。无需注册，无需安装。","image":"https://qiqiroon.github.io/momo/games/1024/apple-touch-icon.png","applicationCategory":"GameApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO 1024 について", "body": ["MOMO 1024 は、ブラウザで遊べる数字合体パズルです。", "盤面を上下左右に払うと、札が全部その向きへ滑ります。同じ数字の札がぶつかると合体して倍になります。盤面は 4×4 から 16×16 まで選べ、広い盤面ほど GOAL の数字も大きくなります。", "アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO 1024", "body": ["MOMO 1024 is a number-merging puzzle you can play in your browser.", "Swipe the board up, down, left or right and every tile slides that way. When two tiles with the same number collide, they merge into one with double the value. Choose any board from 4×4 to 16×16; the bigger the board, the bigger the goal number.", "No account, no installation."]}, "zh": {"title": "关于 MOMO 1024", "body": ["MOMO 1024 是一款可在浏览器中游玩的数字合并益智游戏。", "向上下左右滑动盘面，所有方块都会朝那个方向移动。两个相同数字的方块相撞时，会合并成一个数值翻倍的方块。盘面可在 4×4 到 16×16 之间选择，盘面越大，目标数字也越大。", "无需注册账号，也无需安装。"]}}</script>
+<script src="/momo/games/1024/m1024-core.js"></script>
+<script src="/momo/games/1024/m1024.js"></script>
+</body>
+</html>

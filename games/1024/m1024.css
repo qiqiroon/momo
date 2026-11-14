@@ -1,0 +1,83 @@
+:root{--bg:#0a0a0a;--surface:#111;--surface2:#1a1a1a;--orange:#c2410c;--orangeL:#ea580c;--orangeB:#fb923c;--orange-pale:#431407;--gold:#fbbf24;--text:#e5e5e5;--text-muted:#8a8a8a;--border:#2a2a2a;--border-strong:#444;--board:#1f2937;--cell:#2b3646;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;display:flex;flex-direction:column;align-items:center;overflow-x:hidden;overscroll-behavior:none;}
+button{font-family:inherit;}
+
+/* ── 共通ヘッダー ── */
+.site-header{display:flex;align-items:flex-start;gap:10px;margin:24px 0 12px;width:100%;max-width:460px;padding:0 16px;}
+.site-header .cat-icon{width:57px;height:62px;flex-shrink:0;}
+.site-header .title-block{display:flex;flex-direction:column;align-items:flex-start;line-height:1;}
+.site-header h1{font-family:'Fredoka One',cursive;font-size:clamp(2rem,6vw,2.6rem);font-weight:400;letter-spacing:0.02em;line-height:1;display:flex;align-items:baseline;gap:0.3em;color:#fff;}
+.site-header h1 .momo{color:var(--text);}
+.site-header h1 .app{color:var(--orangeL);}
+.site-header h1 .version-tag{color:var(--text-muted);font-size:0.28em;letter-spacing:0.04em;align-self:flex-end;padding-bottom:0.2em;}
+.site-header .subtitle{font-family:'Fredoka One',cursive;color:#888;margin-top:2px;font-size:16px;min-height:1.2em;}
+body.in-game .site-header{display:none;}
+
+/* ── 画面 ── */
+.screen{display:none;width:100%;max-width:520px;padding:0 16px;}
+.screen.active{display:flex;flex-direction:column;align-items:center;}
+#screen-title{gap:20px;padding-bottom:32px;}
+.pick{width:100%;display:flex;flex-direction:column;align-items:center;gap:10px;}
+.pick-label{font-size:0.8rem;letter-spacing:0.12em;color:var(--orangeB);}
+.size-buttons{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;width:100%;}
+.size-btn,.diff-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);font-family:'Fredoka One',cursive;border-radius:10px;cursor:pointer;}
+.size-btn{font-size:1.05rem;padding:10px 0;}
+.size-btn.selected,.diff-btn.selected{border-color:var(--orangeL);background:var(--orange-pale);color:var(--orangeB);}
+.size-info{display:flex;align-items:center;gap:14px;}
+.size-name{font-family:'Fredoka One',cursive;font-size:1.4rem;}
+.size-detail{font-size:0.85rem;color:var(--text-muted);}
+.size-detail b{color:var(--gold);font-family:'Fredoka One',cursive;font-weight:400;font-size:1rem;}
+.diff-buttons{display:flex;gap:8px;width:100%;}
+.diff-btn{flex:1;font-size:1.05rem;padding:12px 0;letter-spacing:0.04em;}
+.diff-desc{font-size:0.85rem;color:var(--text-muted);text-align:center;min-height:2.6em;}
+.start-btn{background:var(--orange);border:none;color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem;padding:14px 56px;border-radius:14px;cursor:pointer;letter-spacing:0.08em;}
+.start-btn:hover{background:var(--orangeL);}
+.sub-btn{background:var(--surface2);border:1px solid var(--border-strong);color:var(--text);font-size:1rem;padding:10px 32px;border-radius:12px;cursor:pointer;min-width:180px;}
+.howto{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);line-height:1.8;}
+.howto summary{cursor:pointer;color:var(--text);}
+.howto p{margin-top:6px;}
+
+/* ── ゲーム画面 ── */
+#screen-game{height:100dvh;padding:calc(env(safe-area-inset-top,0px) + 6px) 8px calc(env(safe-area-inset-bottom,0px) + 6px);max-width:900px;touch-action:none;user-select:none;-webkit-user-select:none;}
+.hud{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 4px 8px;flex-shrink:0;}
+.hud-item{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;}
+.hud-label{font-size:0.62rem;letter-spacing:0.1em;color:var(--text-muted);}
+.hud-value{font-family:'Fredoka One',cursive;font-size:1.3rem;color:#f5f5f5;}
+.hud-value.gold{color:var(--gold);}
+.hud-value.small{font-size:1.05rem;}
+.hud-next{display:flex;gap:3px;min-height:26px;align-items:center;font-size:0.8rem;color:var(--text-muted);}
+.next-tile{min-width:26px;height:26px;padding:0 4px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:'Fredoka One',cursive;font-size:0.8rem;}
+.icon-btn{background:var(--surface2);border:1px solid var(--border-strong);color:var(--text);width:40px;height:40px;border-radius:10px;font-size:1.1rem;cursor:pointer;flex-shrink:0;}
+.board-wrap{flex:1;width:100%;min-height:0;display:flex;align-items:center;justify-content:center;}
+#board{display:block;border-radius:10px;}
+.bottom-bar{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:8px;flex-shrink:0;}
+.zoom-btns{display:flex;gap:6px;}
+.icon-btn.wide{width:auto;padding:0 12px;font-size:0.9rem;}
+.hint{font-size:0.72rem;color:var(--text-muted);text-align:right;line-height:1.4;}
+
+/* ── 重ねる画面 ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;}
+.overlay[hidden]{display:none;}
+#overlay-pause{backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);background:rgba(0,0,0,0.85);}
+.panel{background:var(--surface);border:1px solid var(--border-strong);border-radius:16px;padding:24px 28px;display:flex;flex-direction:column;align-items:center;gap:12px;min-width:260px;}
+.panel-title{font-family:'Fredoka One',cursive;font-size:2.4rem;color:var(--orangeL);}
+.panel-title.clear{color:var(--gold);}
+.panel-msg{font-size:0.95rem;}
+.result-table{border-collapse:collapse;font-size:0.9rem;margin-bottom:6px;}
+.result-table th{text-align:left;color:var(--text-muted);font-weight:400;padding:3px 16px 3px 0;}
+.result-table td{text-align:right;font-family:'Fredoka One','Noto Sans JP',sans-serif;}
+.back-result{position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:90;background:var(--orange);border:none;color:#fff;padding:10px 18px;border-radius:12px;font-size:0.95rem;cursor:pointer;}
+.back-result[hidden]{display:none;}
+
+/* ── 言語の切り替え・説明欄 ── */
+#lang-switcher{position:fixed;top:8px;right:12px;z-index:200;}
+#lang-select{background:var(--surface2);border:1px solid var(--border-strong);color:var(--text);font-size:12px;padding:4px 8px;border-radius:4px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;outline:none;}
+#lang-select:focus{border-color:var(--orangeL);}
+body.in-game #lang-switcher{display:none;}
+body.in-game.paused #lang-switcher{display:block;}
+.site-footer{max-width:520px;padding:8px 16px 32px;}
+body.in-game .site-footer{display:none;}
+.site-header .subtitle.zh{font-family:'Noto Sans SC',sans-serif;font-weight:500;}
+body:lang(zh-Hans){font-family:'Noto Sans SC','Noto Sans JP',sans-serif;}

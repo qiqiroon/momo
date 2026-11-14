@@ -9,6 +9,7 @@ Games and tools that run in your browser, made by an individual developer. No si
 
 | アプリ / App | 説明 | Description |
 |---|---|---|
+| [MOMO 1024](https://qiqiroon.github.io/momo/games/1024/) | 盤面を選べる数字合体パズル | Number-merging puzzle on the board size you pick |
 | [MOMO Billiards](https://qiqiroon.github.io/momo/games/billiards/) | 台もルールも選べるビリヤード | Billiards with selectable tables and rules |
 | [MOMO Cosmos](https://qiqiroon.github.io/momo/games/cosmos/) | 天体を育てる落ち物パズル | A falling-block puzzle where you grow celestial bodies |
 | [MOMO Cube](https://qiqiroon.github.io/momo/games/cube/) | 1×1×1〜10×10×10 の 3D キューブパズル | 3D cube puzzle from 1×1×1 to 10×10×10 |

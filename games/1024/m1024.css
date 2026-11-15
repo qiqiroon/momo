@@ -210,3 +210,8 @@ body.hidim #gizmo{width:128px;}
 .col-free input{width:56px;height:30px;border:none;background:none;padding:0;cursor:pointer;}
 /* §26.5 評価の促し（共通の部品 momo-rating.js）は、結果の板のボタンに重ならないよう、1024 では画面の上側に出す */
 .momo-rating-toast{top:calc(env(safe-area-inset-top,0px) + 100px)!important;bottom:auto!important;}
+/* §26.10 目立たせる：結果の板が出ていれば m1024.js が「もう一度」の上半分に重ねる。字と星を大きく、縁を橙に */
+.momo-rating-toast{font-size:16px!important;font-weight:700;padding:12px 12px 12px 18px!important;border:2px solid #fb923c!important;
+  background:#2a1608!important;box-shadow:0 0 0 4px rgba(251,146,60,.25),0 10px 28px rgba(0,0,0,.6)!important;}
+.momo-rating-toast .momo-rating-stars button{font-size:32px!important;padding:0 3px!important;}
+.momo-rating-toast .momo-rating-x{font-size:22px!important;}

@@ -1236,6 +1236,26 @@
   $('view-btn').addEventListener('click', function () { showResult(false); $('back-result').hidden = false; });
   $('back-result').addEventListener('click', function () { $('back-result').hidden = true; showResult(true); });
 
+  // 評価の促し（共通の部品が body に足す .momo-rating-toast）は、結果の板が出ていれば「もう一度」の上半分に重ねる（§26.10、利用者）
+  //   板が無いとき（盤面を見ている間など）は、CSS の決まりどおり画面の上側に出る
+  function placeRatingToast() {
+    var bar = document.querySelector('.momo-rating-toast'), btn = $('again-btn');
+    if (!bar) return;
+    if ($('overlay-result').hidden || !btn.offsetParent) { bar.style.removeProperty('top'); return; }
+    var r = btn.getBoundingClientRect();
+    var top = Math.max(8, r.top + r.height / 2 - bar.offsetHeight);
+    bar.style.setProperty('top', top + 'px', 'important');
+  }
+  if (window.MutationObserver) {
+    new MutationObserver(function (list) {
+      for (var i = 0; i < list.length; i++) for (var j = 0; j < list[i].addedNodes.length; j++) {
+        var n = list[i].addedNodes[j];
+        if (n.classList && n.classList.contains('momo-rating-toast')) placeRatingToast();
+      }
+    }).observe(document.body, { childList: true });
+  }
+  window.addEventListener('resize', placeRatingToast);
+
   // ページが隠れたら止めて音も止める。1時間以上たって戻ったら、次の操作でもう一度聞く（§17.4）
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) { hiddenAt = Date.now(); pause(); if (window.M1024Sound) M1024Sound.suspend(); return; }

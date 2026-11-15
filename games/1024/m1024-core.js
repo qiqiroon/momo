@@ -29,11 +29,14 @@
   //   目盛り1 が v1.02 までのルール（EASY の重み）と同じ
   var LEVELS = [[-2, 0, 4], [0, 0, 4], [0, 0.4, 5], [0, 1, 5], [0.25, 1, 5], [0.5, 1, 5], [0.75, 1, 5], [1, 1, 5],
     [1.5, 1, 5], [2, 1, 5], [3, 1, 5], [4, 1, 5], [6, 1, 5], [8, 1, 5], [12, 1, 5], [16, 1, 5]];
+  //   4つ目（省略可）＝元の重みのうち「1」の割合（§26.1）。残りは元の重みの比のまま分ける
   // 盤面ごとの目盛り [EASY, HARD, APO]。tools/find_levels.js で決めた（§20）。無い盤面は [0, 1, 2]
+  //   目盛りの番号の代わりに目盛りそのもの（配列）を置いてもよい。小さい3つの盤面の EASY は利用者が決めた（§26.1）
+  var EASY_SMALL_1 = 0.8;   // 小さい盤面の EASY で「1」が出る割合
   var LEVEL_TABLE = {
-    '2:4': [0, 1, 2], '2:5': [1, 2, 3], '2:6': [5, 6, 7], '2:7': [6, 7, 8], '2:8': [6, 7, 8], '2:9': [6, 7, 8],
+    '2:4': [[0, 0, 4, EASY_SMALL_1], 1, 2], '2:5': [1, 2, 3], '2:6': [5, 6, 7], '2:7': [6, 7, 8], '2:8': [6, 7, 8], '2:9': [6, 7, 8],
     '2:10': [6, 7, 8], '2:11': [6, 7, 8], '2:12': [7, 8, 9], '2:13': [9, 10, 14], '2:14': [6, 7, 8], '2:15': [8, 9, 14], '2:16': [6, 7, 9],
-    '3:2': [0, 1, 2], '3:3': [6, 7, 8], '3:4': [5, 6, 7], '3:5': [6, 7, 9], '4:2': [0, 1, 2], '5:2': [1, 2, 3], '4:3': [5, 6, 7], '5:3': [10, 11, 15], '4:4': [5, 6, 8], '5:4': [5, 6, 7]
+    '3:2': [[-2, 0, 4, EASY_SMALL_1], 1, 2], '3:3': [6, 7, 8], '3:4': [5, 6, 7], '3:5': [6, 7, 9], '4:2': [[-2, 0, 4, EASY_SMALL_1], 1, 2], '5:2': [1, 2, 3], '4:3': [5, 6, 7], '5:3': [10, 11, 15], '4:4': [5, 6, 8], '5:4': [5, 6, 7]
   };
   // §10.3 次の札をいくつ見せるか
   var NEXT_VISIBLE = { EASY: 3, HARD: 1, APO: 0 };
@@ -72,15 +75,17 @@
     var i = DIFFICULTIES.indexOf(OLD_DIFF[difficulty] || difficulty);
     return levelsOf(N, dim)[i < 0 ? 0 : i];
   }
+  // 目盛りそのもの [m, β, gap, 1の割合?]
+  function levelRow(N, dim, difficulty) { var v = levelOf(N, dim, difficulty); return typeof v === 'number' ? LEVELS[v] : v; }
   // 1手で出る札の数（1 未満なら、何手かに1枚）
   function spawnsPerMove(N, dim, difficulty) {
-    var m = LEVELS[levelOf(N, dim, difficulty)][0];
+    var m = levelRow(N, dim, difficulty)[0];
     return m < 0 ? 1 / -m : m ? Math.max(1, Math.round(cellsOf(N, dim) / 16 * m)) : 1;
   }
   // 元の重みで出せる最大（GOAL との段差で頭打ち）と、散らばりも含めた出る数字のいちばん上
-  function baseTopN(N, dim, difficulty) { return Math.max(1, Math.min(maxSpawnN(N, dim), goalNFor(N, dim) - LEVELS[levelOf(N, dim, difficulty)][2])); }
+  function baseTopN(N, dim, difficulty) { return Math.max(1, Math.min(maxSpawnN(N, dim), goalNFor(N, dim) - levelRow(N, dim, difficulty)[2])); }
   function spawnTopN(N, dim, difficulty) {
-    var L = LEVELS[levelOf(N, dim, difficulty)];
+    var L = levelRow(N, dim, difficulty);
     return L[1] > 0 ? Math.max(1, goalNFor(N, dim) - L[2]) : baseTopN(N, dim, difficulty);
   }
   // §4.5
@@ -88,8 +93,12 @@
 
   // §4.2 出せる n だけ残して確率にする
   function spawnDist(N, difficulty, dim) {
-    var b = LEVELS[levelOf(N, dim, difficulty)][1], top = spawnTopN(N, dim, difficulty);
+    var L = levelRow(N, dim, difficulty), b = L[1], top = spawnTopN(N, dim, difficulty);
     var w = BASE_W.slice(0, baseTopN(N, dim, difficulty) + 1), sum = w.reduce(function (a, x) { return a + x; }, 0), out = [];
+    if (L[3] != null && w.length > 1) {   // 「1」の割合を決める。残りは元の重みの比で分ける
+      var rest = sum - w[0];
+      w = w.map(function (x, n) { return n === 0 ? L[3] : (1 - L[3]) * x / rest; }); sum = 1;
+    }
     for (var n = 0; n <= top; n++) out.push((1 - b) * (n < w.length ? w[n] / sum : 0) + b / (top + 1));
     return out;
   }
@@ -171,6 +180,8 @@
       playMs: 0, idCounter: 0, seed: seed, rng: seed,
       status: 'PLAYING', spawnPerMove: opts.spawnPerMove || spawnsPerMove(N, dim, d)
     };
+    // 何手かに1枚の盤面は、最初の1手で出す（§26.1。2手に1枚なら 出る→出ない→出る…）
+    state.spawnAcc = state.spawnPerMove < 1 ? 1 - state.spawnPerMove : 0;
     var spawns = [], k = startTiles(N, dim);
     for (var i = 0; i < k; i++) spawns.push(spawnAt(state, drawN(state)));
     while (state.queue.length < QUEUE_LEN) state.queue.push(drawN(state));
@@ -309,7 +320,7 @@
     MIN_SIZE: MIN_SIZE, MAX_SIZE: MAX_SIZE, MIN_SIZE_3D: MIN_SIZE_3D, MAX_SIZE_3D: MAX_SIZE_3D,
     MIN_SIZE_HI: MIN_SIZE_HI, MAX_SIZE_HI: MAX_SIZE_HI, sizeRange: sizeRange, dirsOf: dirsOf,
     DIFFICULTIES: DIFFICULTIES, BASE_W: BASE_W, LEVELS: LEVELS, LEVEL_TABLE: LEVEL_TABLE, NEXT_VISIBLE: NEXT_VISIBLE,
-    levelsOf: levelsOf, levelOf: levelOf, spawnTopN: spawnTopN,
+    levelsOf: levelsOf, levelOf: levelOf, levelRow: levelRow, spawnTopN: spawnTopN,
     DIRS2: DIRS2, DIRS3: DIRS3, DIRS4: DIRS4, DIRS5: DIRS5,
     TUNE: TUNE, spawnsPerMove: spawnsPerMove,
     goalNFor: goalNFor, maxSpawnN: maxSpawnN, startTiles: startTiles, spawnDist: spawnDist,

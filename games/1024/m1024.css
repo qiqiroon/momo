@@ -164,10 +164,18 @@ body.hidim #gizmo{width:128px;}
 .mode-buttons{max-width:320px;}
 
 /* ── 3D の札の透明度（ゲーム画面の盤面の左上。§17.6） ── */
-.alpha-ctl{position:absolute;top:6px;left:8px;display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;background:rgba(10,14,22,0.7);font-size:0.72rem;color:var(--text-muted);}
-.alpha-ctl[hidden]{display:none;}
-.alpha-ctl input{width:96px;accent-color:var(--orangeL);}
+/*    4D・5D は下に「次元間隔」（§25.1）。2本のつまみの長さと位置をそろえるため、見出し・つまみ・値の3列の表にする */
+.alpha-ctl{position:absolute;top:6px;left:8px;display:grid;grid-template-columns:auto 96px auto;align-items:center;gap:2px 6px;padding:4px 8px;border-radius:8px;background:rgba(10,14,22,0.7);font-size:0.72rem;color:var(--text-muted);}
+.alpha-ctl[hidden],.alpha-ctl .ctl-row[hidden]{display:none;}
+.alpha-ctl .ctl-row{display:contents;}
+.alpha-ctl input{width:96px;margin:0;accent-color:var(--orangeL);}
 .alpha-ctl .v{min-width:2.4em;text-align:right;}
+/* 1手戻す（§25.4）。点数が半分になる */
+.undo-btn{font-size:1.15rem;}
+.undo-btn:disabled{opacity:0.35;cursor:default;}
+/* NEXT が複数のとき（§25.5）：数字ごとに「×枚数」 */
+.next-cnt{font-size:0.62rem;color:var(--text-muted);margin:0 3px 0 1px;font-family:'Fredoka One',sans-serif;}
+.next-more{font-size:0.62rem;color:var(--text-muted);margin-left:2px;font-family:'Fredoka One',sans-serif;}
 
 /* ── 結果は画面の下の板にして、盤面を隠さない（§19.7）。暗い幕は掛けない ── */
 #overlay-result{align-items:flex-end;background:transparent;padding:0 8px calc(env(safe-area-inset-bottom,0px) + 8px);pointer-events:none;}
@@ -185,3 +193,18 @@ body.hidim #gizmo{width:128px;}
 .result-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:2px;}
 .result-btns .start-btn{font-size:1.05rem;padding:9px 20px;}
 .result-btns .sub-btn{min-width:0;padding:9px 14px;font-size:0.9rem;}
+
+/* ── 札の色を変える（§25.21） ── */
+.srow-mid{align-items:center;}
+.mini-btn{min-width:0;padding:5px 14px;font-size:0.85rem;}
+.col-panel{width:min(380px,100%);max-height:calc(100dvh - 24px);overflow-y:auto;gap:10px;}
+.col-help{font-size:0.78rem;color:var(--text-muted);margin:0;}
+.col-nums{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+.col-num{height:44px;border-radius:8px;border:2px solid transparent;font-family:'Fredoka One',sans-serif;font-size:0.82rem;cursor:pointer;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;}
+.col-num small{font-size:0.6rem;opacity:0.8;}
+.col-num.sel{border-color:#fb923c;box-shadow:0 0 0 2px #fb923c;}
+.col-pal{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;border-top:1px solid var(--border);padding-top:10px;}
+.col-sw{aspect-ratio:1;border-radius:6px;border:1px solid rgba(255,255,255,0.18);cursor:pointer;padding:0;}
+.col-sw.cur{outline:2px solid #fb923c;outline-offset:1px;}
+.col-free{display:flex;align-items:center;justify-content:space-between;font-size:0.85rem;}
+.col-free input{width:56px;height:30px;border:none;background:none;padding:0;cursor:pointer;}

@@ -4,16 +4,27 @@
   var C = window.M1024Core;
   var $ = function (id) { return document.getElementById(id); };
 
-  // §9.2 札の色 [札, 文字]。2026-11-14 作り直し（§19.6）：隣どうしは明るさと色相を両方変え、
-  // 人の目での差（OKLab）が色覚の型を含めて 11 以上になるようにした。金色は使わない（GOAL の金の縁と光だけを金にする）。
-  // 調べる道具：tools/colors.py・tools/colors_new.py
-  var COLORS = [
-    ['#EBE7DF', '#282623'], ['#81CFFC', '#002A3F'], ['#12AEDB', '#002C3C'], ['#7DF1CB', '#002F22'],
-    ['#3FAC4A', '#112E13'], ['#D4F16E', '#232A03'], ['#F68C36', '#3C1D05'], ['#EA3C3F', '#FFFFFF'],
-    ['#FEAAD1', '#3B192A'], ['#B739C0', '#FFFFFF'], ['#B4C96D', '#232A03'], ['#2F58C8', '#FFFFFF'],
-    ['#008C8D', '#FFFFFF'], ['#9E2418', '#FFFFFF'], ['#501D7A', '#FFFFFF']
-  ];
-  function colorOf(n) { return COLORS[n] || ['#111827', '#FFFFFF']; }
+  // §9.2 札の色。2026-11-15 作り直し（§25.20 案O で決定）。2⁰〜2¹⁹ の 20 色（いちばん大きい GOAL は 5D・一辺4 の 2¹⁹）
+  //   小さい数字はパステル、次に原色、大きい数字は暗色。色の案を作る道具：tools/colors_v3*.py・colors_draw.py
+  var BASE_COLORS = ['#FFFFFF', '#C8FFC8', '#E6B2FF', '#A0A0FF', '#FFBFB2', '#A6A6A6', '#FF0000', '#FF8000', '#FFFF00', '#00FF00',
+    '#00FFFF', '#0000FF', '#FF00FF', '#A80070', '#6119A8', '#4F2A12', '#666600', '#008000', '#000080', '#000000'];
+  // 札の色は、設定の「札の色」で数字ごとに変えられる（§25.21）。変えた分だけを端末に覚える（m1024.colors＝{n: '#RRGGBB'}）
+  var COLOR_OVR = (function (o) { return o && typeof o === 'object' ? o : {}; })(load('colors', {}));
+  var COLORS = [];
+  function lumOf(hex) {
+    var v = parseInt(hex.slice(1), 16);
+    return [v >> 16, (v >> 8) & 255, v & 255].map(function (c) { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); })
+      .reduce(function (a, c, i) { return a + c * [0.2126, 0.7152, 0.0722][i]; }, 0);
+  }
+  // [札, 文字（黒か白の読みやすいほう）, べきの赤が札に沈むか（明るさの比 2.2 未満なら、べきは白い字に赤い縁）]
+  function colorEntry(bg) {
+    var L = lumOf(bg), white = (L + 0.05) / 0.05 < 1.05 / (L + 0.05), R = lumOf('#D0102A');
+    var cr = (Math.max(L, R) + 0.05) / (Math.min(L, R) + 0.05);
+    return [bg, white ? '#FFFFFF' : '#000000', cr < 2.2];
+  }
+  function rebuildColors() { COLORS = BASE_COLORS.map(function (c, n) { return colorEntry(/^#[0-9A-F]{6}$/i.test(COLOR_OVR[n] || '') ? COLOR_OVR[n].toUpperCase() : c); }); }
+  function colorOf(n) { return COLORS[n] || COLORS[COLORS.length - 1]; }
+  rebuildColors();
   // ── 言葉（ja / en / zh / cat）。共通の言語ライブラリ momo-lang（v1.11）に合わせる ──
   var I18N = {
     ja: {
@@ -32,12 +43,14 @@
       range: '{a}〜{b}', goalIn: '（GOAL {g}）',
       howto4: '3D では、奥・手前のボタン（キーは Q・E）で奥行きの向きにも滑ります。キューブの外をドラッグすると全体が回ります。',
       setTitle: '設定', setSe: '効果音', setMute: 'ミュート', setVersion: 'バージョン', setClose: '閉じる',
+      setColors: '札の色', colorsOpen: '変える', colorsTitle: '札の色', colorsHelp: '数字を選んでから、下の色を押してください。文字の色（黒・白）は自動で決まります。', colorsFree: '自由に選ぶ', colorsReset: '全部元に戻す',
       soundTitle: '音を再生しますか？', soundBody: '効果音を再生してもよろしいですか？（あとで歯車の設定から変えられます）',
       soundNo: '再生しない', soundYes: '再生する',
       back: '奥', front: '手前', tip3d: 'キューブの外をドラッグすると全体が回ります',
       tip4d: '下の図で立方体を選ぶ・端の矢印で立方体の間を滑らせる',
       howto5: '4D は立方体が一列に、5D は立方体が縦横に並びます。3軸の矢印の左の図で立方体を押すと、大きく映す立方体が替わります。図の端の矢印（キーは Z・X、5D の縦は C・V）で、立方体の間でも札が滑ります。',
-      alphaLabel: '透明度',
+      alphaLabel: '透明度', gapLabel: '次元間隔', gapStack: '重ね', undoAria: '1手戻す（点数が半分）',
+      nextIn: '{k}手後',
       clearSub: 'GOAL {g} を作った！', overSub: 'もう動かせる向きがありません'
     },
     en: {
@@ -56,12 +69,14 @@
       range: '{a}–{b}', goalIn: ' (GOAL {g})',
       howto4: 'In 3D, the Back and Front buttons (keys Q and E) slide the tiles in depth too. Drag outside the cube to rotate the whole board.',
       setTitle: 'Settings', setSe: 'Sound effects', setMute: 'Mute', setVersion: 'Version', setClose: 'Close',
+      setColors: 'Tile colors', colorsOpen: 'Change', colorsTitle: 'Tile colors', colorsHelp: 'Pick a number, then tap a color below. The text color (black/white) is chosen automatically.', colorsFree: 'Any color', colorsReset: 'Reset all',
       soundTitle: 'Play sound?', soundBody: 'Is it OK to play sound effects? (You can change this later from the gear settings.)',
       soundNo: "Don't play", soundYes: 'Play',
       back: 'Back', front: 'Front', tip3d: 'Drag outside the cube to rotate the whole board',
       tip4d: 'Pick a cube in the map below; its end arrows slide tiles between cubes',
       howto5: 'In 4D the cubes stand in a row; in 5D they form a grid. Tap a cube in the map left of the axis arrows to show it. The arrows at the ends of the map (keys Z and X; C and V for the 5D columns) slide tiles between cubes.',
-      alphaLabel: 'Opacity',
+      alphaLabel: 'Opacity', gapLabel: 'Spacing', gapStack: 'stack', undoAria: 'Undo one move (score halved)',
+      nextIn: 'in {k}',
       clearSub: 'You made GOAL {g}!', overSub: 'No more moves left'
     },
     zh: {
@@ -80,12 +95,14 @@
       range: '{a}～{b}', goalIn: '（GOAL {g}）',
       howto4: '3D 模式下，用“向里”“向外”按钮（Q、E 键）也能沿纵深方向滑动。拖动立方体外侧可旋转整体。',
       setTitle: '设置', setSe: '音效', setMute: '静音', setVersion: '版本', setClose: '关闭',
+      setColors: '方块颜色', colorsOpen: '更改', colorsTitle: '方块颜色', colorsHelp: '先选数字，再点下面的颜色。文字颜色（黑・白）自动决定。', colorsFree: '自由选择', colorsReset: '全部恢复',
       soundTitle: '要播放声音吗？', soundBody: '可以播放音效吗？（之后可以在齿轮设置中更改）',
       soundNo: '不播放', soundYes: '播放',
       back: '向里', front: '向外', tip3d: '拖动立方体外侧可旋转整体',
       tip4d: '在下方的图中选立方体，用两端的箭头在立方体之间滑动',
       howto5: '4D 的立方体排成一列，5D 的立方体排成纵横网格。点击三轴箭头左侧图中的立方体，即可切换显示的立方体。图两端的箭头（Z、X 键；5D 纵向为 C、V 键）可让方块在立方体之间滑动。',
-      alphaLabel: '透明度',
+      alphaLabel: '透明度', gapLabel: '维度间距', gapStack: '重叠', undoAria: '撤回一步（分数减半）',
+      nextIn: '{k}步后',
       clearSub: '做出了 GOAL {g}！', overSub: '已经无法移动了'
     }
   };
@@ -166,6 +183,7 @@
   var timer = { running: false, since: 0 };
   var mode = 'TITLE';       // TITLE / PLAYING / PAUSED / CLEAR / GAME_OVER
   var cam = null;           // 3D の視点（§17.5）
+  var undoState = null;      // 1手戻すための、直前の手の前の記録（§25.4）。戻せるのは1手だけ
   var cube4 = { w: 0, v: 0 }; // 4D・5D で大きく映している立方体（§18.2）
   var endFx = null;         // クリア・ゲームオーバーの演出（§17.1）
   function snd(name, opt) { if (window.M1024Sound) M1024Sound.play(name, opt); }
@@ -247,6 +265,8 @@
     timerStart();
     $('depth-btns').hidden = true;   // 3D は3軸の矢印（gizmo）で6つの向きを押す
     $('gizmo').hidden = game.dim < 3; $('dpad').hidden = game.dim >= 3; $('alpha-ctl').hidden = game.dim < 3;
+    $('gap-row').hidden = game.dim < 4; showGap();
+    undoState = null; $('undo-btn').disabled = true;
     $('lattice').hidden = game.dim < 4; document.body.classList.toggle('hidim', game.dim >= 4); document.body.classList.toggle('dim5', game.dim === 5);
     // 4D・5D はズームのボタンを盤面の右上へ（下の段は並びの図に譲る。§21）
     var zb = document.querySelector('.zoom-btns');
@@ -287,22 +307,42 @@
     logIt({ src: src, dir: dir, moved: r.moved, before: board(game), after: r.moved ? board(r.state) : null });
     if (!r.moved) { shake(dir, sv); snd('bump'); return; }
     var prev = game.grid;
+    undoState = game; $('undo-btn').disabled = false;   // 1手戻す（§25.4）ための、動かす前の記録
     game = r.state;
     // 音（§17.3）：滑る → 合体 → 出現
     snd('slide', { count: r.events.slides.length });
+    moveFx = { dir: dir, t0: performance.now() };
+    startAnim(prev, r.events); renderHud();
+    var sm = anim ? anim.slideMs : SLIDE_MS;   // 立方体の間を滑るときは長い（§24）
     if (r.events.merges.length) {
       var mx = 0; r.events.merges.forEach(function (m) { if (m.n > mx) mx = m.n; });
-      setTimeout(function () { snd('merge', { n: mx }); }, SLIDE_MS * 0.8);
+      setTimeout(function () { snd('merge', { n: mx }); }, sm * 0.8);
     }
-    if (r.events.spawns.length) setTimeout(function () { snd('spawn'); }, SLIDE_MS + 30);
-    startAnim(prev, r.events); renderHud();
+    if (r.events.spawns.length) setTimeout(function () { snd('spawn'); }, sm + 30);
     if (game.status === 'CLEAR' || game.status === 'GAME_OVER') finish();
   }
+
+  // §25.4 1手戻す。点数は、戻す直前の点数の半分（切り捨て。利用者の指定）。時間はそのまま進む。戻せるのは直前の1手だけ
+  //   同じ乱数の状態に戻るので、同じ手を打てば同じ札が同じ所に出る（出る札の選び直しには使えない）
+  function undo(src) {
+    if (mode !== 'PLAYING' || !undoState) { logIt({ src: src, note: '戻せる手がないので無視' }); return; }
+    var cur = game, s = Object.assign({}, undoState);
+    s.score = Math.floor(cur.score / 2);
+    s.playMs = cur.playMs;
+    s.undos = (cur.undos || 0) + 1;
+    game = s; undoState = null; $('undo-btn').disabled = true;
+    anim = null; moveFx = null; flash = null;
+    logIt({ src: src, note: '1手戻す（点数 ' + cur.score + ' → ' + s.score + '）', after: board(game) });
+    snd('bump');
+    renderHud(); requestRender();
+  }
+  $('undo-btn').addEventListener('click', function () { undo('button'); });
 
   // §17.1 クリアとゲームオーバーで、演出・音・待ち時間・結果の札を分ける
   var FX_CLEAR_MS = 1600, FX_OVER_MS = 700;
   function finish() {
     timerStop();
+    $('undo-btn').disabled = true;
     mode = game.status;
     var clear = mode === 'CLEAR';
     $('result-title').textContent = clear ? 'CLEAR!' : 'GAME OVER';
@@ -422,16 +462,31 @@
     $('hud-score').textContent = fmt(game.score);
     $('hud-moves').textContent = fmt(game.moves);
     $('hud-diff').textContent = game.difficulty + '・NEXT';
+    // NEXT（§25.5）。1手で出るのが1枚までなら前と同じ（EASY は3枚、HARD は1枚、APO は見せない）。何手かに1枚なら「n手後」を添える
+    //   1手で2枚以上出るなら、次の手で出る札を数える：EASY は数字ごとに「×枚数」、HARD は最初の1枚と「+残り」、APO は枚数だけ
     var box = $('hud-next'); box.innerHTML = '';
-    var next = C.visibleNext(game);
-    if (!next.length) { box.textContent = '—'; return; }
-    next.forEach(function (n) {
+    var ns = C.nextSpawns(game), k = ns.values.length, vis = C.NEXT_VISIBLE[game.difficulty];
+    function chip(n) {
       var d = document.createElement('div'), col = colorOf(n);
       d.className = 'next-tile'; d.style.background = col[0]; d.style.color = col[1];
-      d.textContent = Math.pow(2, n);
-      box.appendChild(d);
-    });
+      d.textContent = fmtShort(Math.pow(2, n)); box.appendChild(d);
+    }
+    function note(txt, cls) { var sp = document.createElement('span'); sp.className = cls || 'next-more'; sp.textContent = txt; box.appendChild(sp); }
+    if (k <= 1) {
+      var next = C.visibleNext(game);
+      if (!next.length) { box.textContent = '—'; return; }
+      if (ns.wait > 1) note(t('nextIn', { k: ns.wait }));
+      next.forEach(chip);
+      return;
+    }
+    if (vis === 0) { note('×' + k, 'next-cnt'); return; }
+    if (vis === 1) { chip(ns.values[0]); note('+' + (k - 1)); return; }
+    var cnt = {}; ns.values.forEach(function (n) { cnt[n] = (cnt[n] || 0) + 1; });
+    var kinds = Object.keys(cnt).map(Number).sort(function (a, b) { return b - a; });   // 大きい数字から
+    kinds.slice(0, 3).forEach(function (n) { chip(n); note('×' + cnt[n], 'next-cnt'); });
+    if (kinds.length > 3) note('…');
   }
+  function fmtShort(v) { return v >= 100000 ? Math.round(v / 1000) + 'k' : String(v); }
 
   // ── 盤面の描画（canvas）と、ズーム・見える範囲（§8） ──
   // 盤面の座標は「全体表示（z=1）のときの CSS px」で持ち、画面の位置 = 原点 + 盤面の座標 × z
@@ -506,12 +561,46 @@
   // 動きがないと、どの札が動いたか・新しく出たかが分からないため（2026-11-14 利用者の指摘）
   var SLOW = +new URLSearchParams(location.search).get('slow') || 1;   // 確かめ用：?slow=10 で 10 倍ゆっくり
   var SLIDE_MS = 90 * SLOW;    // 滑る
+  var SLIDE_HI_MS = 180 * SLOW;   // 4D・5D の立方体の間を滑る（間の空間を通るのが見えるよう、少し長く。§24）
   var POP_MS = 140 * SLOW;     // 合体の膨らみ・新しい札の現れ
   var FLASH_MS = 700;          // 見える範囲の外に出た札を、小さな全体図で光らせる時間
   var anim = null, looping = false;
+  // 動いた向きの大きな矢印（§25.3）。札の後ろ（背景）に一瞬だけ出す
+  var MOVEFX_MS = 420 * SLOW, moveFx = null;
+  var DIR2V = { up: [0, -1, 0], down: [0, 1, 0], left: [-1, 0, 0], right: [1, 0, 0] };
+  function drawMoveFx() {
+    if (!moveFx) return;
+    var q = (performance.now() - moveFx.t0) / MOVEFX_MS;
+    if (q >= 1) return;
+    var v = game.dim >= 3 ? M1024Three.moveVec(cam, moveFx.dir) : DIR2V[moveFx.dir];
+    if (!v) return;
+    var a = 0.2 * (q < 0.15 ? q / 0.15 : 1 - (q - 0.15) / 0.85), m = Math.min(W, H), cx = W / 2, cy = H / 2;
+    ctx.save();
+    ctx.globalAlpha = a; ctx.fillStyle = ctx.strokeStyle = '#ffffff';
+    var l = Math.hypot(v[0], v[1]);
+    if (l < 0.35) {
+      // 画面の奥・手前の向き：大きな丸に、奥は ×（矢の羽根）、手前は ●（矢の先）
+      var R = m * 0.36; ctx.lineWidth = m * 0.05;
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+      if (v[2] < 0) { var d = R * 0.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(cx - d, cy - d); ctx.lineTo(cx + d, cy + d); ctx.moveTo(cx + d, cy - d); ctx.lineTo(cx - d, cy + d); ctx.stroke(); }
+      else { ctx.beginPath(); ctx.arc(cx, cy, R * 0.3, 0, Math.PI * 2); ctx.fill(); }
+    } else {
+      // 画面いっぱいの矢印。少しだけ進む向きへ滑らせる
+      var ux = v[0] / l, uy = v[1] / l, L = Math.abs(ux) * W + Math.abs(uy) * H;
+      L = Math.min(L * 0.86, Math.hypot(W, H) * 0.8);
+      var sw = m * 0.16, hw = m * 0.42, hl = Math.min(L * 0.42, m * 0.34), sh = q * m * 0.06;
+      ctx.translate(cx + ux * sh, cy + uy * sh); ctx.rotate(Math.atan2(uy, ux));
+      ctx.beginPath();
+      ctx.moveTo(-L / 2, -sw / 2); ctx.lineTo(L / 2 - hl, -sw / 2); ctx.lineTo(L / 2 - hl, -hw / 2); ctx.lineTo(L / 2, 0);
+      ctx.lineTo(L / 2 - hl, hw / 2); ctx.lineTo(L / 2 - hl, sw / 2); ctx.lineTo(-L / 2, sw / 2); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
 
   function startAnim(prevGrid, ev) {
-    var slideMs = prevGrid ? SLIDE_MS : 0;
+    var L = game.dim === 5 ? 2 : game.dim === 4 ? 1 : 0;
+    var hiMv = (ev.slides || []).some(function (s) { for (var i = 0; i < L; i++) if (s.from[i] !== s.to[i]) return true; return false; });
+    var slideMs = prevGrid ? (hiMv ? SLIDE_HI_MS : SLIDE_MS) : 0;
     var merged = {}, spawned = {}, moving = {}, outside = [];
     (ev.merges || []).forEach(function (m) { merged[m.id] = true; });
     (ev.spawns || []).forEach(function (s) {
@@ -536,8 +625,9 @@
       var now = performance.now();
       if (anim && now - anim.t0 >= anim.slideMs + POP_MS) { anim = null; render(); }
       if (flash && now - flash.t0 >= FLASH_MS) { flash = null; render(); }
+      if (moveFx && now - moveFx.t0 >= MOVEFX_MS) { moveFx = null; render(); }
       var fxOn = endFx && now - endFx.t0 < 1400;
-      if (anim || shakeAnim || flash || fxOn) requestAnimationFrame(step); else looping = false;
+      if (anim || shakeAnim || flash || moveFx || fxOn) requestAnimationFrame(step); else looping = false;
     })();
   }
   function easeOut(q) { return 1 - Math.pow(1 - q, 3); }
@@ -568,6 +658,7 @@
     var r0 = Math.max(0, Math.floor((-g.by - g.cell) / (g.cell + g.gap))), r1 = Math.min(N - 1, Math.ceil((H - g.by) / (g.cell + g.gap)));
     ctx.fillStyle = '#2b3646';
     for (r = r0; r <= r1; r++) for (c = c0; c <= c1; c++) { p = cellXY(r, c); roundRect(p[0], p[1], g.cell, g.cell, rad); ctx.fill(); }
+    drawMoveFx();
 
     // 札は立方体として描く（§18.1）。画面の真ん中から遠い札を先に描き、真ん中寄りの札の前の面が上に来るようにする
     var draws = [];
@@ -632,42 +723,50 @@
     var bg = ctx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H * 0.45, Math.max(W, H) * 0.75);
     bg.addColorStop(0, '#1b2638'); bg.addColorStop(1, '#090c13');
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    // 4D・5D は、選んだ立方体1個だけを映す（§18.2）。pre＝その立方体の位置の頭の部分
-    var pre = game.dim === 5 ? [cube4.v, cube4.w] : game.dim === 4 ? [cube4.w] : [];
-    function inSel(p) { for (var i = 0; i < pre.length; i++) if (p[i] !== pre[i]) return false; return true; }
-    function full(p3) { return pre.concat(p3); }
-    function in3(p) { return p.slice(pre.length); }
-    var el = anim ? now - anim.t0 : Infinity, all = C.allPos(N, 3);
+    drawMoveFx();
+    // 4D・5D は、注目する立方体を大きく映し、ほかの立方体も立方体1個分の間を空けて並べる（§24）
+    // pre＝注目する立方体の位置の頭の部分
+    var dim = game.dim, pre = dim === 5 ? [cube4.v, cube4.w] : dim === 4 ? [cube4.w] : [], L = pre.length;
+    var boxes = [], boxIdx = {};
+    C.allPos(N, L).forEach(function (h) {   // L=0（3D）なら [[]] の1個
+      boxIdx[h.join(',')] = boxes.length;
+      boxes.push({ off: M1024Three.hiOff(N, dim, h, pre, GAP_HI), focus: h.join(',') === pre.join(',') });
+    });
+    if (!boxes.length) boxes.push({ off: [0, 0, 0], focus: true });
+    function bx(p) { return L ? boxIdx[p.slice(0, L).join(',')] : 0; }
+    function in3(p) { return p.slice(L); }
+    function world(p) { var w = M1024Three.toWorld(N, in3(p)), o = boxes[bx(p)].off; return [w[0] + o[0], w[1] + o[1], w[2] + o[2]]; }
+    var el = anim ? now - anim.t0 : Infinity, all = C.allPos(N, dim);
     if (anim && anim.prev && el < anim.slideMs) {
+      // 滑っている途中：動く前の札を、元の場所から行き先へ動かして描く。立方体の間を動く札は、間の空間を通る
       var q = easeOut(el / anim.slideMs);
-      // 選んだ立方体に出入りする札：出ていく札は小さくなって消え、入ってくる札は大きくなって現れる
-      Object.keys(anim.moving).forEach(function (id) {
-        var mv = anim.moving[id], fIn = inSel(mv.from), tIn = inSel(mv.to);
-        if (fIn === tIn) return;
-        var t = anim.prevById[id]; if (!t) return;
-        var p3 = in3(fIn ? mv.from : mv.to);
-        tiles.push({ pos: p3, n: t.n, s: fIn ? 1 - q : q, home: in3(mv.to), goal: false, glow: 0 });
-      });
-      all.forEach(function (p3) {
-        var p = full(p3), t = C.get(anim.prev, p); if (!t) return;
-        var mv = anim.moving[t.id];
-        if (mv && !inSel(mv.to)) return;
-        var pos = mv ? [0, 1, 2].map(function (i) { var a = mv.from[pre.length + i], b = mv.to[pre.length + i]; return a + (b - a) * q; }) : p3;
-        tiles.push({ pos: pos, n: t.n, s: 1, home: mv ? in3(mv.to) : p3, goal: t.n >= game.goalN, glow: t.n >= game.goalN ? 0.35 : 0 });
+      all.forEach(function (p) {
+        var t = C.get(anim.prev, p); if (!t) return;
+        var mv = anim.moving[t.id], goal = t.n >= game.goalN, tile = { n: t.n, s: 1, goal: goal, glow: goal ? 0.35 : 0 };
+        if (!mv) { tile.pos = in3(p); tile.box = bx(p); tile.home = tile.pos; }
+        else {
+          tile.box = bx(mv.to); tile.home = in3(mv.to);
+          if (bx(mv.from) !== tile.box) {
+            var a = world(mv.from), b = world(mv.to);
+            tile.world = [0, 1, 2].map(function (i) { return a[i] + (b[i] - a[i]) * q; });
+            tile.mover = true;
+          } else tile.pos = [0, 1, 2].map(function (i) { var a = mv.from[L + i], b = mv.to[L + i]; return a + (b - a) * q; });
+        }
+        tiles.push(tile);
       });
     } else {
       var k2 = anim ? Math.max(0, Math.min(1, (el - anim.slideMs) / POP_MS)) : 1;
-      all.forEach(function (p3) {
-        var p = full(p3), t = C.get(game.grid, p); if (!t) return;
-        var s = 1, goal = t.n >= game.goalN;
+      all.forEach(function (p) {
+        var t = C.get(game.grid, p); if (!t) return;
+        var s = 1, goal = t.n >= game.goalN, p3 = in3(p);
         if (anim && anim.merged[t.id]) s = 1 + 0.18 * Math.sin(Math.PI * k2);
         else if (anim && anim.spawned[t.id]) s = k2 <= 0 ? 0 : easeOutBack(k2);
         if (goal && fx.glow) s *= fx.pulse;
-        tiles.push({ pos: p3, n: t.n, s: s, home: p3, goal: goal, glow: goal ? Math.max(0.35, fx.glow) : 0 });
+        tiles.push({ pos: p3, box: bx(p), n: t.n, s: s, home: p3, goal: goal, glow: goal ? Math.max(0.35, fx.glow) : 0 });
       });
     }
     var sh = shakeAnim ? [shakeAnim.dx * shakeAnim.k, shakeAnim.dy * shakeAnim.k] : null;
-    M1024Three.draw(ctx, W, H, cam, { N: N, tiles: tiles, colorOf: colorOf, label: label3, dim: fx.dim, shake: sh, alpha: ALPHA_3D });
+    M1024Three.draw(ctx, W, H, cam, { N: N, tiles: tiles, boxes: boxes, colorOf: colorOf, label: label3, dim: fx.dim, shake: sh, alpha: ALPHA_3D });
     drawGizmo(); drawLattice();
   }
   // 3D の札の透け具合（1＝不透明）。2026-11-14 利用者の希望で試す。?alpha=0.5 のように変えて見られる
@@ -679,6 +778,15 @@
   });
   $('alpha-range').addEventListener('change', function (e) { e.target.blur(); });   // 矢印キーが札の操作に戻るように
   showAlpha();
+  // 4D・5D の次元間隔（§25.1）：立方体どうしの間を、立方体何個分空けるか。−1＝全部が1個に重なる、4＝4個分。最初は 1。端末に覚える
+  var GAP_HI = Math.max(-1, Math.min(4, +load('gaphi', 1)));
+  if (!(GAP_HI >= -1)) GAP_HI = 1;
+  function showGap() { $('gap-range').value = GAP_HI; $('gap-v').textContent = GAP_HI <= -0.95 ? t('gapStack') : GAP_HI.toFixed(1); }
+  $('gap-range').addEventListener('input', function (e) {
+    GAP_HI = +e.target.value; save('gaphi', GAP_HI); showGap(); requestRender();
+  });
+  $('gap-range').addEventListener('change', function (e) { e.target.blur(); });
+  showGap();
   // 3D の向きの矢印（3軸の座標の形）。回すたびに描き直す
   var gz = $('gizmo'), gzHot = null;
   function drawGizmo() {
@@ -770,7 +878,8 @@
   }
   function writeLabel(x, cx, cy, cell, n, tr) {
     x.textBaseline = 'middle';
-    var y = cy + cell * 0.03, white = /^#fff/i.test(String(x.fillStyle));
+    // 白い字の札と、べきの赤が沈む札（colorOf の3つ目）は、べきを白い字に赤い縁で書く（§25.21）
+    var y = cy + cell * 0.03, white = /^#fff/i.test(String(x.fillStyle)) || !!colorOf(n)[2];
     if (tr === 0) {
       x.font = numPx(cell, n) + 'px ' + FONTF; x.textAlign = 'center';
       x.fillText(String(Math.pow(2, n)), cx, y);
@@ -877,12 +986,13 @@
   var KEYS = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', a: 'left', d: 'right', w: 'up', s: 'down', A: 'left', D: 'right', W: 'up', S: 'down' };
   function canView() { return game && (mode === 'PLAYING' || mode === 'CLEAR' || mode === 'GAME_OVER'); }
   document.addEventListener('keydown', function (e) {
-    if ($('overlay-settings').hidden === false || $('overlay-sound').hidden === false) return;
+    if ($('overlay-settings').hidden === false || $('overlay-sound').hidden === false || $('overlay-colors').hidden === false) return;
     if (e.target && e.target.tagName === 'INPUT') return;   // スライダーを動かしている間は札を動かさない
     if (mode === 'PLAYING' && KEYS[e.key]) { e.preventDefault(); screenMove(KEYS[e.key], 'key:' + e.key); return; }
     if (mode === 'PLAYING' && game.dim >= 3 && (e.key === 'q' || e.key === 'Q' || e.key === 'e' || e.key === 'E')) {
       e.preventDefault(); depthMove(e.key.toLowerCase() === 'q' ? 'back' : 'front', 'key:' + e.key); return;
     }
+    if (mode === 'PLAYING' && (((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) || e.key === 'Backspace')) { e.preventDefault(); undo('key:' + e.key); return; }
     var HK = { z: 'wminus', x: 'wplus', c: 'vminus', v: 'vplus' }, hk = HK[(e.key || '').toLowerCase()];
     if (mode === 'PLAYING' && hk && game.dim >= 4 && (hk[0] === 'w' || game.dim === 5)) { e.preventDefault(); hiMove(hk, 'key:' + e.key); return; }
     if (canView()) {
@@ -1041,6 +1151,55 @@
   $('gear-btn-game').addEventListener('click', openSettings);   // ゲーム画面の歯車（§21）
   $('set-close').addEventListener('click', function () { overlay('overlay-settings', false); });
   $('overlay-settings').addEventListener('pointerdown', function (e) { if (e.target === e.currentTarget) overlay('overlay-settings', false); });
+
+  // ── 札の色を変える（§25.21）。数字を選び、色の見本か「自由に選ぶ」で色を決める。変えた分だけを端末に覚える ──
+  var colSel = 0;
+  // 見本：決まった20色、RGB の 0%・50%・100% の組み合わせ、パステル。同じ色は1つにまとめる
+  var COL_PAL = (function () {
+    var out = [], seen = {};
+    function add(c) { c = c.toUpperCase(); if (!seen[c]) { seen[c] = 1; out.push(c); } }
+    BASE_COLORS.forEach(add);
+    var L = ['00', '80', 'FF'];
+    L.forEach(function (r) { L.forEach(function (g) { L.forEach(function (b) { add('#' + r + g + b); }); }); });
+    ['#FFA0A0', '#FFC8A0', '#FFFFA0', '#A0FFA0', '#A0FFFF', '#A0C8FF', '#A0A0FF', '#FFA0FF', '#FFA0C8', '#FF8CB3', '#FF80FF', '#C0FFC0',
+     '#FFD8FF', '#808000', '#008080', '#800080', '#800000', '#660000', '#5C3317', '#C0C0C0', '#404040'].forEach(add);
+    return out;
+  })();
+  function colorsChanged() {
+    rebuildColors();
+    if (game) { drawLegend(); renderHud(); requestRender(); }
+    buildColorPanel();
+  }
+  function setColor(n, hex) {
+    hex = hex.toUpperCase();
+    if (hex === BASE_COLORS[n]) delete COLOR_OVR[n]; else COLOR_OVR[n] = hex;
+    save('colors', COLOR_OVR); colorsChanged();
+  }
+  function buildColorPanel() {
+    var nums = $('col-nums'); nums.innerHTML = '';
+    BASE_COLORS.forEach(function (c0, n) {
+      var col = colorOf(n), b = document.createElement('button');
+      b.type = 'button'; b.className = 'col-num' + (n === colSel ? ' sel' : '');
+      b.style.background = col[0]; b.style.color = col[1];
+      b.innerHTML = fmtShort(Math.pow(2, n)) + '<small>2^' + n + (COLOR_OVR[n] ? ' *' : '') + '</small>';
+      b.addEventListener('click', function () { colSel = n; buildColorPanel(); });
+      nums.appendChild(b);
+    });
+    var pal = $('col-pal'); pal.innerHTML = '';
+    COL_PAL.forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'col-sw' + (c === colorOf(colSel)[0] ? ' cur' : ''); b.style.background = c; b.title = c;
+      b.addEventListener('click', function () { setColor(colSel, c); });
+      pal.appendChild(b);
+    });
+    $('col-free').value = colorOf(colSel)[0].toLowerCase();
+  }
+  $('col-free').addEventListener('input', function (e) { setColor(colSel, e.target.value); });
+  $('colors-open').addEventListener('click', function () { overlay('overlay-settings', false); buildColorPanel(); overlay('overlay-colors', true); });
+  $('col-reset').addEventListener('click', function () { COLOR_OVR = {}; save('colors', COLOR_OVR); colorsChanged(); });
+  function closeColors() { overlay('overlay-colors', false); openSettings(); }
+  $('col-close').addEventListener('click', closeColors);
+  $('overlay-colors').addEventListener('pointerdown', function (e) { if (e.target === e.currentTarget) closeColors(); });
   function soundAnswer(play) {
     quiet = !play; audioAsked = true;
     if (window.M1024Sound) M1024Sound.unlock();

@@ -294,6 +294,16 @@
   }
 
   function visibleNext(state) { return state.queue.slice(0, NEXT_VISIBLE[state.difficulty]); }
+  /* §25.5 次に札が出る手で、出る札の数字（出る順）。state は変えない。
+     wait＝あと何手動かすと出るか（1＝次の手）。出る場所を選ぶ乱数も1枚ごとに1つ使うので、move と同じ順に回して数字を求める。
+     （空きが足りなくて出せない分や、その手でクリアした場合は出ないが、ここでは数えない） */
+  function nextSpawns(state) {
+    var acc = state.spawnAcc || 0, wait = 0, k = 0;
+    while (k === 0 && wait < 100) { wait++; var due = acc + state.spawnPerMove; k = Math.floor(due + 1e-9); acc = due - k; }
+    var sim = { rng: state.rng, queue: state.queue.slice(), size: state.size, difficulty: state.difficulty, dim: state.dim }, vals = [];
+    for (var i = 0; i < k; i++) { vals.push(sim.queue.shift()); while (sim.queue.length < QUEUE_LEN) sim.queue.push(drawN(sim)); rngNext(sim); }   // move と同じ順：札を取って列を足し、場所を選ぶ
+    return { wait: wait, values: vals };
+  }
 
   return {
     MIN_SIZE: MIN_SIZE, MAX_SIZE: MAX_SIZE, MIN_SIZE_3D: MIN_SIZE_3D, MAX_SIZE_3D: MAX_SIZE_3D,
@@ -303,7 +313,7 @@
     DIRS2: DIRS2, DIRS3: DIRS3, DIRS4: DIRS4, DIRS5: DIRS5,
     TUNE: TUNE, spawnsPerMove: spawnsPerMove,
     goalNFor: goalNFor, maxSpawnN: maxSpawnN, startTiles: startTiles, spawnDist: spawnDist,
-    newGame: newGame, move: move, canMove: canMove, visibleNext: visibleNext,
+    newGame: newGame, move: move, canMove: canMove, visibleNext: visibleNext, nextSpawns: nextSpawns,
     emptyCells: emptyCells, get: get, allPos: allPos
   };
 });

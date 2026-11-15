@@ -65,39 +65,87 @@
     return 'rgb(' + f(r) + ',' + f(g) + ',' + f(b) + ')';
   }
 
-  /* 描く。o = { N, tiles:[{pos:[d,r,c](小数可), n, s(大きさ), goal, glow}], colorOf(n)→[札,文字], label(n, px)→{text,font},
-                 dim(0..1 暗くする), shake:[dx,dy] } */
+  /* 4D・5D：立方体の並び（§24）。注目する立方体を原点に置き、ほかの立方体は立方体 gap 個分の間を空けて並べる
+     （中心の間隔は (1+gap)N。gap は次元間隔のつまみ §25.1、−1 で全部が重なる）。並びの図と同じ向き：w は右が＋、v は下が＋。
+     p＝盤面の位置、pre＝注目する立方体の頭の部分 */
+  function hiOff(N, dim, p, pre, gap) {
+    var sp = (1 + (gap == null ? 1 : gap)) * N;
+    if (dim === 4) return [(p[0] - pre[0]) * sp, 0, 0];
+    if (dim === 5) return [(p[1] - pre[1]) * sp, -(p[0] - pre[0]) * sp, 0];
+    return [0, 0, 0];
+  }
+  /* 描く。o = { N, tiles:[{pos:[d,r,c](小数可), n, s(大きさ), goal, glow, home, box, world, mover}], colorOf(n)→[札,文字],
+                 label(n, px)→{text,font}, dim(0..1 暗くする), shake:[dx,dy],
+                 boxes:[{off:[x,y,z], focus}]（4D・5D の立方体の並び。無ければ1個） }
+     札の box＝どの立方体にあるか（boxes の番号）。world＝空間の位置を直に渡す（立方体の間を動く札）。
+     mover＝立方体の間を動いている札（消した立方体の札でも描く） */
   function draw(ctx, W, H, cam, o) {
     var N = o.N, fr = frame(cam, W, H, N), h = N / 2;
+    var boxes = o.boxes || [{ off: [0, 0, 0], focus: true }];
+    var NEAR = N * 0.3;   // 目に近すぎるもの（目の後ろに回ったものも）は描かない
     ctx.save();
     if (o.shake) ctx.translate(o.shake[0], o.shake[1]);
-    // 外枠（Cube と同じく暗い背景に細い線）
-    var corners = [];
-    for (var i = 0; i < 8; i++) corners.push(proj(fr, rot(cam, [i & 1 ? h : -h, i & 2 ? h : -h, i & 4 ? h : -h])));
+    var info = boxes.map(function (b) {
+      var cs = [], ok = true;
+      for (var i = 0; i < 8; i++) {
+        var p = proj(fr, rot(cam, [b.off[0] + (i & 1 ? h : -h), b.off[1] + (i & 2 ? h : -h), b.off[2] + (i & 4 ? h : -h)]));
+        if (p.depth < NEAR) ok = false;
+        cs.push(p);
+      }
+      var hp = ok ? hull(cs.map(function (p) { return [p.x, p.y]; })) : null, x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      if (hp) hp.forEach(function (p) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); });
+      var onScreen = ok && x1 > -20 && x0 < W + 20 && y1 > -20 && y0 < H + 20;
+      return { b: b, corners: cs, hull: hp, z: rot(cam, b.off)[2], ok: onScreen };
+    });
+    // 注目する立方体から見て、目の方へ 45 度より深く傾いた向きにある立方体は消す（§25.7。前は手前にあって重なれば消した §24）
+    //   重なっているとき（次元間隔 −1）は向きが無いので消さない
+    var foc = info.filter(function (x) { return x.b.focus; })[0], COS45 = Math.SQRT1_2;
+    if (foc) info.forEach(function (x) {
+      if (x === foc || !x.ok) return;
+      var d = rot(cam, [x.b.off[0] - foc.b.off[0], x.b.off[1] - foc.b.off[1], x.b.off[2] - foc.b.off[2]]), l = Math.hypot(d[0], d[1], d[2]);
+      if (l > 1e-6 && d[2] / l > COS45) x.ok = false;
+    });
+    // 外枠（Cube と同じく暗い背景に細い線）。ほかの立方体の枠は薄く
     var EDGES = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
     ctx.lineWidth = 1.2;
-    EDGES.forEach(function (e) {
-      var a = corners[e[0]], b = corners[e[1]];
-      ctx.strokeStyle = 'rgba(148,163,184,0.38)';
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    info.forEach(function (x) {
+      if (!x.ok) return;
+      ctx.strokeStyle = x.b.focus ? 'rgba(148,163,184,0.38)' : 'rgba(148,163,184,0.2)';
+      ctx.beginPath();
+      EDGES.forEach(function (e) { var a = x.corners[e[0]], b = x.corners[e[1]]; ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); });
+      ctx.stroke();
     });
     // 空きマスの点
     var occupied = {};
-    o.tiles.forEach(function (t) { if (t.home) occupied[t.home.join(',')] = true; });
-    ctx.fillStyle = 'rgba(100,116,139,0.55)';
-    for (var d = 0; d < N; d++) for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) {
-      if (occupied[d + ',' + r + ',' + c]) continue;
-      var pp = proj(fr, rot(cam, toWorld(N, [d, r, c])));
-      ctx.beginPath(); ctx.arc(pp.x, pp.y, Math.max(1.2, 0.05 * pp.k), 0, Math.PI * 2); ctx.fill();
-    }
+    o.tiles.forEach(function (t) { if (t.home) occupied[(t.box || 0) + '|' + t.home.join(',')] = true; });
+    info.forEach(function (x, bi) {
+      if (!x.ok) return;
+      ctx.fillStyle = x.b.focus ? 'rgba(100,116,139,0.55)' : 'rgba(100,116,139,0.35)';
+      for (var d = 0; d < N; d++) for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) {
+        if (occupied[bi + '|' + d + ',' + r + ',' + c]) continue;
+        var w = toWorld(N, [d, r, c]), pp = proj(fr, rot(cam, [w[0] + x.b.off[0], w[1] + x.b.off[1], w[2] + x.b.off[2]]));
+        if (pp.x < -10 || pp.x > W + 10 || pp.y < -10 || pp.y > H + 10) continue;
+        ctx.beginPath(); ctx.arc(pp.x, pp.y, Math.max(1.2, 0.05 * pp.k), 0, Math.PI * 2); ctx.fill();
+      }
+    });
     // 札：奥から順に
-    var list = o.tiles.map(function (t) {
-      var q = rot(cam, toWorld(N, t.pos));
-      return { t: t, q: q, depth: fr.dist - q[2] };
-    }).sort(function (a, b) { return b.depth - a.depth; });
+    var list = [];
+    o.tiles.forEach(function (t) {
+      var x = info[t.box || 0];
+      if (!t.mover && !x.ok) return;
+      var w = t.world;
+      if (!w) { var w0 = toWorld(N, t.pos), off = x.b.off; w = [w0[0] + off[0], w0[1] + off[1], w0[2] + off[2]]; }
+      var q = rot(cam, w), pc = proj(fr, q);
+      if (pc.depth < NEAR) return;
+      var R = pc.k * TILE;
+      if (pc.x < -R || pc.x > W + R || pc.y < -R || pc.y > H + R) return;
+      list.push({ t: t, q: q, depth: pc.depth, focus: x.b.focus });
+    });
+    list.sort(function (a, b) { return b.depth - a.depth; });
     // 数字の出し方を盤面でそろえる（§22・§23）。2D と同じ3段：0＝普通の数字／1＝2 と小さい n／2＝n だけ
     //   映っている札のどれか1枚でも読めなければ、全部を次の段にする。斜めの面も考えて、立方体の一辺の 8 割で見る
-    var sizes = list.map(function (it) { return { n: it.t.n, size: proj(fr, it.q).k * TILE * 0.8 }; });
+    //   4D・5D は、注目する立方体の札だけで決める（遠くの小さな札に引っ張られないように）
+    var sizes = list.filter(function (it) { return it.focus; }).map(function (it) { return { n: it.t.n, size: proj(fr, it.q).k * TILE * 0.8 }; });
     var mode = sizes.every(function (z) { return z.size * fitOf(String(Math.pow(2, z.n))) >= 9; }) ? 0
       : sizes.every(function (z) { return z.size * fitPow(z.n) >= 9; }) ? 1 : 2;
     o = Object.assign({}, o, { labelMode: mode });
@@ -256,8 +304,9 @@
       if (scr < 7) return;
       // 数字は面の縁いっぱいに書く（§19.2）。べき（n）だけのときは赤（§22）
       var md = o.labelMode || 0, color = o.dim ? 'rgba(0,0,0,0.6)' : col[1];
-      var img = md === 1 ? powImg(t.n, color, !!o.deferText, !o.dim)
-        : labelImg(md === 2 ? String(t.n) : String(Math.pow(2, t.n)), color, !!o.deferText, md === 2 && !o.dim);
+      var sink = !!col[2];   // べきの赤が札に沈む札は、白い字に赤い縁（§25.21）
+      var img = md === 1 ? powImg(t.n, color, !!o.deferText, !o.dim, sink)
+        : labelImg(md === 2 ? String(t.n) : String(Math.pow(2, t.n)), color, !!o.deferText, md === 2 && !o.dim, sink);
       if (scr * img.fit < 4) return;
       ctx.save();
       ctx.transform(ux, uy, vx, vy, a.x, a.y);
@@ -293,29 +342,29 @@
     return FITS[k];
   }
   // red：上付きの n を赤くする（ゲームオーバーで暗くしているときは赤くしない）
-  function powImg(n, color, edge, red) {
-    var k = '^' + n + '|' + color + '|' + (edge ? 1 : 0) + '|' + (red ? 1 : 0);
+  function powImg(n, color, edge, red, sink) {
+    var k = '^' + n + '|' + color + '|' + (edge ? 1 : 0) + '|' + (red ? 1 : 0) + '|' + (sink ? 1 : 0);
     if (LABELS[k]) return LABELS[k];
     var c = document.createElement('canvas'); c.width = c.height = LABEL_PX;
     var x = c.getContext('2d'), base = fitPow(n) * LABEL_PX, sup = base * 0.6, ns = String(n);
     c.fit = fitPow(n);
     x.font = "100px 'Fredoka One', sans-serif";
     var w2 = x.measureText('2').width / 100 * base, wn = x.measureText(ns).width / 100 * sup;
-    var left = LABEL_PX / 2 - (w2 + wn + base * 0.04) / 2, y = LABEL_PX / 2 + LABEL_PX * 0.02, white = /^#fff/i.test(color);
+    var left = LABEL_PX / 2 - (w2 + wn + base * 0.04) / 2, y = LABEL_PX / 2 + LABEL_PX * 0.02, white = /^#fff/i.test(color), wexp = white || sink;
     x.textAlign = 'left'; x.textBaseline = 'middle'; x.lineJoin = 'round';
     x.font = base + "px 'Fredoka One', sans-serif";
     if (edge) { x.lineWidth = Math.max(3, base * 0.14); x.strokeStyle = white ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.9)'; x.strokeText('2', left, y + base * 0.1); }
     x.fillStyle = color; x.fillText('2', left, y + base * 0.1);
     x.font = sup + "px 'Fredoka One', sans-serif";
     var sx = left + w2 + base * 0.04, sy = y - base * 0.28;
-    if (red && white) { x.lineWidth = Math.max(3, sup * 0.2); x.strokeStyle = EXP_RED; x.strokeText(ns, sx, sy); x.fillStyle = '#FFFFFF'; }
+    if (red && wexp) { x.lineWidth = Math.max(3, sup * 0.2); x.strokeStyle = EXP_RED; x.strokeText(ns, sx, sy); x.fillStyle = '#FFFFFF'; }
     else if (red) { if (edge) { x.lineWidth = Math.max(3, sup * 0.16); x.strokeStyle = 'rgba(255,255,255,0.9)'; x.strokeText(ns, sx, sy); } x.fillStyle = EXP_RED; }
     else x.fillStyle = color;
     x.fillText(ns, sx, sy);
     return (LABELS[k] = c);
   }
-  function labelImg(lab, color, edge, exp) {
-    var k = lab + '|' + color + '|' + (edge ? 1 : 0) + '|' + (exp ? 1 : 0);
+  function labelImg(lab, color, edge, exp, sink) {
+    var k = lab + '|' + color + '|' + (edge ? 1 : 0) + '|' + (exp ? 1 : 0) + '|' + (sink ? 1 : 0);
     if (LABELS[k]) return LABELS[k];
     var c = document.createElement('canvas'); c.width = c.height = LABEL_PX;
     var x = c.getContext('2d');
@@ -325,7 +374,7 @@
     x.font = px + "px 'Fredoka One', sans-serif";
     x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = color;
     if (exp) {   // べき：普通は赤い字。白い字の札は、白い字に赤い縁
-      var white = /^#fff/i.test(color);
+      var white = /^#fff/i.test(color) || sink;
       x.lineJoin = 'round';
       if (white) { x.lineWidth = Math.max(4, px * 0.18); x.strokeStyle = EXP_RED; x.strokeText(lab, LABEL_PX / 2, LABEL_PX / 2 + LABEL_PX * 0.02); x.fillStyle = '#FFFFFF'; }
       else {
@@ -540,7 +589,8 @@
       CUBE_EDGES.forEach(function (e) { var a = cb.s[e[0]], b = cb.s[e[1]]; ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); });
       ctx.stroke();
     });
-    m.arrows.forEach(function (a) {   // 丸いボタンに、向きの三角
+    // 矢印は奥から順に描き、手前に来た矢印が上に重なるようにする（§25.2。前は横→縦の決まった順で、縦が常に上だった）
+    m.arrows.slice().sort(function (a, b) { return a.qa[2] + a.qb[2] - b.qa[2] - b.qb[2]; }).forEach(function (a) {   // 丸いボタンに、向きの三角
       var on = hot === a.dir, cx = a.c[0], cy = a.c[1], ux = a.u[0], uy = a.u[1], r = ARW_R;
       ctx.fillStyle = on ? '#ffffff' : LCOL[a.ax];
       ctx.globalAlpha = on ? 1 : 0.92;
@@ -558,6 +608,9 @@
   // 押した点：矢印なら {arrow}、立方体なら {cube:{w,v}}。矢印は丸より少し広く拾う
   function latticeHit(w, h, cam, dim, N, x, y) {
     var m = latticeGeo(dim, N, cam, w, h), best = null, bd = 1e9;
+    // 丸の中を押したら、重なっていても手前の矢印を選ぶ（描く順と合わせる）
+    var inR = m.arrows.filter(function (a) { return Math.hypot(x - a.c[0], y - a.c[1]) < ARW_R; });
+    if (inR.length) return { arrow: inR.sort(function (a, b) { return b.qa[2] + b.qb[2] - a.qa[2] - a.qb[2]; })[0] };
     m.arrows.forEach(function (a) { var d = Math.hypot(x - a.c[0], y - a.c[1]); if (d < bd) { bd = d; best = { arrow: a }; } });
     if (bd < ARW_R + 8) return best;
     best = null; bd = 1e9;
@@ -572,12 +625,19 @@
     return [qb[0] - qa[0], -(qb[1] - qa[1])];
   }
 
-  window.M1024Three = {
+  // 動いた向きの、画面での向き [x, y（下が＋）, z（手前が＋）]（§25.3 大きな矢印）。4D・5D の w・v は、ゲーム画面の立方体の並びの向き
+  var HIV = { wplus: [1, 0, 0], wminus: [-1, 0, 0], vplus: [0, -1, 0], vminus: [0, 1, 0] };
+  function moveVec(cam, dir) {
+    var v = DIRV[dir] || HIV[dir]; if (!v) return null;
+    var q = rot(cam, v); return [q[0], -q[1], q[2]];
+  }
+
+  window.M1024Three = { moveVec: moveVec,
     flatFrame: flatFrame, flatOrder: flatOrder, drawFlat: drawFlat,
     drawLattice: drawLattice, latticeHit: latticeHit, latticeArrowVec: latticeArrowVec,
     OPT: OPT, clearLabels: clearLabels,
     drawGizmo: drawGizmo, gizmoHit: gizmoHit, arrows: arrows,
-    makeCam: makeCam, home: home, rotateBy: rotateBy, draw: draw,
+    makeCam: makeCam, home: home, rotateBy: rotateBy, draw: draw, toWorld: toWorld, hiOff: hiOff,
     outline: outline, inside: inside, dirFor: dirFor, depthDirs: depthDirs
   };
 })();

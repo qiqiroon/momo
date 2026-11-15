@@ -30,12 +30,16 @@
   var LEVELS = [[-2, 0, 4], [0, 0, 4], [0, 0.4, 5], [0, 1, 5], [0.25, 1, 5], [0.5, 1, 5], [0.75, 1, 5], [1, 1, 5],
     [1.5, 1, 5], [2, 1, 5], [3, 1, 5], [4, 1, 5], [6, 1, 5], [8, 1, 5], [12, 1, 5], [16, 1, 5]];
   //   4つ目（省略可）＝元の重みのうち「1」の割合（§26.1）。残りは元の重みの比のまま分ける
+  //   5つ目（省略可）＝手助けの割合（§26.6）。手助けでは、出す数字と場所を「次の一手で札がいちばん減る」組み合わせにする。残りはこれまでどおり
   // 盤面ごとの目盛り [EASY, HARD, APO]。tools/find_levels.js で決めた（§20）。無い盤面は [0, 1, 2]
+  //   2D 6〜16 の EASY は、ぐるりと順番に押してほぼ（9割以上）クリアできる目盛りに下げた（§26.2、tools/easy_rate.js）
   //   目盛りの番号の代わりに目盛りそのもの（配列）を置いてもよい。小さい3つの盤面の EASY は利用者が決めた（§26.1）
   var EASY_SMALL_1 = 0.8;   // 小さい盤面の EASY で「1」が出る割合
+  var EASY_HELP = 1;        // 2D 4×4 の EASY で手助けをする割合（§26.4・26.6。GOAL は下げない／毎回最善の手助け：利用者）
+  var EASY_HELP_5 = 0.7;    // 2D 5×5 の EASY は手助けを7割にして少し難しくする（§26.8 利用者）
   var LEVEL_TABLE = {
-    '2:4': [[0, 0, 4, EASY_SMALL_1], 1, 2], '2:5': [1, 2, 3], '2:6': [5, 6, 7], '2:7': [6, 7, 8], '2:8': [6, 7, 8], '2:9': [6, 7, 8],
-    '2:10': [6, 7, 8], '2:11': [6, 7, 8], '2:12': [7, 8, 9], '2:13': [9, 10, 14], '2:14': [6, 7, 8], '2:15': [8, 9, 14], '2:16': [6, 7, 9],
+    '2:4': [[0, 0, 4, EASY_SMALL_1, EASY_HELP], 1, 2], '2:5': [[0, 0, 4, null, EASY_HELP_5], 2, 3], '2:6': [2, 6, 7], '2:7': [4, 7, 8], '2:8': [4, 7, 8], '2:9': [4, 7, 8],
+    '2:10': [5, 7, 8], '2:11': [5, 7, 8], '2:12': [5, 8, 9], '2:13': [5, 10, 14], '2:14': [5, 7, 8], '2:15': [5, 9, 14], '2:16': [5, 7, 9],
     '3:2': [[-2, 0, 4, EASY_SMALL_1], 1, 2], '3:3': [6, 7, 8], '3:4': [5, 6, 7], '3:5': [6, 7, 9], '4:2': [[-2, 0, 4, EASY_SMALL_1], 1, 2], '5:2': [1, 2, 3], '4:3': [5, 6, 7], '5:3': [10, 11, 15], '4:4': [5, 6, 8], '5:4': [5, 6, 7]
   };
   // §10.3 次の札をいくつ見せるか
@@ -151,11 +155,64 @@
 
   function newTile(state, n) { return { n: n, id: ++state.idCounter }; }
 
+  // その盤面で手助けの場所に出す割合（0 なら手助けなし）
+  function helpRate(state) { var L = levelRow(state.size, state.dim, state.difficulty); return L[4] || 0; }
+  // その盤面で、次の一手で合体する組の数（＝札が減る枚数）のいちばん多い向きの値。合体の数は向きの正負によらない
+  function bestMerges(grid, N, dim) {
+    var best = 0, ds = dirsOf(dim);
+    for (var d in ds) {
+      if (ds[d][1]) continue;   // 同じ軸の逆向きは同じ数
+      var m = 0;
+      linesOf(d, N, dim).forEach(function (cells) {
+        var prev = 0;
+        cells.forEach(function (p) { var t = get(grid, p); if (!t) return; if (prev && prev === t.n) { m++; prev = 0; } else prev = t.n; });
+      });
+      if (m > best) best = m;
+    }
+    return best;
+  }
+  // §26.6 手助けの良さ：次にどの向きを押しても札が減るように、4（3D 以上は全部の）向きそれぞれで
+  //   「その向きに動かしたときの合体の数 ＋ 0.5 ×その次の一手で合体できるいちばん多い数」を足したもの
+  //   （試算で、向きを1つだけ見るより 4×4・5×5 ともよかった。tools/easy_help.js）
+  function helpScore(grid, N, dim) {
+    var t = 0, ds = dirsOf(dim);
+    var fake = { grid: grid, size: N, dim: dim, difficulty: 'EASY', score: 0, moves: 0, maxN: 0, goalN: 99, status: 'PLAYING', spawnPerMove: 0, idCounter: 0, rng: 1, queue: [] };
+    for (var d in ds) {
+      var r = move(fake, d);
+      if (r.moved) t += r.events.merges.length + 0.5 * bestMerges(r.state.grid, N, dim);
+    }
+    return t;
+  }
   // 空きマスの1つに札を出す。出した場所と札を返す（空きがなければ null）
-  function spawnAt(state, n) {
+  // help：手助けをする盤面なら、割合 help で「置いたあと次の一手で札がいちばん減る場所」（同点は無作為）に出す。
+  //   手助けの盤面では、出すたびに乱数を必ず2つ使う（先読み nextSpawns と合わせるため）
+  function spawnAt(state, n, help) {
     var cells = emptyCells(state.grid);
     if (!cells.length) return null;
-    var pos = cells[Math.floor(rngNext(state) * cells.length)];
+    var pos;
+    if (help) {
+      // §26.6 手助け：出せる数字それぞれ × 空きマスそれぞれに置いてみて、次の一手で合体する組がいちばん多い組み合わせにする。
+      //   良さは helpScore。どこに何を置いても良さが 0 のときは、ふつうに引いた数字 n を無作為の場所に出す。
+      //   いちばん多い組み合わせが複数あれば、n を使えるものを優先し、その中から無作為。乱数は必ず2つ使う（先読みと合わせるため）
+      var useHelp = rngNext(state) < help, r = rngNext(state);
+      if (useHelp) {
+        var N = state.size, dim = state.dim, dist = spawnDist(N, state.difficulty, dim), top = 0, tops = [];
+        for (var v = 0; v < dist.length; v++) {
+          if (!(dist[v] > 0)) continue;
+          cells.forEach(function (c) {
+            put(state.grid, c, { n: v }); var m = helpScore(state.grid, N, dim); put(state.grid, c, null);
+            if (m > top) { top = m; tops = [[v, c]]; } else if (m === top && m > 0) tops.push([v, c]);
+          });
+        }
+        if (tops.length) {
+          var withN = tops.filter(function (x) { return x[0] === n; });
+          if (withN.length) tops = withN;
+          var pick = tops[Math.floor(r * tops.length)];
+          n = pick[0]; pos = pick[1];
+        }
+      }
+      if (!pos) pos = cells[Math.floor(r * cells.length)];
+    } else pos = cells[Math.floor(rngNext(state) * cells.length)];
     var t = newTile(state, n);
     put(state.grid, pos, t);
     if (n > state.maxN) state.maxN = n;
@@ -281,7 +338,8 @@
       s.spawnAcc = due - k;
       for (var x = 0; x < k; x++) {
         if (!emptyCells(g).length) break;
-        spawns.push(spawnAt(s, takeFromQueue(s)));
+        var help = helpRate(s);
+        spawns.push(spawnAt(s, help ? drawN(s) : takeFromQueue(s), help));   // 手助けの盤面は数字もその場で決めるので、次の札の列を使わない
       }
       if (!canMove(g)) s.status = 'GAME_OVER';
     }
@@ -304,7 +362,7 @@
     return false;
   }
 
-  function visibleNext(state) { return state.queue.slice(0, NEXT_VISIBLE[state.difficulty]); }
+  function visibleNext(state) { return helpRate(state) ? [] : state.queue.slice(0, NEXT_VISIBLE[state.difficulty]); }   // 手助けの盤面は、出る数字が出るまで決まらない
   /* §25.5 次に札が出る手で、出る札の数字（出る順）。state は変えない。
      wait＝あと何手動かすと出るか（1＝次の手）。出る場所を選ぶ乱数も1枚ごとに1つ使うので、move と同じ順に回して数字を求める。
      （空きが足りなくて出せない分や、その手でクリアした場合は出ないが、ここでは数えない） */
@@ -312,7 +370,9 @@
     var acc = state.spawnAcc || 0, wait = 0, k = 0;
     while (k === 0 && wait < 100) { wait++; var due = acc + state.spawnPerMove; k = Math.floor(due + 1e-9); acc = due - k; }
     var sim = { rng: state.rng, queue: state.queue.slice(), size: state.size, difficulty: state.difficulty, dim: state.dim }, vals = [];
-    for (var i = 0; i < k; i++) { vals.push(sim.queue.shift()); while (sim.queue.length < QUEUE_LEN) sim.queue.push(drawN(sim)); rngNext(sim); }   // move と同じ順：札を取って列を足し、場所を選ぶ
+    if (helpRate(state)) return { wait: wait, values: [], count: k };   // 手助けの盤面は、出る数字がその場で決まるので先読みしない
+    var perTile = 1;
+    for (var i = 0; i < k; i++) { vals.push(sim.queue.shift()); while (sim.queue.length < QUEUE_LEN) sim.queue.push(drawN(sim)); for (var q = 0; q < perTile; q++) rngNext(sim); }   // move と同じ順：札を取って列を足し、場所を選ぶ
     return { wait: wait, values: vals };
   }
 
@@ -320,7 +380,7 @@
     MIN_SIZE: MIN_SIZE, MAX_SIZE: MAX_SIZE, MIN_SIZE_3D: MIN_SIZE_3D, MAX_SIZE_3D: MAX_SIZE_3D,
     MIN_SIZE_HI: MIN_SIZE_HI, MAX_SIZE_HI: MAX_SIZE_HI, sizeRange: sizeRange, dirsOf: dirsOf,
     DIFFICULTIES: DIFFICULTIES, BASE_W: BASE_W, LEVELS: LEVELS, LEVEL_TABLE: LEVEL_TABLE, NEXT_VISIBLE: NEXT_VISIBLE,
-    levelsOf: levelsOf, levelOf: levelOf, levelRow: levelRow, spawnTopN: spawnTopN,
+    levelsOf: levelsOf, levelOf: levelOf, levelRow: levelRow, helpRate: helpRate, bestMerges: bestMerges, helpScore: helpScore, spawnTopN: spawnTopN,
     DIRS2: DIRS2, DIRS3: DIRS3, DIRS4: DIRS4, DIRS5: DIRS5,
     TUNE: TUNE, spawnsPerMove: spawnsPerMove,
     goalNFor: goalNFor, maxSpawnN: maxSpawnN, startTiles: startTiles, spawnDist: spawnDist,

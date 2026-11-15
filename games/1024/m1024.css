@@ -208,3 +208,5 @@ body.hidim #gizmo{width:128px;}
 .col-sw.cur{outline:2px solid #fb923c;outline-offset:1px;}
 .col-free{display:flex;align-items:center;justify-content:space-between;font-size:0.85rem;}
 .col-free input{width:56px;height:30px;border:none;background:none;padding:0;cursor:pointer;}
+/* §26.5 評価の促し（共通の部品 momo-rating.js）は、結果の板のボタンに重ならないよう、1024 では画面の上側に出す */
+.momo-rating-toast{top:calc(env(safe-area-inset-top,0px) + 100px)!important;bottom:auto!important;}

@@ -29,7 +29,7 @@
   var I18N = {
     ja: {
       sizeLabel: '盤面の大きさ', spawnLabel: '出る数字：', diffLabel: '難易度',
-      EASY: '向きを順番に押すだけでも、運がよければクリアできる強さ。次の札が3個見える', HARD: '向きを順番に押すだけでは、まずクリアできない強さ。次の札が1個見える', APO: 'HARD よりさらに混む。次の札は見えない',
+      EASY: '向きを順番に押すだけでも、運がよければクリアできる強さ。次の札が3個見える', EASY2: '向きをぐるりと順番に押すだけでも、たいていクリアできる強さ。次の札が3個見える', EASY_HELP: '札が、次の一手で減りやすい数字と場所に出る（手助け）。そのため次の札は見えない', HARD: '向きを順番に押すだけでは、まずクリアできない強さ。次の札が1個見える', APO: 'HARD よりさらに混む。次の札は見えない',
       perMove: '1手で {k} 枚', perMoves: '{k}手に1枚',
       howtoTitle: '遊び方',
       howto1: '上下左右に払う（PC は矢印キー）と、盤面の札が全部その向きへ滑ります。',
@@ -55,7 +55,7 @@
     },
     en: {
       sizeLabel: 'BOARD SIZE', spawnLabel: 'Spawns: ', diffLabel: 'DIFFICULTY',
-      EASY: 'Just pressing every direction in turn can clear it with luck. You can see the next 3 tiles.', HARD: 'Pressing every direction in turn will almost never clear it. You can see the next tile.', APO: 'Even more crowded than HARD. The next tile is hidden.',
+      EASY: 'Just pressing every direction in turn can clear it with luck. You can see the next 3 tiles.', EASY2: 'Just pressing the directions round in turn usually clears it. You can see the next 3 tiles.', EASY_HELP: 'New tiles appear with the number and place that best help your next move, so the next tile is not shown.', HARD: 'Pressing every direction in turn will almost never clear it. You can see the next tile.', APO: 'Even more crowded than HARD. The next tile is hidden.',
       perMove: '{k} per move', perMoves: '1 every {k} moves',
       howtoTitle: 'How to play',
       howto1: 'Swipe up, down, left or right (arrow keys on a PC) and every tile on the board slides that way.',
@@ -81,7 +81,7 @@
     },
     zh: {
       sizeLabel: '盘面大小', spawnLabel: '出现数字：', diffLabel: '难度',
-      EASY: '只按顺序轮流按各个方向，运气好也能过关。可以看到接下来的3个方块', HARD: '只按顺序轮流按各个方向，几乎无法过关。可以看到下一个方块', APO: '比 HARD 更拥挤。看不到下一个方块',
+      EASY: '只按顺序轮流按各个方向，运气好也能过关。可以看到接下来的3个方块', EASY2: '只要按顺序转圈按各个方向，通常就能过关。可以看到接下来的3个方块', EASY_HELP: '新方块会以最有利于下一步的数字和位置出现（辅助），所以看不到下一个方块', HARD: '只按顺序轮流按各个方向，几乎无法过关。可以看到下一个方块', APO: '比 HARD 更拥挤。看不到下一个方块',
       perMove: '每步 {k} 个', perMoves: '每 {k} 步 1 个',
       howtoTitle: '玩法',
       howto1: '向上下左右滑动（电脑用方向键），盘面上所有方块都会朝那个方向移动。',
@@ -225,7 +225,9 @@
     $('size-spawn').textContent = t('range', { a: 1, b: fmt(Math.pow(2, C.spawnTopN(N, dim, sel.difficulty))) });
     var k = C.spawnsPerMove(N, dim, sel.difficulty);   // 1手で出る札（§20）
     $('size-count').textContent = k >= 1 ? t('perMove', { k: k }) : t('perMoves', { k: Math.round(1 / k) });
-    $('diff-desc').textContent = t(sel.difficulty);
+    // §26.6 2D の EASY は、ぐるりと押すだけでもたいていクリアできる。4×4・5×5 の EASY は手助けがある（次の札は見えない）
+    var help = C.levelRow(N, dim, sel.difficulty)[4];
+    $('diff-desc').textContent = t(help ? 'EASY_HELP' : sel.difficulty === 'EASY' && dim === 2 ? 'EASY2' : sel.difficulty);
     // 小さな盤面の絵
     var cv = $('size-preview'), x = cv.getContext('2d'), s = cv.width;
     x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, s, s); x.fillStyle = '#1f2937'; x.fillRect(0, 0, s, s);

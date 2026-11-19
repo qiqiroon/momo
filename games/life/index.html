@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>MOMO Life - 多種族のライフゲーム | MOMO Works</title>
+<meta name="description" content="ブラウザで眺める無料の多種族ライフゲーム。生き物を置いてルールを自由に書ける世界、4つの種族が食べ合う世界、空の盤から新しい種族が次々に生まれて 32 種まで増え、置き形を学習しながら栄えたり滅んだりする世界を、GPU で大きな盤のまま動かせる。登録不要・インストール不要。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/games/life/">
+<link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/games/life/ja/">
+<link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/games/life/en/">
+<link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/games/life/zh/">
+<link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/games/life/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
+<meta property="og:url" content="https://qiqiroon.github.io/momo/games/life/">
+<meta property="og:title" content="MOMO Life - 多種族のライフゲーム">
+<meta property="og:description" content="ブラウザで眺める無料の多種族ライフゲーム。生き物を置いてルールを自由に書ける世界、4つの種族が食べ合う世界、空の盤から新しい種族が次々に生まれて 32 種まで増え、置き形を学習しながら栄えたり滅んだりする世界を、GPU で大きな盤のまま動かせる。登録不要・インストール不要。">
+<meta property="og:image" content="https://qiqiroon.github.io/momo/games/life/apple-touch-icon.png">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="life.css">
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
+<script src="/momo/lib/momo-analytics.js" defer></script>
+<script src="/momo/lib/momo-about.js"></script>
+<script src="/momo/lib/momo-rating.js"></script>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <select id="lang-select" class="lang-select" aria-label="Language">
+    <option value="auto">Auto</option>
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
+<!-- ── タイトル画面：モードを選ぶ ── -->
+<div id="screen-title" class="screen active">
+  <!-- 共通ヘッダー（app-card-design v1.0） -->
+  <header class="site-header">
+    <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" viewBox="-46 -50 100 110">
+      <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+      <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+      <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+      <line x1="-14" y1="1.00" x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="6.0"  x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-33.68" y1="-2.28" x2="-38" y2="-3"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-33.44" y1="6.0"   x2="-40" y2="6"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-29.58" y1="14.26" x2="-37" y2="16"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14" y1="1.00" x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14" y1="6.0"  x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14" y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="33.68" y1="-2.28" x2="38" y2="-3"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="33.44" y1="6.0"   x2="40" y2="6"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="29.58" y1="14.26" x2="37" y2="16"  stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+      <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+      <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+      <line x1="0" y1="11.3" x2="0" y2="13.3" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q5,17.3  8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <!-- 右下の絵柄（アイコンと同じ）：黒い 8×8 の盤に有名な形 -->
+      <g>
+        <rect x="3" y="-1" width="48" height="48" fill="#000" stroke="#000" stroke-width="1.2"/>
+        <g stroke="#262626" stroke-width="0.5">
+          <line x1="9" y1="-1" x2="9" y2="47"/><line x1="15" y1="-1" x2="15" y2="47"/><line x1="21" y1="-1" x2="21" y2="47"/><line x1="27" y1="-1" x2="27" y2="47"/><line x1="33" y1="-1" x2="33" y2="47"/><line x1="39" y1="-1" x2="39" y2="47"/><line x1="45" y1="-1" x2="45" y2="47"/>
+          <line x1="3" y1="5" x2="51" y2="5"/><line x1="3" y1="11" x2="51" y2="11"/><line x1="3" y1="17" x2="51" y2="17"/><line x1="3" y1="23" x2="51" y2="23"/><line x1="3" y1="29" x2="51" y2="29"/><line x1="3" y1="35" x2="51" y2="35"/><line x1="3" y1="41" x2="51" y2="41"/>
+        </g>
+        <g fill="#4ade80"><rect x="9.6" y="-0.4" width="4.8" height="4.8"/><rect x="15.6" y="5.6" width="4.8" height="4.8"/><rect x="3.6" y="11.6" width="4.8" height="4.8"/><rect x="9.6" y="11.6" width="4.8" height="4.8"/><rect x="15.6" y="11.6" width="4.8" height="4.8"/></g>
+        <g fill="#facc15"><rect x="27.6" y="5.6" width="4.8" height="4.8"/><rect x="33.6" y="5.6" width="4.8" height="4.8"/><rect x="27.6" y="11.6" width="4.8" height="4.8"/><rect x="33.6" y="11.6" width="4.8" height="4.8"/></g>
+        <g fill="#22d3ee"><rect x="3.6" y="29.6" width="4.8" height="4.8"/><rect x="9.6" y="29.6" width="4.8" height="4.8"/><rect x="15.6" y="29.6" width="4.8" height="4.8"/></g>
+        <g fill="#f472b6"><rect x="33.6" y="23.6" width="4.8" height="4.8"/><rect x="27.6" y="29.6" width="4.8" height="4.8"/><rect x="39.6" y="29.6" width="4.8" height="4.8"/><rect x="33.6" y="35.6" width="4.8" height="4.8"/></g>
+      </g>
+    </svg>
+    <div class="title-block">
+      <h1><span class="momo">MOMO</span><span class="app">Life</span><span class="version-tag" id="version-tag">v0.01</span></h1>
+      <div class="subtitle" id="subtitle">Tiny Rules, Boundless Life</div>
+    </div>
+  </header>
+
+  <main class="title-main">
+    <div class="pick-label" data-i18n="modeLabel">世界を選ぶ</div>
+    <div class="mode-list" id="mode-list">
+      <button class="mode-card" type="button" data-mode="chain">
+        <span class="mode-name" data-i18n="modeChain">連鎖して増える</span>
+        <span class="mode-desc" data-i18n="modeChainDesc">空の盤と Conway のマザー1つから始まり、2,000 世代ごとに新しい種族が生まれて 32 種まで増えます。マザーは置き形を学び、弱い種族はルールを引き直されます。</span>
+      </button>
+      <button class="mode-card" type="button" data-mode="four">
+        <span class="mode-name" data-i18n="modeFour">4種族</span>
+        <span class="mode-desc" data-i18n="modeFourDesc">緑・水色・桃の3種族がじゃんけんの形で食べ合い、黄は誰も食べません。マザーが種族をまき続けます。</span>
+      </button>
+      <button class="mode-card" type="button" data-mode="free">
+        <span class="mode-name" data-i18n="modeFree">自由編集モード</span>
+        <span class="mode-desc" data-i18n="modeFreeDesc">空の盤から始めます。マウスで生き物を置いたり消したりでき、種族を足して、生まれる・生き残る条件を自由に書けます。最初は Conway のライフゲーム（B3/S23）の1種族です。</span>
+      </button>
+    </div>
+
+    <details class="opts">
+      <summary data-i18n="optsTitle">盤の設定</summary>
+      <div class="opts-body">
+        <label><span data-i18n="optSize">盤の大きさ</span> <select id="size">
+          <option value="640x360">640×360</option>
+          <option value="1280x720">1280×720</option>
+          <option value="1920x1080" selected>1920×1080</option>
+          <option value="2560x1440">2560×1440</option>
+          <option value="3840x2160">3840×2160</option>
+        </select></label>
+        <label><input id="wrap" type="checkbox" checked> <span data-i18n="optWrap">端をつなぐ</span></label>
+        <label><span data-i18n="optSeed">種（同じ数なら同じ動き）</span> <input id="seed" type="number" value="1" min="0" step="1"></label>
+        <label><input id="seed-rand" type="checkbox" checked> <span data-i18n="optSeedRand">ランダム（毎回変わる）</span></label>
+      </div>
+    </details>
+    <div id="title-msg" class="title-msg" hidden></div>
+  </main>
+
+  <footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Life について</summary><div class="momo-about-body"><p>MOMO Life は、ブラウザで眺める多種族のライフゲームです。</p><p>マス目の生き物は、周りの仲間の数で生まれたり消えたりします。種族ごとに違うルールを持ち、ほかの種族を食べることもあります。生き物を置いてルールを自由に書ける世界、4つの種族が食べ合う世界、空の盤から新しい種族が次々に生まれて 32 種まで増える世界を選べます。増える世界では、種族を生み出すマザーが置き形を学び、弱い種族はルールを引き直されて、栄えたり滅んだりを繰り返します。</p><p>計算と描画は GPU（WebGPU）で行うので、大きな盤のまま動かせます。アカウント登録もインストールも要りません。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+</div>
+
+<!-- ── 観察の画面 ── -->
+<div id="screen-game" class="screen">
+  <canvas id="board"></canvas>
+  <canvas id="overlay"></canvas>
+
+  <div id="graph" class="panel">
+    <div class="panel-head">
+      <span data-i18n="graph">人口</span>
+      <button id="btn-graph" type="button" class="fold-btn" aria-expanded="true">▾</button>
+    </div>
+    <div class="panel-body" id="graph-body">
+      <div class="graph-wrap"><canvas id="graph-cv"></canvas><div id="graph-top"></div></div>
+      <div class="graph-axis"><span id="graph-max"></span><span id="graph-gen"></span></div>
+    </div>
+  </div>
+
+  <div id="hud" class="panel">
+    <div class="row">
+      <button id="btn-back" type="button" data-i18n="back">← 世界を選ぶ</button>
+      <span class="mode-now" id="mode-now"></span>
+      <span class="spacer"></span>
+      <button id="btn-fold" type="button" class="fold-btn" aria-expanded="true">▾</button>
+    </div>
+    <div class="panel-body" id="hud-body">
+    <div class="row">
+      <button id="btn-play" type="button">一時停止</button>
+      <button id="btn-step" type="button" data-i18n="step">1世代</button>
+      <button id="btn-reset" type="button" data-i18n="reset">はじめから</button>
+      <label><span data-i18n="speed">速さ</span> <input id="speed" type="range" min="0" max="10" step="1" value="4"> <span id="speed-v"></span></label>
+    </div>
+    <div class="row" id="legend"></div>
+    <div id="free-box" hidden>
+      <div class="row">
+        <span class="tools" role="group">
+          <button type="button" class="tool on" data-tool="move" data-i18n="toolMove">動かす</button>
+          <button type="button" class="tool" data-tool="draw" data-i18n="toolDraw">置く</button>
+          <button type="button" class="tool" data-tool="erase" data-i18n="toolErase">消す</button>
+        </span>
+        <button id="btn-random" type="button" data-i18n="randomFill">ランダムに配置</button>
+        <button id="btn-clear" type="button" data-i18n="clearAll">全部消す</button>
+      </div>
+      <table id="sp-table">
+        <thead><tr><th></th><th data-i18n="colOn">使う</th><th data-i18n="colBirth">生まれる</th><th data-i18n="colSurvive">生き残る</th><th data-i18n="colEat">食べる</th><th data-i18n="colTarget">食べる相手</th><th data-i18n="colGen">発生</th></tr></thead>
+        <tbody id="sp-rows"></tbody>
+      </table>
+      <div class="row">
+        <button id="btn-addsp" type="button" data-i18n="addSp">＋ 種族を足す</button>
+      </div>
+      <div class="expr-help" data-i18n="exprHelp"></div>
+    </div>
+    <div class="row" id="row-mother">
+      <label><span data-i18n="mCount">マザー</span> <select id="mcount">
+        <option value="0" data-i18n="mNone">なし</option>
+        <option value="4">4</option>
+        <option value="12">12</option>
+        <option value="24">24</option>
+        <option value="48">48</option>
+      </select></label>
+      <label><span data-i18n="mMode">置き方</span> <select id="mmode">
+        <option value="empty" selected data-i18n="mEmpty">空のマスだけ</option>
+        <option value="overwrite" data-i18n="mOver">上書き</option>
+      </select></label>
+    </div>
+    <div class="row">
+      <label id="lab-mother"><input id="mshow" type="checkbox"> <span data-i18n="showMother">マザー</span></label>
+      <label id="lab-domain"><input id="dshow" type="checkbox"> <span data-i18n="showDomain">支配領域</span></label>
+      <label id="lab-learn"><input id="lshow" type="checkbox" checked> <span data-i18n="showLearn">学習の様子</span></label>
+      <label><input id="fade" type="checkbox" checked> <span data-i18n="fade">フェード</span></label>
+    </div>
+    <div class="row stats">
+      <span><span data-i18n="gen">世代</span> <b id="st-gen">0</b></span>
+      <span><span data-i18n="calc">計算</span> <b id="st-gps">0</b> <span data-i18n="perSec">世代/秒</span></span>
+      <span><span data-i18n="draw">描画</span> <b id="st-fps">0</b> fps</span>
+    </div>
+    </div>
+  </div>
+</div>
+
+<div id="msg" hidden></div>
+
+<script type="application/json" id="momo-rating-data">{"app":"games/life","avg":0,"count":0}</script>
+<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":["VideoGame","WebApplication"],"name":"MOMO Life","url":"https://qiqiroon.github.io/momo/games/life/","description":"ブラウザで眺める無料の多種族ライフゲーム。生き物を置いてルールを自由に書ける世界、4つの種族が食べ合う世界、空の盤から新しい種族が次々に生まれて 32 種まで増え、置き形を学習しながら栄えたり滅んだりする世界を、GPU で大きな盤のまま動かせる。登録不要・インストール不要。","image":"https://qiqiroon.github.io/momo/games/life/apple-touch-icon.png","applicationCategory":"GameApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Life について", "body": ["MOMO Life は、ブラウザで眺める多種族のライフゲームです。", "マス目の生き物は、周りの仲間の数で生まれたり消えたりします。種族ごとに違うルールを持ち、ほかの種族を食べることもあります。生き物を置いてルールを自由に書ける世界、4つの種族が食べ合う世界、空の盤から新しい種族が次々に生まれて 32 種まで増える世界を選べます。増える世界では、種族を生み出すマザーが置き形を学び、弱い種族はルールを引き直されて、栄えたり滅んだりを繰り返します。", "計算と描画は GPU（WebGPU）で行うので、大きな盤のまま動かせます。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Life", "body": ["MOMO Life is a multi-species Game of Life you watch in your browser.", "Each creature on the grid is born or dies depending on how many neighbours it has. Every species follows its own rules, and some species eat others. Choose a free-edit world where you place creatures and write the rules yourself, a world where four species eat one another, or a world that starts from an empty board and keeps adding new species until there are 32. In that world, the mothers that spawn each species learn which pattern to plant, and weak species have their rules redrawn, so species rise and fall again and again.", "Everything is computed and drawn on the GPU (WebGPU), so even a large board runs smoothly. No account, no installation."]}, "zh": {"title": "关于 MOMO Life", "body": ["MOMO Life 是一款在浏览器中观赏的多物种生命游戏。", "格子里的生物会根据周围同伴的数量诞生或消失。每个物种都有自己的规则，有的还会吃掉其他物种。可以选择自由放置生物、自己编写规则的世界，四个物种互相捕食的世界，以及从空棋盘开始、不断诞生新物种直到 32 种的世界。在不断增加的世界里，孕育物种的母体会学习放置的图案，弱小物种的规则会被重新抽取，物种就这样反复兴衰。", "计算和绘制都在 GPU（WebGPU）上进行，大棋盘也能流畅运行。无需注册账号，也无需安装。"]}}</script>
+<script type="module" src="life.js"></script>
+</body>
+</html>

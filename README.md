@@ -18,6 +18,7 @@ Games and tools that run in your browser, made by an individual developer. No si
 | [MOMO Go](https://qiqiroon.github.io/momo/games/gomoku-go/) | 五目並べ・囲碁 | Gomoku and Go |
 | [MOMO Hanafuda](https://qiqiroon.github.io/momo/games/hanafuda/) | 花札（こいこい・八八） | Hanafuda (Koi-Koi, Hachi-Hachi) |
 | [MOMO Hanoi](https://qiqiroon.github.io/momo/games/hanoi/) | ハノイの塔パズル | Tower of Hanoi puzzle |
+| [MOMO Life](https://qiqiroon.github.io/momo/games/life/) | 多種族のライフゲーム | Multi-species Game of Life |
 | [MOMO Mahjong](https://qiqiroon.github.io/momo/games/mahjong/) | ルールを選べる麻雀（日本式・中国式） | Mahjong with selectable rules (Japanese and Chinese) |
 | [MOMO Polyomino](https://qiqiroon.github.io/momo/games/polyomino/) | ポリオミノの敷き詰めパズル | Polyomino tiling puzzle |
 | [MOMO Reversi](https://qiqiroon.github.io/momo/games/reversi/) | リバーシ（オセロ） | Reversi |

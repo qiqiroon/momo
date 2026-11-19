@@ -1,0 +1,733 @@
+// MOMO Life — 画面（モードを選ぶ画面と、選んだ世界を GPU で計算・描画して眺める画面）
+// 詳細仕様書 §10（描画と計算の速さを分ける）・§12（画面）。言語は lib/momo-lang（ja/en/zh/cat）
+import { getGPU, LifeGPU, HIST_N, OCC_TILE } from './life-gpu.js';
+import { compile, TEMPLATES, hexToRGBA } from './life-rules.js';
+import { MotherSet, planMothers, domR2 } from './life-mother.js';
+import { ChainState, CHAIN_DEFAULTS, chainName } from './life-chain.js';
+import { LS, O as LO } from './life-learn.js';
+import { makeBoard, fillRandom } from './life-cpu.js';
+import { checkRule, checkTargets, LETTERS, FREE_MAX } from './life-expr.js';
+import { steady, recordResult, nextPattern, pickTile } from './life-gen.js';
+
+const $ = id => document.getElementById(id);
+const VERSION = 'v0.01';
+
+// ── 言葉（ja / en / zh。猫語は鳴き声に置き換える） ──
+const I18N = {
+  ja: {
+    modeLabel: '世界を選ぶ',
+    modeChain: '連鎖して増える', modeChainDesc: '空の盤と Conway のマザー1つから始まり、2,000 世代ごとに新しい種族が生まれて 32 種まで増えます。マザーは置き形を学び、弱い種族はルールを引き直されます。',
+    modeFour: '4種族', modeFourDesc: '緑・水色・桃の3種族がじゃんけんの形で食べ合い、黄は誰も食べません。マザーが種族をまき続けます。',
+    modeFree: '自由編集モード', modeFreeDesc: '空の盤から始めます。マウスで生き物を置いたり消したりでき、種族を足して、生まれる・生き残る条件を自由に書けます。最初は Conway のライフゲーム（B3/S23）の1種族です。',
+    fold: '畳む', unfold: '広げる', graph: '人口',
+    toolMove: '動かす', toolDraw: '置く', toolErase: '消す', randomFill: 'ランダムに配置', clearAll: '全部消す', addSp: '＋ 種族を足す',
+    colOn: '使う', colBirth: '生まれる', colSurvive: '生き残る', colEat: '食べる', colTarget: '食べる相手', colGen: '発生',
+    genOn: '発生', genOff: '止める', genBest: '最長', genNow: 'いま', genTip: '空いた場所に形を1つ置き、数が落ち着いたら次を置きます（覚えた長生きの形4つ → でたらめな形4つ）',
+    exprHelp: '周り8マスの数で書きます。A・B …＝その種族の数、A+B＝合計、?＝すべての種族の数。比べ方は = != < <= > >=、つなぎは AND・OR・かっこ。「23」のように数字だけなら自分の種族の数。「食べる」は相手のマスの周りで数え、成り立つと相手を自分の種族に変えます（自分が周りに1つ以上いるとき。生き残りの条件は見ません）。「食べる相手」は文字を並べます：AB＝AとB、A-C＝AからC、?＝だれでも。いくつかの種族が食べられるときは等しい確率で1つ。',
+    optsTitle: '盤の設定', optSize: '盤の大きさ', optWrap: '端をつなぐ', optSeed: '種（同じ数なら同じ動き）', optSeedRand: 'ランダム（毎回変わる）',
+    back: '← 世界を選ぶ', pause: '一時停止', resume: '再開', step: '1世代', reset: 'はじめから', speed: '速さ', perSecN: '{n} 世代/秒',
+    mCount: 'マザー', mNone: 'なし', mMode: '置き方', mEmpty: '空のマスだけ', mOver: '上書き',
+    showMother: 'マザー', showDomain: '支配領域', showLearn: '学習の様子', fade: 'フェード',
+    gen: '世代', calc: '計算', perSec: '世代/秒', draw: '描画',
+    spGreen: '緑', spCyan: '水色', spPink: '桃', spYellow: '黄', spN: '種{n}',
+    learnFmt: '{name} 回{n}・勝{w}', learnFixed: '・固定',
+    noGpu: 'このブラウザは WebGPU に対応していません。Chrome や Edge の新しい版で開いてください。',
+    notSecure: 'WebGPU は https か localhost でしか使えません。', noAdapter: 'GPU を使えませんでした。',
+    lost: 'GPU が使えなくなりました（{m}）。ページを読み込み直してください。',
+  },
+  en: {
+    modeLabel: 'Choose a world',
+    modeChain: 'Chain of species', modeChainDesc: 'Starts from an empty board and one Conway mother. Every 2,000 generations a new species appears, up to 32. Mothers learn which pattern to plant, and weak species have their rules redrawn.',
+    modeFour: 'Four species', modeFourDesc: 'Green, cyan and pink eat one another like rock-paper-scissors; yellow eats nobody. Mothers keep sowing each species.',
+    modeFree: 'Free edit', modeFreeDesc: 'Starts from an empty board. Place or erase creatures with the mouse, add species, and write your own birth and survival conditions. You begin with one species following Conway’s Game of Life (B3/S23).',
+    fold: 'Fold', unfold: 'Unfold', graph: 'Population',
+    toolMove: 'Move', toolDraw: 'Draw', toolErase: 'Erase', randomFill: 'Random fill', clearAll: 'Clear', addSp: '+ Add species',
+    colOn: 'On', colBirth: 'Born', colSurvive: 'Survives', colEat: 'Eats', colTarget: 'Prey', colGen: 'Spawn',
+    genOn: 'Spawn', genOff: 'Stop', genBest: 'Best', genNow: 'now', genTip: 'Places one pattern in an empty spot and the next once the count settles (the 4 longest-lived remembered patterns, then 4 random ones)',
+    exprHelp: 'Count the 8 neighbours. A, B … = that species, A+B = sum, ? = all species. Compare with = != < <= > >=, combine with AND, OR and brackets. Digits alone such as "23" mean your own species. "Eats" is counted around the prey cell; when it holds (and at least one of yours is adjacent) the prey becomes your species, regardless of survival. "Prey" lists letters: AB = A and B, A-C = A to C, ? = anyone. If several species can eat, one is chosen at random.',
+    optsTitle: 'Board settings', optSize: 'Board size', optWrap: 'Wrap edges', optSeed: 'Seed (same number, same run)', optSeedRand: 'Random (changes every time)',
+    back: '← Choose a world', pause: 'Pause', resume: 'Resume', step: '1 gen', reset: 'Restart', speed: 'Speed', perSecN: '{n} gen/s',
+    mCount: 'Mothers', mNone: 'None', mMode: 'Sowing', mEmpty: 'Empty cells only', mOver: 'Overwrite',
+    showMother: 'Mothers', showDomain: 'Domains', showLearn: 'Learning', fade: 'Fade',
+    gen: 'Gen', calc: 'Compute', perSec: 'gen/s', draw: 'Draw',
+    spGreen: 'Green', spCyan: 'Cyan', spPink: 'Pink', spYellow: 'Yellow', spN: 'S{n}',
+    learnFmt: '{name} tries {n} · wins {w}', learnFixed: ' · fixed',
+    noGpu: 'This browser does not support WebGPU. Please open it in a recent Chrome or Edge.',
+    notSecure: 'WebGPU only works on https or localhost.', noAdapter: 'Could not use the GPU.',
+    lost: 'The GPU was lost ({m}). Please reload the page.',
+  },
+  zh: {
+    modeLabel: '选择世界',
+    modeChain: '连锁增长', modeChainDesc: '从空棋盘和一个 Conway 母体开始，每 2,000 代诞生一个新物种，最多 32 种。母体会学习放置的图案，弱小物种的规则会被重新抽取。',
+    modeFour: '四个物种', modeFourDesc: '绿、青、粉三个物种像石头剪刀布一样互相捕食，黄色不吃任何物种。母体不断播撒各个物种。',
+    modeFree: '自由编辑', modeFreeDesc: '从空棋盘开始。可以用鼠标放置或擦除生物，增加物种，并自由编写诞生和存活的条件。最初是 Conway 生命游戏（B3/S23）的一个物种。',
+    fold: '收起', unfold: '展开', graph: '数量',
+    toolMove: '移动', toolDraw: '放置', toolErase: '擦除', randomFill: '随机放置', clearAll: '全部清除', addSp: '＋ 增加物种',
+    colOn: '使用', colBirth: '诞生', colSurvive: '存活', colEat: '吃', colTarget: '猎物', colGen: '生成',
+    genOn: '生成', genOff: '停止', genBest: '最长', genNow: '当前', genTip: '在空位放一个图案，数量稳定后再放下一个（记住的4个长寿图案 → 4个随机图案）',
+    exprHelp: '按周围 8 格的数量书写。A、B …＝该物种的数量，A+B＝合计，?＝所有物种的数量。比较用 = != < <= > >=，连接用 AND、OR 和括号。只写数字（如“23”）表示自己物种的数量。“吃”在猎物格周围计数，成立时（且周围至少有一个自己）猎物变成自己的物种，不看存活条件。“猎物”列出字母：AB＝A和B，A-C＝A到C，?＝任何。多个物种都能吃时，等概率选一个。',
+    optsTitle: '棋盘设置', optSize: '棋盘大小', optWrap: '边缘相连', optSeed: '种子（相同数字，相同过程）', optSeedRand: '随机（每次不同）',
+    back: '← 选择世界', pause: '暂停', resume: '继续', step: '1 代', reset: '重新开始', speed: '速度', perSecN: '{n} 代/秒',
+    mCount: '母体', mNone: '无', mMode: '放置方式', mEmpty: '仅空格', mOver: '覆盖',
+    showMother: '母体', showDomain: '领域', showLearn: '学习情况', fade: '淡出',
+    gen: '代', calc: '计算', perSec: '代/秒', draw: '绘制',
+    spGreen: '绿', spCyan: '青', spPink: '粉', spYellow: '黄', spN: '种{n}',
+    learnFmt: '{name} 试{n}·胜{w}', learnFixed: '·固定',
+    noGpu: '此浏览器不支持 WebGPU。请使用新版 Chrome 或 Edge 打开。',
+    notSecure: 'WebGPU 只能在 https 或 localhost 上使用。', noAdapter: '无法使用 GPU。',
+    lost: 'GPU 已不可用（{m}）。请重新载入页面。',
+  },
+};
+// 猫語にしない言葉（数字の書き方と、困ったときの知らせ）
+const CAT_KEEP = { perSecN: 1, learnFmt: 1, learnFixed: 1, spN: 1, noGpu: 1, notSecure: 1, noAdapter: 1, lost: 1 };
+const SUBTITLE = { ja: 'Tiny Rules, Boundless Life', en: 'Tiny Rules, Boundless Life', zh: '微则无边，万生涌现' };
+const LANG_APP_ID = 'life';
+const LANGS = ['ja', 'en', 'zh', 'cat'];
+if (window.MomoLang) MomoLang.bind(LANG_APP_ID, { supportedLangs: LANGS });
+function detectLang() {
+  try {
+    const list = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || 'en'];
+    for (const x of list) { const l = (x || '').toLowerCase(); if (l.startsWith('ja')) return 'ja'; if (l.startsWith('zh')) return 'zh'; if (l.startsWith('en')) return 'en'; }
+    return 'en';
+  } catch (e) { return 'ja'; }
+}
+let langMode = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+let lang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID) : (LANGS.includes(langMode) ? langMode : detectLang());
+let fallbackCatBase = 'ja';
+const catBase = () => { const b = window.MomoLang ? MomoLang.getCatBase(LANG_APP_ID) : fallbackCatBase; return I18N[b] ? b : 'ja'; };
+function meow(key) {
+  const b = catBase();
+  const v = b === 'en' ? ['meow', 'MEOW', 'mrrrow', 'mew', 'purr…'] : b === 'zh' ? ['喵', '喵喵', '喵！', '喵呜…', '呼噜…'] : ['にゃ', 'にゃー', 'にゃ！', 'みゃ', 'ごろごろ…'];
+  let h = 0; for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;   // 同じ言葉は同じ鳴き声
+  return v[h % v.length];
+}
+function t(key, params) {
+  let s = lang === 'cat' && !CAT_KEEP[key] ? meow(key) : (I18N[lang === 'cat' ? catBase() : lang] || I18N.ja)[key];
+  if (s == null) s = I18N.ja[key] ?? key;
+  if (params) s = s.replace(/\{(\w+)\}/g, (m, k) => params[k] ?? m);
+  return s;
+}
+function applyLang() {
+  const sl = lang === 'cat' ? 'en' : lang;   // 猫語のときのサブタイトルは英語
+  const sub = $('subtitle'); sub.textContent = SUBTITLE[sl] || SUBTITLE.en; sub.classList.toggle('zh', sl === 'zh');
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  const base = lang === 'cat' ? catBase() : lang;
+  document.documentElement.lang = base === 'zh' ? 'zh-Hans' : base;
+  $('lang-select').value = langMode;
+  $('btn-play').textContent = t(running ? 'pause' : 'resume');
+  $('speed-v').textContent = t('perSecN', { n: speed() });
+  if (mode) $('mode-now').textContent = t(MODE_KEY[mode]);
+  if (life) showLegend();
+  for (const id of ['hud', 'graph']) $(id === 'hud' ? 'btn-fold' : 'btn-graph').title = t($(id).classList.contains('folded') ? 'unfold' : 'fold');
+  if (isFree()) renderSpTable();
+  drawGraph();
+  if (window.MomoAbout) MomoAbout.apply(lang);   // 説明欄（lib/momo-about.js）
+}
+function onLangChange(m) {
+  if (!window.MomoLang && m === 'cat' && lang !== 'cat') fallbackCatBase = lang;
+  langMode = m;
+  lang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, m) : (m === 'auto' ? detectLang() : m);
+  applyLang();
+}
+
+// ── モード ──
+const MODE_KEY = { chain: 'modeChain', four: 'modeFour', free: 'modeFree' };
+let mode = null;            // いま眺めている世界（null ならモードを選ぶ画面）
+const isChain = () => mode === 'chain';
+const isFree = () => mode === 'free';
+const curWorld = () => life?.chain?.world ?? world;
+const SP_KEY = { Green: 'spGreen', Cyan: 'spCyan', Pink: 'spPink', Yellow: 'spYellow' };
+const spName = sp => isFree() ? LETTERS[sp.id - 1] : isChain() ? chainName(sp.id) : t(SP_KEY[sp.name?.en] ?? 'spN', { n: sp.id });
+// 連鎖の世界では、名前のあとにルール（例 B3S23E2）を添える
+const chipName = sp => isChain() && sp.label ? `${spName(sp)} ${sp.label}` : spName(sp);
+
+const canvas = $('board');
+const overlay = $('overlay');
+const octx = overlay.getContext('2d');
+// 速さのつまみ（0〜10）→ 世代/秒
+const SPEEDS = [1, 2, 5, 10, 15, 20, 30, 45, 60, 120, 240];
+const MAX_STEPS_PER_FRAME = 16; // 1回の描画で進める世代の上限（追いつけないときに固まらないように）
+
+const BG = [0.04, 0.04, 0.04, 1];
+const COLORS = {
+  grid: [0.16, 0.16, 0.16, 1],
+  edge: [0.0, 0.0, 0.0, 1],
+};
+
+let gpu = null, life = null, world = null;
+let running = true;
+let acc = 0;              // 次の世代までにたまった分（1 で 1世代）
+let view = { ox: 0, oy: 0, cpp: 1 };
+let last = performance.now();
+let frames = 0, gensDone = 0, statT = last;
+
+function showMsg(text) { const m = $('msg'); m.textContent = text; m.hidden = false; }
+function titleMsg(text) { const m = $('title-msg'); m.textContent = text; m.hidden = !text; }
+
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+  const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  if (overlay.width !== w || overlay.height !== h) { overlay.width = w; overlay.height = h; }
+}
+
+// マザーの円と支配領域を、盤の上に線で描く（いまの位置＝次に供給する位置）
+function drawMothers() {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  const ms = life.mothers;
+  const showM = $('mshow').checked, showD = $('dshow').checked;
+  if (!ms || (!showM && !showD)) return;
+  const dpr = window.devicePixelRatio || 1;
+  octx.lineWidth = 1.5 * dpr;
+  const copies = life.wrap ? [-1, 0, 1] : [0];
+  for (const m of ms.ms) {
+    const r = Math.max(2 * dpr, m.diameter / 2 / view.cpp);
+    octx.strokeStyle = curWorld().species[m.kind - 1].color;
+    octx.globalAlpha = m.active ? 0.9 : 0.3;
+    for (const ky of copies) for (const kx of copies) {
+      const px = (m.x + 0.5 + kx * life.W - view.ox) / view.cpp;
+      const py = (m.y + 0.5 + ky * life.H - view.oy) / view.cpp;
+      // 支配領域（§18 の②。Q74 で円に）：中心のマスから半径 √domR2 の円を、細い点線で描く
+      const half = m.domain > 0 ? Math.floor(m.domain / 2) : 0;
+      if (half && showD) {
+        const cx = (Math.floor(m.x) + 0.5 + kx * life.W - view.ox) / view.cpp;
+        const cy = (Math.floor(m.y) + 0.5 + ky * life.H - view.oy) / view.cpp;
+        const R = (Math.sqrt(domR2(half)) + 0.5) / view.cpp;
+        if (cx - R < overlay.width && cy - R < overlay.height && cx + R > 0 && cy + R > 0) {
+          octx.save(); octx.globalAlpha *= 0.55; octx.lineWidth = dpr; octx.setLineDash([4 * dpr, 4 * dpr]);
+          octx.beginPath(); octx.arc(cx, cy, R, 0, Math.PI * 2); octx.stroke(); octx.restore();
+        }
+      }
+      if (!showM) continue;
+      if (px < -r || py < -r || px > overlay.width + r || py > overlay.height + r) continue;
+      octx.beginPath(); octx.arc(px, py, r, 0, Math.PI * 2); octx.stroke();
+    }
+  }
+  octx.globalAlpha = 1;
+}
+
+function fitView() {
+  resizeCanvas();
+  const cpp = Math.max(life.W / canvas.width, life.H / canvas.height);
+  view.cpp = cpp;
+  view.ox = (life.W - canvas.width * cpp) / 2;
+  view.oy = (life.H - canvas.height * cpp) / 2;
+}
+
+// 学習の進み（§18 の④）を種族の札に出す：回＝終えた試しの数、勝＝候補が勝った数、固定＝学習を終えた
+let learnBusy = false;
+function showLearn() {
+  if (!life || !life.mothers || !life.mothers.ms.some(m => m.learn) || learnBusy || !$('lshow').checked) return;
+  const me = life, ws = curWorld().species;
+  learnBusy = true;
+  me.readLearn().then(st => {
+    if (me !== life || !$('lshow').checked) return;
+    // 種族ごとに、その種族のマザー（4種族の世界は 3 つずつ）の回と勝ちを足す。固定は全部が固定のとき
+    [...$('legend').children].forEach((e, j) => {
+      const sp = ws[j];
+      if (!sp) return;
+      const ms = me.mothers.ms.filter(m => m.learn && m.kind === j + 1);
+      if (!ms.length) return;
+      let n = 0, w = 0, fixed = true;
+      for (const m of ms) { const o = m.slot * LS; n += st[o + LO.EPN]; w += st[o + LO.WINS]; if (!st[o + LO.FIXED]) fixed = false; }
+      e.textContent = t('learnFmt', { name: chipName(sp), n, w }) + (fixed ? t('learnFixed') : '');
+    });
+  }).catch(() => {}).finally(() => { learnBusy = false; });
+}
+
+function readSize() { const [w, h] = $('size').value.split('x').map(Number); return { W: w, H: h }; }
+
+function showLegend() {
+  const ws = curWorld().species;
+  $('legend').replaceChildren(...ws.map(sp => {
+    const e = document.createElement('span'); e.className = 'chip';
+    e.style.setProperty('--c', sp.color); e.textContent = chipName(sp);
+    return e;
+  }));
+  legendN = ws.length; legendR = life && life.chain ? life.chain.reps.length : 0;
+  showLearn();
+}
+let legendN = 0, legendR = 0;
+
+function buildChain() {
+  const { W, H } = readSize();
+  const wrap = $('wrap').checked, seed = Number($('seed').value) || 0;
+  const chain = new ChainState(seed, W, H, { ...CHAIN_DEFAULTS, wrap });
+  const mothers = new MotherSet([], W, H, wrap, seed, 'empty');
+  life = new LifeGPU(gpu.device, { W, H, wrap, seed, density: 0, canvas, chain, mothers, palette: [BG] });
+  world = chain.world;
+}
+
+// 種の「ランダム」（最初の値。セッション9）：作り直すたびに、いまの年月日時分秒から種を計算して、種の欄に出す
+//   （年×12＋月）×31＋日 … ×60＋秒 を 2^32 で割った余り。出た数を控えて「ランダム」を外せば、同じ動きをもう一度見られる
+function timeSeed(d = new Date()) {
+  const n = (((((d.getFullYear() * 12 + d.getMonth()) * 31 + d.getDate() - 1) * 24 + d.getHours()) * 60 + d.getMinutes()) * 60 + d.getSeconds());
+  return n % 4294967296;
+}
+function build() {
+  if ($('seed-rand').checked) $('seed').value = String(timeSeed());
+  if (life) life.destroy();
+  life = null;
+  if (isChain()) buildChain();
+  else if (isFree()) {
+    const { W, H } = readSize();
+    world = freeGood;
+    life = new LifeGPU(gpu.device, {
+      W, H, wrap: $('wrap').checked, seed: Number($('seed').value) || 0, density: 0, canvas, rules: compile(world), mothers: null,
+      palette: [BG, ...world.species.map(sp => hexToRGBA(sp.color))],
+    });
+  } else {
+    const { W, H } = readSize();
+    world = TEMPLATES[mode]();
+    const rules = compile(world);
+    const wrap = $('wrap').checked, seed = Number($('seed').value) || 0;
+    const count = Number($('mcount').value);
+    const plan = count ? planMothers({ ...world, mothers: { ...(world.mothers ?? {}), count } }, W, H, seed) : [];
+    const mothers = plan.length ? new MotherSet(plan, W, H, wrap, seed, $('mmode').value) : null;
+    life = new LifeGPU(gpu.device, {
+      W, H, wrap, seed, density: world.init.density, canvas, rules, mothers,
+      palette: [BG, ...world.species.map(sp => hexToRGBA(sp.color))],
+    });
+  }
+  showLegend();
+  acc = 0;
+  resetGraph();
+  genReset();
+  fitView();
+}
+
+// ── 自由編集モード ──
+const FREE_COLORS = ['#4ade80', '#22d3ee', '#f472b6', '#facc15', '#a78bfa', '#fb923c', '#60a5fa', '#f87171',
+  '#2dd4bf', '#e879f9', '#a3e635', '#fbbf24', '#818cf8', '#fca5a5', '#34d399', '#c084fc',
+  '#38bdf8', '#fdba74', '#86efac', '#f9a8d4', '#93c5fd', '#fde047', '#5eead4', '#d8b4fe'];
+// 種族ごとに：使うか・3 つの式（文字のまま）・色。最初は Conway の 1 種族
+const newGen = () => ({ on: false, best: [], n: 0, phase: 'idle', h: [], next: 0, tile: -1, cur: null, placed: 0 });
+const newSp = color => ({ on: true, birth: '3', survive: '23', eat: '', target: '', color, g: newGen() });
+const free = { sp: [newSp(FREE_COLORS[0])], brush: 1, tool: 'move', fills: 0 };
+const FIELDS = ['birth', 'survive', 'eat'];   // 式の欄（食べる相手の欄は別）
+const FIELD_KEY = { birth: 'colBirth', survive: 'colSurvive', eat: 'colEat', target: 'colTarget' };
+// 式から世界を作る。誤りは errs[種族の番号-1][欄] に入る。使わない種族は、生まれも生き残りもしない
+function freeWorld() {
+  const S = free.sp.length, errs = [];
+  const species = free.sp.map((f, i) => {
+    const id = i + 1, e = {}, r = {};
+    for (const k of FIELDS) { const c = checkRule(f[k], S, id); if (c.ok) r[k] = c.groups; else { e[k] = c.msg; r[k] = []; } }
+    const tg = checkTargets(f.target, S, id);
+    if (!tg.ok) e.target = tg.msg;
+    errs.push(e);
+    return { id, name: { ja: LETTERS[i], en: LETTERS[i] }, color: f.color,
+      birth: f.on ? r.birth : [], survive: f.on ? r.survive : [], prey: f.on ? r.eat : [], eatSet: f.on && tg.ok ? tg.set : 0 };
+  });
+  // 食べる側のルール（eatMode: 'eater'）：捕食の欄は「食べる条件」（相手のマスの周りで数える）
+  return { world: { pick: 'equal', eatMode: 'eater', init: { density: 0 }, species }, errs, ok: errs.every(e => !Object.keys(e).length) };
+}
+let freeGood = freeWorld().world;   // いちばん新しい、正しく書けている世界（式に誤りがあるあいだは、これで動かし続ける）
+// 式を書きかえたら、正しければその場でルールを入れ替える（盤はそのまま）
+function freeApply() {
+  const r = freeWorld();
+  showFreeErrors(r.errs);
+  if (!r.ok) return;
+  freeGood = r.world;
+  if (life && isFree()) {
+    world = freeGood;
+    life.setRules(compile(world));
+    life.setPalette([BG, ...world.species.map(sp => hexToRGBA(sp.color))]);
+  }
+}
+function showFreeErrors(errs) {
+  [...$('sp-rows').querySelectorAll('tr.sp')].forEach((tr, i) => {
+    const e = errs[i] || {};
+    [...FIELDS, 'target'].forEach(k => tr.querySelector(`input[data-k=${k}]`).classList.toggle('bad', !!e[k]));
+    const er = tr.nextElementSibling;
+    const msgs = [...FIELDS, 'target'].filter(k => e[k]).map(k => `${t(FIELD_KEY[k])}：${e[k]}`);
+    er.querySelector('.err').textContent = msgs.join(' ／ ');
+    er.hidden = !msgs.length;
+  });
+}
+let freeTimer = 0;
+function renderSpTable() {
+  const rows = [];
+  free.sp.forEach((f, i) => {
+    const tr = document.createElement('tr'); tr.className = 'sp' + (f.on ? '' : ' off');
+    const pick = document.createElement('span');
+    pick.className = 'sp-pick' + (free.brush === i + 1 ? ' on' : ''); pick.style.setProperty('--c', f.color); pick.textContent = LETTERS[i];
+    pick.addEventListener('click', () => { free.brush = i + 1; if (free.tool === 'move') setTool('draw'); renderSpTable(); });
+    const on = document.createElement('input'); on.type = 'checkbox'; on.checked = f.on;
+    on.addEventListener('change', () => { f.on = on.checked; tr.classList.toggle('off', !f.on); freeApply(); });
+    const cells = [pick, on];
+    for (const k of [...FIELDS, 'target']) {
+      const inp = document.createElement('input'); inp.type = 'text'; inp.value = f[k]; inp.dataset.k = k; inp.spellcheck = false;
+      if (k === 'target') inp.className = 'short';
+      inp.addEventListener('input', () => { f[k] = inp.value; clearTimeout(freeTimer); freeTimer = setTimeout(freeApply, 300); });
+      cells.push(inp);
+    }
+    // 発生（ランダム生成）の入り切りと、覚えた形の点
+    const gb = document.createElement('span'); gb.className = 'gen-cell';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'gen-btn' + (f.g.on ? ' on' : '');
+    btn.textContent = t(f.g.on ? 'genOff' : 'genOn'); btn.title = t('genTip');
+    btn.addEventListener('click', () => { genToggle(f); renderSpTable(); });
+    const info = document.createElement('span'); info.className = 'gen-info'; info.dataset.sp = String(i);
+    gb.append(btn, info); cells.push(gb);
+    cells.forEach(c => { const td = document.createElement('td'); td.append(c); tr.append(td); });
+    const er = document.createElement('tr'); er.hidden = true;
+    const td = document.createElement('td'); td.colSpan = 7; const d = document.createElement('div'); d.className = 'err'; td.append(d); er.append(td);
+    rows.push(tr, er);
+  });
+  $('sp-rows').replaceChildren(...rows);
+  $('btn-addsp').disabled = free.sp.length >= FREE_MAX;
+  showFreeErrors(freeWorld().errs);
+  genInfo();
+}
+function setTool(tool) {
+  free.tool = tool;
+  document.querySelectorAll('.tool').forEach(b => b.classList.toggle('on', b.dataset.tool === tool));
+  canvas.classList.toggle('drawing', tool !== 'move');
+}
+function addSpecies() {
+  if (free.sp.length >= FREE_MAX) return;
+  free.sp.push(newSp(FREE_COLORS[free.sp.length % FREE_COLORS.length]));
+  free.brush = free.sp.length;
+  renderSpTable(); freeApply();
+}
+// 使う種族だけで、盤をランダムに埋める（押すたびに違う並び）
+function freeRandom() {
+  if (!life) return;
+  const ids = free.sp.map((f, i) => (f.on ? i + 1 : 0)).filter(Boolean);
+  if (!ids.length) return;
+  const b = makeBoard(life.W, life.H);
+  fillRandom(b, ((Number($('seed').value) || 0) + 7919 * ++free.fills) >>> 0, 0.278, ids.length);
+  for (let i = 0; i < b.cells.length; i++) if (b.cells[i]) b.cells[i] = ids[b.cells[i] - 1];
+  life.upload(b.cells); acc = 0; resetGraph(); genReset();
+}
+function freeClear() { if (!life) return; life.upload(new Uint32Array(life.W * life.H)); acc = 0; resetGraph(); genReset(); }
+
+// ── ランダム生成（種族ごとの「発生」。life-gen.js） ──
+//   置く → 世代ごとのその種族の数（GPU の輪）を読む → 落ち着いたら点を付けて次を置く
+function genToggle(f) {
+  f.g.on = !f.g.on;
+  f.g.phase = 'idle'; f.g.h = []; f.g.cur = null;
+}
+// 盤を作り直した・全部消したときは、置いている途中の形を捨てる（覚えた形は残す）
+function genReset() { for (const f of free.sp) { f.g.phase = 'idle'; f.g.h = []; f.g.cur = null; } }
+const genActive = () => !!life && isFree() && free.sp.some(f => f.on && f.g.on);
+let occT = 0;
+function genTick(now) {
+  const on = genActive();
+  if (life) life.hist = on;
+  if (!on) return;
+  const me = life;
+  // 置く場所を探す（待っている種族があるとき、0.2 秒に 1 回まで）
+  const want = free.sp.map((f, i) => (f.on && f.g.on && f.g.phase === 'idle' ? i : -1)).filter(i => i >= 0);
+  if (want.length && now - occT > 200) {
+    occT = now;
+    me.readOcc().then(r => {
+      if (!r || me !== life) return;
+      const taken = new Set(free.sp.filter(f => f.g.phase === 'run').map(f => f.g.tile));
+      for (const i of want) {
+        const f = free.sp[i];
+        if (!f.on || !f.g.on || f.g.phase !== 'idle') continue;
+        const tile = pickTile(r.occ, r.tw, r.th, me.wrap, Math.random, taken);
+        if (tile < 0) break;
+        taken.add(tile);
+        const cur = nextPattern(f.g.best, f.g.n, Math.random);
+        const x0 = (tile % r.tw) * OCC_TILE, y0 = Math.floor(tile / r.tw) * OCC_TILE, list = [];
+        for (let b = 0; b < 256; b++) if ((cur.bits[b >>> 5] >>> (b & 31)) & 1) {
+          const c = cellIndex(x0 + (b & 15), y0 + (b >>> 4));
+          if (c >= 0) list.push([c, i + 1]);
+        }
+        me.setCells(list);
+        Object.assign(f.g, { phase: 'run', tile, cur, placed: me.gen, next: me.gen + 1, h: [] });
+      }
+    });
+  }
+  // 世代ごとの数を読んで、落ち着いたかを見る
+  if (free.sp.some(f => f.g.phase === 'run')) {
+    me.readHist().then(r => {
+      if (!r || me !== life) return;
+      free.sp.forEach((f, i) => {
+        const g = f.g;
+        if (g.phase !== 'run') return;
+        if (r.gen - g.next >= HIST_N) g.next = r.gen - HIST_N + 1;   // 読み逃した分は飛ばす（ふつうは起きない）
+        for (; g.next <= r.gen; g.next++) {
+          g.h.push(r.data[(g.next % HIST_N) * 64 + i]);
+          const st = steady(g.h);
+          if (st) { recordResult(g.best, g.cur, st); g.n++; g.phase = 'idle'; g.h = []; g.cur = null; break; }
+        }
+      });
+    });
+  }
+}
+// 世代ごとの数の輪を読み逃さないように、進める世代の数をおさえる（まだ読んでいない一番古い世代から HIST_N − 32 まで）
+function genRoom() {
+  if (!life || !life.hist) return Infinity;
+  let low = Infinity;
+  for (const f of free.sp) if (f.g.phase === 'run') low = Math.min(low, f.g.next);
+  return low === Infinity ? Infinity : Math.max(0, low + HIST_N - 32 - life.gen);
+}
+// 種族ごとの「最長」とその点（置いてから落ち着くまでの世代）
+function genInfo() {
+  document.querySelectorAll('.gen-info').forEach(el => {
+    const f = free.sp[Number(el.dataset.sp)];
+    if (!f) return;
+    const best = f.g.best.map(e => e.score.toLocaleString()).join(' / ');
+    const now = f.g.phase === 'run' ? `${t('genNow')} ${f.g.h.length.toLocaleString()}` : '';
+    el.textContent = [best ? `${t('genBest')} ${best}` : '', now].filter(Boolean).join(' ・ ');
+  });
+}
+// 画面の点 → マスの位置
+function cellXY(ox, oy) {
+  const dpr = window.devicePixelRatio || 1;
+  return [Math.floor(view.ox + ox * dpr * view.cpp), Math.floor(view.oy + oy * dpr * view.cpp)];
+}
+// マスの位置 → 番号（盤の外なら -1）
+function cellIndex(x, y) {
+  if (life.wrap) { x = ((x % life.W) + life.W) % life.W; y = ((y % life.H) + life.H) % life.H; }
+  else if (x < 0 || y < 0 || x >= life.W || y >= life.H) return -1;
+  return y * life.W + x;
+}
+// 前の点から今の点まで、すきまなく塗る
+function paintLine(a, b) {
+  const v = free.tool === 'erase' ? 0 : free.brush;
+  if (v && !free.sp[v - 1]?.on) return;
+  const list = [];
+  let [x0, y0] = a; const [x1, y1] = b;
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let e = dx + dy;
+  for (let n = 0; n < 4096; n++) {
+    const i = cellIndex(x0, y0); if (i >= 0) list.push([i, v]);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * e;
+    if (e2 >= dy) { e += dy; x0 += sx; }
+    if (e2 <= dx) { e += dx; y0 += sy; }
+  }
+  life.setCells(list);
+}
+
+// ── 人口グラフ（覚えておかない。いま眺めている世界の、最近の分だけ） ──
+const GRAPH_N = 300;
+let graph = [], graphT = 0;
+function resetGraph() { graph = []; drawGraph(); }
+function sampleGraph(now) {
+  if (!life || $('graph').classList.contains('folded') || now - graphT < 250) return;
+  graphT = now;
+  const me = life;
+  me.readCounts().then(r => {
+    if (!r || me !== life) return;
+    const S = curWorld().species.length;
+    const c = Array.from(r.counts.subarray(0, S));
+    const lastG = graph.length ? graph[graph.length - 1].gen : -1;
+    if (r.gen < lastG) graph = [];
+    if (r.gen === lastG) graph[graph.length - 1].c = c;
+    else { graph.push({ gen: r.gen, c }); if (graph.length > GRAPH_N) graph.shift(); }
+    drawGraph();
+  });
+}
+function drawGraph() {
+  const cv = $('graph-cv'), dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(cv.clientWidth * dpr)), h = Math.max(1, Math.round(cv.clientHeight * dpr));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const g = cv.getContext('2d');
+  g.clearRect(0, 0, w, h);
+  g.strokeStyle = '#2a2a2a'; g.lineWidth = 1;
+  g.beginPath(); for (let k = 1; k < 4; k++) { const y = Math.round(h * k / 4) + 0.5; g.moveTo(0, y); g.lineTo(w, y); } g.stroke();
+  if (!graph.length || !life) { $('graph-max').textContent = ''; $('graph-gen').textContent = ''; $('graph-top').replaceChildren(); return; }
+  const ws = curWorld().species;
+  let max = 1; for (const s of graph) for (const v of s.c) if (v > max) max = v;
+  const g0 = graph[0].gen, g1 = graph[graph.length - 1].gen, span = Math.max(1, g1 - g0);
+  g.lineWidth = 1.5 * dpr;
+  ws.forEach((sp, j) => {
+    if (graph.every(s => !s.c[j])) return;
+    g.strokeStyle = sp.color; g.beginPath();
+    graph.forEach((s, k) => {
+      const x = graph.length === 1 ? w - dpr : (s.gen - g0) / span * (w - 2 * dpr) + dpr;
+      const y = h - dpr - ((s.c[j] ?? 0) / max) * (h - 2 * dpr);
+      if (k) g.lineTo(x, y); else g.moveTo(x, y);
+    });
+    g.stroke();
+  });
+  $('graph-max').textContent = max.toLocaleString();
+  // 左上に、いまの数の多い順に 4 種族（名前・色・数）
+  const now = graph[graph.length - 1].c;
+  const top = now.map((v, j) => [v, j]).filter(([v]) => v > 0).sort((a, b) => b[0] - a[0] || a[1] - b[1]).slice(0, 4);
+  $('graph-top').replaceChildren(...top.map(([v, j]) => {
+    const e = document.createElement('div'); e.className = 'gt';
+    e.style.setProperty('--c', ws[j].color); e.textContent = `${spName(ws[j])} ${v.toLocaleString()}`;
+    return e;
+  }));
+  $('graph-gen').textContent = `${t('gen')} ${g0.toLocaleString()} – ${g1.toLocaleString()}`;
+}
+
+// ── パネルを畳む・広げる（畳んだかどうかは、この端末にだけ覚える） ──
+const FOLD_KEY = 'momo-life-fold';
+function loadFold() { try { return JSON.parse(localStorage.getItem(FOLD_KEY)) || {}; } catch (e) { return {}; } }
+function setFold(id, folded, save = true) {
+  const panel = $(id), btn = $(id === 'hud' ? 'btn-fold' : 'btn-graph');
+  panel.classList.toggle('folded', folded);
+  btn.textContent = folded ? '▸' : '▾';
+  btn.title = t(folded ? 'unfold' : 'fold');
+  btn.setAttribute('aria-expanded', String(!folded));
+  if (save) { const f = loadFold(); f[id] = folded; try { localStorage.setItem(FOLD_KEY, JSON.stringify(f)); } catch (e) {} }
+  if (id === 'graph' && !folded) drawGraph();
+}
+
+function speed() { return SPEEDS[Number($('speed').value)]; }
+
+function frame(now) {
+  const dt = Math.min(0.25, (now - last) / 1000);
+  last = now;
+  if (life && mode) {
+    resizeCanvas();
+    if (running) {
+      acc += dt * speed();
+      let n = Math.floor(acc);
+      if (n > MAX_STEPS_PER_FRAME) { n = MAX_STEPS_PER_FRAME; acc = n + (acc % 1); }
+      if (n > 0) { const room = genRoom(); if (n > room) { n = room; acc = n + (acc % 1); } }
+      if (n > 0) { gensDone += life.step(n); acc -= n; }
+    }
+    life.render({ ...view, t: running ? acc : 1, fade: $('fade').checked && speed() <= 30, colors: COLORS });
+    drawMothers();
+    sampleGraph(now);
+    genTick(now);
+    if (life.chain && (life.chain.n !== legendN || life.chain.reps.length !== legendR)) showLegend();
+    frames++;
+    if (now - statT >= 500) {
+      const s = (now - statT) / 1000;
+      $('st-fps').textContent = Math.round(frames / s);
+      $('st-gps').textContent = Math.round(gensDone / s);
+      $('st-gen').textContent = life.gen.toLocaleString();
+      frames = 0; gensDone = 0; statT = now;
+      showLearn();
+      if (isFree()) genInfo();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ── 画面の切り替え ──
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  document.body.classList.toggle('in-game', id === 'screen-game');
+}
+function startMode(m) {
+  if (!gpu || !gpu.ok) return;
+  mode = m;
+  showScreen('screen-game');
+  $('row-mother').hidden = isChain() || isFree();
+  $('lab-mother').hidden = isFree();
+  $('free-box').hidden = !isFree();
+  $('legend').hidden = isFree();
+  if (isFree()) { renderSpTable(); setTool(free.tool); } else canvas.classList.remove('drawing');
+  $('lab-domain').hidden = !isChain();
+  $('lab-learn').hidden = isFree();
+  if (!isChain() && !isFree()) $('mcount').value = String(TEMPLATES[m]().mothers?.count ?? 0);
+  $('mode-now').textContent = t(MODE_KEY[m]);
+  if (!running) { running = true; $('btn-play').textContent = t('pause'); }
+  build();
+}
+function backToTitle() {
+  if (life) life.destroy();
+  life = null; mode = null;
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  showScreen('screen-title');
+}
+
+// ── 操作 ──
+function bindUI() {
+  $('lang-select').addEventListener('change', e => onLangChange(e.target.value));
+  document.querySelectorAll('.mode-card').forEach(b => b.addEventListener('click', () => startMode(b.dataset.mode)));
+  $('btn-back').addEventListener('click', backToTitle);
+  $('speed').addEventListener('input', () => { $('speed-v').textContent = t('perSecN', { n: speed() }); });
+  $('btn-play').addEventListener('click', () => { running = !running; $('btn-play').textContent = t(running ? 'pause' : 'resume'); });
+  $('btn-step').addEventListener('click', () => { if (running) $('btn-play').click(); life.step(1); acc = 1; });
+  $('btn-reset').addEventListener('click', build);
+  $('mcount').addEventListener('change', build);
+  $('mmode').addEventListener('change', build);
+  $('lshow').addEventListener('change', () => { if (life) showLegend(); });
+  $('btn-fold').addEventListener('click', () => setFold('hud', !$('hud').classList.contains('folded')));
+  $('btn-graph').addEventListener('click', () => setFold('graph', !$('graph').classList.contains('folded')));
+  { const f = loadFold(); setFold('hud', !!f.hud, false); setFold('graph', !!f.graph, false); }
+  document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+  // パネルの中では、引きずって運ぶ動き（文字・部品のドラッグ）を始めない。つまみのドラッグが止まらないように（セッション9）
+  for (const id of ['hud', 'graph']) $(id).addEventListener('dragstart', e => { if (!e.target.closest?.('input[type=text]')) e.preventDefault(); });
+  $('seed').value = String(timeSeed());   // 最初の画面でも、ランダムの種を見せておく（世界を選ぶと、その時刻で計算し直す）
+  $('seed').addEventListener('input', () => { $('seed-rand').checked = false; });   // 種を書いたら、ランダムは外す
+  $('btn-random').addEventListener('click', freeRandom);
+  $('btn-clear').addEventListener('click', freeClear);
+  $('btn-addsp').addEventListener('click', addSpecies);
+  window.addEventListener('resize', () => { const old = canvas.width; resizeCanvas(); if (old && canvas.width) view.cpp *= old / canvas.width; });
+  window.addEventListener('keydown', e => {
+    if (!mode) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.code === 'Space') { e.preventDefault(); $('btn-play').click(); }
+    else if (e.key === '.') $('btn-step').click();
+    else if (e.key === 'f') fitView();
+  });
+
+  // ホイールで拡大縮小（指した場所を中心に）
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const dpr = window.devicePixelRatio || 1;
+    const px = e.offsetX * dpr, py = e.offsetY * dpr;
+    const fx = view.ox + px * view.cpp, fy = view.oy + py * view.cpp;
+    const k = Math.exp(e.deltaY * 0.0015);
+    view.cpp = Math.min(8, Math.max(1 / 64, view.cpp * k));
+    view.ox = fx - px * view.cpp; view.oy = fy - py * view.cpp;
+  }, { passive: false });
+
+  // ドラッグで移動（指2本でつまむと拡大縮小）
+  const pts = new Map();
+  let pinch = null;
+  let paint = null;   // 置く・消すのあいだ：{ id, last:[x,y] }
+  canvas.addEventListener('pointerdown', e => {
+    canvas.setPointerCapture(e.pointerId);
+    if (isFree() && free.tool !== 'move' && !pts.size && e.button === 0 && life) {
+      const c = cellXY(e.offsetX, e.offsetY); paint = { id: e.pointerId, last: c }; paintLine(c, c); return;
+    }
+    if (paint) return;
+    pts.set(e.pointerId, { x: e.offsetX, y: e.offsetY }); canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (paint && paint.id === e.pointerId) { const c = cellXY(e.offsetX, e.offsetY); paintLine(paint.last, c); paint.last = c; return; }
+    if (!pts.has(e.pointerId)) return;
+    const dpr = window.devicePixelRatio || 1;
+    const p = pts.get(e.pointerId);
+    if (pts.size === 1) {
+      view.ox -= (e.offsetX - p.x) * dpr * view.cpp;
+      view.oy -= (e.offsetY - p.y) * dpr * view.cpp;
+    }
+    pts.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const mx = (a.x + b.x) / 2 * dpr, my = (a.y + b.y) / 2 * dpr;
+      if (pinch) {
+        const fx = view.ox + mx * view.cpp, fy = view.oy + my * view.cpp;
+        view.cpp = Math.min(8, Math.max(1 / 64, view.cpp * pinch / d));
+        view.ox = fx - mx * view.cpp; view.oy = fy - my * view.cpp;
+      }
+      pinch = d;
+    }
+  });
+  const up = e => { if (paint && paint.id === e.pointerId) { paint = null; return; } pts.delete(e.pointerId); pinch = null; if (!pts.size) canvas.classList.remove('dragging'); };
+  canvas.addEventListener('pointerup', up);
+  canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('dblclick', () => { if (!isFree() || free.tool === 'move') fitView(); });
+}
+
+async function main() {
+  $('version-tag').textContent = VERSION;
+  bindUI();
+  applyLang();
+  window.__life = { get life() { return life; }, view, fitView, startMode };
+  requestAnimationFrame(t0 => { last = t0; statT = t0; frame(t0); });
+  gpu = await getGPU();
+  if (!gpu.ok) {
+    const key = { 'no-navigator-gpu': 'noGpu', 'not-secure': 'notSecure', 'no-adapter': 'noAdapter' }[gpu.why] ?? 'noAdapter';
+    titleMsg(t(key));
+    document.querySelectorAll('.mode-card').forEach(b => { b.disabled = true; });
+    return;
+  }
+  gpu.device.lost.then(l => showMsg(t('lost', { m: l.message || l.reason })));
+}
+main();

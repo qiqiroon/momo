@@ -126,6 +126,30 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://qiqiroon.github.io/momo/games/life/</loc>
+    <lastmod>2026-11-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://qiqiroon.github.io/momo/games/life/ja/</loc>
+    <lastmod>2026-11-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://qiqiroon.github.io/momo/games/life/en/</loc>
+    <lastmod>2026-11-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://qiqiroon.github.io/momo/games/life/zh/</loc>
+    <lastmod>2026-11-19</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://qiqiroon.github.io/momo/games/cosmos/</loc>
     <lastmod>2026-10-30</lastmod>
     <changefreq>monthly</changefreq>

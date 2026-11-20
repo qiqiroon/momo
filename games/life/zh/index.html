@@ -110,6 +110,10 @@
         <span class="mode-name" data-i18n="modeFree">自由編集モード</span>
         <span class="mode-desc" data-i18n="modeFreeDesc">空の盤から始めます。マウスで生き物を置いたり消したりでき、種族を足して、生まれる・生き残る条件を自由に書けます。最初は Conway のライフゲーム（B3/S23）の1種族です。</span>
       </button>
+      <button class="mode-card" type="button" data-mode="battle">
+        <span class="mode-name" data-i18n="modeBattle">対戦</span>
+        <span class="mode-desc" data-i18n="modeBattleDesc">あなたは緑の G1。エネルギーをためて型（グライダーやどんぐりなど）を置き、コンピュータの種族と陣地を奪い合います。自分以外の種族を全滅させたら勝ちです。</span>
+      </button>
     </div>
 
     <details class="opts">
@@ -130,7 +134,7 @@
     <div id="title-msg" class="title-msg" hidden></div>
   </main>
 
-  <footer class="site-footer momo-about" id="momo-about" data-lang="zh"><details><summary>关于 MOMO Life</summary><div class="momo-about-body"><p>MOMO Life 是一款在浏览器中观赏的多物种生命游戏。</p><p>格子里的生物会根据周围同伴的数量诞生或消失。每个物种都有自己的规则，有的还会吃掉其他物种。可以选择自由放置生物、自己编写规则的世界，四个物种互相捕食的世界，以及从空棋盘开始、不断诞生新物种直到 32 种的世界。在不断增加的世界里，孕育物种的母体会学习放置的图案，弱小物种的规则会被重新抽取，物种就这样反复兴衰。</p><p>计算和绘制都在 GPU（WebGPU）上进行，大棋盘也能流畅运行。无需注册账号，也无需安装。</p><div class="momo-about-links"><a href="/momo/">MOMO Works 首页</a><a href="/momo/games/">游戏列表</a><a href="/momo/tools/">工具列表</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+  <footer class="site-footer momo-about" id="momo-about" data-lang="zh"><details><summary>关于 MOMO Life</summary><div class="momo-about-body"><p>MOMO Life 是一款在浏览器中观赏的多物种生命游戏。</p><p>格子里的生物会根据周围同伴的数量诞生或消失。每个物种都有自己的规则，有的还会吃掉其他物种。可以选择自由放置生物、自己编写规则的世界，四个物种互相捕食的世界，以及从空棋盘开始、不断诞生新物种直到 32 种的世界。在不断增加的世界里，孕育物种的母体会学习放置的图案，弱小物种的规则会被重新抽取，物种就这样反复兴衰。在对战世界里，你积攒能量、放置图案，与电脑控制的物种争夺地盘。</p><p>计算和绘制都在 GPU（WebGPU）上进行，大棋盘也能流畅运行。无需注册账号，也无需安装。</p><div class="momo-about-links"><a href="/momo/">MOMO Works 首页</a><a href="/momo/games/">游戏列表</a><a href="/momo/tools/">工具列表</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
 </div>
 
 <!-- ── 観察の画面 ── -->
@@ -205,6 +209,28 @@
       </div>
       <div class="expr-help" data-i18n="exprHelp"></div>
     </div>
+    <div id="battle-box" hidden>
+      <div class="row">
+        <label><span data-i18n="btSpecies">種族の数</span> <select id="bt-s"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></label>
+        <span class="bt-rule"><span data-i18n="btRule">ルール（全種族共通）</span> B<input id="bt-b" type="text" value="3" size="4"> S<input id="bt-sv" type="text" value="23" size="4"> E<input id="bt-e" type="text" value="1" size="4"></span>
+      </div>
+      <div id="bt-me" class="bt-me"></div>
+      <div class="bt-pat-title" data-i18n="btPatTitle">型（1〜0 のキーでも選べる）</div>
+      <div id="bt-slots" class="bt-slots"></div>
+      <div class="bt-edit">
+        <canvas id="bt-editor"></canvas>
+        <div class="bt-edit-side">
+          <div id="bt-slot-name" class="bt-slot-name"></div>
+          <div id="bt-slot-cost" class="bt-slot-cost"></div>
+          <div class="row"><button id="bt-pat-reset" type="button" data-i18n="btPatReset">最初の形に戻す</button><button id="bt-pat-clear" type="button" data-i18n="btPatClear">空にする</button></div>
+          <div class="bt-hint" data-i18n="btHint"></div>
+        </div>
+      </div>
+      <table id="bt-table">
+        <thead><tr><th data-i18n="btColName">種族</th><th data-i18n="btColCells">マス</th><th data-i18n="btColEnergy">エネルギー</th><th data-i18n="btColPrice">1マス</th><th data-i18n="btColAct">いまの動き</th></tr></thead>
+        <tbody id="bt-rows"></tbody>
+      </table>
+    </div>
     <div class="row" id="row-mother">
       <label><span data-i18n="mCount">マザー</span> <select id="mcount">
         <option value="0" data-i18n="mNone">なし</option>
@@ -245,6 +271,7 @@
   </div>
 </div>
 
+<div id="bt-result" hidden><div id="bt-result-msg"></div><button id="bt-again" type="button" data-i18n="btAgain">もう一度</button></div>
 <div id="msg" hidden></div>
 <div id="toast" hidden></div>
 <input id="file-in" type="file" accept=".json,application/json" hidden>
@@ -267,7 +294,7 @@
 
 <script type="application/json" id="momo-rating-data">{"app":"games/life","avg":4.0,"count":2}</script>
 <script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":["VideoGame","WebApplication"],"name":"MOMO Life","url":"https://qiqiroon.github.io/momo/games/life/zh/","description":"在浏览器中免费观赏的多物种生命游戏。可以自由放置生物并编写规则，观看四个物种互相捕食，或从空棋盘开始，让新物种不断诞生直到 32 种，在学习放置图案的过程中兴衰交替。计算在 GPU 上进行，大棋盘也能流畅运行。无需注册，无需安装。","image":"https://qiqiroon.github.io/momo/games/life/apple-touch-icon.png","applicationCategory":"GameApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"},"aggregateRating":{"@type":"AggregateRating","ratingValue":"4.0","ratingCount":"2","bestRating":"5","worstRating":"1"}}</script>
-<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Life について", "body": ["MOMO Life は、ブラウザで眺める多種族のライフゲームです。", "マス目の生き物は、周りの仲間の数で生まれたり消えたりします。種族ごとに違うルールを持ち、ほかの種族を食べることもあります。生き物を置いてルールを自由に書ける世界、4つの種族が食べ合う世界、空の盤から新しい種族が次々に生まれて 32 種まで増える世界を選べます。増える世界では、種族を生み出すマザーが置き形を学び、弱い種族はルールを引き直されて、栄えたり滅んだりを繰り返します。", "計算と描画は GPU（WebGPU）で行うので、大きな盤のまま動かせます。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Life", "body": ["MOMO Life is a multi-species Game of Life you watch in your browser.", "Each creature on the grid is born or dies depending on how many neighbours it has. Every species follows its own rules, and some species eat others. Choose a free-edit world where you place creatures and write the rules yourself, a world where four species eat one another, or a world that starts from an empty board and keeps adding new species until there are 32. In that world, the mothers that spawn each species learn which pattern to plant, and weak species have their rules redrawn, so species rise and fall again and again.", "Everything is computed and drawn on the GPU (WebGPU), so even a large board runs smoothly. No account, no installation."]}, "zh": {"title": "关于 MOMO Life", "body": ["MOMO Life 是一款在浏览器中观赏的多物种生命游戏。", "格子里的生物会根据周围同伴的数量诞生或消失。每个物种都有自己的规则，有的还会吃掉其他物种。可以选择自由放置生物、自己编写规则的世界，四个物种互相捕食的世界，以及从空棋盘开始、不断诞生新物种直到 32 种的世界。在不断增加的世界里，孕育物种的母体会学习放置的图案，弱小物种的规则会被重新抽取，物种就这样反复兴衰。", "计算和绘制都在 GPU（WebGPU）上进行，大棋盘也能流畅运行。无需注册账号，也无需安装。"]}}</script>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Life について", "body": ["MOMO Life は、ブラウザで眺める多種族のライフゲームです。", "マス目の生き物は、周りの仲間の数で生まれたり消えたりします。種族ごとに違うルールを持ち、ほかの種族を食べることもあります。生き物を置いてルールを自由に書ける世界、4つの種族が食べ合う世界、空の盤から新しい種族が次々に生まれて 32 種まで増える世界を選べます。増える世界では、種族を生み出すマザーが置き形を学び、弱い種族はルールを引き直されて、栄えたり滅んだりを繰り返します。対戦の世界では、エネルギーをためて型を置き、コンピュータの種族と陣地を取り合います。", "計算と描画は GPU（WebGPU）で行うので、大きな盤のまま動かせます。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Life", "body": ["MOMO Life is a multi-species Game of Life you watch in your browser.", "Each creature on the grid is born or dies depending on how many neighbours it has. Every species follows its own rules, and some species eat others. Choose a free-edit world where you place creatures and write the rules yourself, a world where four species eat one another, or a world that starts from an empty board and keeps adding new species until there are 32. In that world, the mothers that spawn each species learn which pattern to plant, and weak species have their rules redrawn, so species rise and fall again and again. In the battle world, you save up energy, place patterns and fight computer species for territory.", "Everything is computed and drawn on the GPU (WebGPU), so even a large board runs smoothly. No account, no installation."]}, "zh": {"title": "关于 MOMO Life", "body": ["MOMO Life 是一款在浏览器中观赏的多物种生命游戏。", "格子里的生物会根据周围同伴的数量诞生或消失。每个物种都有自己的规则，有的还会吃掉其他物种。可以选择自由放置生物、自己编写规则的世界，四个物种互相捕食的世界，以及从空棋盘开始、不断诞生新物种直到 32 种的世界。在不断增加的世界里，孕育物种的母体会学习放置的图案，弱小物种的规则会被重新抽取，物种就这样反复兴衰。在对战世界里，你积攒能量、放置图案，与电脑控制的物种争夺地盘。", "计算和绘制都在 GPU（WebGPU）上进行，大棋盘也能流畅运行。无需注册账号，也无需安装。"]}}</script>
 <script type="module" src="/momo/games/life/life.js"></script>
 </body>
 </html>

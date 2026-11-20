@@ -9,9 +9,10 @@ import { makeBoard, fillRandom } from './life-cpu.js';
 import { checkRule, checkTargets, LETTERS, FREE_MAX } from './life-expr.js';
 import { steady, recordResult, nextPattern, pickTile } from './life-gen.js';
 import { HELP, WARN, WARN_ICON, ruby } from './life-help.js';
+import { BATTLE, DEFAULT_PATTERNS, defaultPatterns, patInfo, battleWorld } from './life-battle.js';
 
 const $ = id => document.getElementById(id);
-const VERSION = 'v0.04';
+const VERSION = 'v0.05';
 
 // ── 言葉（ja / en / zh。猫語は鳴き声に置き換える） ──
 const I18N = {
@@ -20,6 +21,15 @@ const I18N = {
     modeChain: '連鎖して増える', modeChainDesc: '空の盤と Conway のマザー1つから始まり、2,000 世代ごとに新しい種族が生まれて 32 種まで増えます。マザーは置き形を学び、弱い種族はルールを引き直されます。',
     modeFour: '4種族', modeFourDesc: '緑・水色・桃の3種族がじゃんけんの形で食べ合い、黄は誰も食べません。マザーが種族をまき続けます。',
     modeFree: '自由編集モード', modeFreeDesc: '空の盤から始めます。マウスで生き物を置いたり消したりでき、種族を足して、生まれる・生き残る条件を自由に書けます。最初は Conway のライフゲーム（B3/S23）の1種族です。',
+    modeBattle: '対戦', modeBattleDesc: 'あなたは緑の G1。エネルギーをためて型（グライダーやどんぐりなど）を置き、コンピュータの種族と陣地を奪い合います。自分以外の種族を全滅させたら勝ちです。',
+    btSpecies: '種族の数', btRule: 'ルール（全種族共通）', btYou: '（あなた）', btPatTitle: '型（1〜0 のキーでも選べる）',
+    btMe: 'エネルギー {e}　1マス {p}　収入 +{i}/秒　あと {w} 秒', btCost: '{n} マス ＝ {e}',
+    btHint: '盤を押すと、点線の中に型を置きます。型の絵を押すと書きかえられます（エネルギーは使いません）。',
+    btPatReset: '最初の形に戻す', btPatClear: '空にする', btWin: 'あなたの勝ち！ ほかの種族が全滅しました', btLose: 'あなたの負け… G1 が全滅しました', btAgain: 'もう一度',
+    btGrow: '増やした', btShoot: 'グライダーを撃った', btBomb: 'どんぐりで爆撃', btSave: 'ためている', btEscort: 'グライダーを追っている', btDead: '全滅',
+    btNo_far: '点線の外には置けません', btNo_cost: 'エネルギーが足りません', btNo_empty: 'この型は空です', btNo_full: 'そこは全部ふさがっています', btNo_zoc: 'ほかの種族の陣地（相手の点線の中）には置けません', btNo_over: '対戦は終わりました',
+    pt_block: 'ブロック', pt_beacon: 'ビーコン', pt_gliderSE: 'グライダー ↘', pt_gliderSW: 'グライダー ↙', pt_gliderNE: 'グライダー ↗', pt_gliderNW: 'グライダー ↖', pt_acorn: 'どんぐり（Acorn）', pt_empty: '（空き）', pt_custom: '自作',
+    btColName: '種族', btColCells: 'マス', btColEnergy: 'エネルギー', btColPrice: '1マス', btColAct: 'いまの動き',
     fold: '畳む', unfold: '広げる', graph: '人口',
     toolMove: '動かす', toolDraw: '置く', toolErase: '消す', randomFill: 'ランダムに配置', clearAll: '全部消す', addSp: '＋ 種族を足す',
     colOn: '使う', colBirth: '生まれる', colSurvive: '生き残る', colEat: '食べる', colTarget: '食べる相手', colGen: '発生',
@@ -45,6 +55,15 @@ const I18N = {
     modeChain: 'Chain of species', modeChainDesc: 'Starts from an empty board and one Conway mother. Every 2,000 generations a new species appears, up to 32. Mothers learn which pattern to plant, and weak species have their rules redrawn.',
     modeFour: 'Four species', modeFourDesc: 'Green, cyan and pink eat one another like rock-paper-scissors; yellow eats nobody. Mothers keep sowing each species.',
     modeFree: 'Free edit', modeFreeDesc: 'Starts from an empty board. Place or erase creatures with the mouse, add species, and write your own birth and survival conditions. You begin with one species following Conway’s Game of Life (B3/S23).',
+    modeBattle: 'Battle', modeBattleDesc: 'You are green G1. Gather energy, place patterns such as gliders and acorns, and fight computer species for territory. Wipe out every other species to win.',
+    btSpecies: 'Species', btRule: 'Rule (all species)', btYou: '(you)', btPatTitle: 'Patterns (keys 1–0 also select)',
+    btMe: 'Energy {e}   per cell {p}   income +{i}/s   wait {w} s', btCost: '{n} cells = {e}',
+    btHint: 'Click the board to place the pattern inside the dotted line. Click the pattern picture to edit it (no energy needed).',
+    btPatReset: 'Reset to original', btPatClear: 'Clear', btWin: 'You win! Every other species is gone', btLose: 'You lose… G1 has been wiped out', btAgain: 'Play again',
+    btGrow: 'grew', btShoot: 'fired a glider', btBomb: 'acorn bombing', btSave: 'saving', btEscort: 'following its glider', btDead: 'wiped out',
+    btNo_far: 'You can only place inside the dotted line', btNo_cost: 'Not enough energy', btNo_empty: 'This pattern is empty', btNo_full: 'Every cell there is already taken', btNo_zoc: 'You cannot place inside another species’ zone', btNo_over: 'The battle is over',
+    pt_block: 'Block', pt_beacon: 'Beacon', pt_gliderSE: 'Glider ↘', pt_gliderSW: 'Glider ↙', pt_gliderNE: 'Glider ↗', pt_gliderNW: 'Glider ↖', pt_acorn: 'Acorn', pt_empty: '(empty)', pt_custom: 'Custom',
+    btColName: 'Species', btColCells: 'Cells', btColEnergy: 'Energy', btColPrice: 'Per cell', btColAct: 'Doing',
     fold: 'Fold', unfold: 'Unfold', graph: 'Population',
     toolMove: 'Move', toolDraw: 'Draw', toolErase: 'Erase', randomFill: 'Random fill', clearAll: 'Clear', addSp: '+ Add species',
     colOn: 'On', colBirth: 'Born', colSurvive: 'Survives', colEat: 'Eats', colTarget: 'Prey', colGen: 'Spawn',
@@ -70,6 +89,15 @@ const I18N = {
     modeChain: '连锁增长', modeChainDesc: '从空棋盘和一个 Conway 母体开始，每 2,000 代诞生一个新物种，最多 32 种。母体会学习放置的图案，弱小物种的规则会被重新抽取。',
     modeFour: '四个物种', modeFourDesc: '绿、青、粉三个物种像石头剪刀布一样互相捕食，黄色不吃任何物种。母体不断播撒各个物种。',
     modeFree: '自由编辑', modeFreeDesc: '从空棋盘开始。可以用鼠标放置或擦除生物，增加物种，并自由编写诞生和存活的条件。最初是 Conway 生命游戏（B3/S23）的一个物种。',
+    modeBattle: '对战', modeBattleDesc: '你是绿色的 G1。积攒能量，放置滑翔机、橡子等图案，与电脑控制的物种争夺地盘。消灭其他所有物种即获胜。',
+    btSpecies: '物种数', btRule: '规则（所有物种相同）', btYou: '（你）', btPatTitle: '图案（也可用 1〜0 键选择）',
+    btMe: '能量 {e}　每格 {p}　收入 +{i}/秒　还需 {w} 秒', btCost: '{n} 格 ＝ {e}',
+    btHint: '点击棋盘，在虚线内放置图案。点击图案画面可以修改（不消耗能量）。',
+    btPatReset: '恢复原样', btPatClear: '清空', btWin: '你赢了！其他物种全部消灭', btLose: '你输了… G1 已全部消灭', btAgain: '再来一次',
+    btGrow: '扩张', btShoot: '发射了滑翔机', btBomb: '用橡子轰炸', btSave: '积攒中', btEscort: '跟随滑翔机', btDead: '已消灭',
+    btNo_far: '只能放在虚线内', btNo_cost: '能量不足', btNo_empty: '这个图案是空的', btNo_full: '那里的格子都已被占', btNo_zoc: '不能放在其他物种的地盘（对方的虚线内）', btNo_over: '对战已结束',
+    pt_block: '方块', pt_beacon: '信标', pt_gliderSE: '滑翔机 ↘', pt_gliderSW: '滑翔机 ↙', pt_gliderNE: '滑翔机 ↗', pt_gliderNW: '滑翔机 ↖', pt_acorn: '橡子（Acorn）', pt_empty: '（空）', pt_custom: '自制',
+    btColName: '物种', btColCells: '格', btColEnergy: '能量', btColPrice: '每格', btColAct: '当前动作',
     fold: '收起', unfold: '展开', graph: '数量',
     toolMove: '移动', toolDraw: '放置', toolErase: '擦除', randomFill: '随机放置', clearAll: '全部清除', addSp: '＋ 增加物种',
     colOn: '使用', colBirth: '诞生', colSurvive: '存活', colEat: '吃', colTarget: '猎物', colGen: '生成',
@@ -135,6 +163,7 @@ function applyLang() {
   if (life) showLegend();
   for (const id of ['hud', 'graph']) $(id === 'hud' ? 'btn-fold' : 'btn-graph').title = t($(id).classList.contains('folded') ? 'unfold' : 'fold');
   if (isFree()) renderSpTable();
+  renderBattle();
   drawGraph();
   if ($('help-dlg').open) fillHelp(helpKey);
   showWarnTitle();
@@ -151,13 +180,14 @@ function onLangChange(m) {
 }
 
 // ── モード ──
-const MODE_KEY = { chain: 'modeChain', four: 'modeFour', free: 'modeFree' };
+const MODE_KEY = { chain: 'modeChain', four: 'modeFour', free: 'modeFree', battle: 'modeBattle' };
 let mode = null;            // いま眺めている世界（null ならモードを選ぶ画面）
 const isChain = () => mode === 'chain';
 const isFree = () => mode === 'free';
+const isBattle = () => mode === 'battle';
 const curWorld = () => life?.chain?.world ?? world;
 const SP_KEY = { Green: 'spGreen', Cyan: 'spCyan', Pink: 'spPink', Yellow: 'spYellow' };
-const spName = sp => isFree() ? LETTERS[sp.id - 1] : isChain() ? chainName(sp.id) : t(SP_KEY[sp.name?.en] ?? 'spN', { n: sp.id });
+const spName = sp => isFree() ? LETTERS[sp.id - 1] : isChain() || isBattle() ? chainName(sp.id) : t(SP_KEY[sp.name?.en] ?? 'spN', { n: sp.id });
 
 const canvas = $('board');
 const overlay = $('overlay');
@@ -369,6 +399,7 @@ function build() {
   if (life) life.destroy();
   life = null;
   if (isChain()) buildChain();
+  else if (isBattle()) { if (!buildBattle()) return; }
   else if (isFree()) {
     const { W, H } = readSize();
     world = freeGood;
@@ -606,6 +637,191 @@ function paintLine(a, b) {
   life.setCells(list);
 }
 
+// ── 対戦モード（セッション11） ──
+// 対戦の中身は裏方（life-battle-worker.js）が持つ。画面は 1 秒に 1 回、盤を読み戻して送り、返ってきた「置くマス」を盤に書く
+const BT_PAT_KEY = 'momo-life-battle-pat';
+const BT_ACT = { grow: 'btGrow', shoot: 'btShoot', bomb: 'btBomb', save: 'btSave', escort: 'btEscort' };
+function loadPats() {
+  try {
+    const p = JSON.parse(localStorage.getItem(BT_PAT_KEY));
+    if (Array.isArray(p) && p.length === BATTLE.slots && p.every(r => Array.isArray(r) && r.length === BATTLE.grid)) return p.map(r => r.map(s => String(s).padEnd(BATTLE.grid, '.').slice(0, BATTLE.grid)));
+  } catch (e) {}
+  return defaultPatterns().map(p => p.rows);
+}
+const bt = { worker: null, id: 0, ready: false, busy: false, lastTick: 0, st: [], dist: null, path: null, slot: 2, pats: loadPats(), hover: null, result: null, starts: null };
+function savePats() { try { localStorage.setItem(BT_PAT_KEY, JSON.stringify(bt.pats)); } catch (e) {} }
+const btRule = () => ({ birth: $('bt-b').value, survive: $('bt-sv').value, eat: $('bt-e').value, target: '?' });
+const btS = () => Number($('bt-s').value);
+function btWorker() {
+  if (bt.worker) return bt.worker;
+  bt.worker = new Worker(new URL('./life-battle-worker.js', import.meta.url), { type: 'module' });
+  bt.worker.onmessage = e => btMessage(e.data);
+  return bt.worker;
+}
+// 対戦の盤を作る（build から呼ぶ）。最初のブロックは裏方が決めて返す
+function buildBattle() {
+  const { W, H } = readSize();
+  const w = battleWorld(btS(), btRule());
+  if (!w.ok) { flash(w.msg); return false; }
+  world = w.world;
+  const wrap = $('wrap').checked, seed = Number($('seed').value) || 0;
+  life = new LifeGPU(gpu.device, { W, H, wrap, seed, density: 0, canvas, rules: compile(world), mothers: null,
+    palette: [BG, ...world.species.map(sp => hexToRGBA(sp.color))] });
+  bt.id++; bt.ready = false; bt.busy = false; bt.result = null; bt.dist = null; bt.path = null; bt.st = []; bt.lastTick = 0;
+  $('bt-result').hidden = true;
+  btWorker().postMessage({ type: 'init', id: bt.id, W, H, wrap, S: btS(), seed, rule: btRule() });
+  renderBattle();
+  return true;
+}
+function btMessage(m) {
+  if (m.id !== bt.id || !life || !isBattle()) return;
+  if (m.type === 'init') {
+    life.upload(m.cells); acc = 0; resetGraph();
+    bt.ready = true; bt.st = m.st; bt.starts = m.starts;
+    // あなた（G1）のブロックを真ん中に、1 マス 4 点で見せる
+    resizeCanvas();
+    //   （左上のパネルに隠れないように、パネルの右の空いたところの真ん中に出す）
+    const dpr = window.devicePixelRatio || 1, [x, y] = m.starts[0], cpp = 1 / (4 * dpr);
+    const hr = $('hud').getBoundingClientRect(), left = hr.right < canvas.clientWidth * 0.75 ? hr.right : 0;
+    view.cpp = cpp; view.ox = x + 1 - (left + canvas.clientWidth) / 2 * dpr * cpp; view.oy = y + 1 - canvas.height * cpp / 2;
+    renderBattle();
+  } else if (m.type === 'tick') {
+    for (const w of m.writes) life.setCells(w.list.map(i => [i, w.s]));
+    bt.st = m.st; bt.dist = m.dist; bt.busy = false;
+    bt.path = new Path2D();
+    const sg = m.seg;
+    for (let k = 0; k < sg.length; k += 4) { bt.path.moveTo(sg[k], sg[k + 1]); bt.path.lineTo(sg[k + 2], sg[k + 3]); }
+    if (m.result && !bt.result) { bt.result = m.result; $('bt-result-msg').textContent = t(m.result === 'win' ? 'btWin' : 'btLose'); $('bt-result').hidden = false; }
+    renderBattle();
+  } else if (m.type === 'place') {
+    if (m.list) life.setCells(m.list.map(i => [i, 1]));
+    else flash(t('btNo_' + m.why));
+    bt.st = m.st; renderBattle();
+  }
+}
+// 1 秒に 1 回（動かしているあいだだけ。止めているとエネルギーも増えない）
+function battleTick(now) {
+  if (!isBattle() || !life || !bt.ready || bt.busy || bt.result || !running || now - bt.lastTick < 1000) return;
+  bt.busy = true; bt.lastTick = now;
+  const me = life, id = bt.id;
+  me.read().then(cells => {
+    if (me !== life || id !== bt.id) return;
+    bt.worker.postMessage({ type: 'tick', id, cells, gen: me.gen }, [cells.buffer]);
+  }).catch(() => { bt.busy = false; });
+}
+// いま選んでいる型を、マス (cx,cy) を真ん中にして置くときの左上と形
+function btAim(cx, cy) {
+  const info = patInfo(bt.pats[bt.slot]);
+  return { info, x0: cx - Math.floor(info.w / 2), y0: cy - Math.floor(info.h / 2) };
+}
+function btPlace(cx, cy) {
+  if (!bt.ready || bt.result) return;
+  const { info, x0, y0 } = btAim(cx, cy);
+  if (!info.n) { flash(t('btNo_empty')); return; }
+  bt.worker.postMessage({ type: 'place', id: bt.id, rows: bt.pats[bt.slot], x0, y0 });
+}
+// 盤の上に、置ける範囲の縁（点線）と、置こうとしている型の影を描く
+function drawBattle() {
+  if (!isBattle() || !life) return;
+  const dpr = window.devicePixelRatio || 1, c = view.cpp;
+  const me = curWorld().species[0];
+  const copies = life.wrap ? [-1, 0, 1] : [0];
+  if (bt.path) {
+    octx.save();
+    octx.strokeStyle = me.color; octx.globalAlpha = 0.85;
+    octx.lineWidth = 1.2 * dpr * c; octx.setLineDash([4 * dpr * c, 4 * dpr * c]);
+    for (const ky of copies) for (const kx of copies) {
+      octx.setTransform(1 / c, 0, 0, 1 / c, (kx * life.W - view.ox) / c, (ky * life.H - view.oy) / c);
+      octx.stroke(bt.path);
+    }
+    octx.restore();
+  }
+  if (bt.hover && bt.ready && !bt.result) {
+    const { info, x0, y0 } = btAim(...bt.hover);
+    if (!info.n) return;
+    const st = bt.st[0];
+    let inside = !!bt.dist;
+    for (const [dx, dy] of info.cells) { const i = cellIndex(x0 + dx, y0 + dy); if (i < 0 || !bt.dist || bt.dist[i] > BATTLE.range) { inside = false; break; } }
+    const enough = st && st.energy >= info.n * st.price;
+    octx.save();
+    octx.fillStyle = inside && enough ? me.color : inside ? '#facc15' : '#f87171';
+    octx.globalAlpha = 0.6;
+    const s = Math.max(1, 1 / c);
+    for (const [dx, dy] of info.cells) octx.fillRect((x0 + dx - view.ox) / c, (y0 + dy - view.oy) / c, s, s);
+    octx.restore();
+  }
+}
+const patName = k => {
+  const rows = bt.pats[k], n = patInfo(rows).n;
+  if (!n) return t('pt_empty');
+  const def = DEFAULT_PATTERNS[k];
+  return def.key !== 'empty' && def.rows.join() === rows.join() ? t('pt_' + def.key) : t('pt_custom');
+};
+// 型の小さな絵
+function drawPat(cv, rows, color, px) {
+  const g = cv.getContext('2d'), n = BATTLE.grid;
+  cv.width = cv.height = n * px;
+  g.fillStyle = '#111'; g.fillRect(0, 0, n * px, n * px);
+  if (px >= 8) { g.strokeStyle = '#2a2a2a'; g.lineWidth = 1; g.beginPath(); for (let k = 1; k < n; k++) { g.moveTo(k * px + 0.5, 0); g.lineTo(k * px + 0.5, n * px); g.moveTo(0, k * px + 0.5); g.lineTo(n * px, k * px + 0.5); } g.stroke(); }
+  g.fillStyle = color;
+  rows.forEach((r, y) => { for (let x = 0; x < n; x++) if (r[x] === 'O') g.fillRect(x * px + (px >= 8 ? 1 : 0), y * px + (px >= 8 ? 1 : 0), px - (px >= 8 ? 1 : 0), px - (px >= 8 ? 1 : 0)); });
+}
+function renderSlots() {
+  const color = curWorld()?.species?.[0]?.color ?? '#4ade80';
+  const box = $('bt-slots');
+  if (box.children.length !== BATTLE.slots) {
+    box.replaceChildren(...bt.pats.map((_, k) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'bt-slot';
+      const cv = document.createElement('canvas'); const num = document.createElement('span'); num.className = 'bt-num'; num.textContent = String((k + 1) % 10);
+      b.append(cv, num); b.addEventListener('click', () => { bt.slot = k; renderSlots(); });
+      return b;
+    }));
+  }
+  [...box.children].forEach((b, k) => { b.classList.toggle('on', k === bt.slot); drawPat(b.querySelector('canvas'), bt.pats[k], color, 3); b.title = patName(k); });
+  drawPat($('bt-editor'), bt.pats[bt.slot], color, 14);
+  const info = patInfo(bt.pats[bt.slot]), st = bt.st[0];
+  $('bt-slot-name').textContent = `${(bt.slot + 1) % 10}. ${patName(bt.slot)}`;
+  $('bt-slot-cost').textContent = t('btCost', { n: info.n, e: st ? (info.n * st.price).toLocaleString() : '—' });
+}
+function renderBattle() {
+  if (!isBattle()) return;
+  renderSlots();
+  const st = bt.st[0], ws = curWorld().species;
+  if (st) {
+    const need = patInfo(bt.pats[bt.slot]).n * st.price;
+    const wait = st.energy >= need ? 0 : st.income ? Math.ceil((need - st.energy) / st.income) : '—';
+    $('bt-me').textContent = t('btMe', { e: st.energy.toLocaleString(), p: st.price.toLocaleString(), i: st.income.toLocaleString(), w: wait });
+  } else $('bt-me').textContent = '';
+  $('bt-rows').replaceChildren(...ws.map((sp, j) => {
+    const s = bt.st[j], tr = document.createElement('tr');
+    if (s && !s.alive) tr.className = 'dead';
+    const nm = document.createElement('td'); nm.className = 'nm'; nm.style.setProperty('--c', sp.color);
+    nm.textContent = j === 0 ? `${spName(sp)} ${t('btYou')}` : spName(sp);
+    const td = v => { const e = document.createElement('td'); e.textContent = v; return e; };
+    tr.append(nm, td(s ? s.cells.toLocaleString() : ''), td(s ? s.energy.toLocaleString() : ''), td(s ? s.price.toLocaleString() : ''),
+      td(!s ? '' : !s.alive ? t('btDead') : j === 0 ? '' : t(BT_ACT[s.act] ?? 'btSave')));
+    return tr;
+  }));
+}
+// 型を書きかえる（10×10 の絵を押すと、そのマスを入れ替える。なぞると同じ値で塗る）
+function bindEditor() {
+  const cv = $('bt-editor');
+  let paintV = null;
+  const at = e => { const r = cv.getBoundingClientRect(); return [Math.floor((e.clientX - r.left) / r.width * BATTLE.grid), Math.floor((e.clientY - r.top) / r.height * BATTLE.grid)]; };
+  const set = (x, y, v) => {
+    if (x < 0 || y < 0 || x >= BATTLE.grid || y >= BATTLE.grid) return;
+    const row = bt.pats[bt.slot][y];
+    if ((row[x] === 'O') === v) return;
+    bt.pats[bt.slot][y] = row.slice(0, x) + (v ? 'O' : '.') + row.slice(x + 1);
+    savePats(); renderBattle();
+  };
+  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); const [x, y] = at(e); paintV = bt.pats[bt.slot][y]?.[x] !== 'O'; set(x, y, paintV); });
+  cv.addEventListener('pointermove', e => { if (paintV !== null) set(...at(e), paintV); });
+  cv.addEventListener('pointerup', () => { paintV = null; });
+  $('bt-pat-reset').addEventListener('click', () => { bt.pats[bt.slot] = [...DEFAULT_PATTERNS[bt.slot].rows]; savePats(); renderBattle(); });
+  $('bt-pat-clear').addEventListener('click', () => { bt.pats[bt.slot] = Array(BATTLE.grid).fill('.'.repeat(BATTLE.grid)); savePats(); renderBattle(); });
+}
+
 // ── 人口グラフ（覚えておかない。いま眺めている世界の、最近の分だけ） ──
 const GRAPH_N = 300;
 let graph = [], graphT = 0;
@@ -701,6 +917,8 @@ function frame(now) {
       life.render({ ...view, t: fd ? (now - lastDraw) / CALM_MS : 1, fade: fd, snap: true, colors: COLORS });
     } else { life.snapReady = false; life.render({ ...view, t: running ? acc : 1, fade: $('fade').checked && speed() <= 30, colors: COLORS }); }
     drawMothers();
+    drawBattle();
+    battleTick(now);
     showZoom();
     sampleGraph(now);
     genTick(now);
@@ -892,24 +1110,27 @@ function startMode(m) {
   if (!gpu || !gpu.ok) return;
   mode = m;
   showScreen('screen-game');
-  $('row-mother').hidden = isChain() || isFree();
-  $('lab-mother').hidden = isFree();
+  $('row-mother').hidden = isChain() || isFree() || isBattle();
+  $('lab-mother').hidden = isFree() || isBattle();
+  $('battle-box').hidden = !isBattle();
+  $('bt-result').hidden = true;
   $('free-box').hidden = !isFree();
-  $('legend-box').hidden = isFree();
+  $('legend-box').hidden = isFree() || isBattle();
   $('row-chainctl').hidden = !isChain();
   if (isFree()) { renderSpTable(); setTool(free.tool); } else canvas.classList.remove('drawing');
   $('lab-domain').hidden = !isChain();
-  $('lab-learn').hidden = isFree();
-  $('lab-label').hidden = isFree();
-  $('fade').checked = !isFree();   // 自由編集はフェードなし、ほかはありが最初（セッション10）
-  if (!isChain() && !isFree()) $('mcount').value = String(TEMPLATES[m]().mothers?.count ?? 0);
+  $('lab-learn').hidden = isFree() || isBattle();
+  $('lab-label').hidden = isFree() || isBattle();
+  $('fade').checked = !isFree() && !isBattle();   // 自由編集はフェードなし、ほかはありが最初（セッション10）
+  if (!isChain() && !isFree() && !isBattle()) $('mcount').value = String(TEMPLATES[m]().mothers?.count ?? 0);
   $('mode-now').textContent = t(MODE_KEY[m]);
   if (!running) { running = true; $('btn-play').textContent = t('pause'); }
   build();
 }
 function backToTitle() {
   if (life) life.destroy();
-  life = null; mode = null;
+  life = null; mode = null; bt.id++; bt.ready = false;
+  $('bt-result').hidden = true;
   octx.clearRect(0, 0, overlay.width, overlay.height);
   showScreen('screen-title');
 }
@@ -944,6 +1165,10 @@ function bindUI() {
   $('btn-random').addEventListener('click', freeRandom);
   $('btn-clear').addEventListener('click', freeClear);
   $('btn-addsp').addEventListener('click', addSpecies);
+  $('bt-s').addEventListener('change', () => { if (isBattle()) build(); });
+  for (const id of ['bt-b', 'bt-sv', 'bt-e']) $(id).addEventListener('change', () => { if (isBattle()) build(); });
+  $('bt-again').addEventListener('click', build);
+  bindEditor();
   $('zoom-in').addEventListener('click', () => zoomBy(2));
   $('zoom-out').addEventListener('click', () => zoomBy(0.5));
   $('btn-about-life').addEventListener('click', () => openHelp('life'));
@@ -964,6 +1189,7 @@ function bindUI() {
     if (e.code === 'Space') { e.preventDefault(); $('btn-play').click(); }
     else if (e.key === '.') $('btn-step').click();
     else if (e.key === 'f') fitView();
+    else if (isBattle() && /^[0-9]$/.test(e.key)) { bt.slot = (Number(e.key) + 9) % 10; renderBattle(); }
   });
 
   // ホイールで拡大縮小（指した場所を中心に）
@@ -977,16 +1203,20 @@ function bindUI() {
   const pts = new Map();
   let pinch = null;
   let paint = null;   // 置く・消すのあいだ：{ id, last:[x,y] }
+  let click = null;   // 対戦：押して動かさずに離したら、型を置く
   canvas.addEventListener('pointerdown', e => {
     canvas.setPointerCapture(e.pointerId);
     if (isFree() && free.tool !== 'move' && !pts.size && e.button === 0 && life) {
       const c = cellXY(e.offsetX, e.offsetY); paint = { id: e.pointerId, last: c }; paintLine(c, c); return;
     }
     if (paint) return;
+    click = isBattle() && !pts.size && e.button === 0 ? { id: e.pointerId, x: e.offsetX, y: e.offsetY } : null;
     pts.set(e.pointerId, { x: e.offsetX, y: e.offsetY }); canvas.classList.add('dragging');
   });
   canvas.addEventListener('pointermove', e => {
     if (paint && paint.id === e.pointerId) { const c = cellXY(e.offsetX, e.offsetY); paintLine(paint.last, c); paint.last = c; return; }
+    if (isBattle()) bt.hover = cellXY(e.offsetX, e.offsetY);
+    if (click && (click.id !== e.pointerId || Math.hypot(e.offsetX - click.x, e.offsetY - click.y) > 5)) click = null;
     if (!pts.has(e.pointerId)) return;
     const dpr = window.devicePixelRatio || 1;
     const p = pts.get(e.pointerId);
@@ -1007,9 +1237,14 @@ function bindUI() {
       pinch = d;
     }
   });
-  const up = e => { if (paint && paint.id === e.pointerId) { paint = null; return; } pts.delete(e.pointerId); pinch = null; if (!pts.size) canvas.classList.remove('dragging'); };
+  const up = e => {
+    if (paint && paint.id === e.pointerId) { paint = null; return; }
+    if (click && click.id === e.pointerId && e.type === 'pointerup' && pts.size === 1) btPlace(...cellXY(e.offsetX, e.offsetY));
+    click = null;
+    pts.delete(e.pointerId); pinch = null; if (!pts.size) canvas.classList.remove('dragging'); };
   canvas.addEventListener('pointerup', up);
   canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('pointerleave', () => { bt.hover = null; });
   canvas.addEventListener('dblclick', () => { if (!isFree() || free.tool === 'move') fitView(); });
 }
 

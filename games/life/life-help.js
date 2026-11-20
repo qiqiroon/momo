@@ -62,6 +62,30 @@ export const HELP = {
 <p>最初は各種族に 3 つずつ、合わせて 12 のマザーが盤を旅し、自分の種族の置き形を置きながら、仲間が増える形を学びます。この世界には支配領域はありません。マザーの数と置き方（空のマスだけに置くか、上書きするか）は下の欄で変えられます。</p>
 <h3>状態の表</h3>
 <p>種族ごとに、盤にいる数・学習の回数（回）・良い形に入れ替えた数（勝）を出します。「強い順」を入れると数の多い順に並べます。</p>` },
+    battle: { title: '対戦', html: `
+<h3>勝ち負け</h3>
+<ul>
+<li>あなたは緑の <b>G1</b>。ほかの種族はコンピュータが動かします。</li>
+<li>自分以外の種族を全部消したら<b>勝ち</b>、G1 が全部消えたら<b>負け</b>です。</li>
+<li>はじめは、どの種族も 2×2 のブロックが 1 つずつ、離れた場所にいます。</li>
+</ul>
+<h3>エネルギーと型</h3>
+<ul>
+<li>1 秒ごとに、自分のマスの数の 2 倍のエネルギーが入ります（止めているあいだは入りません）。</li>
+<li>1 マスを置く値段は最初 10。型を置くと「型のマスの数 × 値段」を使います。1 マスだけ置いてもすぐ消えるので、ブロックやグライダーなどの<b>型</b>で置きます。</li>
+<li>ブロック（4 マス）を置けるまでの時間が 5 秒より短くなるたびに、値段が倍になります。マスが減れば、値段も下がります。</li>
+<li>置けるのは、自分のマスから縦横の歩数で 20 マス以内で、しかもほかの種族の陣地（その種族のマスから 20 マス以内）の外だけです。点線はその置ける場所を囲みます。グライダーは動く自分のマスなので、点線もついて行きます。</li>
+<li>型は 10 個まで持てます（10×10 マス）。最初はブロック・ビーコン・4 方向のグライダー・どんぐり（Acorn）。型の絵を押すと書きかえられます。書きかえにエネルギーは使いません。</li>
+</ul>
+<h3>ルール</h3>
+<p>全種族が同じルールです。最初は B3/S23（もとのライフゲーム）に、食べる条件 E1（相手のマスの周りに自分がちょうど 1 つ）、食べる相手はだれでも。自由編集モードと同じ書き方で変えられます（変えると最初からになります）。</p>
+<h3>コンピュータ</h3>
+<ul>
+<li>ブロックを点線の縁のほうへ置いて、陣地を広げます。</li>
+<li>いちばん近い敵へ、斜めの線がちょうど通る場所からグライダーを撃ち、そのグライダーについて行きます。</li>
+<li>敵が近づくと、敵の陣地のすぐ外にどんぐりを置いて爆撃します。置く場所は、いくつかの候補を少し先まで試しに動かして、敵が一番減る所を選びます。</li>
+<li>種族ごとに攻め気が違います。表の「いまの動き」で、何をしているかが見えます。</li>
+</ul>` },
     free: { title: '自由編集モード', html: `
 <p>空の盤に、自分で生き物を置き、種族ごとの決まりを書いて動かす世界です。最初はもとのライフゲーム（B3/S23）の 1 種族です。</p>
 <h3>盤の操作</h3>
@@ -150,6 +174,30 @@ export const HELP = {
 <p>At first 12 mothers, 3 per species, travel the board, planting their species’ pattern and learning which patterns make it grow. This world has no domains. You can change the number of mothers and how they sow (empty cells only, or overwrite) below.</p>
 <h3>Status table</h3>
 <p>For each species you see its count, learning tries and wins. “Strongest first” sorts by count.</p>` },
+    battle: { title: 'Battle', html: `
+<h3>Winning and losing</h3>
+<ul>
+<li>You are green <b>G1</b>. The computer plays every other species.</li>
+<li>Wipe out every other species to <b>win</b>; if G1 disappears, you <b>lose</b>.</li>
+<li>Each species starts as one 2×2 block, far from the others.</li>
+</ul>
+<h3>Energy and patterns</h3>
+<ul>
+<li>Every second you gain energy equal to twice your number of cells (not while paused).</li>
+<li>One cell starts at a price of 10. Placing a pattern costs its cells × the price. A single cell dies at once, so you place <b>patterns</b> such as blocks and gliders.</li>
+<li>Whenever you could afford a block (4 cells) in less than 5 seconds, the price doubles. If you lose cells, the price comes back down.</li>
+<li>You can only place within 20 steps (up/down/left/right) of your own cells and outside every other species’ zone (within 20 steps of their cells). The dotted line marks where you can place. Gliders are your cells too, so the line travels with them.</li>
+<li>You hold up to 10 patterns (10×10). At first: block, beacon, gliders in 4 directions and an acorn. Click the pattern picture to edit it; editing costs no energy.</li>
+</ul>
+<h3>Rule</h3>
+<p>All species share one rule: B3/S23 (the original Game of Life) with eat condition E1 (exactly one of yours next to the prey cell), and anyone can be eaten. You can change it with the same notation as Free edit (the battle restarts).</p>
+<h3>The computer</h3>
+<ul>
+<li>It places blocks toward the edge of its dotted line to expand.</li>
+<li>It fires a glider at the nearest enemy from a spot whose diagonal passes right through it, then follows the glider.</li>
+<li>When an enemy comes close it bombs it with an acorn placed just outside the enemy’s zone, choosing the spot by test-running a few candidates a little into the future and taking the one that hurts the enemy most.</li>
+<li>Each species has its own aggressiveness. The “Doing” column shows what each one is up to.</li>
+</ul>` },
     free: { title: 'Free edit', html: `
 <p>A world where you place creatures on an empty board and write each species’ rules yourself. You start with one species following the original Game of Life (B3/S23).</p>
 <h3>Board controls</h3>
@@ -238,6 +286,30 @@ export const HELP = {
 <p>最初每个物种 3 个、共 12 个母体在棋盘上旅行，放置自己物种的图案，并学习让同伴增多的图案。这个世界没有领域。母体的数量和放置方式（只放空格或覆盖）可以在下方更改。</p>
 <h3>状态表</h3>
 <p>显示每个物种的数量、学习次数（试）和胜数。勾选“强者优先”后按数量排列。</p>` },
+    battle: { title: '对战', html: `
+<h3>胜负</h3>
+<ul>
+<li>你是绿色的 <b>G1</b>，其他物种由电脑操作。</li>
+<li>消灭其他所有物种即<b>获胜</b>；G1 全部消失则<b>失败</b>。</li>
+<li>开始时，每个物种各有一个 2×2 方块，彼此相距较远。</li>
+</ul>
+<h3>能量与图案</h3>
+<ul>
+<li>每秒获得自己格子数 2 倍的能量（暂停时不增加）。</li>
+<li>每格价格最初为 10。放置图案消耗“图案格数 × 价格”。单独一格会立刻消失，所以要用方块、滑翔机等<b>图案</b>来放置。</li>
+<li>每当不到 5 秒就能放置一个方块（4 格）时，价格翻倍。格子减少时，价格也会下降。</li>
+<li>只能放在距自己格子上下左右步数 20 以内、且在其他物种地盘（距其格子 20 以内）之外的位置，虚线圈出可放置的范围。滑翔机也是自己的格子，虚线会跟着它移动。</li>
+<li>最多可持有 10 个图案（10×10）。最初有方块、信标、4 个方向的滑翔机和橡子（Acorn）。点击图案画面即可修改，修改不消耗能量。</li>
+</ul>
+<h3>规则</h3>
+<p>所有物种规则相同：B3/S23（原始生命游戏），吃的条件 E1（猎物格周围恰好有一个自己），任何物种都可以被吃。可以用与自由编辑相同的写法修改（修改后重新开始）。</p>
+<h3>电脑</h3>
+<ul>
+<li>把方块放在虚线边缘附近，扩大地盘。</li>
+<li>从斜线正好穿过最近敌人的位置发射滑翔机，并跟随它前进。</li>
+<li>敌人靠近时，在敌方地盘外侧放置橡子进行轰炸。放置位置是把几个候选位置试着往后推演几代，选择敌人减少最多的那个。</li>
+<li>每个物种的进攻性不同。表格的“当前动作”显示它们在做什么。</li>
+</ul>` },
     free: { title: '自由编辑', html: `
 <p>在空棋盘上自己放置生物、为每个物种编写规则来运行的世界。最初是遵循原本生命游戏（B3/S23）的一个物种。</p>
 <h3>棋盘操作</h3>

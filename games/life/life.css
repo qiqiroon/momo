@@ -225,3 +225,37 @@ body.graph-open #hud-body { max-height: calc(100dvh - 330px); }   /* 左下の�
 .rep-list li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rep-list .nm { color: var(--c); font-weight: 500; }
 .rep-list .why { color: var(--text); }
+
+/* ── 対戦（セッション11） ── */
+#battle-box { display: flex; flex-direction: column; gap: 6px; }
+#battle-box[hidden] { display: none; }
+.bt-rule input[type=text] {
+  width: 44px; background: var(--surface2); color: var(--text); border: 1px solid var(--border-strong);
+  border-radius: 6px; padding: 3px 6px; font: inherit; font-family: ui-monospace, Consolas, monospace; margin: 0 6px 0 2px;
+}
+.bt-me { font-variant-numeric: tabular-nums; color: var(--text); white-space: pre-wrap; }
+.bt-pat-title { color: var(--text-muted); font-size: 12px; }
+.bt-slots { display: grid; grid-template-columns: repeat(10, auto); gap: 4px; justify-content: start; }
+#hud .bt-slot { position: relative; padding: 2px; line-height: 0; border-radius: 4px; }
+#hud .bt-slot.on { border-color: var(--orange); box-shadow: 0 0 0 1px var(--orange); }
+.bt-slot canvas { width: 30px; height: 30px; image-rendering: pixelated; }
+.bt-num { position: absolute; right: 2px; bottom: 1px; font-size: 9px; line-height: 1; color: var(--text-muted); }
+.bt-edit { display: flex; gap: 10px; align-items: flex-start; }
+#bt-editor { width: 140px; height: 140px; cursor: crosshair; touch-action: none; border: 1px solid var(--border-strong); image-rendering: pixelated; }
+.bt-edit-side { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bt-slot-name { font-weight: 500; }
+.bt-slot-cost, .bt-hint { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+#bt-table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+#bt-table th { color: var(--text-muted); font-weight: 400; text-align: left; padding: 0 6px; }
+#bt-table td { padding: 1px 6px; text-align: right; }
+#bt-table td.nm { text-align: left; color: var(--c); white-space: nowrap; }
+#bt-table td:last-child { text-align: left; color: var(--text-muted); }
+#bt-table tr.dead td { opacity: 0.4; }
+#bt-result {
+  position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%); z-index: 20;
+  background: var(--surface); border: 1px solid var(--orange); border-radius: 12px;
+  padding: 18px 24px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center;
+}
+#bt-result[hidden] { display: none; }
+#bt-result-msg { font-size: 18px; font-weight: 500; }
+#bt-result button { background: var(--orange); color: #fff; border: 1px solid var(--orange-mid); border-radius: 8px; padding: 6px 18px; font: inherit; cursor: pointer; }

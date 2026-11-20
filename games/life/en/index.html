@@ -88,13 +88,14 @@
       </g>
     </svg>
     <div class="title-block">
-      <h1><span class="momo">MOMO</span><span class="app">Life</span><span class="version-tag" id="version-tag">v0.02</span></h1>
+      <h1><span class="momo">MOMO</span><span class="app">Life</span><span class="version-tag" id="version-tag">v0.03</span></h1>
       <div class="subtitle" id="subtitle">Tiny Rules, Boundless Life</div>
     </div>
   </header>
 
   <main class="title-main">
     <div id="warn-title" class="warn-box" role="note"></div>
+    <div id="consent-denied" class="consent-denied" hidden><span id="consent-denied-msg"></span><button id="consent-again" type="button"></button></div>
     <div class="pick-row"><span class="pick-label" data-i18n="modeLabel">世界を選ぶ</span><button id="btn-about-life" type="button" class="link-btn" data-i18n="aboutLife">ライフゲームとは</button></div>
     <div class="mode-list" id="mode-list">
       <button class="mode-card" type="button" data-mode="chain">
@@ -153,7 +154,7 @@
       <div class="mini-title">
         <img class="mini-icon" src="/momo/games/life/favicon.svg" alt="" width="28" height="28">
         <div class="mini-text">
-          <div class="mini-name"><span class="momo">MOMO</span> <span class="app">Life</span> <span class="mini-ver" id="hud-version">v0.02</span></div>
+          <div class="mini-name"><span class="momo">MOMO</span> <span class="app">Life</span> <span class="mini-ver" id="hud-version">v0.03</span></div>
           <div class="mini-sub" id="hud-subtitle">Tiny Rules, Boundless Life</div>
         </div>
       </div>
@@ -181,6 +182,7 @@
     <div id="legend-box">
       <label class="lg-sort"><input id="lsort" type="checkbox"> <span data-i18n="sortStrong">強い順</span></label>
       <div id="legend"></div>
+      <details id="rep-box" class="rep-box"><summary><span data-i18n="repLog">ルールの引き直しの記録</span> <span id="rep-n" class="rep-n"></span></summary><ol id="rep-list" class="rep-list"></ol></details>
     </div>
     <div id="free-box" hidden>
       <div class="row">
@@ -251,6 +253,12 @@
   <div class="warn-kid" id="warn-dlg-kid"></div>
   <div class="warn-adult" id="warn-dlg-adult"></div>
   <div class="warn-btns"><button id="warn-ok" type="button"></button><button id="warn-cancel" type="button"></button></div>
+</dialog>
+<dialog id="consent-dlg" class="warn-dlg">
+  <div class="warn-dlg-head" id="consent-title"></div>
+  <div class="warn-kid" id="consent-kid"></div>
+  <div class="warn-adult" id="consent-adult"></div>
+  <div class="warn-btns"><button id="consent-no" type="button" class="warn-no"></button><button id="consent-ok" type="button" class="warn-yes"></button></div>
 </dialog>
 <dialog id="help-dlg">
   <div class="help-head"><b id="help-title"></b><button id="help-close" type="button" data-i18n="close">閉じる</button></div>

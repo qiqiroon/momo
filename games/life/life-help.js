@@ -282,6 +282,11 @@ export const WARN = {
     dlgMobile: { title: 'スマホでは 速{はや}く できません', kid: '目{め}に 近{ちか}いので、ちかちかが 強{つよ}く 見{み}えます。',
       adult: 'スマホは目に近い位置で見るため、明滅が視野に大きく入ります。光の点滅で、気分が悪くなったり発作が起きたりする人がいるため、スマホでは速さを 1秒に5世代までにしています。',
       ok: 'わかった' },
+    consent: { title: 'はじめる まえに', kid: 'この ゲームは、画面{がめん}が ちかちか する ことが あります。<br>はなれて、明{あか}るい 部屋{へや}で 見{み}てね。気分{きぶん}が 悪{わる}く なったら、すぐ やめてね。',
+      adult: 'この作品は、細かい点が明滅する画面を表示します（速さを上げると、1秒に3回を超えて明滅します）。光の点滅で、気分が悪くなったり発作が起きたりする人がいます。光過敏の経験がある方は、遊ぶ前に医師に相談してください。画面から離れ、明るい部屋で、長時間続けて見ないでください。体調が悪くなったら、すぐに見るのをやめてください。',
+      mobile: 'スマホでは、速さを 1秒に5世代までにしています。',
+      ok: '同意{どうい}して はじめる', cancel: '同意{どうい}しない',
+      denied: '同意{どうい}しないと、はじめられません。', again: '注意{ちゅうい}を もう一度{いちど} 読{よ}む' },
   },
   en: {
     label: 'Photosensitivity warning (flashing light)',
@@ -295,6 +300,11 @@ export const WARN = {
     dlgMobile: { title: 'Phones can’t go faster', kid: 'A phone is close to your eyes, so the flicker looks stronger.',
       adult: 'Phones are viewed close to the eyes, so the flashing fills more of your view. Because flashing light can make some people feel unwell or trigger seizures, the speed on phones is limited to 5 generations per second.',
       ok: 'OK' },
+    consent: { title: 'Before you start', kid: 'This game can make the screen flicker.<br>Sit back and play in a bright room. Stop right away if you feel unwell.',
+      adult: 'This work shows small dots that flash (at higher speeds, more than 3 times per second). Flashing light can make some people feel unwell or trigger seizures. If you have ever been sensitive to light, talk to a doctor before playing. Keep your distance from the screen, watch in a well-lit room, and don’t watch for long periods. Stop watching immediately if you feel unwell.',
+      mobile: 'On phones, the speed is limited to 5 generations per second.',
+      ok: 'I agree, start', cancel: 'I don’t agree',
+      denied: 'You can’t start without agreeing.', again: 'Read the warning again' },
   },
   zh: {
     label: '光敏性癫痫（闪光）注意事项',
@@ -308,6 +318,11 @@ export const WARN = {
     dlgMobile: { title: '手机上不能加快', kid: '手机离眼睛近，闪烁看起来更强。',
       adult: '手机在离眼睛很近的位置观看，闪烁在视野中所占范围大。闪烁的光可能使人身体不适或引发癫痫发作，因此在手机上速度限制为每秒 5 代以内。',
       ok: '知道了' },
+    consent: { title: '开始之前', kid: '这个游戏的画面可能会闪烁。<br>请离远一点，在明亮的房间里看。觉得不舒服就马上停下来。',
+      adult: '本作品会显示细小的点闪烁的画面（提高速度后，每秒闪烁超过 3 次）。闪烁的光可能使人身体不适或引发癫痫发作。曾对光敏感的人，请在游玩前咨询医生。请远离屏幕，在明亮的房间中观看，不要长时间连续观看。如感到不适，请立即停止观看。',
+      mobile: '在手机上，速度限制为每秒 5 代以内。',
+      ok: '同意并开始', cancel: '不同意',
+      denied: '不同意就无法开始。', again: '再读一遍注意事项' },
   },
 };
 export const ruby = s => s.replace(/([一-龥々]+)\{([^}]+)\}/g, '<ruby>$1<rt>$2</rt></ruby>');

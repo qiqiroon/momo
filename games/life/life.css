@@ -208,3 +208,20 @@ body.graph-open #hud-body { max-height: calc(100dvh - 330px); }   /* 左下の�
 /* 明滅をおさえる（セッション10）：少しだけ目立たせ、おさえて描いているあいだは黄色く光らせる */
 #hud .calm { display: inline-flex; align-items: center; gap: 4px; color: #fde68a; border: 1px solid rgba(250, 204, 21, 0.45); border-radius: 6px; padding: 1px 7px 1px 4px; }
 #hud .calm.now { background: rgba(250, 204, 21, 0.18); border-color: #facc15; color: #facc15; font-weight: 700; }
+
+/* ── 起動時の同意（セッション10）・引き直しの記録（Q95=A） ── */
+#consent-ok { background: #facc15; color: #111; border: 1px solid #facc15; }
+#consent-no { background: var(--surface2); color: var(--text); border: 1px solid var(--border-strong); }
+#consent-no:hover { border-color: #facc15; }
+.consent-denied { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border: 2px solid #facc15; border-radius: 10px; padding: 10px 14px; color: #fde68a; font-size: 16px; font-weight: 700; line-height: 1.9; }
+.consent-denied[hidden] { display: none; }
+.consent-denied ruby rt { font-size: 0.5em; }
+.consent-denied button { font: inherit; font-size: 15px; padding: 4px 14px; border-radius: 8px; cursor: pointer; background: #facc15; color: #111; border: 1px solid #facc15; line-height: 1.9; }
+.mode-card:disabled { opacity: 0.45; cursor: not-allowed; }
+.rep-box { font-size: 12px; color: var(--text-muted); }
+.rep-box summary { cursor: pointer; }
+.rep-n { font-variant-numeric: tabular-nums; }
+.rep-list { margin: 3px 0 0; padding: 0 4px 0 0; list-style: none; max-height: calc(5 * 1.5em); overflow-y: auto; font-variant-numeric: tabular-nums; line-height: 1.5; }
+.rep-list li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rep-list .nm { color: var(--c); font-weight: 500; }
+.rep-list .why { color: var(--text); }

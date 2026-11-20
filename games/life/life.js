@@ -11,7 +11,7 @@ import { steady, recordResult, nextPattern, pickTile } from './life-gen.js';
 import { HELP, WARN, WARN_ICON, ruby } from './life-help.js';
 
 const $ = id => document.getElementById(id);
-const VERSION = 'v0.02';
+const VERSION = 'v0.03';
 
 // ── 言葉（ja / en / zh。猫語は鳴き声に置き換える） ──
 const I18N = {
@@ -35,7 +35,7 @@ const I18N = {
     help: '説明', aboutLife: 'ライフゲームとは', close: '閉じる', sortStrong: '強い順',
     mcTitle: 'マザーの働き', mcOn: 'マザーを出す', mcLearn: '学習（組み換え）', mcDom: '支配領域', mcRep: 'ルールの引き直し',
     mSave: 'マザーの値を保存', mLoad: '読み出し', fSave: '保存', fLoad: '読み出し', showTitle: '表示',
-    loadBad: 'このファイルは読めませんでした。', loadWrong: 'このファイルは「{m}」の世界のものです。', calm: '明滅をおさえる', loaded: '読み出しました', saved: '保存しました', showLabel: 'ラベル', seedNow: '種 {n}', zoomIn: '拡大', zoomOut: '縮小',
+    loadBad: 'このファイルは読めませんでした。', loadWrong: 'このファイルは「{m}」の世界のものです。', repLog: 'ルールの引き直しの記録', repNone: 'まだ引き直していません', repGen: '{g} 世代', repVer: '{v} 回目', repRank: '{r} 位・{n} マス', why_zero: '0 になった', why_thin: '支配領域を埋められない', why_eater: '多い組を食べる弱い種族', why_small: '全体で少ない', calm: '明滅をおさえる', loaded: '読み出しました', saved: '保存しました', showLabel: 'ラベル', seedNow: '種 {n}', zoomIn: '拡大', zoomOut: '縮小',
     noGpu: 'このブラウザは WebGPU に対応していません。Chrome や Edge の新しい版で開いてください。',
     notSecure: 'WebGPU は https か localhost でしか使えません。', noAdapter: 'GPU を使えませんでした。',
     lost: 'GPU が使えなくなりました（{m}）。ページを読み込み直してください。',
@@ -60,7 +60,7 @@ const I18N = {
     help: 'Guide', aboutLife: 'What is the Game of Life?', close: 'Close', sortStrong: 'Strongest first',
     mcTitle: 'Mothers', mcOn: 'Show mothers', mcLearn: 'Learning', mcDom: 'Domain', mcRep: 'Redraw rules',
     mSave: 'Save mothers', mLoad: 'Load', fSave: 'Save', fLoad: 'Load', showTitle: 'Show',
-    loadBad: 'This file could not be read.', loadWrong: 'This file belongs to the “{m}” world.', calm: 'Reduce flicker', loaded: 'Loaded', saved: 'Saved', showLabel: 'Labels', seedNow: 'Seed {n}', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
+    loadBad: 'This file could not be read.', loadWrong: 'This file belongs to the “{m}” world.', repLog: 'Rule redraw log', repNone: 'No redraws yet', repGen: 'gen {g}', repVer: '#{v}', repRank: 'rank {r}, {n} cells', why_zero: 'died out', why_thin: 'could not fill its domain', why_eater: 'weak eater of a large group', why_small: 'few overall', calm: 'Reduce flicker', loaded: 'Loaded', saved: 'Saved', showLabel: 'Labels', seedNow: 'Seed {n}', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
     noGpu: 'This browser does not support WebGPU. Please open it in a recent Chrome or Edge.',
     notSecure: 'WebGPU only works on https or localhost.', noAdapter: 'Could not use the GPU.',
     lost: 'The GPU was lost ({m}). Please reload the page.',
@@ -85,14 +85,14 @@ const I18N = {
     help: '说明', aboutLife: '什么是生命游戏', close: '关闭', sortStrong: '强者优先',
     mcTitle: '母体的作用', mcOn: '显示母体', mcLearn: '学习（重组）', mcDom: '领域', mcRep: '规则重抽',
     mSave: '保存母体', mLoad: '读取', fSave: '保存', fLoad: '读取', showTitle: '显示',
-    loadBad: '无法读取这个文件。', loadWrong: '这个文件属于“{m}”世界。', calm: '减少闪烁', loaded: '已读取', saved: '已保存', showLabel: '标签', seedNow: '种子 {n}', zoomIn: '放大', zoomOut: '缩小',
+    loadBad: '无法读取这个文件。', loadWrong: '这个文件属于“{m}”世界。', repLog: '规则重抽记录', repNone: '还没有重抽', repGen: '第 {g} 代', repVer: '第 {v} 次', repRank: '第 {r} 名・{n} 格', why_zero: '数量变为 0', why_thin: '填不满支配领域', why_eater: '吃大组的弱种族', why_small: '整体数量少', calm: '减少闪烁', loaded: '已读取', saved: '已保存', showLabel: '标签', seedNow: '种子 {n}', zoomIn: '放大', zoomOut: '缩小',
     noGpu: '此浏览器不支持 WebGPU。请使用新版 Chrome 或 Edge 打开。',
     notSecure: 'WebGPU 只能在 https 或 localhost 上使用。', noAdapter: '无法使用 GPU。',
     lost: 'GPU 已不可用（{m}）。请重新载入页面。',
   },
 };
 // 猫語にしない言葉（数字の書き方と、困ったときの知らせ）
-const CAT_KEEP = { seedNow: 1, loadBad: 1, loadWrong: 1, perSecN: 1, learnFmt: 1, learnFixed: 1, spN: 1, noGpu: 1, notSecure: 1, noAdapter: 1, lost: 1 };
+const CAT_KEEP = { seedNow: 1, repGen: 1, repVer: 1, repRank: 1, why_zero: 1, why_thin: 1, why_eater: 1, why_small: 1, repNone: 1, loadBad: 1, loadWrong: 1, perSecN: 1, learnFmt: 1, learnFixed: 1, spN: 1, noGpu: 1, notSecure: 1, noAdapter: 1, lost: 1 };
 const SUBTITLE = { ja: 'Tiny Rules, Boundless Life', en: 'Tiny Rules, Boundless Life', zh: '微则无边，万生涌现' };
 const LANG_APP_ID = 'life';
 const LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -139,6 +139,8 @@ function applyLang() {
   if ($('help-dlg').open) fillHelp(helpKey);
   showWarnTitle();
   if ($('warn-dlg').open) fillWarnDlg();
+  fillConsent();
+  if (life) renderReps();
   if (window.MomoAbout) MomoAbout.apply(lang);   // 説明欄（lib/momo-about.js）
 }
 function onLangChange(m) {
@@ -292,7 +294,26 @@ function showLegend() {
   lgLearn = [];
   renderLegend();
   legendN = curWorld().species.length; legendR = life && life.chain ? life.chain.reps.length : 0;
+  renderReps();
   showLearn();
+}
+// ルールの引き直しの記録（Q95=A）：新しい順。世代・種族（いまのルール）・何回目・理由・そのときの順位と数
+function renderReps() {
+  const box = $('rep-box');
+  box.hidden = !isChain() || !life || !life.chain;
+  if (box.hidden) return;
+  const reps = life.chain.reps, ws = curWorld().species;
+  $('rep-n').textContent = `(${reps.length})`;
+  if (!reps.length) { const li = document.createElement('li'); li.textContent = t('repNone'); $('rep-list').replaceChildren(li); return; }
+  $('rep-list').replaceChildren(...reps.slice(-100).reverse().map(([g, k, v, why, n, , r]) => {
+    const li = document.createElement('li'), sp = ws[k - 1];
+    const nm = document.createElement('span'); nm.className = 'nm';
+    if (sp) { nm.style.setProperty('--c', sp.color); nm.textContent = spName(sp); }
+    const w = document.createElement('span'); w.className = 'why'; w.textContent = t('why_' + why);
+    li.append(t('repGen', { g: g.toLocaleString() }) + '　', nm, ' ' + t('repVer', { v }) + '　', w,
+      r ? '（' + t('repRank', { r, n: (n ?? 0).toLocaleString() }) + '）' : '');
+    return li;
+  }));
 }
 // 状態の表（セッション10）：横は色の組（番号を 4 で割った余り）、縦は組の中の順番。位置は変わらない。
 //   「強い順」を入れると、組の中を盤の数の多い順に並べる
@@ -815,10 +836,39 @@ function onSpeedInput() {
   if (i > SAFE_IDX && speedIdx <= SAFE_IDX) {   // 5 以下から上へ上げようとした：いったん戻して確かめる
     setSpeedIdx(speedIdx);
     wantIdx = i; fillWarnDlg();
-    if (!$('warn-dlg').open) $('warn-dlg').showModal();
+    showDlg($('warn-dlg'));
     return;
   }
   setSpeedIdx(i);
+}
+
+// 窓（同意・説明・速さの確かめ）が開いているあいだは、右上の言語の切り替えを窓の中へ移して押せるようにする
+//   （見える位置は同じ）。閉じたら body の先頭（元の場所）へ戻す
+function showDlg(d) {
+  if (d.open) return;
+  d.append($('lang-switcher'));
+  if (!d.dataset.langBack) { d.dataset.langBack = '1'; d.addEventListener('close', () => { if (!document.querySelector('dialog[open]')) document.body.prepend($('lang-switcher')); }); }
+  d.showModal();
+}
+
+// ── 起動時の同意（セッション10）：開くたびに注意を出し、同意するまでゲームを始めない ──
+let consented = false;
+function fillConsent() {
+  const c = warnText().consent;
+  $('consent-title').innerHTML = WARN_ICON + `<span>${ruby(c.title)}</span>`;
+  $('consent-kid').innerHTML = `<span>${ruby(c.kid)}</span>`;
+  $('consent-adult').innerHTML = `<b>${WARN_ICON}${warnText().label}</b>${c.adult}${isPhone ? ' ' + c.mobile : ''}`;
+  $('consent-ok').innerHTML = ruby(c.ok);
+  $('consent-no').innerHTML = ruby(c.cancel);
+  $('consent-denied-msg').innerHTML = ruby(c.denied);
+  $('consent-again').innerHTML = ruby(c.again);
+}
+function openConsent() { fillConsent(); showDlg($('consent-dlg')); }
+function setConsent(ok) {
+  consented = ok;
+  $('consent-dlg').close();
+  $('consent-denied').hidden = ok;
+  document.querySelectorAll('.mode-card').forEach(b => { b.disabled = !ok || !!(gpu && !gpu.ok); });
 }
 
 // ── 説明（セッション10） ──
@@ -830,7 +880,7 @@ function fillHelp(key) {
   $('help-title').textContent = h.title;
   $('help-body').innerHTML = h.html;
 }
-function openHelp(key) { fillHelp(key); $('help-dlg').showModal(); $('help-body').scrollTop = 0; }
+function openHelp(key) { fillHelp(key); showDlg($('help-dlg')); $('help-body').scrollTop = 0; }
 
 // ── 画面の切り替え ──
 function showScreen(id) {
@@ -838,6 +888,7 @@ function showScreen(id) {
   document.body.classList.toggle('in-game', id === 'screen-game');
 }
 function startMode(m) {
+  if (!consented) { openConsent(); return; }
   if (!gpu || !gpu.ok) return;
   mode = m;
   showScreen('screen-game');
@@ -872,6 +923,10 @@ function bindUI() {
   // 確かめの窓：PC は「わかった」で上げる・「やめる」で 5 のまま。スマホは「わかった」で閉じるだけ（上げない）
   $('warn-ok').addEventListener('click', () => { $('warn-dlg').close(); if (!isPhone) setSpeedIdx(wantIdx); });
   $('warn-cancel').addEventListener('click', () => $('warn-dlg').close());
+  $('consent-ok').addEventListener('click', () => setConsent(true));
+  $('consent-no').addEventListener('click', () => setConsent(false));
+  $('consent-dlg').addEventListener('cancel', e => { e.preventDefault(); setConsent(false); });   // Esc は「同意しない」
+  $('consent-again').addEventListener('click', openConsent);
   $('btn-play').addEventListener('click', () => { running = !running; $('btn-play').textContent = t(running ? 'pause' : 'resume'); });
   $('btn-step').addEventListener('click', () => { if (running) $('btn-play').click(); life.step(1); acc = 1; });
   $('btn-reset').addEventListener('click', build);
@@ -964,6 +1019,7 @@ async function main() {
   applyLang();
   window.__life = { get life() { return life; }, view, fitView, startMode, freeData, loadData, setLoadKind: k => { loadKind = k; } };
   requestAnimationFrame(t0 => { last = t0; statT = t0; frame(t0); });
+  openConsent();
   gpu = await getGPU();
   if (!gpu.ok) {
     const key = { 'no-navigator-gpu': 'noGpu', 'not-secure': 'notSecure', 'no-adapter': 'noAdapter' }[gpu.why] ?? 'noAdapter';

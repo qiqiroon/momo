@@ -4,7 +4,9 @@
 import { RAND_WGSL, SALT, probToThreshold } from './life-rand.js';
 import { STRIDE, HEAD, GROUP_WORDS, RULE_WORDS, MAX_SPECIES, hexToRGBA } from './life-rules.js';
 import { packSupplies, TILE, MS_WORDS, MAX_LEARN } from './life-mother.js';
-import { LS, packLearn, LEARN_WGSL_CONSTS } from './life-learn.js';
+import { LS, O as LO, packLearn, LEARN_WGSL_CONSTS } from './life-learn.js';
+import { chainRule } from './life-chain.js';
+const chainRuleOf = (ch, k) => chainRule(ch.seed, k, ch.ver[k] ?? 0);
 
 const WG = 16;          // 計算の区画（16×16 マス）
 const SLOT = 256;       // 世代ごとの設定の置き場の幅（バイト。動的オフセットの決まりで 256）
@@ -667,7 +669,14 @@ export class LifeGPU {
     const r = this.chain.sync(this.gen, this.mothers ? this.mothers.ms : []);
     if (!r) return false;
     this.setRules(r.rules);
-    if (this.mothers) { this.mothers.add(r.mothers); this.sendLearn(); }
+    if (this.mothers) {
+      const from = this.mothers.ms.length;
+      this.mothers.add(r.mothers);
+      // 読み出したマザーの値（セッション10）：まだいなかった種族のマザーには、足したときに入れる
+      const ld = this.chain.loaded;
+      for (const m of this.mothers.ms.slice(from)) if (ld[m.kind]) { this.mothers.applySaved(m, ld[m.kind], this.gen, ld.W, ld.H); delete ld[m.kind]; }
+      this.sendLearn();
+    }
     if (this.palette) {
       this.palette = [this.palette[0], ...r.world.species.map(s => hexToRGBA(s.color))];
       if (this.palBuf) this.setPalette(this.palette);
@@ -682,6 +691,66 @@ export class LifeGPU {
       this.device.queue.writeBuffer(this.learnBuf, slot * LS * 4, this.mothers.learn, slot * LS, LS);
     this.mothers.learnNew = [];
   }
+  // 学習の状態の 1 語を GPU に書く（世代の合間に呼ぶ。キューの順に入る）
+  writeLearnWord(slot, off, v) { this.device.queue.writeBuffer(this.learnBuf, (slot * LS + off) * 4, new Uint32Array([v >>> 0])); }
+  // マザーの働きを入り切りする（セッション10）。f: { off, noDomain, frozen } の一部
+  //   frozen：学習中のマザーの「固定」を立てる（試している最中の候補は、その回の終わりまで続く）。
+  //     外すときは、止める前から学習を終えていたマザー（natFixed）は固定のまま
+  //   off を外すとき：学習の回を、いまの世代から一番の形で始め直す（止めていたあいだの回を数えない）
+  async setMotherFlags(f) {
+    const M = this.mothers;
+    if (!M) return;
+    const learners = M.ms.filter(m => m.learn);
+    if (f.frozen != null && f.frozen !== M.frozen) {
+      M.frozen = f.frozen;
+      if (f.frozen) {
+        const st = learners.length ? await this.readLearn() : null;
+        M.natFixed = new Set(st ? learners.filter(m => st[m.slot * LS + LO.FIXED]).map(m => m.slot) : []);
+        if (M.frozen) for (const m of learners) this.writeLearnWord(m.slot, LO.FIXED, 1);
+      } else {
+        for (const m of learners) if (!M.natFixed?.has(m.slot)) { this.writeLearnWord(m.slot, LO.FIXED, 0); this.writeLearnWord(m.slot, LO.LOSS, 0); }
+      }
+    }
+    if (f.noDomain != null) M.noDomain = f.noDomain;
+    if (f.off != null && f.off !== M.off) {
+      M.off = f.off;
+      if (!f.off) for (const m of learners) { this.writeLearnWord(m.slot, LO.EP0, this.gen); this.writeLearnWord(m.slot, LO.MODE, 0); }
+    }
+  }
+  // 連鎖の世界のマザーの値を保存する形にする（セッション10）：種族ごとのルールとマザー（位置・向き・学習の状態）
+  async saveMothers() {
+    const st = await this.readLearn();
+    const ch = this.chain, M = this.mothers;
+    const species = (ch?.world?.species ?? []).map(sp => {
+      const k = sp.id, m = M?.ms.find(o => o.kind === k);
+      const rule = ch.custom[k] ?? chainRuleOf(ch, k);
+      return {
+        kind: k, label: sp.label, ver: ch.ver[k],
+        rule: { birth: rule.birth, survive: [...rule.survive], prey: rule.prey },
+        mother: m ? { x: m.x, y: m.y, dir: m.dir, leg: m.leg ?? 0, learn: m.learn ? Array.from(st.subarray(m.slot * LS, m.slot * LS + LS)) : null } : null,
+      };
+    });
+    return { app: 'momo-life', type: 'mothers', v: 1, gen: this.gen, seed: this.seed, W: this.W, H: this.H, species };
+  }
+  // 保存したマザーの値を入れる。いまいる種族はすぐ、まだいない種族は足したときに入れる
+  //   all：まだ生まれていない種族も、その場で全部出す（マザーを出しているとき。セッション10）
+  loadMothers(data, all = false) {
+    const ch = this.chain, M = this.mothers;
+    if (!ch || !M) return;
+    const list = (data.species ?? []).filter(e => e.kind >= 1 && e.kind <= ch.c.max);
+    const r = ch.loadRules(this.gen, list);
+    if (r) this.setRules(r.rules);
+    ch.loaded = []; ch.loaded.W = data.W || this.W; ch.loaded.H = data.H || this.H;
+    for (const e of list) {
+      if (!e.mother) continue;
+      const m = M.ms.find(o => o.kind === e.kind);
+      if (m) M.applySaved(m, e.mother, this.gen, ch.loaded.W, ch.loaded.H);
+      else ch.loaded[e.kind] = e.mother;
+    }
+    if (all && list.length) { ch.minN = Math.max(ch.minN, ...list.map(e => e.kind)); this.syncChain(); }
+    this.sendLearn();
+  }
+
   // 学習の状態を CPU に読む（画面に出す・答え合わせ用。毎世代は使わない）
   async readLearn() {
     const size = MAX_LEARN * LS * 4;
@@ -804,7 +873,9 @@ export class LifeGPU {
   // 読み戻した数で種族のルールを引き直す（ChainState.replace）。引き直した種族のマザーは学習を最初からやり直す
   applyReplace() {
     const c = this.popCounts;   // 前半は盤全体の数、後半は支配領域の中の自分の数（Q68=A）
-    const r = this.chain.replace(this.gen, c.subarray(0, MAX_SPECIES), this.mothers ? c.subarray(MAX_SPECIES) : null);
+    // マザーを消している・支配領域を止めているときは、領域を埋められるかの見極めをしない（セッション10）
+    const useDom = this.mothers && !this.mothers.off && !this.mothers.noDomain;
+    const r = this.chain.replace(this.gen, c.subarray(0, MAX_SPECIES), useDom ? c.subarray(MAX_SPECIES) : null);
     this.popCounts = null;
     this.setRules(r.rules);
     if (this.mothers) { for (const q of r.list) this.mothers.relearn(q.kind, q.stamp, q.t0); this.sendLearn(); }
@@ -1031,7 +1102,29 @@ export class LifeGPU {
     this.device.queue.writeBuffer(this.palBuf, 0, f);
   }
 
-  // view: { ox, oy, cpp, t, fade, colors:{grid,edge} }
+  // 明滅をおさえる表示（セッション10）：いまの盤を写しの置き場に取る。描くときは、前の写しから今の写しへフェードできる
+  //   snap[snapK] が新しい写し、snap[1 − snapK] がその前の写し
+  snapshot() {
+    const size = this.W * this.H * 4;
+    if (!this.snap) {
+      this.snap = [0, 1].map(() => this.device.createBuffer({ size, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST }));
+      this.snapK = 0; this.snapReady = false;
+      this.snapBG = [0, 1].map(k => this.device.createBindGroup({
+        layout: this.renderPipe.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: { buffer: this.viewBuf } },
+                  { binding: 1, resource: { buffer: this.snap[k] } },
+                  { binding: 2, resource: { buffer: this.snap[1 - k] } },
+                  { binding: 3, resource: { buffer: this.palBuf } }],
+      }));
+    }
+    const enc = this.device.createCommandEncoder();
+    if (!this.snapReady) for (const b of this.snap) enc.copyBufferToBuffer(this.bufs[this.cur], 0, b, 0, size);   // 最初は前の写しも同じに
+    else { this.snapK = 1 - this.snapK; enc.copyBufferToBuffer(this.bufs[this.cur], 0, this.snap[this.snapK], 0, size); }
+    this.device.queue.submit([enc.finish()]);
+    this.snapReady = true;
+  }
+
+  // view: { ox, oy, cpp, t, fade, colors:{grid,edge}, snap（写しを描く） }
   render(view) {
     const f = new Float32Array(24);
     const u = new Uint32Array(f.buffer);
@@ -1045,7 +1138,7 @@ export class LifeGPU {
     const pass = enc.beginRenderPass({
       colorAttachments: [{ view: this.ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
     });
-    pass.setPipeline(this.renderPipe); pass.setBindGroup(0, this.renderBG[this.cur]);
+    pass.setPipeline(this.renderPipe); pass.setBindGroup(0, view.snap && this.snapReady ? this.snapBG[this.snapK] : this.renderBG[this.cur]);
     pass.draw(3); pass.end();
     this.device.queue.submit([enc.finish()]);
   }
@@ -1058,6 +1151,7 @@ export class LifeGPU {
     this.bufs.forEach(b => b.destroy());
     this.params.destroy(); this.rulesBuf.destroy(); this.mBuf.destroy(); this.learnBuf.destroy(); this.cntBuf.destroy(); this.popBuf.destroy(); this.popRB.destroy(); this.domBuf.destroy();
     if (this.viewBuf) { this.viewBuf.destroy(); this.palBuf.destroy(); }
+    if (this.snap) this.snap.forEach(b => b.destroy());
   }
 }
 

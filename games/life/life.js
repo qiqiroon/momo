@@ -3,14 +3,15 @@
 import { getGPU, LifeGPU, HIST_N, OCC_TILE } from './life-gpu.js';
 import { compile, TEMPLATES, hexToRGBA } from './life-rules.js';
 import { MotherSet, planMothers, domR2 } from './life-mother.js';
-import { ChainState, CHAIN_DEFAULTS, chainName } from './life-chain.js';
+import { ChainState, CHAIN_DEFAULTS, chainName, chainMax } from './life-chain.js';
 import { LS, O as LO } from './life-learn.js';
 import { makeBoard, fillRandom } from './life-cpu.js';
 import { checkRule, checkTargets, LETTERS, FREE_MAX } from './life-expr.js';
 import { steady, recordResult, nextPattern, pickTile } from './life-gen.js';
+import { HELP, WARN, WARN_ICON, ruby } from './life-help.js';
 
 const $ = id => document.getElementById(id);
-const VERSION = 'v0.01';
+const VERSION = 'v0.02';
 
 // ── 言葉（ja / en / zh。猫語は鳴き声に置き換える） ──
 const I18N = {
@@ -30,7 +31,11 @@ const I18N = {
     showMother: 'マザー', showDomain: '支配領域', showLearn: '学習の様子', fade: 'フェード',
     gen: '世代', calc: '計算', perSec: '世代/秒', draw: '描画',
     spGreen: '緑', spCyan: '水色', spPink: '桃', spYellow: '黄', spN: '種{n}',
-    learnFmt: '{name} 回{n}・勝{w}', learnFixed: '・固定',
+    learnFmt: '回{n}・勝{w}', learnFixed: '・固定',
+    help: '説明', aboutLife: 'ライフゲームとは', close: '閉じる', sortStrong: '強い順',
+    mcTitle: 'マザーの働き', mcOn: 'マザーを出す', mcLearn: '学習（組み換え）', mcDom: '支配領域', mcRep: 'ルールの引き直し',
+    mSave: 'マザーの値を保存', mLoad: '読み出し', fSave: '保存', fLoad: '読み出し', showTitle: '表示',
+    loadBad: 'このファイルは読めませんでした。', loadWrong: 'このファイルは「{m}」の世界のものです。', calm: '明滅をおさえる', loaded: '読み出しました', saved: '保存しました', showLabel: 'ラベル', seedNow: '種 {n}', zoomIn: '拡大', zoomOut: '縮小',
     noGpu: 'このブラウザは WebGPU に対応していません。Chrome や Edge の新しい版で開いてください。',
     notSecure: 'WebGPU は https か localhost でしか使えません。', noAdapter: 'GPU を使えませんでした。',
     lost: 'GPU が使えなくなりました（{m}）。ページを読み込み直してください。',
@@ -51,7 +56,11 @@ const I18N = {
     showMother: 'Mothers', showDomain: 'Domains', showLearn: 'Learning', fade: 'Fade',
     gen: 'Gen', calc: 'Compute', perSec: 'gen/s', draw: 'Draw',
     spGreen: 'Green', spCyan: 'Cyan', spPink: 'Pink', spYellow: 'Yellow', spN: 'S{n}',
-    learnFmt: '{name} tries {n} · wins {w}', learnFixed: ' · fixed',
+    learnFmt: 'tries {n} · wins {w}', learnFixed: ' · fixed',
+    help: 'Guide', aboutLife: 'What is the Game of Life?', close: 'Close', sortStrong: 'Strongest first',
+    mcTitle: 'Mothers', mcOn: 'Show mothers', mcLearn: 'Learning', mcDom: 'Domain', mcRep: 'Redraw rules',
+    mSave: 'Save mothers', mLoad: 'Load', fSave: 'Save', fLoad: 'Load', showTitle: 'Show',
+    loadBad: 'This file could not be read.', loadWrong: 'This file belongs to the “{m}” world.', calm: 'Reduce flicker', loaded: 'Loaded', saved: 'Saved', showLabel: 'Labels', seedNow: 'Seed {n}', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
     noGpu: 'This browser does not support WebGPU. Please open it in a recent Chrome or Edge.',
     notSecure: 'WebGPU only works on https or localhost.', noAdapter: 'Could not use the GPU.',
     lost: 'The GPU was lost ({m}). Please reload the page.',
@@ -72,14 +81,18 @@ const I18N = {
     showMother: '母体', showDomain: '领域', showLearn: '学习情况', fade: '淡出',
     gen: '代', calc: '计算', perSec: '代/秒', draw: '绘制',
     spGreen: '绿', spCyan: '青', spPink: '粉', spYellow: '黄', spN: '种{n}',
-    learnFmt: '{name} 试{n}·胜{w}', learnFixed: '·固定',
+    learnFmt: '试{n}·胜{w}', learnFixed: '·固定',
+    help: '说明', aboutLife: '什么是生命游戏', close: '关闭', sortStrong: '强者优先',
+    mcTitle: '母体的作用', mcOn: '显示母体', mcLearn: '学习（重组）', mcDom: '领域', mcRep: '规则重抽',
+    mSave: '保存母体', mLoad: '读取', fSave: '保存', fLoad: '读取', showTitle: '显示',
+    loadBad: '无法读取这个文件。', loadWrong: '这个文件属于“{m}”世界。', calm: '减少闪烁', loaded: '已读取', saved: '已保存', showLabel: '标签', seedNow: '种子 {n}', zoomIn: '放大', zoomOut: '缩小',
     noGpu: '此浏览器不支持 WebGPU。请使用新版 Chrome 或 Edge 打开。',
     notSecure: 'WebGPU 只能在 https 或 localhost 上使用。', noAdapter: '无法使用 GPU。',
     lost: 'GPU 已不可用（{m}）。请重新载入页面。',
   },
 };
 // 猫語にしない言葉（数字の書き方と、困ったときの知らせ）
-const CAT_KEEP = { perSecN: 1, learnFmt: 1, learnFixed: 1, spN: 1, noGpu: 1, notSecure: 1, noAdapter: 1, lost: 1 };
+const CAT_KEEP = { seedNow: 1, loadBad: 1, loadWrong: 1, perSecN: 1, learnFmt: 1, learnFixed: 1, spN: 1, noGpu: 1, notSecure: 1, noAdapter: 1, lost: 1 };
 const SUBTITLE = { ja: 'Tiny Rules, Boundless Life', en: 'Tiny Rules, Boundless Life', zh: '微则无边，万生涌现' };
 const LANG_APP_ID = 'life';
 const LANGS = ['ja', 'en', 'zh', 'cat'];
@@ -109,7 +122,9 @@ function t(key, params) {
 }
 function applyLang() {
   const sl = lang === 'cat' ? 'en' : lang;   // 猫語のときのサブタイトルは英語
-  const sub = $('subtitle'); sub.textContent = SUBTITLE[sl] || SUBTITLE.en; sub.classList.toggle('zh', sl === 'zh');
+  for (const id of ['subtitle', 'hud-subtitle']) { const sub = $(id); sub.textContent = SUBTITLE[sl] || SUBTITLE.en; sub.classList.toggle('zh', sl === 'zh'); }
+  $('zoom-in').title = t('zoomIn'); $('zoom-out').title = t('zoomOut');
+  showSeed();
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   const base = lang === 'cat' ? catBase() : lang;
   document.documentElement.lang = base === 'zh' ? 'zh-Hans' : base;
@@ -121,6 +136,9 @@ function applyLang() {
   for (const id of ['hud', 'graph']) $(id === 'hud' ? 'btn-fold' : 'btn-graph').title = t($(id).classList.contains('folded') ? 'unfold' : 'fold');
   if (isFree()) renderSpTable();
   drawGraph();
+  if ($('help-dlg').open) fillHelp(helpKey);
+  showWarnTitle();
+  if ($('warn-dlg').open) fillWarnDlg();
   if (window.MomoAbout) MomoAbout.apply(lang);   // 説明欄（lib/momo-about.js）
 }
 function onLangChange(m) {
@@ -138,8 +156,6 @@ const isFree = () => mode === 'free';
 const curWorld = () => life?.chain?.world ?? world;
 const SP_KEY = { Green: 'spGreen', Cyan: 'spCyan', Pink: 'spPink', Yellow: 'spYellow' };
 const spName = sp => isFree() ? LETTERS[sp.id - 1] : isChain() ? chainName(sp.id) : t(SP_KEY[sp.name?.en] ?? 'spN', { n: sp.id });
-// 連鎖の世界では、名前のあとにルール（例 B3S23E2）を添える
-const chipName = sp => isChain() && sp.label ? `${spName(sp)} ${sp.label}` : spName(sp);
 
 const canvas = $('board');
 const overlay = $('overlay');
@@ -176,10 +192,12 @@ function resizeCanvas() {
 function drawMothers() {
   octx.clearRect(0, 0, overlay.width, overlay.height);
   const ms = life.mothers;
-  const showM = $('mshow').checked, showD = $('dshow').checked;
-  if (!ms || (!showM && !showD)) return;
+  const showM = $('mshow').checked, showD = $('dshow').checked, showL = $('lblshow').checked;
+  if (!ms || ms.off || (!showM && !showD && !showL)) return;
   const dpr = window.devicePixelRatio || 1;
   octx.lineWidth = 1.5 * dpr;
+  octx.font = `500 ${12 * dpr}px 'Noto Sans JP', sans-serif`; octx.textBaseline = 'middle';
+  const ws = curWorld().species;
   const copies = life.wrap ? [-1, 0, 1] : [0];
   for (const m of ms.ms) {
     const r = Math.max(2 * dpr, m.diameter / 2 / view.cpp);
@@ -190,7 +208,7 @@ function drawMothers() {
       const py = (m.y + 0.5 + ky * life.H - view.oy) / view.cpp;
       // 支配領域（§18 の②。Q74 で円に）：中心のマスから半径 √domR2 の円を、細い点線で描く
       const half = m.domain > 0 ? Math.floor(m.domain / 2) : 0;
-      if (half && showD) {
+      if (half && showD && !ms.noDomain) {
         const cx = (Math.floor(m.x) + 0.5 + kx * life.W - view.ox) / view.cpp;
         const cy = (Math.floor(m.y) + 0.5 + ky * life.H - view.oy) / view.cpp;
         const R = (Math.sqrt(domR2(half)) + 0.5) / view.cpp;
@@ -199,9 +217,18 @@ function drawMothers() {
           octx.beginPath(); octx.arc(cx, cy, R, 0, Math.PI * 2); octx.stroke(); octx.restore();
         }
       }
-      if (!showM) continue;
-      if (px < -r || py < -r || px > overlay.width + r || py > overlay.height + r) continue;
-      octx.beginPath(); octx.arc(px, py, r, 0, Math.PI * 2); octx.stroke();
+      if (!showM && !showL) continue;
+      if (px < -r - 80 * dpr || py < -r - 20 * dpr || px > overlay.width + r || py > overlay.height + r) continue;
+      if (showM) { octx.beginPath(); octx.arc(px, py, r, 0, Math.PI * 2); octx.stroke(); }
+      // ラベル（セッション10）：マザーの右に種族の名前
+      if (showL && ws[m.kind - 1]) {
+        const a = octx.globalAlpha; octx.globalAlpha = m.active ? 1 : 0.5;
+        octx.fillStyle = ws[m.kind - 1].color;
+        octx.lineWidth = 3 * dpr; octx.strokeStyle = 'rgba(0,0,0,0.8)';
+        const tx = px + r + 4 * dpr, label = spName(ws[m.kind - 1]);
+        octx.strokeText(label, tx, py); octx.fillText(label, tx, py);
+        octx.lineWidth = 1.5 * dpr; octx.strokeStyle = ws[m.kind - 1].color; octx.globalAlpha = a;
+      }
     }
   }
   octx.globalAlpha = 1;
@@ -215,8 +242,32 @@ function fitView() {
   view.oy = (life.H - canvas.height * cpp) / 2;
 }
 
-// 学習の進み（§18 の④）を種族の札に出す：回＝終えた試しの数、勝＝候補が勝った数、固定＝学習を終えた
+// 拡大・縮小（セッション10）：画面の真ん中を中心に k 倍。表示の倍率は「1 マスが画面の何点か」
+function zoomBy(k, cx = canvas.width / 2, cy = canvas.height / 2) {
+  const fx = view.ox + cx * view.cpp, fy = view.oy + cy * view.cpp;
+  view.cpp = Math.min(8, Math.max(1 / 64, view.cpp / k));
+  view.ox = fx - cx * view.cpp; view.oy = fy - cy * view.cpp;
+}
+let zoomShown = '';
+function showZoom() {
+  const mag = (window.devicePixelRatio || 1) / view.cpp;
+  const txt = '×' + (mag >= 10 ? mag.toFixed(0) : mag >= 1 ? mag.toFixed(1) : mag.toFixed(2));
+  if (txt !== zoomShown) { zoomShown = txt; $('zoom-v').textContent = txt; }
+}
+// 自由編集の最初の見え方：マス目が見える大きさ（1 マス 10 点）で、盤の真ん中を出す
+function freeView() {
+  fitView();
+  const cpp = 1 / (10 * (window.devicePixelRatio || 1));
+  if (cpp >= view.cpp) return;
+  view.cpp = cpp;
+  view.ox = (life.W - canvas.width * cpp) / 2; view.oy = (life.H - canvas.height * cpp) / 2;
+}
+function showSeed() { $('seed-now').textContent = life ? t('seedNow', { n: life.seed }) : ''; }
+
+// 学習の進み（§18 の④）を状態の表に出す：回＝終えた試しの数、勝＝候補が勝った数、固定＝学習を終えた
 let learnBusy = false;
+let lgLearn = [];    // 種族ごとの学習の文（並びの番号は種族−1）
+let lgCounts = null; // 種族ごとの盤の数（人口グラフと同じ読み取り）
 function showLearn() {
   if (!life || !life.mothers || !life.mothers.ms.some(m => m.learn) || learnBusy || !$('lshow').checked) return;
   const me = life, ws = curWorld().species;
@@ -224,36 +275,63 @@ function showLearn() {
   me.readLearn().then(st => {
     if (me !== life || !$('lshow').checked) return;
     // 種族ごとに、その種族のマザー（4種族の世界は 3 つずつ）の回と勝ちを足す。固定は全部が固定のとき
-    [...$('legend').children].forEach((e, j) => {
-      const sp = ws[j];
-      if (!sp) return;
+    lgLearn = ws.map((sp, j) => {
       const ms = me.mothers.ms.filter(m => m.learn && m.kind === j + 1);
-      if (!ms.length) return;
+      if (!ms.length) return '';
       let n = 0, w = 0, fixed = true;
       for (const m of ms) { const o = m.slot * LS; n += st[o + LO.EPN]; w += st[o + LO.WINS]; if (!st[o + LO.FIXED]) fixed = false; }
-      e.textContent = t('learnFmt', { name: chipName(sp), n, w }) + (fixed ? t('learnFixed') : '');
+      return t('learnFmt', { n, w }) + (fixed ? t('learnFixed') : '');
     });
+    renderLegend();
   }).catch(() => {}).finally(() => { learnBusy = false; });
 }
 
 function readSize() { const [w, h] = $('size').value.split('x').map(Number); return { W: w, H: h }; }
 
 function showLegend() {
-  const ws = curWorld().species;
-  $('legend').replaceChildren(...ws.map(sp => {
-    const e = document.createElement('span'); e.className = 'chip';
-    e.style.setProperty('--c', sp.color); e.textContent = chipName(sp);
-    return e;
-  }));
-  legendN = ws.length; legendR = life && life.chain ? life.chain.reps.length : 0;
+  lgLearn = [];
+  renderLegend();
+  legendN = curWorld().species.length; legendR = life && life.chain ? life.chain.reps.length : 0;
   showLearn();
+}
+// 状態の表（セッション10）：横は色の組（番号を 4 で割った余り）、縦は組の中の順番。位置は変わらない。
+//   「強い順」を入れると、組の中を盤の数の多い順に並べる
+function renderLegend() {
+  const box = $('legend');
+  if (!life || isFree()) { box.replaceChildren(); return; }
+  const ws = curWorld().species, cols = 4, rows = Math.ceil(ws.length / cols);
+  const sort = $('lsort').checked && lgCounts;
+  const grid = [];
+  for (let c = 0; c < cols; c++) {
+    const col = ws.filter((sp, j) => j % cols === c);
+    if (sort) col.sort((a, b) => (lgCounts[b.id - 1] ?? 0) - (lgCounts[a.id - 1] ?? 0) || a.id - b.id);
+    col.forEach((sp, r) => { grid[r * cols + c] = sp; });
+  }
+  const cells = [];
+  for (let i = 0; i < rows * cols; i++) {
+    const sp = grid[i], e = document.createElement('div');
+    e.className = 'lg' + (sp ? '' : ' empty');
+    if (sp) {
+      e.style.setProperty('--c', sp.color);
+      const l1 = document.createElement('div'); l1.className = 'l1';
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = spName(sp);
+      l1.append(nm);
+      if (isChain() && sp.label) { const rl = document.createElement('span'); rl.className = 'rl'; rl.textContent = sp.label; l1.append(rl); }
+      const l2 = document.createElement('div'); l2.className = 'l2';
+      const ct = document.createElement('span'); ct.className = 'ct'; ct.textContent = lgCounts ? (lgCounts[sp.id - 1] ?? 0).toLocaleString() : '';
+      l2.append(ct, lgLearn[sp.id - 1] || '');
+      e.append(l1, l2);
+    }
+    cells.push(e);
+  }
+  box.replaceChildren(...cells);
 }
 let legendN = 0, legendR = 0;
 
 function buildChain() {
   const { W, H } = readSize();
   const wrap = $('wrap').checked, seed = Number($('seed').value) || 0;
-  const chain = new ChainState(seed, W, H, { ...CHAIN_DEFAULTS, wrap });
+  const chain = new ChainState(seed, W, H, { ...CHAIN_DEFAULTS, wrap, max: chainMax(W, H, CHAIN_DEFAULTS.domain) });   // 狭い盤では種族を減らす（セッション10）
   const mothers = new MotherSet([], W, H, wrap, seed, 'empty');
   life = new LifeGPU(gpu.device, { W, H, wrap, seed, density: 0, canvas, chain, mothers, palette: [BG] });
   world = chain.world;
@@ -290,11 +368,14 @@ function build() {
       palette: [BG, ...world.species.map(sp => hexToRGBA(sp.color))],
     });
   }
+  lgCounts = null;
+  if (isChain()) applyMotherCtl();
   showLegend();
   acc = 0;
   resetGraph();
   genReset();
-  fitView();
+  if (isFree()) freeView(); else fitView();
+  showSeed();
 }
 
 // ── 自由編集モード ──
@@ -509,18 +590,19 @@ const GRAPH_N = 300;
 let graph = [], graphT = 0;
 function resetGraph() { graph = []; drawGraph(); }
 function sampleGraph(now) {
-  if (!life || $('graph').classList.contains('folded') || now - graphT < 250) return;
+  if (!life || now - graphT < 250) return;   // 畳んでいても数は読む（状態の表に出す）
   graphT = now;
   const me = life;
   me.readCounts().then(r => {
     if (!r || me !== life) return;
     const S = curWorld().species.length;
     const c = Array.from(r.counts.subarray(0, S));
+    lgCounts = c;
     const lastG = graph.length ? graph[graph.length - 1].gen : -1;
     if (r.gen < lastG) graph = [];
     if (r.gen === lastG) graph[graph.length - 1].c = c;
     else { graph.push({ gen: r.gen, c }); if (graph.length > GRAPH_N) graph.shift(); }
-    drawGraph();
+    if (!$('graph').classList.contains('folded')) drawGraph();
   });
 }
 function drawGraph() {
@@ -564,6 +646,7 @@ function loadFold() { try { return JSON.parse(localStorage.getItem(FOLD_KEY)) ||
 function setFold(id, folded, save = true) {
   const panel = $(id), btn = $(id === 'hud' ? 'btn-fold' : 'btn-graph');
   panel.classList.toggle('folded', folded);
+  document.body.classList.toggle(id === 'hud' ? 'hud-folded' : 'graph-open', id === 'hud' ? folded : !folded);
   btn.textContent = folded ? '▸' : '▾';
   btn.title = t(folded ? 'unfold' : 'fold');
   btn.setAttribute('aria-expanded', String(!folded));
@@ -585,8 +668,19 @@ function frame(now) {
       if (n > 0) { const room = genRoom(); if (n > room) { n = room; acc = n + (acc % 1); } }
       if (n > 0) { gensDone += life.step(n); acc -= n; }
     }
-    life.render({ ...view, t: running ? acc : 1, fade: $('fade').checked && speed() <= 30, colors: COLORS });
+    // 明滅をおさえる（セッション10・Q100=A）：速さが 5 世代/秒より上のときは、描き替えを 1 秒に 3 回までにまとめる
+    //   （描かないあいだは前の絵がそのまま残る。1 マスが 1 秒に 3 回より多く変わらないので、閃光は 1 秒に 1.5 回まで）
+    //   盤の写しを 1 秒に 3 回だけ取り、毎回の描画はその写しから描く（動かす・拡大はなめらかなまま）。
+    //   フェードが入っていれば、前の写しから今の写しへ、次の写しまでの時間をかけて変える
+    const calmNow = $('calm').checked && speed() > SAFE_SPEED;
+    $('lab-calm').classList.toggle('now', calmNow);
+    if (calmNow) {
+      if (!life.snapReady || now - lastDraw >= CALM_MS) { life.snapshot(); lastDraw = now; }
+      const fd = $('fade').checked;
+      life.render({ ...view, t: fd ? (now - lastDraw) / CALM_MS : 1, fade: fd, snap: true, colors: COLORS });
+    } else { life.snapReady = false; life.render({ ...view, t: running ? acc : 1, fade: $('fade').checked && speed() <= 30, colors: COLORS }); }
     drawMothers();
+    showZoom();
     sampleGraph(now);
     genTick(now);
     if (life.chain && (life.chain.n !== legendN || life.chain.reps.length !== legendR)) showLegend();
@@ -598,11 +692,145 @@ function frame(now) {
       $('st-gen').textContent = life.gen.toLocaleString();
       frames = 0; gensDone = 0; statT = now;
       showLearn();
+      renderLegend();
       if (isFree()) genInfo();
     }
   }
   requestAnimationFrame(frame);
 }
+
+// ── マザーの働き（連鎖の世界。セッション10） ──
+function applyMotherCtl() {
+  if (!life || !life.mothers) return;
+  life.setMotherFlags({ off: !$('mc-on').checked, noDomain: !$('mc-dom').checked, frozen: !$('mc-learn').checked });
+  if (life.chain) life.chain.noReplace = !$('mc-rep').checked;
+}
+
+// ── ファイルの保存・読み出し（セッション10） ──
+function flash(text) {
+  const e = $('toast'); e.textContent = text; e.hidden = false;
+  clearTimeout(flash.t); flash.t = setTimeout(() => { e.hidden = true; }, 2500);
+}
+function saveJSON(obj, name) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(obj)], { type: 'application/json' }));
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  flash(t('saved'));
+}
+// 盤（1 マス 1 バイト）を gzip して文字にする・戻す
+async function packCells(cells) {
+  const u8 = Uint8Array.from(cells, v => v);
+  const buf = await new Response(new Blob([u8]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+  let bin = ''; const b = new Uint8Array(buf);
+  for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode(...b.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+async function unpackCells(text, n) {
+  const bin = atob(text), b = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+  const buf = await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+  const u8 = new Uint8Array(buf);
+  if (u8.length !== n) throw new Error('size');
+  return Uint32Array.from(u8);
+}
+const stampName = () => { const d = new Date(), p = v => String(v).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`; };
+// 自由編集：盤の様子と種族の表
+async function freeSave() {
+  if (!life || !isFree()) return;
+  saveJSON(await freeData(), `momo-life-free-${stampName()}.json`);
+}
+async function freeData() {
+  const me = life, cells = await me.read();
+  const species = free.sp.map(f => ({ on: f.on, birth: f.birth, survive: f.survive, eat: f.eat, target: f.target, color: f.color,
+    gen: { on: f.g.on, n: f.g.n, best: f.g.best.map(e => ({ bits: Array.from(e.bits), score: e.score, short: e.short ?? [] })) } }));
+  return { app: 'momo-life', type: 'free', v: 1, W: me.W, H: me.H, wrap: me.wrap, gen: me.gen, brush: free.brush, species,
+    cells: await packCells(cells) };
+}
+async function freeLoad(d) {
+  if (!Array.isArray(d.species) || !d.species.length || !(d.W > 0 && d.H > 0)) throw new Error('bad');
+  const cells = await unpackCells(d.cells, d.W * d.H);
+  free.sp = d.species.slice(0, FREE_MAX).map((e, i) => {
+    const f = newSp(e.color || FREE_COLORS[i % FREE_COLORS.length]);
+    for (const k of ['birth', 'survive', 'eat', 'target']) f[k] = String(e[k] ?? '');
+    f.on = e.on !== false;
+    f.g.on = !!e.gen?.on; f.g.n = e.gen?.n | 0;
+    f.g.best = (e.gen?.best ?? []).map(b => ({ bits: Uint32Array.from(b.bits), score: b.score, short: b.short ?? [] }));
+    return f;
+  });
+  free.brush = Math.min(Math.max(1, d.brush | 0), free.sp.length);
+  const size = `${d.W}x${d.H}`, sel = $('size');
+  if (![...sel.options].some(o => o.value === size)) { const o = document.createElement('option'); o.value = size; o.textContent = `${d.W}×${d.H}`; sel.append(o); }
+  sel.value = size; $('wrap').checked = !!d.wrap;
+  freeGood = freeWorld().world;
+  build();
+  life.upload(cells); life.gen = d.gen >>> 0;
+  renderSpTable();
+}
+// 連鎖の世界：マザーの値
+async function motherSave() {
+  if (!life || !isChain()) return;
+  saveJSON(await life.saveMothers(), `momo-life-mothers-${stampName()}.json`);
+}
+let loadKind = null;
+function pickFile(kind) { loadKind = kind; $('file-in').value = ''; $('file-in').click(); }
+async function onFile(file) {
+  if (!file || !life) return;
+  try {
+    await loadData(JSON.parse(await file.text()));
+  } catch (e) { flash(t('loadBad')); }
+}
+async function loadData(d) {
+  if (d.app !== 'momo-life') throw new Error('bad');
+  if (d.type !== loadKind) { flash(t('loadWrong', { m: t(d.type === 'free' ? 'modeFree' : 'modeChain') })); return; }
+  if (d.type === 'free') await freeLoad(d);
+  else { life.loadMothers(d, $('mc-on').checked); showLegend(); }
+  flash(t('loaded'));
+}
+
+// ── 光の点滅の注意（セッション10・Q99=A・Q101） ──
+//   速さ 5 世代/秒（つまみの 2）より上へ上げるときは毎回確かめる。スマホ（指で触る・画面の短い辺が 768 未満）は上げられない
+const SAFE_SPEED = 5, SAFE_IDX = SPEEDS.indexOf(SAFE_SPEED);
+const isPhone = (() => { try { return matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 768; } catch (e) { return false; } })();
+const CALM_MS = 1000 / 3;   // 明滅をおさえる表示の、盤の写しを取る間隔
+let lastDraw = 0, speedIdx = SAFE_IDX, wantIdx = SAFE_IDX;
+const warnText = () => WARN[lang === 'cat' ? catBase() : lang] || WARN.ja;   // 猫語でも注意は読める言葉で
+function showWarnTitle() {
+  const w = warnText(), m = isPhone ? w.titleMobile : w.titlePC;
+  $('warn-title').innerHTML = `<div class="warn-kid">${WARN_ICON}<span>${ruby(m.kid)}</span></div>`
+    + `<div class="warn-adult"><b>${WARN_ICON}${w.label}</b>${m.adult}</div>`;
+}
+function fillWarnDlg() {
+  const w = warnText(), d = isPhone ? w.dlgMobile : w.dlgPC;
+  $('warn-dlg-title').innerHTML = WARN_ICON + `<span>${ruby(d.title)}</span>`;
+  $('warn-dlg-kid').innerHTML = `<span>${ruby(d.kid)}</span>`;   // 1 つの塊にする（並べる箱の中で文字がばらけないように）
+  $('warn-dlg-adult').innerHTML = `<b>${WARN_ICON}${w.label}</b>${d.adult}`;
+  $('warn-ok').innerHTML = ruby(d.ok);
+  $('warn-cancel').innerHTML = d.cancel ? ruby(d.cancel) : '';
+  $('warn-cancel').hidden = !d.cancel;
+}
+function setSpeedIdx(i) { speedIdx = i; $('speed').value = String(i); $('speed-v').textContent = t('perSecN', { n: speed() }); }
+function onSpeedInput() {
+  const i = Number($('speed').value);
+  if (i > SAFE_IDX && speedIdx <= SAFE_IDX) {   // 5 以下から上へ上げようとした：いったん戻して確かめる
+    setSpeedIdx(speedIdx);
+    wantIdx = i; fillWarnDlg();
+    if (!$('warn-dlg').open) $('warn-dlg').showModal();
+    return;
+  }
+  setSpeedIdx(i);
+}
+
+// ── 説明（セッション10） ──
+let helpKey = 'life';
+function fillHelp(key) {
+  helpKey = key;
+  const base = lang === 'cat' ? catBase() : lang;
+  const h = (HELP[base] || HELP.ja)[key];
+  $('help-title').textContent = h.title;
+  $('help-body').innerHTML = h.html;
+}
+function openHelp(key) { fillHelp(key); $('help-dlg').showModal(); $('help-body').scrollTop = 0; }
 
 // ── 画面の切り替え ──
 function showScreen(id) {
@@ -616,10 +844,13 @@ function startMode(m) {
   $('row-mother').hidden = isChain() || isFree();
   $('lab-mother').hidden = isFree();
   $('free-box').hidden = !isFree();
-  $('legend').hidden = isFree();
+  $('legend-box').hidden = isFree();
+  $('row-chainctl').hidden = !isChain();
   if (isFree()) { renderSpTable(); setTool(free.tool); } else canvas.classList.remove('drawing');
   $('lab-domain').hidden = !isChain();
   $('lab-learn').hidden = isFree();
+  $('lab-label').hidden = isFree();
+  $('fade').checked = !isFree();   // 自由編集はフェードなし、ほかはありが最初（セッション10）
   if (!isChain() && !isFree()) $('mcount').value = String(TEMPLATES[m]().mothers?.count ?? 0);
   $('mode-now').textContent = t(MODE_KEY[m]);
   if (!running) { running = true; $('btn-play').textContent = t('pause'); }
@@ -637,7 +868,10 @@ function bindUI() {
   $('lang-select').addEventListener('change', e => onLangChange(e.target.value));
   document.querySelectorAll('.mode-card').forEach(b => b.addEventListener('click', () => startMode(b.dataset.mode)));
   $('btn-back').addEventListener('click', backToTitle);
-  $('speed').addEventListener('input', () => { $('speed-v').textContent = t('perSecN', { n: speed() }); });
+  $('speed').addEventListener('input', onSpeedInput);
+  // 確かめの窓：PC は「わかった」で上げる・「やめる」で 5 のまま。スマホは「わかった」で閉じるだけ（上げない）
+  $('warn-ok').addEventListener('click', () => { $('warn-dlg').close(); if (!isPhone) setSpeedIdx(wantIdx); });
+  $('warn-cancel').addEventListener('click', () => $('warn-dlg').close());
   $('btn-play').addEventListener('click', () => { running = !running; $('btn-play').textContent = t(running ? 'pause' : 'resume'); });
   $('btn-step').addEventListener('click', () => { if (running) $('btn-play').click(); life.step(1); acc = 1; });
   $('btn-reset').addEventListener('click', build);
@@ -655,6 +889,19 @@ function bindUI() {
   $('btn-random').addEventListener('click', freeRandom);
   $('btn-clear').addEventListener('click', freeClear);
   $('btn-addsp').addEventListener('click', addSpecies);
+  $('zoom-in').addEventListener('click', () => zoomBy(2));
+  $('zoom-out').addEventListener('click', () => zoomBy(0.5));
+  $('btn-about-life').addEventListener('click', () => openHelp('life'));
+  $('btn-help').addEventListener('click', () => openHelp(mode));
+  $('help-close').addEventListener('click', () => $('help-dlg').close());
+  $('help-dlg').addEventListener('click', e => { if (e.target === $('help-dlg')) $('help-dlg').close(); });   // 外側を押すと閉じる
+  $('lsort').addEventListener('change', renderLegend);
+  for (const id of ['mc-on', 'mc-learn', 'mc-dom', 'mc-rep']) $(id).addEventListener('change', applyMotherCtl);
+  $('btn-msave').addEventListener('click', motherSave);
+  $('btn-mload').addEventListener('click', () => pickFile('mothers'));
+  $('btn-fsave').addEventListener('click', freeSave);
+  $('btn-fload').addEventListener('click', () => pickFile('free'));
+  $('file-in').addEventListener('change', e => onFile(e.target.files[0]));
   window.addEventListener('resize', () => { const old = canvas.width; resizeCanvas(); if (old && canvas.width) view.cpp *= old / canvas.width; });
   window.addEventListener('keydown', e => {
     if (!mode) return;
@@ -668,11 +915,7 @@ function bindUI() {
   canvas.addEventListener('wheel', e => {
     e.preventDefault();
     const dpr = window.devicePixelRatio || 1;
-    const px = e.offsetX * dpr, py = e.offsetY * dpr;
-    const fx = view.ox + px * view.cpp, fy = view.oy + py * view.cpp;
-    const k = Math.exp(e.deltaY * 0.0015);
-    view.cpp = Math.min(8, Math.max(1 / 64, view.cpp * k));
-    view.ox = fx - px * view.cpp; view.oy = fy - py * view.cpp;
+    zoomBy(Math.exp(-e.deltaY * 0.0015), e.offsetX * dpr, e.offsetY * dpr);
   }, { passive: false });
 
   // ドラッグで移動（指2本でつまむと拡大縮小）
@@ -716,10 +959,10 @@ function bindUI() {
 }
 
 async function main() {
-  $('version-tag').textContent = VERSION;
+  $('version-tag').textContent = VERSION; $('hud-version').textContent = VERSION;
   bindUI();
   applyLang();
-  window.__life = { get life() { return life; }, view, fitView, startMode };
+  window.__life = { get life() { return life; }, view, fitView, startMode, freeData, loadData, setLoadKind: k => { loadKind = k; } };
   requestAnimationFrame(t0 => { last = t0; statT = t0; frame(t0); });
   gpu = await getGPU();
   if (!gpu.ok) {

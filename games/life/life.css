@@ -24,7 +24,7 @@ body.in-game { height: 100dvh; overflow: hidden; }
 #lang-switcher { position: fixed; top: 8px; right: 12px; z-index: 200; }
 #lang-select { background: var(--surface2); border: 1px solid var(--border-strong); color: var(--text); font-size: 12px; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-family: 'Noto Sans JP', sans-serif; outline: none; }
 #lang-select:focus { border-color: var(--orange-mid); }
-body.in-game #lang-switcher { top: auto; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+body.in-game.hud-folded #lang-switcher { display: none; }   /* パネルを畳んだら言語の切り替えも隠す（セッション10） */
 
 /* ── 共通ヘッダー（app-card-design v1.0） ── */
 .site-header { display: flex; align-items: flex-start; gap: 10px; margin: 44px 0 12px; width: 100%; max-width: 640px; }
@@ -62,7 +62,7 @@ body.in-game #lang-switcher { top: auto; right: 12px; bottom: calc(12px + env(sa
 #hud, #graph, #legend { -webkit-user-select: none; user-select: none; }
 #hud input[type=text] { -webkit-user-select: text; user-select: text; }
 #hud {
-  position: fixed; left: 12px; z-index: 10; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  position: fixed; left: 12px; z-index: 10; top: 12px;
   background: rgba(17, 17, 17, 0.88); border: 1px solid var(--border); border-radius: 10px;
   padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; max-width: calc(100vw - 24px);
 }
@@ -80,18 +80,17 @@ body.in-game #lang-switcher { top: auto; right: 12px; bottom: calc(12px + env(sa
   background: var(--surface); border: 1px solid var(--orange); border-radius: 10px;
   padding: 16px 20px; max-width: 80vw; line-height: 1.6;
 }
-#legend { display: flex; flex-wrap: wrap; gap: 4px 10px; max-width: 760px; }
-#legend .chip::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--c); margin-right: 4px; vertical-align: -1px; }
 
 /* ── パネル（畳む・広げる） ── */
 #hud .spacer { flex: 1; }
 .fold-btn { min-width: 28px; }
 .panel.folded .panel-body, #hud.folded #hud-body { display: none; }
-#hud-body { display: flex; flex-direction: column; gap: 6px; max-height: calc(100dvh - 120px); overflow-y: auto; }
+#hud-body { display: flex; flex-direction: column; gap: 6px; max-height: calc(100dvh - 130px); overflow-y: auto; }
+body.graph-open #hud-body { max-height: calc(100dvh - 330px); }   /* 左下の人口グラフと重ならないように */
 
 /* ── 人口グラフ ── */
 #graph {
-  position: fixed; top: 12px; right: 12px; z-index: 10; width: min(360px, calc(100vw - 24px));
+  position: fixed; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 10; width: min(360px, calc(100vw - 24px));
   background: rgba(17, 17, 17, 0.88); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px;
 }
 #graph .panel-head { display: flex; align-items: center; justify-content: space-between; color: var(--text-muted); }
@@ -136,3 +135,76 @@ body.in-game #lang-switcher { top: auto; right: 12px; bottom: calc(12px + env(sa
   font-size: 11px; font-variant-numeric: tabular-nums; background: rgba(10, 10, 10, 0.6); border-radius: 4px; padding: 2px 5px; }
 #graph-top:empty { display: none; }
 #graph-top .gt::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 2px; background: var(--c); margin-right: 4px; vertical-align: -1px; }
+
+/* ── 状態の表（セッション10）：横は色の組、縦は番号。位置は変わらない ── */
+#legend-box { display: flex; flex-direction: column; gap: 4px; }
+#legend-box[hidden] { display: none; }
+.lg-sort { color: var(--text-muted); }
+#legend { display: grid; grid-template-columns: repeat(4, 160px); gap: 3px 8px; max-width: none; max-height: calc(3 * 2.95em + 8px); overflow-y: auto; padding-right: 4px; }
+#legend .lg { font-size: 13px; line-height: 1.35; font-variant-numeric: tabular-nums; border-left: 3px solid var(--c); padding: 1px 0 1px 5px; min-height: 2.7em; overflow: hidden; }
+#legend .lg.empty { border-left-color: transparent; }
+#legend .lg .l1, #legend .lg .l2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#legend .lg .nm { color: var(--c); font-weight: 500; margin-right: 4px; }
+#legend .lg .rl { color: #fff; font-weight: 500; }   /* ルールは種族名と同じ字で白く（セッション10） */
+#legend .lg .l2 { color: var(--text-muted); }
+#legend .lg .ct { color: var(--text); display: inline-block; min-width: 4.5em; }
+#hud .row-head { color: var(--text-muted); }
+
+/* ── 説明（セッション10） ── */
+.pick-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.pick-row .pick-label { margin-top: 0; }
+.link-btn { background: none; border: none; padding: 0; color: var(--orange-light); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.link-btn:hover { color: #fff; }
+#help-dlg { background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: 12px; padding: 0; width: min(680px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); }
+#help-dlg::backdrop { background: rgba(0, 0, 0, 0.6); }
+#help-dlg .help-head { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+#help-dlg .help-head b { color: var(--orange-light); font-size: 16px; font-weight: 500; }
+#help-dlg .help-head button { background: var(--surface2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 6px; padding: 3px 10px; font: inherit; cursor: pointer; }
+#help-body { padding: 4px 18px 16px; line-height: 1.7; font-size: 14px; }
+#help-body h3 { font-size: 14px; color: var(--orange-light); margin: 14px 0 4px; font-weight: 500; }
+#help-body p { margin: 6px 0; }
+#help-body ul { margin: 4px 0; padding-left: 20px; }
+#help-body li { margin: 2px 0; }
+#toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); z-index: 300; background: var(--surface); border: 1px solid var(--orange); border-radius: 8px; padding: 8px 14px; }
+
+/* ── パネルの頭（セッション10）：小さなタイトル・種・拡大縮小 ── */
+.hud-head { display: flex; align-items: center; gap: 8px; }
+.mini-title { display: flex; align-items: center; gap: 6px; }
+.mini-icon { width: 28px; height: 28px; display: block; }
+.mini-text { display: flex; flex-direction: column; line-height: 1.05; }
+.mini-name { font-family: 'Fredoka One', cursive; font-size: 17px; white-space: nowrap; }
+.mini-name .momo { color: var(--text); }
+.mini-name .app { color: var(--orange-mid); }
+.mini-ver { color: var(--text-muted); font-size: 10px; }
+.mini-sub { font-family: 'Fredoka One', cursive; color: #888; font-size: 10px; white-space: nowrap; }
+.mini-sub.zh { font-family: 'Noto Sans SC', sans-serif; font-weight: 500; }
+.seed-now { color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.zoom { display: inline-flex; align-items: center; }
+#hud .zoom button { min-width: 26px; padding: 2px 6px; }
+#hud .zoom button:first-child { border-radius: 6px 0 0 6px; }
+#hud .zoom button:last-child { border-radius: 0 6px 6px 0; }
+#zoom-v { min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; border-top: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong); padding: 3px 4px; font-size: 12px; background: var(--surface2); }
+
+/* ── 光の点滅の注意（セッション10・Q101）：子ども向けは大きな字とふりがな、大人向けも警告とわかる形 ── */
+.warn-ico { width: 1.25em; height: 1.15em; flex-shrink: 0; vertical-align: -0.2em; }
+.warn-box { border: 2px solid #facc15; border-radius: 10px; background: rgba(250, 204, 21, 0.08); padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.warn-kid { font-size: 19px; font-weight: 700; line-height: 1.9; color: #fff; display: flex; gap: 8px; align-items: flex-start; }
+.warn-kid .warn-ico { width: 30px; height: 28px; margin-top: 4px; }
+.warn-kid ruby rt { font-size: 0.5em; font-weight: 500; color: #fde68a; }
+.warn-adult { font-size: 13px; line-height: 1.6; color: var(--text); border-left: 4px solid #facc15; padding: 2px 0 2px 10px; }
+.warn-adult b { color: #facc15; display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.warn-dlg { background: #1a1405; color: var(--text); border: 3px solid #facc15; border-radius: 14px; padding: 18px 20px; width: min(560px, calc(100vw - 32px)); }
+.warn-dlg::backdrop { background: rgba(0, 0, 0, 0.7); }
+.warn-dlg-head { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; color: #facc15; margin-bottom: 10px; line-height: 1.8; }
+.warn-dlg-head .warn-ico { width: 40px; height: 37px; }
+.warn-dlg-head ruby rt, .warn-btns ruby rt { font-size: 0.5em; }
+.warn-dlg .warn-kid { margin-bottom: 12px; }
+.warn-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+.warn-btns button { font: inherit; font-size: 16px; font-weight: 700; padding: 8px 16px; border-radius: 8px; cursor: pointer; line-height: 1.8; }
+#warn-ok { background: var(--surface2); color: var(--text); border: 1px solid var(--border-strong); }
+#warn-cancel { background: #facc15; color: #111; border: 1px solid #facc15; }
+#warn-ok:hover { border-color: #facc15; }
+
+/* 明滅をおさえる（セッション10）：少しだけ目立たせ、おさえて描いているあいだは黄色く光らせる */
+#hud .calm { display: inline-flex; align-items: center; gap: 4px; color: #fde68a; border: 1px solid rgba(250, 204, 21, 0.45); border-radius: 6px; padding: 1px 7px 1px 4px; }
+#hud .calm.now { background: rgba(250, 204, 21, 0.18); border-color: #facc15; color: #facc15; font-weight: 700; }

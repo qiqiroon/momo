@@ -5,7 +5,7 @@
 // 順番（技術書 §7.2 の推奨）：世代 t の盤 → 世代 t の供給 → 供給後の盤から世代 t+1 を計算 → マザーを世代 t+1 の位置へ動かす
 import { rand, SALT, probToThreshold } from './life-rand.js';
 import { STRIDE, PICK, MAX_SPECIES } from './life-rules.js';
-import { LS, learnInit, learnStamp, countDomain, countHalf } from './life-learn.js';
+import { LS, O as LO, learnInit, learnStamp, countDomain, countHalf } from './life-learn.js';
 
 export const TILE = 16;                     // GPU の供給の区画（16×16 マス）。life-gpu.js の区画と同じ
 export const MODE = Object.freeze({ EMPTY: 0, OVERWRITE: 1 });  // 空のマスにだけ置く（最初の値）／上書きしてよい
@@ -105,6 +105,9 @@ export class MotherSet {
     this.log = [];   // 供給の記録 [世代, 供給したマザーの数]（定義書 §6.3。直近だけ持つ）
     this.learn = new Uint32Array(MAX_LEARN * LS);     // 学習の状態（置き場所＝マザーの番号。§18 の④）
     this.learnNew = [];                               // 作ったばかりで GPU にまだ送っていない置き場所
+    // 利用者の操作（セッション10）：off＝マザーを消す（動きも供給も止める）、noDomain＝支配領域で他の種族を消さない、
+    //   frozen＝置き形の学習（組み換え）を止める（新しく学び始めるマザーも固定から始める）
+    this.off = false; this.noDomain = false; this.frozen = false;
     this.ms.forEach((m, j) => { m.slot = j; this.initLearn(m); });
   }
 
@@ -122,20 +125,36 @@ export class MotherSet {
     if (!m.stamp || !(m.domain > 0 || m.learnHalf > 0)) throw new Error('学習するマザーには置き形と、支配領域か数える範囲が要る');
     if (m.slot >= MAX_LEARN) throw new Error(`学習するマザーは ${MAX_LEARN} 個まで`);
     learnInit(this.learn, m.slot, m.t0, m.stamp);
+    if (this.frozen) this.learn[m.slot * LS + LO.FIXED] = 1;
+    this.learnNew.push(m.slot);
+  }
+  // 保存したマザーの値を、いまのマザー m に入れる（セッション10）。学習の状態は、世代 gen から一番の形で新しい回を始める
+  //   saved: { x, y, dir, leg, learn（LS 語） }。盤の大きさが違えば、位置は割合で合わせる（sW・sH は保存したときの盤）
+  applySaved(m, saved, gen, sW = this.W, sH = this.H) {
+    m.x = (saved.x / sW) * this.W; m.y = (saved.y / sH) * this.H;
+    if (saved.dir != null) m.dir = saved.dir;
+    m.leg = saved.leg ?? 0;
+    if (!m.learn || !saved.learn) return;
+    const o = m.slot * LS;
+    this.learn.set(Uint32Array.from(saved.learn).subarray(0, LS), o);
+    this.learn[o + LO.EP0] = gen >>> 0; this.learn[o + LO.MODE] = 0; this.learn[o + LO.CN] = 0;
+    this.learn[o + LO.SCORE] = 0; this.learn[o + LO.ZERO] = 0;
+    if (this.frozen) this.learn[o + LO.FIXED] = 1;
+    m.stamp = this.learn.slice(o + LO.BEST, o + LO.BEST + STAMP_WORDS); m.t0 = gen;
     this.learnNew.push(m.slot);
   }
 
   // 支配領域の中の自分の種族の数（Q68=A。引き直した種族が領域を埋められるかの見極めに使う）。並びの番号は種族−1、領域が無ければ 0
   domainCounts(cells) {
     const c = new Uint32Array(MAX_SPECIES);
-    for (const m of this.ms) if (m.active && m.domain > 0)
+    if (!this.off && !this.noDomain) for (const m of this.ms) if (m.active && m.domain > 0)
     { const h = Math.floor(m.domain / 2); c[m.kind - 1] = countDomain(this.W, this.H, cells, cell(m.x, this.W), cell(m.y, this.H), domR(h), m.kind, this.wrap, domR2(h)); }
     return c;
   }
   // GPU に渡す支配領域の表：種族ごとに [中心 x, 中心 y, 円の半径の2乗＋1]（0 なら領域なし。Q74 で円に）
   domainTable() {
     const d = new Uint32Array(MAX_SPECIES * 3);
-    for (const m of this.ms) if (m.active && m.domain > 0) {
+    if (!this.off && !this.noDomain) for (const m of this.ms) if (m.active && m.domain > 0) {
       const o = (m.kind - 1) * 3;
       d[o] = cell(m.x, this.W); d[o + 1] = cell(m.y, this.H); d[o + 2] = domR2(Math.floor(m.domain / 2)) + 1;
     }
@@ -149,9 +168,11 @@ export class MotherSet {
   supplies() {
     const g = this.gen, out = [];
     let n = 0;
+    if (this.off) return out;
     for (const m of this.ms) {
       if (!m.active) continue;
-      const half = m.domain > 0 ? Math.floor(m.domain / 2) : 0;
+      const dh = m.domain > 0 ? Math.floor(m.domain / 2) : 0;   // 支配領域の半分の幅（学習で数える範囲はこれから決める）
+      const half = this.noDomain ? 0 : dh;                       // 領域の中を消す働き（止めたら 0）
       const lrn = m.learn ? m.slot : null;
       const st = m.stamp && lrn == null ? (g >= m.t0 && (g - m.t0) % Math.max(1, Math.floor(m.stampEvery)) === 0) : false;
       const feed = !m.stamp && m.density > 0 && m.diameter > 0 && g % Math.max(1, Math.floor(m.interval)) === 0;
@@ -161,7 +182,7 @@ export class MotherSet {
         cx: cell(m.x, this.W), cy: cell(m.y, this.H),
         r2: feed ? Math.floor(m.diameter * m.diameter / 4) : 0,
         kind: m.kind, thr: feed ? probToThreshold(m.density) : 0, half,
-        stamp: st ? m.stamp : null, learn: lrn, lh: m.learnHalf > 0 ? m.learnHalf : countHalf(half),
+        stamp: st ? m.stamp : null, learn: lrn, lh: m.learnHalf > 0 ? m.learnHalf : countHalf(dh),
       });
     }
     if (n) { this.log.push([g, n]); if (this.log.length > 256) this.log.shift(); }
@@ -180,6 +201,7 @@ export class MotherSet {
   }
   advance() {
     const g = ++this.gen;
+    if (this.off) return;   // マザーを消しているあいだは動かない（世代だけ進める）
     this.ms.forEach((m, j) => {
       if (!m.active) return;
       if (m.travel) { if (!(m.leg > 0)) this.newLeg(m, g, j); }

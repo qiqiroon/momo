@@ -52,7 +52,18 @@ export function chainRule(seed, k, v = 0) {
 
 // e が v を食べるか（Q38=A）：番号を 4 で割った余りで 4 つの組に分け、組どうしで輪にする
 //   1 の組（1・5・9…）は 2 の組（2・6・10…）を、2 の組は 3 の組を、3 の組は 4 の組を、4 の組は 1 の組を食べる
-export const chainEats = (e, v) => ((v - e) % 4 + 4) % 4 === 1;
+//   G：組の数（ふつう 4）。種族の上限が 4 より少ない狭い盤では上限の数にして、少ない種族でも輪が閉じるようにする（セッション10）
+export const chainEats = (e, v, G = 4) => ((v - e) % G + G) % G === 1;
+
+// 盤の広さに合わせた種族（＝マザー）の上限（セッション10）：全マザーの支配領域の面積の合計が、盤の面積の 1/3 以下。
+//   4 以上なら 4 の倍数に切り下げる。32 を超えれば 32
+export function chainMax(W, H, domain = CHAIN_DEFAULTS.domain) {
+  const a = domain > 0 ? domArea(Math.floor(domain / 2)) : 0;
+  let n = a ? Math.floor(W * H / 3 / a) : MAX_SPECIES;
+  n = Math.min(MAX_SPECIES, n);
+  if (n >= 4) n -= n % 4;
+  return Math.max(1, n);
+}
 
 // 印 → '36' のような数字の並び
 const digits = m => [...Array(9).keys()].filter(v => (m >>> v) & 1).join('');
@@ -85,12 +96,13 @@ function hslHex(h, s, l) {
 //   opts.ver：種族ごとの引き直しの回数（ver[k]。省略は 0）
 export function chainWorld(seed, n, opts = {}) {
   if (!(n >= 1 && n <= MAX_SPECIES)) throw new Error(`種族の数は 1〜${MAX_SPECIES}: ${n}`);
-  const ver = opts.ver ?? [];
-  const rules = Array.from({ length: n }, (_, i) => chainRule(seed, i + 1, ver[i + 1] ?? 0));
+  const ver = opts.ver ?? [], custom = opts.custom ?? [], G = opts.groups ?? 4;
+  // custom[k]：読み出したルール（セッション10。マザーの値のファイルから）。あればそれを使う
+  const rules = Array.from({ length: n }, (_, i) => custom[i + 1] ?? chainRule(seed, i + 1, ver[i + 1] ?? 0));
   const species = rules.map((r, i) => {
     const k = i + 1;
     const prey = [];
-    for (let e = 1; e <= n; e++) if (chainEats(e, k)) prey.push([sp(e, rules[e - 1].prey)]);
+    for (let e = 1; e <= n; e++) if (chainEats(e, k, G)) prey.push([sp(e, rules[e - 1].prey)]);
     return {
       id: k, name: { ja: chainName(k), en: chainName(k) }, label: chainLabel(r), color: chainColor(k),
       birth: [[self(r.birth)]],
@@ -167,11 +179,30 @@ export class ChainState {
     this.thinN = 0;                                  // 盤にはいるが領域を埋められず引き直した回数（Q68=A。確かめ用）
     this.learnMin = opts.learnMin ?? CHAIN_DEFAULTS.learnMin;
     this.t0 = new Array(MAX_SPECIES + 1).fill(0);   // 種族がいまのルールを持った世代（足した世代か、最後に引き直した世代）
+    this.noReplace = false;                          // ルールの引き直しを止める（利用者の操作。セッション10）
+    this.custom = [];                                // 読み出したルール（custom[k]）。引き直したら消す
+    this.loaded = [];                                // 読み出したが、まだ盤にいない種族の値（loaded[k]。足したときに使う）
+    this.G = Math.min(4, this.c.max);                // 捕食の輪の組の数（狭い盤で上限が 4 より少なければ上限の数）
+    this.repN = Math.max(1, Math.floor(REP_N * this.c.max / MAX_SPECIES));   // 「弱い」「少ない」で引き直す数。上限の割合で減らし、1 は残す
+    this.minN = 0;                                   // 少なくともこの数の種族を出す（マザーの値を読み出したとき。セッション10）
+  }
+  wopts() { return { pick: this.pick, ver: this.ver, custom: this.custom, groups: this.G }; }
+  // 読み出したルールを入れる（セッション10）。いまいる種族はすぐ、まだいない種族は足したときに使う。
+  //   入れた種族は、その世代から学習時間を数え直し、見極めはしない
+  loadRules(gen, list) {
+    for (const e of list) {
+      if (!(e.kind >= 2 && e.kind <= this.c.max) || !e.rule) continue;   // 種族 1（Conway）はルールを変えない
+      this.custom[e.kind] = { birth: e.rule.birth >>> 0, survive: e.rule.survive.map(v => v >>> 0), prey: e.rule.prey >>> 0 };
+      if (e.kind <= this.n) { this.t0[e.kind] = gen; this.trial[e.kind] = false; }
+    }
+    if (!this.n) return null;
+    this.world = chainWorld(this.seed, this.n, this.wopts());
+    return { world: this.world, rules: compile(this.world) };
   }
   // 世代 gen の始めに、いちばん少ない種族のルールを引き直す世代か（Q49）：上限の種族がそろったあと、足す間隔ごと
   //   上限は世代 (max−1)×every にそろうので、最初の引き直しは世代 max×every
   needCounts(gen) {
-    return this.n === this.c.max && gen >= this.c.max * this.c.every && gen % this.c.every === 0 && gen !== this.lastRep;
+    return !this.noReplace && this.n === this.c.max && gen >= this.c.max * this.c.every && gen % this.c.every === 0 && gen !== this.lastRep;
   }
   // 引き直す。counts[s−1] は世代 gen の始め（供給の前）の盤の種族 s の数（7回目の利用者の指示）
   //   種族 1（Conway）はどの決まりでも引き直さない（セッション9）。
@@ -187,62 +218,73 @@ export class ChainState {
   replace(gen, counts, dom = null) {
     const area = domArea(Math.floor(this.domain / 2));   // 円の支配領域のマスの数（Q74）
     let kinds = [];
+    const why = {};   // 入れ替えた理由（セッション10。確かめ用）：zero＝0、thin＝領域を埋められない、eater＝多い組を食べる弱い種、small＝全体で少ない種
     for (let s = 2; s <= this.n; s++) {
       const thin = dom && this.trial[s] && dom[s - 1] * 100 < area * FILL_MIN;
       if (dom && this.trial[s] && !thin) this.trial[s] = false;
       if (thin && counts[s - 1] !== 0) this.thinN++;
-      if (counts[s - 1] === 0 || thin) kinds.push(s);
+      if (counts[s - 1] === 0 || thin) { kinds.push(s); why[s] = counts[s - 1] === 0 ? 'zero' : 'thin'; }
     }
     if (!kinds.length) {
-      const sum = [0, 0, 0, 0];
-      for (let s = 1; s <= this.n; s++) sum[(s - 1) % 4] += counts[s - 1];
+      const G = this.G, sum = new Array(G).fill(0);
+      for (let s = 1; s <= this.n; s++) sum[(s - 1) % G] += counts[s - 1];
       let g = 0;
-      for (let r = 1; r < 4; r++) if (sum[r] > sum[g]) g = r;
+      for (let r = 1; r < G; r++) if (sum[r] > sum[g]) g = r;
       const ready = s => s !== 1 && gen - this.t0[s] >= this.learnMin;
       const order = (a, b) => counts[a - 1] - counts[b - 1] || this.ver[a] - this.ver[b] || a - b;
       let eaters = [];
-      for (let e = 1; e <= this.n; e++) if (chainEats(e, g + 1)) eaters.push(e);
-      if (!eaters.length) for (let s = g + 1; s <= this.n; s += 4) eaters.push(s);   // 食べる組がいない（4 種より少ないとき）：その組そのもの
-      eaters = eaters.filter(ready).sort(order).slice(0, REP_N);
+      for (let e = 1; e <= this.n; e++) if (chainEats(e, g + 1, G)) eaters.push(e);
+      if (!eaters.length) for (let s = g + 1; s <= this.n; s += G) eaters.push(s);   // 食べる組がいない（4 種より少ないとき）：その組そのもの
+      // 盤の数の多いほうの半分（n÷2 を切り捨てた数。4 種族なら 1 位と 2 位）は、どちらの決まりでも引き直さない（セッション10・Q94=A）。
+      //   順位は「自分より多い種族の数＋1」（同じ数は同じ順位）。学習時間がたった種族だけから選ぶので、
+      //   これが無いと、種族が少ない盤では、たった種族が多い種族だけのときにそれを引き直していた
+      const rankOf = s => { let r = 1; for (let q = 1; q <= this.n; q++) if (counts[q - 1] > counts[s - 1]) r++; return r; };
+      const keep = s => ready(s) && rankOf(s) > Math.floor(this.n / 2);
+      eaters = eaters.filter(keep).sort(order).slice(0, this.repN);
       const small = [];
-      for (let s = 2; s <= this.n; s++) if (ready(s)) small.push(s);
+      for (let s = 2; s <= this.n; s++) if (keep(s)) small.push(s);
       small.sort(order);
-      kinds = [...new Set([...eaters, ...small.slice(0, REP_N)])].sort((a, b) => a - b);
+      for (const k of small.slice(0, this.repN)) why[k] = 'small';
+      for (const k of eaters) why[k] = 'eater';
+      kinds = [...new Set([...eaters, ...small.slice(0, this.repN)])].sort((a, b) => a - b);
     }
     this.lastRep = gen;
     const list = [];
     for (const k of kinds) {
       const v = ++this.ver[k];
-      this.reps.push([gen, k, v]);
+      delete this.custom[k];
+      let rank = 1; for (let s = 1; s <= this.n; s++) if (counts[s - 1] > counts[k - 1]) rank++;
+      this.reps.push([gen, k, v, why[k], counts[k - 1], dom ? dom[k - 1] : -1, rank]);   // 世代・種族・回数・理由・盤の数・領域の中の数・盤の数の順位
       this.trial[k] = true;
       this.t0[k] = gen;
       list.push({ kind: k, stamp: chainStamp(this.seed, k, v), t0: gen });
     }
-    const world = chainWorld(this.seed, this.n, { pick: this.pick, ver: this.ver });
+    const world = chainWorld(this.seed, this.n, this.wopts());
     this.world = world;
     return { world, rules: compile(world), list };
   }
   // 世代 gen の始めに種族の数をそろえる。変わったら { world, rules, mothers（新しく足すマザー） }、変わらなければ null
   //   existing：いまいるマザー（MotherSet の ms）。新しいマザーは、これらの支配領域と重ならない場所に置く
   sync(gen, existing = []) {
-    const want = chainCount(this.c, gen);
+    const want = Math.max(Math.min(this.minN, this.c.max), chainCount(this.c, gen));
     if (want === this.n) return null;
     if (want < this.n) throw new Error('連鎖の世界は世代を戻せない');
-    const world = chainWorld(this.seed, want, { pick: this.pick, ver: this.ver });
+    const world = chainWorld(this.seed, want, this.wopts());
     const mothers = [];
     for (let k = this.n + 1; k <= want; k++) {
-      this.trial[k] = k !== 1;   // Q69=B：足した種族も見極める（種族 1 は引き直さないので見極めない。セッション9）
-      this.t0[k] = (k - 1) * this.c.every;
+      this.trial[k] = k !== 1 && !this.custom[k];   // Q69=B：足した種族も見極める（種族 1 は引き直さないので見極めない。セッション9）
+      const t0 = Math.min((k - 1) * this.c.every, gen);   // 読み出しで早く出した種族は、出した世代から（ふつうは同じ値）
+      this.t0[k] = t0;
       mothers.push(chainMother(this.seed, k, world.species[k - 1], this.W, this.H,
         { domain: this.domain, wrap: this.wrap, existing: [...existing, ...mothers],
-          stamp: this.stamp, stampEvery: this.stampEvery, learn: this.learn, t0: (k - 1) * this.c.every }));
+          stamp: this.stamp, stampEvery: this.stampEvery, learn: this.learn, t0 }));
     }
     this.n = want; this.world = world;
     return { world, rules: compile(world), mothers };
   }
   // gen より後で、種族が増えるか引き直す最初の世代
   next(gen) {
-    if (chainCount(this.c, gen) < this.c.max) return chainNext(this.c, gen);
+    if (this.n < this.c.max) return chainNext(this.c, gen);
     return Math.max(this.c.max * this.c.every, (Math.floor(gen / this.c.every) + 1) * this.c.every);
   }
 }

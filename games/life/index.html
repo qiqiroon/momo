@@ -86,13 +86,14 @@
       </g>
     </svg>
     <div class="title-block">
-      <h1><span class="momo">MOMO</span><span class="app">Life</span><span class="version-tag" id="version-tag">v0.01</span></h1>
+      <h1><span class="momo">MOMO</span><span class="app">Life</span><span class="version-tag" id="version-tag">v0.02</span></h1>
       <div class="subtitle" id="subtitle">Tiny Rules, Boundless Life</div>
     </div>
   </header>
 
   <main class="title-main">
-    <div class="pick-label" data-i18n="modeLabel">世界を選ぶ</div>
+    <div id="warn-title" class="warn-box" role="note"></div>
+    <div class="pick-row"><span class="pick-label" data-i18n="modeLabel">世界を選ぶ</span><button id="btn-about-life" type="button" class="link-btn" data-i18n="aboutLife">ライフゲームとは</button></div>
     <div class="mode-list" id="mode-list">
       <button class="mode-card" type="button" data-mode="chain">
         <span class="mode-name" data-i18n="modeChain">連鎖して増える</span>
@@ -146,20 +147,39 @@
   </div>
 
   <div id="hud" class="panel">
+    <div class="hud-head">
+      <div class="mini-title">
+        <img class="mini-icon" src="favicon.svg" alt="" width="28" height="28">
+        <div class="mini-text">
+          <div class="mini-name"><span class="momo">MOMO</span> <span class="app">Life</span> <span class="mini-ver" id="hud-version">v0.02</span></div>
+          <div class="mini-sub" id="hud-subtitle">Tiny Rules, Boundless Life</div>
+        </div>
+      </div>
+      <span class="spacer"></span>
+      <span class="seed-now" id="seed-now"></span>
+      <span class="zoom" role="group">
+        <button id="zoom-out" type="button" aria-label="zoom out">−</button>
+        <span id="zoom-v">×1</span>
+        <button id="zoom-in" type="button" aria-label="zoom in">＋</button>
+      </span>
+      <button id="btn-fold" type="button" class="fold-btn" aria-expanded="true">▾</button>
+    </div>
     <div class="row">
       <button id="btn-back" type="button" data-i18n="back">← 世界を選ぶ</button>
       <span class="mode-now" id="mode-now"></span>
-      <span class="spacer"></span>
-      <button id="btn-fold" type="button" class="fold-btn" aria-expanded="true">▾</button>
+      <button id="btn-help" type="button" data-i18n="help">説明</button>
     </div>
     <div class="panel-body" id="hud-body">
     <div class="row">
       <button id="btn-play" type="button">一時停止</button>
       <button id="btn-step" type="button" data-i18n="step">1世代</button>
       <button id="btn-reset" type="button" data-i18n="reset">はじめから</button>
-      <label><span data-i18n="speed">速さ</span> <input id="speed" type="range" min="0" max="10" step="1" value="4"> <span id="speed-v"></span></label>
+      <label><span data-i18n="speed">速さ</span> <input id="speed" type="range" min="0" max="10" step="1" value="2"> <span id="speed-v"></span></label>
     </div>
-    <div class="row" id="legend"></div>
+    <div id="legend-box">
+      <label class="lg-sort"><input id="lsort" type="checkbox"> <span data-i18n="sortStrong">強い順</span></label>
+      <div id="legend"></div>
+    </div>
     <div id="free-box" hidden>
       <div class="row">
         <span class="tools" role="group">
@@ -169,6 +189,8 @@
         </span>
         <button id="btn-random" type="button" data-i18n="randomFill">ランダムに配置</button>
         <button id="btn-clear" type="button" data-i18n="clearAll">全部消す</button>
+        <button id="btn-fsave" type="button" data-i18n="fSave">保存</button>
+        <button id="btn-fload" type="button" data-i18n="fLoad">読み出し</button>
       </div>
       <table id="sp-table">
         <thead><tr><th></th><th data-i18n="colOn">使う</th><th data-i18n="colBirth">生まれる</th><th data-i18n="colSurvive">生き残る</th><th data-i18n="colEat">食べる</th><th data-i18n="colTarget">食べる相手</th><th data-i18n="colGen">発生</th></tr></thead>
@@ -192,11 +214,23 @@
         <option value="overwrite" data-i18n="mOver">上書き</option>
       </select></label>
     </div>
+    <div class="row" id="row-chainctl">
+      <span class="row-head" data-i18n="mcTitle">マザーの働き</span>
+      <label><input id="mc-on" type="checkbox" checked> <span data-i18n="mcOn">マザーを出す</span></label>
+      <label><input id="mc-learn" type="checkbox" checked> <span data-i18n="mcLearn">学習（組み換え）</span></label>
+      <label><input id="mc-dom" type="checkbox" checked> <span data-i18n="mcDom">支配領域</span></label>
+      <label><input id="mc-rep" type="checkbox" checked> <span data-i18n="mcRep">ルールの引き直し</span></label>
+      <button id="btn-msave" type="button" data-i18n="mSave">マザーの値を保存</button>
+      <button id="btn-mload" type="button" data-i18n="mLoad">読み出し</button>
+    </div>
     <div class="row">
+      <span class="row-head" data-i18n="showTitle">表示</span>
       <label id="lab-mother"><input id="mshow" type="checkbox"> <span data-i18n="showMother">マザー</span></label>
+      <label id="lab-label"><input id="lblshow" type="checkbox"> <span data-i18n="showLabel">ラベル</span></label>
       <label id="lab-domain"><input id="dshow" type="checkbox"> <span data-i18n="showDomain">支配領域</span></label>
       <label id="lab-learn"><input id="lshow" type="checkbox" checked> <span data-i18n="showLearn">学習の様子</span></label>
       <label><input id="fade" type="checkbox" checked> <span data-i18n="fade">フェード</span></label>
+      <label id="lab-calm" class="calm"><input id="calm" type="checkbox" checked> <svg class="warn-ico" viewBox="0 0 24 22" aria-hidden="true"><path d="M12 1.5 L23 20.5 H1 Z" fill="#facc15" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/><rect x="10.8" y="7.5" width="2.4" height="7.5" rx="1" fill="#111"/><circle cx="12" cy="17.4" r="1.4" fill="#111"/></svg><span data-i18n="calm">明滅をおさえる</span></label>
     </div>
     <div class="row stats">
       <span><span data-i18n="gen">世代</span> <b id="st-gen">0</b></span>
@@ -208,9 +242,21 @@
 </div>
 
 <div id="msg" hidden></div>
+<div id="toast" hidden></div>
+<input id="file-in" type="file" accept=".json,application/json" hidden>
+<dialog id="warn-dlg" class="warn-dlg">
+  <div class="warn-dlg-head" id="warn-dlg-title"></div>
+  <div class="warn-kid" id="warn-dlg-kid"></div>
+  <div class="warn-adult" id="warn-dlg-adult"></div>
+  <div class="warn-btns"><button id="warn-ok" type="button"></button><button id="warn-cancel" type="button"></button></div>
+</dialog>
+<dialog id="help-dlg">
+  <div class="help-head"><b id="help-title"></b><button id="help-close" type="button" data-i18n="close">閉じる</button></div>
+  <div id="help-body"></div>
+</dialog>
 
-<script type="application/json" id="momo-rating-data">{"app":"games/life","avg":0,"count":0}</script>
-<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":["VideoGame","WebApplication"],"name":"MOMO Life","url":"https://qiqiroon.github.io/momo/games/life/","description":"ブラウザで眺める無料の多種族ライフゲーム。生き物を置いてルールを自由に書ける世界、4つの種族が食べ合う世界、空の盤から新しい種族が次々に生まれて 32 種まで増え、置き形を学習しながら栄えたり滅んだりする世界を、GPU で大きな盤のまま動かせる。登録不要・インストール不要。","image":"https://qiqiroon.github.io/momo/games/life/apple-touch-icon.png","applicationCategory":"GameApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"}}</script>
+<script type="application/json" id="momo-rating-data">{"app":"games/life","avg":4.0,"count":2}</script>
+<script type="application/ld+json" id="momo-rating-ld">{"@context":"https://schema.org","@type":["VideoGame","WebApplication"],"name":"MOMO Life","url":"https://qiqiroon.github.io/momo/games/life/","description":"ブラウザで眺める無料の多種族ライフゲーム。生き物を置いてルールを自由に書ける世界、4つの種族が食べ合う世界、空の盤から新しい種族が次々に生まれて 32 種まで増え、置き形を学習しながら栄えたり滅んだりする世界を、GPU で大きな盤のまま動かせる。登録不要・インストール不要。","image":"https://qiqiroon.github.io/momo/games/life/apple-touch-icon.png","applicationCategory":"GameApplication","operatingSystem":"Web browser","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"MOMO Works","url":"https://qiqiroon.github.io/momo/"},"aggregateRating":{"@type":"AggregateRating","ratingValue":"4.0","ratingCount":"2","bestRating":"5","worstRating":"1"}}</script>
 <script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Life について", "body": ["MOMO Life は、ブラウザで眺める多種族のライフゲームです。", "マス目の生き物は、周りの仲間の数で生まれたり消えたりします。種族ごとに違うルールを持ち、ほかの種族を食べることもあります。生き物を置いてルールを自由に書ける世界、4つの種族が食べ合う世界、空の盤から新しい種族が次々に生まれて 32 種まで増える世界を選べます。増える世界では、種族を生み出すマザーが置き形を学び、弱い種族はルールを引き直されて、栄えたり滅んだりを繰り返します。", "計算と描画は GPU（WebGPU）で行うので、大きな盤のまま動かせます。アカウント登録もインストールも要りません。"]}, "en": {"title": "About MOMO Life", "body": ["MOMO Life is a multi-species Game of Life you watch in your browser.", "Each creature on the grid is born or dies depending on how many neighbours it has. Every species follows its own rules, and some species eat others. Choose a free-edit world where you place creatures and write the rules yourself, a world where four species eat one another, or a world that starts from an empty board and keeps adding new species until there are 32. In that world, the mothers that spawn each species learn which pattern to plant, and weak species have their rules redrawn, so species rise and fall again and again.", "Everything is computed and drawn on the GPU (WebGPU), so even a large board runs smoothly. No account, no installation."]}, "zh": {"title": "关于 MOMO Life", "body": ["MOMO Life 是一款在浏览器中观赏的多物种生命游戏。", "格子里的生物会根据周围同伴的数量诞生或消失。每个物种都有自己的规则，有的还会吃掉其他物种。可以选择自由放置生物、自己编写规则的世界，四个物种互相捕食的世界，以及从空棋盘开始、不断诞生新物种直到 32 种的世界。在不断增加的世界里，孕育物种的母体会学习放置的图案，弱小物种的规则会被重新抽取，物种就这样反复兴衰。", "计算和绘制都在 GPU（WebGPU）上进行，大棋盘也能流畅运行。无需注册账号，也无需安装。"]}}</script>
 <script type="module" src="life.js"></script>
 </body>

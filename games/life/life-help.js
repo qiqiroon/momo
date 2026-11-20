@@ -37,7 +37,7 @@ export const HELP = {
 <h3>学習（置き形の組み換え）</h3>
 <p>マザーは置き形を試しては、置いたあとに周りに自分の種族がどれだけ残り、増えたかで点を付けます。いちばん良い形の 1〜3 マスを入れ替えた形や、まったく新しい形を試し、何度か続けて良ければ入れ替えます。長く負け続けると、その形で固定します。</p>
 <h3>ルールの引き直し</h3>
-<p>32 種そろったあと、2,000 世代ごとに弱い種族のルールを引き直します。いなくなった種族と、支配領域を自分の種族で埋められない種族が先です。どちらもいなければ、いちばん数の多い色の組を食べる組の弱い 4 種と、全体で少ない 4 種を引き直します（ルールを持ってから 10,000 世代たった種族だけ。種族の上限を減らした盤では、この 4 も同じ割合で減らし、少なくとも 1 は残します）。ただし、盤にいる数が多いほうの半分の種族（4 種なら 1 位と 2 位）は、この 2 つの決まりでは選びません。G1 のルールは変わりません。</p>
+<p>32 種そろったあと、2,000 世代ごとに弱い種族のルールを引き直します。いなくなった種族と、支配領域を自分の種族で埋められない種族が先です。どちらもいなければ、いちばん数の多い色の組を食べる組の弱い 4 種と、全体で少ない 4 種を引き直します（ルールを持ってから 10,000 世代たった種族だけ。種族の上限を減らした盤では、この 4 も同じ割合で減らし、少なくとも 1 は残します）。ただし、盤にいる数が多いほうの半分の種族（4 種なら 1 位と 2 位）は、支配領域を埋められなくても、弱い・少ないの決まりでも、引き直しません。G1 のルールは変わりません。</p>
 <h3>状態の表</h3>
 <p>横が色の組、縦が番号です。種族ごとに、ルール・盤にいる数・学習の回数（回）・良い形に入れ替えた数（勝）・固定したか、を出します。「強い順」を入れると、色の組の中を数の多い順に並べます。</p>
 <h3>マザーの働き</h3>
@@ -125,7 +125,7 @@ export const HELP = {
 <h3>Learning (recombining patterns)</h3>
 <p>A mother tries patterns and scores each one by how many of its species remain and grow around it afterwards. It tries the best pattern with 1–3 cells flipped, or a brand-new pattern, and adopts it if it wins several times in a row. After losing for a long time, it settles on its pattern.</p>
 <h3>Redrawing rules</h3>
-<p>Once all 32 species exist, every 2,000 generations weak species get new rules. Species that died out and species that cannot fill their domain go first. If there are none, the 4 weakest of the group that eats the most numerous colour group and the 4 rarest species overall are redrawn (only those that have kept their rules for 10,000 generations; on a board with a lowered species limit, these 4 shrink in proportion, but at least 1 remains). Species in the more numerous half of the board (1st and 2nd of 4) are never chosen by these two rules. G1 never changes.</p>
+<p>Once all 32 species exist, every 2,000 generations weak species get new rules. Species that died out and species that cannot fill their domain go first. If there are none, the 4 weakest of the group that eats the most numerous colour group and the 4 rarest species overall are redrawn (only those that have kept their rules for 10,000 generations; on a board with a lowered species limit, these 4 shrink in proportion, but at least 1 remains). Species in the more numerous half of the board (1st and 2nd of 4) are never redrawn, whether or not they fill their domain. G1 never changes.</p>
 <h3>Status table</h3>
 <p>Columns are colour groups, rows are numbers. For each species you see its rule, its count on the board, learning tries, wins (times a better pattern was adopted) and whether it is fixed. “Strongest first” sorts each colour group by count.</p>
 <h3>Mother controls</h3>
@@ -213,7 +213,7 @@ export const HELP = {
 <h3>学习（图案重组）</h3>
 <p>母体会试放图案，按照放置后周围剩下、增加了多少自己的物种来打分。它会试验把最佳图案翻转 1〜3 格的图案或全新的图案，连续几次更好就替换。长时间一直输，就固定那个图案。</p>
 <h3>规则重抽</h3>
-<p>32 种到齐后，每 2,000 代重新抽取弱小物种的规则。已经消失的物种和无法用自己填满领域的物种优先。都没有的话，重抽吃掉数量最多颜色组的那组中最弱的 4 种，以及整体最少的 4 种（只限拥有规则已满 10,000 代的物种。在减少了物种上限的棋盘上，这个 4 也按同样比例减少，但至少保留 1 个）。不过，棋盘上数量较多的那一半物种（4 种时为第 1、2 名）不会因这两条规则被选中。G1 的规则不变。</p>
+<p>32 种到齐后，每 2,000 代重新抽取弱小物种的规则。已经消失的物种和无法用自己填满领域的物种优先。都没有的话，重抽吃掉数量最多颜色组的那组中最弱的 4 种，以及整体最少的 4 种（只限拥有规则已满 10,000 代的物种。在减少了物种上限的棋盘上，这个 4 也按同样比例减少，但至少保留 1 个）。不过，棋盘上数量较多的那一半物种（4 种时为第 1、2 名），无论能否填满领域，都不会被重抽。G1 的规则不变。</p>
 <h3>状态表</h3>
 <p>横向是颜色组，纵向是编号。显示每个物种的规则、棋盘上的数量、学习次数（试）、换成更好图案的次数（胜）以及是否固定。勾选“强者优先”后，各颜色组内按数量从多到少排列。</p>
 <h3>母体的作用</h3>

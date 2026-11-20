@@ -11,7 +11,7 @@ import { steady, recordResult, nextPattern, pickTile } from './life-gen.js';
 import { HELP, WARN, WARN_ICON, ruby } from './life-help.js';
 
 const $ = id => document.getElementById(id);
-const VERSION = 'v0.03';
+const VERSION = 'v0.04';
 
 // ── 言葉（ja / en / zh。猫語は鳴き声に置き換える） ──
 const I18N = {

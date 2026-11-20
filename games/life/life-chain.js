@@ -215,13 +215,18 @@ export class ChainState {
   //   返す list：[{ kind, stamp, t0 }]（番号の小さい順）
   //   dom（Q68=A・Q69=B）：dom[s−1] は種族 s の支配領域の中の自分の数（MotherSet.domainCounts）。渡すと、見極め中の種族（種族 1 以外の足した種族と、引き直した種族）のうち
   //   領域のマスの FILL_MIN% に届かない種族も、0 の種族と一緒に引き直す（届いた種族は見極めを終える）
+  //   ただし盤の数の多いほうの半分の種族は、届かなくても引き直さない（Q103=C。見極めは続ける）
   replace(gen, counts, dom = null) {
     const area = domArea(Math.floor(this.domain / 2));   // 円の支配領域のマスの数（Q74）
     let kinds = [];
     const why = {};   // 入れ替えた理由（セッション10。確かめ用）：zero＝0、thin＝領域を埋められない、eater＝多い組を食べる弱い種、small＝全体で少ない種
+    const rankOf = s => { let r = 1; for (let q = 1; q <= this.n; q++) if (counts[q - 1] > counts[s - 1]) r++; return r; };
+    const top = s => rankOf(s) <= Math.floor(this.n / 2);   // 盤の数の多いほうの半分（Q94=A・Q103=C）
     for (let s = 2; s <= this.n; s++) {
-      const thin = dom && this.trial[s] && dom[s - 1] * 100 < area * FILL_MIN;
-      if (dom && this.trial[s] && !thin) this.trial[s] = false;
+      const short = dom && this.trial[s] && dom[s - 1] * 100 < area * FILL_MIN;
+      if (dom && this.trial[s] && !short) this.trial[s] = false;
+      // Q103=C：多いほうの半分の種族は、領域を埋められなくても引き直さない（見極めは続け、少ないほうへ落ちたら引き直す）
+      const thin = short && !top(s);
       if (thin && counts[s - 1] !== 0) this.thinN++;
       if (counts[s - 1] === 0 || thin) { kinds.push(s); why[s] = counts[s - 1] === 0 ? 'zero' : 'thin'; }
     }
@@ -238,8 +243,7 @@ export class ChainState {
       // 盤の数の多いほうの半分（n÷2 を切り捨てた数。4 種族なら 1 位と 2 位）は、どちらの決まりでも引き直さない（セッション10・Q94=A）。
       //   順位は「自分より多い種族の数＋1」（同じ数は同じ順位）。学習時間がたった種族だけから選ぶので、
       //   これが無いと、種族が少ない盤では、たった種族が多い種族だけのときにそれを引き直していた
-      const rankOf = s => { let r = 1; for (let q = 1; q <= this.n; q++) if (counts[q - 1] > counts[s - 1]) r++; return r; };
-      const keep = s => ready(s) && rankOf(s) > Math.floor(this.n / 2);
+      const keep = s => ready(s) && !top(s);
       eaters = eaters.filter(keep).sort(order).slice(0, this.repN);
       const small = [];
       for (let s = 2; s <= this.n; s++) if (keep(s)) small.push(s);

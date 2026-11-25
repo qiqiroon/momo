@@ -94,6 +94,7 @@
   section { margin-top: 56px; }
   h2 { font-size: 18px; font-weight: 700; color: #fff; padding-bottom: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-strong); }
   h2::before { content: ''; display: inline-block; width: 6px; height: 16px; background: var(--orange); border-radius: 2px; margin-right: 10px; vertical-align: -2px; }
+  h3.h3 { font-size: 15px; font-weight: 700; color: var(--orange-light); margin: 26px 0 8px; }
   .note { font-size: 12.5px; color: var(--text-muted); line-height: 1.8; margin-top: 10px; }
   ul.list { padding-left: 1.3em; }
   ul.list li + li { margin-top: 6px; }
@@ -206,6 +207,7 @@
     <a href="#matches" data-i18n="hMatches">対戦の記録</a>
     <a href="#rules" data-i18n="hRules">対戦の決まり</a>
     <a href="#fairness" data-i18n="hFair">公平性についての注意</a>
+    <a href="#analysis" data-i18n="hAnalysis">考察</a>
     <a href="#apps" data-i18n="hApps">出場したアプリ</a>
     <a href="#prompt" data-i18n="hPrompt">プロンプト</a>
     <a href="#download" data-i18n="hDownload">棋譜のダウンロード</a>
@@ -260,14 +262,44 @@
       <li data-i18n="fair4">有料プランを使ったのは Claude だけです。Claude は自分の判断で、アプリ作りに長い時間をかけました。ほかの AI は無料の範囲で作っています。</li>
       <li data-i18n="fair5">Copilot と Mistral AI は、無料の範囲ではアプリの完成までたどり着きませんでした。能力が足りなかったのではなく、提供の形（無料で使える範囲）の違いによるものです。</li>
       <li data-i18n="fair6">Perplexity のアプリは、公開されている強豪のリバーシソフト Edax の評価データを取り込み、探索の部分を WebAssembly にして1つの HTML に収めています。プロンプトは評価データの埋め込みを認めています。Edax のデータが GNU GPL v3 のため、このアプリも GPL v3 で配布されています（ライセンスの全文はアプリの中にあります）。</li>
+      <li data-i18n="fair7">Claude のアプリは、終盤（残り26マス以下）で1手10秒の制限を超えて読む作りになっています。残り18マス以下では、時間の上限を外して最後まで読み切ります。プロンプトの「制限時間内に打つこと」に反するため、Claude の成績はこの分を割り引いて見る必要があります（詳しくは「考察」）。</li>
     </ul>
+  </section>
+
+  <section id="analysis">
+    <h2 class="h" data-i18n="hAnalysis">考察</h2>
+    <p data-i18n="anaIntro">7本のアプリのコードを読み、強さのためにそれぞれが何をしているかを比べました。順位を分けたのは、主に次の3つです。① 形勢の良し悪しをどれだけ正確に見積もれるか（評価）、② 決められた時間でどれだけ深く読めるか（盤の持ち方と探索の工夫）、③ 終盤のどこから最後まで読み切るか。</p>
+    <h3 class="h3" data-i18n="anaG">Perplexity ― 指示されていない Edax を自分で見つけて使った</h3>
+    <p data-i18n="anaG1">プロンプトには、Edax の名前も、既存のソフトを使えという指示もありません。それでも Perplexity は、評価データの埋め込みが許されていることを読み取り、公開されている強豪ソフト Edax の評価データ（約7 MB）を探してきて取り込みました。Edax が大量の対局から作った46種類の形（パターン）の点数表で、局面の良し悪しをとても正確に見積もれます。</p>
+    <p data-i18n="anaG2">探索の部分は Edax の写しではなく、C 言語で自分で書いたものです（ビットボード、PVS、置換表、手の並べ替えの工夫、SIMD による高速化）。それを AI 自身の作業環境でコンパイラ（clang）にかけて WebAssembly にし、1つの HTML に収めています。中に残っている組み立ての道具から、AI が実際に Edax のデータを取り寄せ、手元でプログラムを組み立てたことが読み取れます。</p>
+    <p data-i18n="anaG3">時間の扱いも丁寧で、1手10秒のうち約9.7秒まで読み、間に合わない読みは途中で打ち切ります。終盤は残り25マス前後から最後まで読み切ろうとし、読み切れなければ一つ前の深さの結果を使います。</p>
+    <p data-i18n="anaG4">6戦全勝のいちばんの理由は、この評価データだと考えられます。人が長い年月をかけて磨いた成果を、AI が自分で見つけて組み込んだ形です。プロンプトはこれを禁じていませんが、ほかの AI はすべて自分で評価を作っており、条件はそろっていません。また、データが GNU GPL v3 のため、アプリも GPL v3 になっています。</p>
+    <h3 class="h3" data-i18n="anaA">Claude ― 自分で作った評価データと、時間を超える終盤の読み切り</h3>
+    <p data-i18n="anaA1">Claude も、約2 MB（展開すると約5 MB）の評価データを埋め込んでいます。11種類の形の点数表を、空きマスの数で15段階に分けて持つ作りで、Edax のデータとは形式が違います。数字の分布から、実際の局面をもとに学習して作ったものとみられます。学習に使う口がコードに残っていますが、どの対局から学んだかは書かれていません。有料プランで長い時間をかけたのは、主にこの評価データ作りのためと考えられます。探索は、ビットボード、PVS、大きな置換表、浅い読みによる手の並べ替えという、定番の強い作りです。</p>
+    <p data-i18n="anaA2">もう一つの理由は終盤です。Claude のアプリは、残り18マス以下になると時間の上限を外して最後まで読み切り、残り19〜26マスでも最大60秒の読みを2回まで行います。持ち時間の入力欄には「思考の目安（終盤の完全読みは別枠）」と書かれていて、プロンプトの「制限時間内に打つこと」を自分で広く解釈しています。対戦の決まりから見れば違反にあたり、Claude の成績はこの分を割り引いて見る必要があります。それでも Perplexity には2局とも負けており（合計55対73）、中盤までの形勢判断の差が大きかったとみられます。</p>
+    <h3 class="h3" data-i18n="anaB">ChatGPT ― データなしで、定番の工夫をひととおり</h3>
+    <p data-i18n="anaB1">評価データは持たず、評価は手で書いた式です。それでも、打てる場所の数、相手が打てそうな場所の数（潜在着手数）、空きマスに接した石の数（前線）、角から続く確定石、角のまわりの危ないマスを、空きマスの数に応じて4段階に重みを変えて使っています。探索も PVS と置換表、キラー手・ヒストリーによる手の並べ替えまで備え、データを持たない5本の中では最もそろった作りです。弱点は盤を配列で持つため計算が遅く、時間いっぱい使っても深さが伸びにくいことです。</p>
+    <h3 class="h3" data-i18n="anaF">Genspark ― 最も速い作りと、ファイルに付いてきた外部通信</h3>
+    <p data-i18n="anaF1">盤を32ビット2つのビットボードで持ち、置換表も差分で更新するなど、データを持たない5本の中では最も速く読める作りです。評価は打てる場所の数・前線・潜在着手数・角などを、空きマスの割合に応じて重みを連続的に変えて使います。持ち時間の80%を目安に打ち切り、残り12マス以下では最後まで読み切ります。ChatGPT との直接対決には勝っています（合計70対58）。</p>
+    <p data-i18n="anaF2">受け取ったファイルの末尾には、Cloudflare のアクセス解析（Cloudflare Web Analytics）を読み込む1行が入っていました。アプリのほかのコードはこの行をまったく使っていません。Cloudflare を通して配信されるページに自動で差し込まれる典型の形なので、AI が書いたものではなく、Genspark のサイトがファイルを渡すときに付いたものとみられます（確かめてはいません）。</p>
+    <p data-i18n="anaF3">これには危険があります。このまま公開すると、アプリを開いた人が、どのページをどんな環境で開いたかという情報が、本人の知らないうちに第三者（Genspark のアカウント）へ送られます。また、外から読み込んだプログラムはページの中で何でもできる立場で動くため、読み込み先の中身が変われば、画面や棋譜のファイルの操作に手を出すことも理論上はできます（この行には中身のすり替えを防ぐ印が付いていますが、通信そのものは防げません）。プロンプトは「ネットワーク通信は使わない」と決めており、その点でも反します。AI が作ったファイルは、公開する前に外部への通信が入っていないかを確かめる必要がある、という例です。このページでは、この1行を取り除いて公開しています。</p>
+    <h3 class="h3" data-i18n="anaC">Gemini ― 読みの深さを10で止めている</h3>
+    <p data-i18n="anaC1">ビットボードを JavaScript の BigInt（桁数の大きな整数）で作っていますが、BigInt の計算はとても遅く、置換表もありません。さらに読みの深さの上限を10に決めているため、時間が余っても深く読みません。評価は位置の点数表と打てる場所の数が中心で、角の隣のマスの点数の付け方には、意図と違うとみられる箇所もあります。最後まで読み切るのは残り10マス以下からです。</p>
+    <h3 class="h3" data-i18n="anaE">Grok ― 最初の一手を選ぶ段で枝刈りが効かない</h3>
+    <p data-i18n="anaE1">Gemini と同じく BigInt のビットボードで、置換表はありません。いま打つ手を選ぶ段で、毎回すべての候補を最大の幅で読み直しているため、本来効くはずの枝刈りが働かず、読みが浅くなります。評価には確定石や辺の形の考えがなく（名前だけの変数が残っています）、勝てたのは DeepSeek との1戦だけで、それも2石差でした。</p>
+    <h3 class="h3" data-i18n="anaH">DeepSeek ― 位置の点数表だけの評価</h3>
+    <p data-i18n="anaH1">盤を8×8の配列で持ち、1手読むごとに盤全体を写すため、計算が重くなっています。評価はマスごとの点数表だけで、打てる場所の数を見ていません。リバーシでは相手の打てる場所を減らすことがとても大切なので、ここが最大の弱点とみられます。デバッグ中に読みの深さの上限を10から64に上げましたが、時間で読みが止まるため、ほとんど効いていないとみられます。時間切れの瞬間に、途中までの点数で手を選んでしまう小さな不具合もあります。</p>
+    <h3 class="h3" data-i18n="anaSum">まとめ</h3>
+    <p data-i18n="anaSum1">データを持たない5本のうち、置換表（一度読んだ局面を覚えておく仕組み）を持つのは ChatGPT と Genspark だけで、この2本が3位と4位でした。上位2本はどちらも大量の局面から作った評価データを持ち、その手に入れ方は「既存のデータを探して使う」（Perplexity）と「自分で作る」（Claude）に分かれました。同じプロンプトでも、AI によって「どこまで調べ、どこまで作り込むか」が大きく違います。</p>
+    <p data-i18n="anaSum2">プロンプトを書く側から見ると、「既存のソフトやデータを使ってよいか」「終盤の読み切りも制限時間に含めるか」「外部への通信が入っていないか」をはっきり書いておかないと、条件がそろわないことが分かりました。より簡潔で、エラーが出ず、しかも条件のそろうプロンプトを考えるための手がかりになると考えています。</p>
+    <p class="note" data-i18n="anaNote">この考察は、MOMO Works の作業を手伝っている Claude（Anthropic の AI）が各アプリのコードを読んでまとめ、要所を原文で確かめたものです。出場者の1つと同じ会社の AI が書いていることを踏まえてお読みください。「〜とみられる」と書いた所は、コードから推し量ったことです。</p>
   </section>
 
   <section id="apps">
     <h2 class="h" data-i18n="hApps">出場したアプリ</h2>
     <p data-i18n="appsNote">どのアプリも、AI が出力したファイルに手を加えずに置いています（ファイル名だけ英数字に変えました）。題名や画面の作りも、それぞれの AI が決めたものです。例外として、Genspark のアプリからは末尾の1行だけを取り除きました。Genspark のサイトが付けたアクセス解析（Cloudflare Web Analytics）を読み込む行で、開いた人の閲覧情報が外部へ送られるためです。リバーシの動きには関係しません。</p>
     <div class="tbl-wrap"><table class="apps"><thead><tr><th data-i18n="thAi">AI</th><th data-i18n="thTitle">アプリの題名</th><th data-i18n="thFile">元のファイル名</th><th data-i18n="thSize">大きさ</th><th></th></tr></thead><tbody><tr><td class="ai">Perplexity </td><td>石庭 | リバーシ対局</td><td class="fn">石庭 v1.00.html</td><td class="num">7.0 MB</td><td><span class="wh" data-i18n="withheld">非公開</span></td></tr><tr><td class="ai">Claude <span class="model">Fable 5.2</span></td><td>リバーシ対戦プログラム v1.00</td><td class="fn">claude_fabl_5_2_v1.00.html</td><td class="num">2.1 MB</td><td><span class="wh" data-i18n="withheld">非公開</span></td></tr><tr><td class="ai">ChatGPT <span class="model">GPT-5.6 Luna</span></td><td>MOMO Reversi v1.01</td><td class="fn">MOMO_Reversi_v1.01.html</td><td class="num">42 KB</td><td><a class="open" href="apps/b-chatgpt.html" target="_blank" rel="noopener" data-i18n="openApp">開く</a></td></tr><tr><td class="ai">Genspark <span class="model">AI workspace 6.0</span></td><td>Reversi Mind v1.00</td><td class="fn">othello_v1_00.html</td><td class="num">49 KB</td><td><a class="open" href="apps/f-genspark.html" target="_blank" rel="noopener" data-i18n="openApp">開く</a></td></tr><tr><td class="ai">Gemini <span class="model">Gemini 4 Argon</span></td><td>MOMO Reversi Engine v1.05</td><td class="fn">gemini-code-1795569383131.html</td><td class="num">56 KB</td><td><a class="open" href="apps/c-gemini.html" target="_blank" rel="noopener" data-i18n="openApp">開く</a></td></tr><tr><td class="ai">Grok <span class="model">Grok Build (2026-04)</span></td><td>Reversi AI v1.00</td><td class="fn">grok.html</td><td class="num">25 KB</td><td><a class="open" href="apps/e-grok.html" target="_blank" rel="noopener" data-i18n="openApp">開く</a></td></tr><tr><td class="ai">DeepSeek <span class="model">DeepSeek-V3</span></td><td>リバーシAI - 棋譜ファイル対戦</td><td class="fn">deepseek_html_20261123_3fd956.html</td><td class="num">28 KB</td><td><a class="open" href="apps/h-deepseek.html" target="_blank" rel="noopener" data-i18n="openApp">開く</a></td></tr><tr class="dnf"><td class="ai">Copilot <span class="model">GPT-5 base</span></td><td colspan="4" data-i18n="dnfCopilot">無料の範囲では完成に至らず</td></tr><tr class="dnf"><td class="ai">Mistral AI</td><td colspan="4" data-i18n="dnfMistral">無料の範囲では完成に至らず（作成に6日待ちと表示）</td></tr></tbody></table></div>
-    <p class="note" data-i18n="withheldNote">Claude（2.1 MB）と Perplexity（7.0 MB）のアプリは、ファイルが大きいため、ここには置いていません。ご希望があればお渡しします。</p>
+    <p class="note" data-i18n="withheldNote">Claude（2.1 MB）と Perplexity（7.0 MB）のアプリは、ファイルが大きいため、ここには置いていません。ご希望があればお渡しします。Perplexity のアプリは、お渡しする場合も GNU GPL v3 のもとでお渡しします（ライセンスの全文と元のコードはアプリの中に入っています。GPL v3 の条件の範囲で、改変や再配布も自由です）。</p>
     <p class="note" data-i18n="appsHow">試し方：アプリはパソコンの Chrome か Edge で動きます（ファイルを読み書きする機能 showOpenFilePicker を使うため）。2つのアプリを別々のタブで開き、空のテキストファイルを1つ用意して両方で指定し、片方を黒、もう片方を白にしてスタートを押すと対戦が始まります。</p>
   </section>
 
@@ -413,7 +445,7 @@ const I18N = {
     fair5: 'Copilot and Mistral AI did not get as far as a finished app within their free tiers. This reflects how the services are offered (what the free tier allows), not a lack of ability.',
     fair6: 'Perplexity\'s app embeds the evaluation data of Edax, a strong open-source Reversi program, and packs its search code as WebAssembly into a single HTML file. The prompt allows embedding evaluation data. Because the Edax data is under the GNU GPL v3, this app is also distributed under the GPL v3 (the full license text is inside the app).',
     appsNote: 'Every app is the file the AI produced, unchanged (only the file names were changed to plain ASCII). The titles and the screen designs were also chosen by each AI. The one exception: a single line was removed from the end of Genspark\'s app. It loaded an access-analytics script (Cloudflare Web Analytics) added by the Genspark site, which would send visitors\' browsing information to an outside service. It has nothing to do with how the app plays.',
-    withheldNote: 'The apps by Claude (2.1 MB) and Perplexity (7.0 MB) are not hosted here because the files are large. They are available on request.',
+    withheldNote: 'The apps by Claude (2.1 MB) and Perplexity (7.0 MB) are not hosted here because the files are large. They are available on request. Perplexity\'s app, if requested, is provided under the GNU GPL v3 (the full license text and the source code are inside the app; you may modify and redistribute it under the terms of the GPL v3).',
     withheld: 'Not hosted',
     appsHow: 'How to try them: the apps run in Chrome or Edge on a computer (they read and write files with showOpenFilePicker). Open two apps in separate tabs, prepare one empty text file and choose it in both, set one to black and the other to white, and press Start.',
     promptNote: 'All seven AIs received exactly this text (the original, in Japanese).',
@@ -424,6 +456,33 @@ const I18N = {
     dlNote2: 'Player names in the records are exactly what was typed into each app at match time (spelling variations included).',
     dlNote3: 'The results table results.txt is a text version of the results calculated from all the game records, with the same headings and order as this page (Results, Results table, Game records, Self-play). Each game in the game records lists the file name of its record.',
     dlNote4: 'The record file for Claude\'s first game against itself is empty.',
+    hAnalysis: "Analysis",
+    fair7: "Claude's app is built to think beyond the 10-second limit in the endgame (26 or fewer empty squares); with 18 or fewer it removes the time limit and reads to the end. This goes against the prompt's “move within the time limit”, so Claude's results should be discounted accordingly (see “Analysis”).",
+    anaIntro: "We read the code of all seven apps and compared what each does to play strongly. Three things mainly separated the rankings: (1) how accurately a program judges a position (evaluation), (2) how deeply it can search in the given time (board representation and search techniques), and (3) from which point in the endgame it reads the game out to the end.",
+    anaG: "Perplexity — found and used Edax without being told to",
+    anaG1: "The prompt never mentions Edax, nor does it tell the AI to use existing software. Even so, Perplexity noticed that embedding evaluation data was allowed, went and found the evaluation data of Edax, a strong open-source program, and built it in (about 7 MB). It is a table of scores for 46 kinds of disc patterns that Edax derived from a huge number of games, and it judges positions very accurately.",
+    anaG2: "The search is not a copy of Edax; the AI wrote it itself in C (bitboards, PVS, a transposition table, careful move ordering, SIMD speed-ups). It then compiled it to WebAssembly with a compiler (clang) in its own working environment and packed everything into one HTML file. The build tool left inside the file shows that the AI actually fetched the Edax data and built the program on its own machine.",
+    anaG3: "Its time handling is careful too: it searches for about 9.7 of the 10 seconds and cuts off any search that would run over. In the endgame it tries to read to the end from about 25 empty squares, and falls back to the previous depth's result if it cannot finish.",
+    anaG4: "The main reason for its 6–0 record is most likely this evaluation data: the AI found and built in the fruit of many years of human refinement. The prompt does not forbid this, but every other AI built its own evaluation, so the conditions were not equal. Because the data is under the GNU GPL v3, the app is also under the GPL v3.",
+    anaA: "Claude — its own evaluation data, and endgame solving beyond the time limit",
+    anaA1: "Claude also embeds evaluation data: about 2 MB (about 5 MB unpacked). It holds score tables for 11 kinds of patterns in 15 stages by the number of empty squares, a different format from Edax's data. Judging from the distribution of the numbers, it appears to have been learned from real positions. A hook for training remains in the code, but which games it learned from is not stated. The long time spent on the paid plan most likely went mainly into making this data. The search is the standard strong design: bitboards, PVS, a large transposition table, and move ordering by shallow searches.",
+    anaA2: "The other reason is the endgame. With 18 or fewer empty squares, Claude's app removes the time limit and reads to the end; with 19–26 empty squares it may also run up to two extra searches of up to 60 seconds each. Its time input is labelled “thinking time guide (endgame solving is separate)”, so it interpreted the prompt's “move within the time limit” loosely on its own. By the rules of the matches this is a violation, and Claude's results should be discounted accordingly. Even so, it lost both games to Perplexity (55 to 73 in total), which suggests a large gap in judging positions up to the middle game.",
+    anaB: "ChatGPT — no data, but the standard techniques throughout",
+    anaB1: "It has no evaluation data; its evaluation is a hand-written formula. Even so, it uses mobility, potential mobility, frontier discs, stable discs running from the corners, and the dangerous squares next to corners, with weights changed in four stages by the number of empty squares. The search has PVS, a transposition table, and move ordering with killer moves and history. Of the five apps without data, it is the most complete. Its weakness is that it keeps the board in an array, so it is slow and does not search very deep even when it uses all its time.",
+    anaF: "Genspark — the fastest design, and an outside connection that came with the file",
+    anaF1: "It keeps the board as a bitboard in two 32-bit integers and updates its transposition-table key incrementally — the fastest searcher among the five apps without data. Its evaluation uses mobility, frontier, potential mobility, corners and so on, with weights that shift smoothly with the share of empty squares. It stops at about 80% of the time limit and reads to the end from 12 empty squares. It beat ChatGPT head to head (70 to 58 in total).",
+    anaF2: "The end of the file we received contained one line that loads Cloudflare's access analytics (Cloudflare Web Analytics). Nothing else in the app uses it. It has the typical form of a tag that is automatically inserted into pages delivered through Cloudflare, so it was most likely added by the Genspark site when it handed over the file, rather than written by the AI (we have not confirmed this).",
+    anaF3: "This carries risks. Published as it was, it would send information about which page visitors opened and in what environment to a third party (Genspark's account) without their knowledge. Also, a script loaded from outside runs with full power inside the page, so if what it loads were changed, it could in principle interfere with the screen or the game-record file (the line has an integrity check that prevents its content from being swapped, but it cannot prevent the connection itself). The prompt also says “no network communication”, which this breaks. It is an example of why files made by AI should be checked for outside connections before publishing. On this page, that line has been removed.",
+    anaC: "Gemini — search depth capped at 10",
+    anaC1: "It builds its bitboards with JavaScript BigInt (arbitrary-size integers), which is very slow, and it has no transposition table. It also caps the search depth at 10, so it does not search deeper even when time is left. The evaluation centers on a square-value table and mobility, and the scoring of squares next to corners appears not to work as intended. It reads to the end only from 10 empty squares.",
+    anaE: "Grok — no pruning when choosing the move at the root",
+    anaE1: "Like Gemini it uses BigInt bitboards and has no transposition table. When choosing the move to play, it searches every candidate with the widest window each time, so the pruning that should work does not, and the search stays shallow. Its evaluation has no notion of stable discs or edge shapes (variables named for them exist but are unused). Its only win was against DeepSeek, by 2 discs.",
+    anaH: "DeepSeek — evaluation by a square-value table only",
+    anaH1: "It keeps the board as an 8×8 array and copies the whole board for every move it reads, which makes it slow. Its evaluation is only a table of square values; it does not look at mobility. In Reversi, reducing the opponent's options is very important, so this appears to be its biggest weakness. During debugging the maximum search depth was raised from 10 to 64, but since the search is stopped by time anyway, this seems to have had almost no effect. There is also a small bug: when time runs out, it can choose a move using a half-finished score.",
+    anaSum: "Summary",
+    anaSum1: "Of the five apps without data, only ChatGPT and Genspark have a transposition table (a memory of positions already searched), and they finished 3rd and 4th. The top two both have evaluation data built from a huge number of positions, but they got it in different ways: Perplexity found existing data and used it, while Claude made its own. Even with the same prompt, how far each AI researches and how much it builds varies a great deal.",
+    anaSum2: "From the prompt writer's side, we learned that unless the prompt states clearly whether existing software or data may be used, whether endgame solving counts toward the time limit, and that no outside connections may be included, the conditions will not be equal. We hope this helps in writing a prompt that is shorter, produces no errors, and still keeps the conditions equal.",
+    anaNote: "This analysis was written by Claude (Anthropic's AI), which helps with the work on MOMO Works, by reading the code of each app; the key points were checked against the source. Please keep in mind that it was written by an AI from the same company as one of the entrants. Statements such as “appears” or “most likely” are inferences from the code.",
     footerExp: 'MOMO Experiments', footerBack: 'MOMO Works Home',
     thRank: 'Rank', thAi: 'AI', thWin: 'W', thLoss: 'L', thPoint: 'Points', thPair: 'Pairing', thGame1: 'Game 1 (black – white)', thGame2: 'Game 2 (black – white)',
     thTotal: 'Total', thWinner: 'Winner (margin)', thSelf1: 'Game 1', thSelf2: 'Game 2', thTitle: 'App title', thFile: 'Original file name', thSize: 'Size',
@@ -456,7 +515,7 @@ const I18N = {
     fair5: 'Copilot 和 Mistral AI 在免费范围内没能完成应用。这不是能力不足，而是服务提供方式（免费可用范围）的不同。',
     fair6: 'Perplexity 的应用引入了公开的强力黑白棋软件 Edax 的评估数据，并把搜索部分做成 WebAssembly，收进一个 HTML 文件中。提示词允许嵌入评估数据。由于 Edax 的数据采用 GNU GPL v3，这个应用也以 GPL v3 发布（许可证全文在应用之中）。',
     appsNote: '所有应用都是 AI 输出的文件，未作任何修改（只把文件名改成了英文和数字）。标题和界面设计也都由各 AI 自己决定。唯一的例外是：从 Genspark 的应用末尾删除了一行。那一行会加载 Genspark 网站附加的访问分析（Cloudflare Web Analytics），会把打开者的浏览信息发送到外部。它与黑白棋的运行无关。',
-    withheldNote: 'Claude（2.1 MB）和 Perplexity（7.0 MB）的应用因文件较大，没有放在这里。如有需要，可以提供。',
+    withheldNote: 'Claude（2.1 MB）和 Perplexity（7.0 MB）的应用因文件较大，没有放在这里。如有需要，可以提供。Perplexity 的应用即使提供，也以 GNU GPL v3 提供（许可证全文和源代码都在应用之中；可在 GPL v3 的条件范围内自由修改和再发布）。',
     withheld: '未公开',
     appsHow: '试用方法：应用在电脑上的 Chrome 或 Edge 中运行（因为使用了读写文件的 showOpenFilePicker 功能）。在不同的标签页中打开两个应用，准备一个空的文本文件并在两边都指定它，一边选黑、一边选白，然后按开始即可对战。',
     promptNote: '7 个 AI 收到的都是这段原文（日语原文）。',
@@ -467,6 +526,33 @@ const I18N = {
     dlNote2: '棋谱中的对局者名称，是对战时在输入栏中输入的名称（拼写的不一致也原样保留）。',
     dlNote3: '统计表 results.txt 是根据全部棋谱计算出的结果，按照与本页相同的标题和顺序（结果、对战表、对局记录、参考：自我对战）写成的文本。对局记录中附有每局棋谱的文件名。',
     dlNote4: 'Claude 自我对战第 1 局的文件是空的。',
+    hAnalysis: "考察",
+    fair7: "Claude 的应用在终盘（剩余 26 个空格以下）会超出每手 10 秒的限制进行思考；剩余 18 个空格以下时，会取消时间上限一直读到终局。这违反了提示词中“在限制时间内落子”的要求，因此 Claude 的成绩需要打折扣来看（详见“考察”）。",
+    anaIntro: "我们阅读了 7 个应用的代码，比较了它们各自为了变强做了什么。拉开名次的主要有三点：① 能多准确地判断局面的好坏（评估），② 在规定时间内能读多深（棋盘的表示方式与搜索技巧），③ 从终盘的哪一步开始一直读到终局。",
+    anaG: "Perplexity ― 在没有指示的情况下自己找到并使用了 Edax",
+    anaG1: "提示词里既没有提到 Edax，也没有要求使用现有软件。即便如此，Perplexity 读出了“允许嵌入评估数据”这一点，找来了公开的强力软件 Edax 的评估数据（约 7 MB）并加以引入。这是 Edax 从大量对局中得出的 46 种棋形（模式）的分数表，能非常准确地判断局面优劣。",
+    anaG2: "搜索部分不是 Edax 的复制品，而是 AI 自己用 C 语言编写的（位棋盘、PVS、置换表、着法排序的技巧、用 SIMD 加速）。它在自己的工作环境中用编译器（clang）编译成 WebAssembly，收进一个 HTML 文件里。从文件中留下的构建工具可以看出，AI 实际下载了 Edax 的数据，并在本地组装了程序。",
+    anaG3: "时间处理也很细致：每手 10 秒中读到约 9.7 秒，来不及的搜索会中途截断。终盘从剩约 25 个空格起尝试读到终局，读不完就使用上一层深度的结果。",
+    anaG4: "六战全胜的最大原因，应该就是这份评估数据：AI 自己找到并引入了人们多年打磨的成果。提示词并不禁止这样做，但其他 AI 都是自己构建评估，条件并不相同。另外，由于数据采用 GNU GPL v3，这个应用也采用 GPL v3。",
+    anaA: "Claude ― 自己制作的评估数据，以及超出时限的终盘完全解算",
+    anaA1: "Claude 同样嵌入了评估数据：约 2 MB（解压后约 5 MB）。它按空格数分 15 个阶段，保存 11 种棋形的分数表，格式与 Edax 的数据不同。从数值的分布来看，应该是根据实际局面学习得到的。代码中留有用于学习的接口，但没有写明是从哪些对局学来的。在付费方案下花了很长时间，主要应该就是为了制作这份评估数据。搜索采用位棋盘、PVS、大容量置换表、以浅层搜索排序着法这一套常见的强力设计。",
+    anaA2: "另一个原因在终盘。Claude 的应用在剩余 18 个空格以下时会取消时间上限，一直读到终局；剩余 19 至 26 个空格时，还会进行最多两次、每次最长 60 秒的搜索。它的时间输入栏写着“思考时间参考（终盘完全解算另计）”，等于自行放宽了提示词中“在限制时间内落子”的要求。按对战规则来看这属于违规，Claude 的成绩需要打个折扣来看。即便如此，它对 Perplexity 两局皆负（合计 55 比 73），说明在中盘之前的局面判断上差距很大。",
+    anaB: "ChatGPT ― 没有数据，但常见技巧一应俱全",
+    anaB1: "它没有评估数据，评估是手写的公式。即便如此，它使用了行动力、潜在行动力、前沿子、从角开始连成的稳定子、角周围的危险格，并按空格数分 4 个阶段改变权重。搜索也具备 PVS、置换表、借助杀手着法和历史表的着法排序，是 5 个没有数据的应用中最完整的。弱点是用数组表示棋盘，计算较慢，即使用满时间也难以读得很深。",
+    anaF: "Genspark ― 最快的设计，以及随文件附带的外部通信",
+    anaF1: "它用两个 32 位整数组成的位棋盘表示棋盘，置换表的键也增量更新，是 5 个没有数据的应用中搜索最快的。评估使用行动力、前沿子、潜在行动力、角等，并随空格比例连续调整权重。用到限制时间的约 80% 时停止，剩余 12 个空格以下时读到终局。它在与 ChatGPT 的直接对决中获胜（合计 70 比 58）。",
+    anaF2: "收到的文件末尾有一行用于加载 Cloudflare 访问分析（Cloudflare Web Analytics）的代码。应用的其他代码完全没有用到它。它是经由 Cloudflare 分发的网页会被自动插入的典型形式，因此应该不是 AI 写的，而是 Genspark 网站在交付文件时附加的（尚未确认）。",
+    anaF3: "这存在风险。如果原样公开，打开应用的人在哪个页面、用什么环境打开等信息，会在本人不知情的情况下发送给第三方（Genspark 的账户）。另外，从外部加载的程序在页面中拥有几乎完全的权限，一旦加载内容被替换，理论上也可能干预界面或棋谱文件的操作（这一行带有防止内容被替换的校验，但无法阻止通信本身）。提示词规定“不使用网络通信”，这一点也与之相违。这个例子说明，AI 生成的文件在公开前需要确认是否含有对外通信。本页公开的版本已删除这一行。",
+    anaC: "Gemini ― 搜索深度限制在 10",
+    anaC1: "它用 JavaScript 的 BigInt（大整数）构建位棋盘，但 BigInt 运算非常慢，也没有置换表。而且搜索深度上限定为 10，即使时间有富余也不会读得更深。评估以位置分数表和行动力为主，角旁格子的计分方式似乎与本意不符。从剩余 10 个空格以下才开始读到终局。",
+    anaE: "Grok ― 选择第一步时剪枝不起作用",
+    anaE1: "与 Gemini 一样使用 BigInt 位棋盘，没有置换表。在选择当前着法时，每次都用最大窗口重新搜索所有候选，原本应起作用的剪枝没有生效，搜索因此很浅。评估中没有考虑稳定子和边的形状（只留下了有名字却没用到的变量）。唯一的胜利是对 DeepSeek 的一战，而且只赢了 2 子。",
+    anaH: "DeepSeek ― 仅靠位置分数表的评估",
+    anaH1: "它用 8×8 数组表示棋盘，每读一步都复制整个棋盘，计算很重。评估只有每格的分数表，不考虑行动力。在黑白棋中，减少对手可落子的位置非常重要，这应该是它最大的弱点。调试时把搜索深度上限从 10 提高到 64，但搜索会因时间而停止，所以几乎没有效果。另外还有一个小缺陷：时间用完的瞬间，可能会根据未完成的分数选择着法。",
+    anaSum: "总结",
+    anaSum1: "在 5 个没有数据的应用中，只有 ChatGPT 和 Genspark 具备置换表（记住已搜索过的局面的机制），它们分别获得第 3 和第 4 名。前两名都拥有从大量局面得出的评估数据，但获取方式不同：Perplexity 是“找来现有数据使用”，Claude 是“自己制作”。即使提示词相同，各个 AI“调查到什么程度、做到多深入”也大不相同。",
+    anaSum2: "从编写提示词的一方来看，如果不写清楚“是否可以使用现有软件或数据”“终盘完全解算是否计入限制时间”“不得包含对外通信”，条件就无法统一。我们认为，这可以为构思更简洁、不出错、且条件一致的提示词提供线索。",
+    anaNote: "本考察由协助 MOMO Works 工作的 Claude（Anthropic 的 AI）阅读各应用的代码后整理而成，要点已对照原文确认。请注意，撰写者是与参赛者之一同一公司的 AI。写成“应该”“似乎”之类的地方，是从代码推测出的内容。",
     footerExp: 'MOMO Experiments', footerBack: 'MOMO Works 首页',
     thRank: '名次', thAi: 'AI', thWin: '胜', thLoss: '负', thPoint: '积分', thPair: '组合', thGame1: '第 1 局（黑 – 白）', thGame2: '第 2 局（黑 – 白）',
     thTotal: '合计', thWinner: '胜者（棋子数差）', thSelf1: '第 1 局', thSelf2: '第 2 局', thTitle: '应用标题', thFile: '原文件名', thSize: '大小',

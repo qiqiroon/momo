@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
+<!-- MOMO Experiments 内部バージョン: v1.00
+     変更履歴:
+       v1.00 - 新設。AI の使い方の実験の置き場。一覧はカードにせず、文字のリンクで並べる（2026-11-25） -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOMO Experiments - AI の使い方の実験ノート | MOMO Works</title>
+<meta name="description" content="AI の使い方を試した実験の記録。同じプロンプトで各社の AI にリバーシのプログラムを作らせて総当たりで対戦させた「リバーシ AI トーナメント」など、実験の内容・結果・作られたアプリ・記録を公開しています。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/experiments/">
+<link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/experiments/">
+<link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/experiments/">
+<link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/experiments/">
+<link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/experiments/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MOMO Works">
+<meta property="og:url" content="https://qiqiroon.github.io/momo/experiments/">
+<meta property="og:title" content="MOMO Experiments - AI の使い方の実験ノート">
+<meta property="og:description" content="AI の使い方を試した実験の記録。同じプロンプトで各社の AI にリバーシのプログラムを作らせて総当たりで対戦させた「リバーシ AI トーナメント」など、実験の内容・結果・作られたアプリ・記録を公開しています。">
+<meta property="og:image" content="https://qiqiroon.github.io/momo/apple-touch-icon.png">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
+<link rel="icon" type="image/x-icon" href="../favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-base:     #0a0a0a;
+    --bg-surface:  #111111;
+    --bg-card:     #1a1a1a;
+    --orange-dark: #c2410c;
+    --orange:      #ea580c;
+    --orange-light:#fb923c;
+    --text-main:   #e5e5e5;
+    --text-muted:  #737373;
+    --border:      #2a2a2a;
+    --border-strong: #444;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-main);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-attachment: fixed;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background: var(--bg-base); opacity: 0.8;
+    pointer-events: none; z-index: 0;
+  }
+  #lang-switcher { position: fixed; top: 8px; right: 12px; z-index: 200; }
+  #lang-select {
+    background: var(--bg-card); border: 1px solid var(--border-strong); color: var(--text-main);
+    font-size: 12px; padding: 4px 8px; border-radius: 4px; cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif; outline: none;
+  }
+  #lang-select:focus { border-color: var(--orange); }
+  .page-wrap { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 48px 24px 80px; }
+  .breadcrumb { font-size: 12px; color: var(--text-muted); margin-bottom: 32px; opacity: 0; animation: fadeDown 0.5s ease forwards; }
+  .breadcrumb a { color: var(--text-muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--orange-light); }
+  .breadcrumb span { margin: 0 6px; }
+  .site-header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; opacity: 0; animation: fadeDown 0.5s 0.1s ease forwards; }
+  .cat-icon { width: 52px; height: 44px; flex-shrink: 0; }
+  .site-title { font-family: 'Fredoka One', cursive; font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 400; color: var(--text-main); line-height: 1; }
+  .site-title span { color: var(--orange); }
+  .header-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 40px; padding-left: 4px; opacity: 0; animation: fadeDown 0.5s 0.2s ease forwards; }
+  .intro { font-size: 14px; line-height: 1.9; color: var(--text-main); margin-bottom: 40px; max-width: 720px; opacity: 0; animation: fadeUp 0.5s 0.25s ease forwards; }
+  .section-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 20px;
+    opacity: 0; animation: fadeDown 0.5s 0.25s ease forwards;
+  }
+  /* 一覧はカードにせず、文字のリンクで並べる */
+  .exp-list { list-style: none; opacity: 0; animation: fadeUp 0.5s 0.3s ease forwards; }
+  .exp-list li { padding: 14px 0; border-bottom: 1px solid var(--border); line-height: 1.7; }
+  .exp-list a { color: var(--orange-light); font-size: 16px; font-weight: 500; text-decoration: none; }
+  .exp-list a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .exp-date { font-size: 12px; color: var(--text-muted); margin-left: 10px; }
+  .exp-desc { display: block; font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .page-footer { margin-top: 60px; text-align: center; font-size: 13px; color: var(--text-muted); }
+  .page-footer a { color: var(--text-muted); text-decoration: none; }
+  .page-footer a:hover { color: var(--orange-light); }
+  @keyframes fadeDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
+<script src="/momo/lib/momo-analytics.js" defer></script>
+<script src="/momo/lib/momo-about.js"></script>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <select id="lang-select" class="lang-select" onchange="onLangChange(this.value)">
+    <option value="auto">Auto</option>
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
+<div class="page-wrap">
+
+  <nav class="breadcrumb">
+    <a href="https://qiqiroon.github.io/momo/">MOMO Works</a><span>›</span>MOMO Experiments
+  </nav>
+
+  <header class="site-header">
+    <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80" aria-hidden="true">
+      <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+      <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+      <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+      <line x1="-14" y1="1.00"  x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="6.0"   x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-33.68" y1="-2.28" x2="-38" y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-33.44" y1="6.0"   x2="-40" y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-29.58" y1="14.26" x2="-37" y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="1.00"  x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="6.0"   x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="33.68" y1="-2.28" x2="38"  y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="33.44" y1="6.0"   x2="40"  y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="29.58" y1="14.26" x2="37"  y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+      <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+      <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+      <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+    <h1 class="site-title">MOMO <span>Experiments</span></h1>
+  </header>
+
+  <p class="header-sub" id="header-sub">Notes on experiments with AI</p>
+
+  <p class="intro" id="intro">AI の使い方を試した実験の記録です。実験の内容と結果に加えて、作られたアプリや記録もそのまま公開しています。</p>
+
+  <div class="section-label" id="label-list">Experiments</div>
+
+  <ul class="exp-list">
+    <li>
+      <a href="reversi-ai-tournament/" id="rt-link">リバーシ AI トーナメント</a><span class="exp-date">2026-11</span>
+      <span class="exp-desc" id="rt-desc">同じプロンプトで7つの AI にリバーシのプログラムを作らせ、総当たりで対戦させました。</span>
+    </li>
+  </ul>
+
+  <div class="page-footer"><a href="https://qiqiroon.github.io/momo/" id="footer-back">MOMO Works トップ</a></div>
+
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Experiments について</summary><div class="momo-about-body"><p>MOMO Experiments は、AI の使い方を試した実験の記録を置く場所です。実験の内容・結果に加えて、実験で作られたアプリや記録のファイルも、手を加えずに公開しています。</p><p>実験の題材は、AI の優劣を決めるために選んだものではありません。「AI にどう頼むと、どんなものができるか」を確かめるための題材です。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Experiments について", "body": ["MOMO Experiments は、AI の使い方を試した実験の記録を置く場所です。実験の内容・結果に加えて、実験で作られたアプリや記録のファイルも、手を加えずに公開しています。", "実験の題材は、AI の優劣を決めるために選んだものではありません。「AI にどう頼むと、どんなものができるか」を確かめるための題材です。"]}, "en": {"title": "About MOMO Experiments", "body": ["MOMO Experiments is where we keep records of experiments in using AI. Along with what we tried and what happened, the apps and record files produced in each experiment are published as they are, without changes.", "The themes were not chosen to rank AI services. They are there to see what you get depending on how you ask an AI."]}, "zh": {"title": "关于 MOMO Experiments", "body": ["MOMO Experiments 用来存放尝试各种 AI 用法的实验记录。除了实验内容和结果之外，实验中做出的应用和记录文件也原样公开，未作任何修改。", "实验题材并不是为了比较 AI 的优劣，而是为了确认“怎样向 AI 提出要求，会得到什么样的成果”。"]}}</script>
+
+</div>
+
+<script>
+const I18N = {
+  ja: {
+    headerSub:  'Notes on experiments with AI',
+    intro:      'AI の使い方を試した実験の記録です。実験の内容と結果に加えて、作られたアプリや記録もそのまま公開しています。',
+    labelList:  'Experiments',
+    rtLink:     'リバーシ AI トーナメント',
+    rtDesc:     '同じプロンプトで7つの AI にリバーシのプログラムを作らせ、総当たりで対戦させました。',
+    footerBack: 'MOMO Works トップ',
+  },
+  en: {
+    headerSub:  'Notes on experiments with AI',
+    intro:      'Records of experiments in using AI. Along with what we tried and the results, the apps and records produced are published as they are.',
+    labelList:  'Experiments',
+    rtLink:     'Reversi AI Tournament',
+    rtDesc:     'Seven AI services each wrote a Reversi program from the same prompt, and the programs played a round robin.',
+    footerBack: 'MOMO Works Home',
+  },
+  zh: {
+    headerSub:  'AI 用法的实验笔记',
+    intro:      '尝试各种 AI 用法的实验记录。除了实验内容和结果，做出的应用和记录也原样公开。',
+    labelList:  'Experiments',
+    rtLink:     '黑白棋 AI 锦标赛',
+    rtDesc:     '用同一段提示词让 7 个 AI 各写一个黑白棋程序，再让这些程序进行循环赛。',
+    footerBack: 'MOMO Works 首页',
+  },
+};
+
+let catBase = 'ja';
+function catSpeak() {
+  const v = catBase === 'en' ? ['MEOW','meow','mrrrow','mew','NYA!']
+          : catBase === 'zh' ? ['喵','喵呜','咪','喵！']
+          : ['にゃあ','にゃ','にゃーん','みゃお','ニャ！'];
+  return v[Math.floor(Math.random() * v.length)];
+}
+
+const SUPPORTED_LANGS = ['ja','en','zh','cat'];
+const LANG_APP_ID = 'experiments';
+function _langDetectFallback(){
+  try{ const list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+    for(let i=0;i<list.length;i++){ const l=(list[i]||'').toLowerCase();
+      if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; }
+    return'en';
+  }catch(e){return'ja';}
+}
+let langMode    = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+let currentLang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
+                : (langMode==='auto' ? _langDetectFallback()
+                   : (SUPPORTED_LANGS.includes(langMode) ? langMode : _langDetectFallback()));
+
+function applyLang() {
+  if (currentLang === 'cat' && window.MomoLang && MomoLang.getCatBase) catBase = MomoLang.getCatBase(LANG_APP_ID) || catBase;
+  const base = currentLang === 'cat' ? catBase : currentLang;
+  const d = I18N[base] || I18N.ja;
+  const set = (id, key, meow) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = (currentLang === 'cat' && meow) ? catSpeak() : d[key];
+  };
+  set('header-sub', 'headerSub', true);
+  set('intro', 'intro', false);       // 猫語のときも中身の文は猫語の前の言語で出す（読めなくなるため）
+  set('label-list', 'labelList', false);
+  set('rt-link', 'rtLink', false);
+  set('rt-desc', 'rtDesc', false);
+  set('footer-back', 'footerBack', false);
+  if (window.MomoAbout) MomoAbout.apply(currentLang);  // 説明欄（lib/momo-about.js）
+  document.querySelectorAll('.lang-select').forEach(s => s.value = langMode);
+  document.documentElement.lang = base === 'zh' ? 'zh-Hans' : base;
+}
+
+function onLangChange(mode) {
+  if (mode === 'cat' && currentLang !== 'cat') catBase = currentLang;
+  langMode = mode;
+  currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, mode)
+              : (mode === 'auto' ? _langDetectFallback()
+                 : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
+  applyLang();
+}
+
+applyLang();
+</script>
+</body>
+</html>

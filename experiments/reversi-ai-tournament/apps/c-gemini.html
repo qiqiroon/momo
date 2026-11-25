@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MOMO Reversi Engine v1.05</title>
+  <style>
+    :root {
+      --bg: #12151a;
+      --panel: #1b2028;
+      --panel-2: #232a35;
+      --text: #eef2f7;
+      --muted: #9aa6b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --warn: #f59e0b;
+      --board: #146c43;
+      --board-border: #0d472c;
+      --last-move: rgba(250, 204, 21, 0.45);
+      --border: #2e3746;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 900px) {
+      .container { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    h1 {
+      margin: 0 0 4px 0;
+      font-size: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .ver {
+      font-size: 0.85rem;
+      font-family: monospace;
+      background: var(--panel-2);
+      padding: 2px 8px;
+      border-radius: 6px;
+      color: #93c5fd;
+      border: 1px solid var(--border);
+    }
+    .sub {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .field {
+      margin-bottom: 12px;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    input[type="text"], input[type="number"], select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 9px 14px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--panel-2);
+      color: var(--text);
+      border-color: var(--border);
+    }
+    button:hover:not(:disabled) {
+      filter: brightness(1.08);
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    button.primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+    .file-name {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 4px;
+      word-break: break-all;
+      font-family: monospace;
+    }
+    .io-note {
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      margin-top: 6px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      font-family: monospace;
+      word-break: break-word;
+    }
+    .status-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .stat-box {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .stat-val {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-top: 2px;
+      word-break: break-word;
+    }
+    .state-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+    .st-idle { background: #334155; color: #e2e8f0; }
+    .st-my { background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid #22c55e; }
+    .st-opp { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid #3b82f6; }
+    .st-end { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid #f59e0b; }
+    .st-err { background: rgba(239, 68, 68, 0.25); color: #fca5a5; border: 1px solid #ef4444; }
+
+    .banner {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      display: none;
+      white-space: pre-wrap;
+    }
+    .banner.show { display: block; }
+    .banner.end-banner {
+      background: rgba(245, 158, 11, 0.16);
+      border: 1px solid var(--warn);
+      color: #fde68a;
+    }
+    .banner.err-banner {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid var(--danger);
+      color: #fecaca;
+    }
+
+    .board-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+    .coord-row {
+      display: grid;
+      grid-template-columns: 24px repeat(8, 52px);
+      gap: 3px;
+      text-align: center;
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .board-body {
+      display: flex;
+      gap: 3px;
+      align-items: center;
+    }
+    .coord-col {
+      display: grid;
+      grid-template-rows: repeat(8, 52px);
+      gap: 3px;
+      width: 24px;
+      text-align: center;
+      align-items: center;
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(8, 52px);
+      grid-template-rows: repeat(8, 52px);
+      gap: 3px;
+      background: var(--board-border);
+      padding: 4px;
+      border-radius: 8px;
+      border: 2px solid var(--board-border);
+    }
+    @media (max-width: 520px) {
+      .coord-row { grid-template-columns: 20px repeat(8, 36px); gap: 2px; }
+      .coord-col { grid-template-rows: repeat(8, 36px); gap: 2px; width: 20px; }
+      .board {
+        grid-template-columns: repeat(8, 36px);
+        grid-template-rows: repeat(8, 36px);
+        gap: 2px;
+      }
+    }
+    .cell {
+      background: var(--board);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .cell.last {
+      box-shadow: inset 0 0 0 3px #facc15;
+      background: #1b8554;
+    }
+    .disc {
+      width: 78%;
+      height: 78%;
+      border-radius: 50%;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+    }
+    .disc.B {
+      background: radial-gradient(circle at 32% 30%, #4b5563, #090d16 70%);
+      border: 1px solid #000;
+    }
+    .disc.W {
+      background: radial-gradient(circle at 32% 30%, #ffffff, #d1d5db 75%);
+      border: 1px solid #9ca3af;
+    }
+    .kifu-box {
+      width: 100%;
+    }
+    .kifu-list {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      height: 190px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.88rem;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>
+        <span>リバーシ対戦エンジン</span>
+        <span class="ver" id="versionDisplay">v1.05</span>
+      </h1>
+      <div class="sub">オセロ棋譜形式 v1.00 自動対戦クライアント（I/O耐性強化版）</div>
+
+      <div class="field">
+        <label for="appNameInput">アプリ名（1〜30文字・前後空白除去・改行不可）</label>
+        <input type="text" id="appNameInput" maxlength="60" placeholder="例: MomoReversi" />
+      </div>
+
+      <div class="row field">
+        <div style="flex:1;">
+          <label for="colorSelect">自分の色</label>
+          <select id="colorSelect">
+            <option value="B">黒（B・先手）</option>
+            <option value="W">白（W・後手）</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label for="timeLimitInput">一手あたりの制限時間（秒）</label>
+          <input type="number" id="timeLimitInput" min="0.1" max="3600" step="0.1" value="2.0" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label>共有ファイル（空のテキストファイルを指定）</label>
+        <div class="row">
+          <button type="button" id="pickFileBtn">ファイル指定</button>
+          <button type="button" id="startBtn" class="primary">スタート</button>
+          <button type="button" id="recoverBtn">権限・再同期</button>
+        </div>
+        <div class="file-name" id="fileNameDisplay">未選択</div>
+        <div class="io-note" id="ioStatusDisplay">I/O状態: 待機中</div>
+      </div>
+
+      <div class="status-grid">
+        <div class="stat-box">
+          <div class="stat-label">自分のアプリ名 / バージョン</div>
+          <div class="stat-val" id="myInfoDisplay">- / v1.05</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">現在の状態</div>
+          <div class="stat-val"><span id="stateBadge" class="state-badge st-idle">開始前</span></div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">自分の色</div>
+          <div class="stat-val" id="myColorDisplay">-</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">石数（黒 B / 白 W）</div>
+          <div class="stat-val" id="countDisplay">2 / 2</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">黒（B・先手）アプリ</div>
+          <div class="stat-val" id="blackAppDisplay">-</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">白（W・後手）アプリ</div>
+          <div class="stat-val" id="whiteAppDisplay">-</div>
+        </div>
+      </div>
+
+      <div id="resultBanner" class="banner end-banner"></div>
+      <div id="errorBanner" class="banner err-banner"></div>
+    </div>
+
+    <div class="card board-wrap">
+      <div>
+        <div class="coord-row">
+          <div></div>
+          <div>a</div><div>b</div><div>c</div><div>d</div><div>e</div><div>f</div><div>g</div><div>h</div>
+        </div>
+        <div class="board-body">
+          <div class="coord-col">
+            <div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div><div>8</div>
+          </div>
+          <div class="board" id="boardGrid"></div>
+        </div>
+      </div>
+
+      <div class="kifu-box">
+        <label>棋譜（着手・パス・終局）</label>
+        <div class="kifu-list" id="kifuList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const VERSION = "v1.05";
+      const PROTOCOL_HEADER = "OTHELLO v1.00";
+
+      const INIT_BLACK = (1n << 35n) | (1n << 28n);
+      const INIT_WHITE = (1n << 27n) | (1n << 36n);
+
+      const FILE_A = 0x0101010101010101n;
+      const FILE_H = 0x8080808080808080n;
+      const MASK_64 = 0xffffffffffffffffn;
+
+      // UI elements
+      const versionDisplay = document.getElementById("versionDisplay");
+      const appNameInput = document.getElementById("appNameInput");
+      const colorSelect = document.getElementById("colorSelect");
+      const timeLimitInput = document.getElementById("timeLimitInput");
+      const pickFileBtn = document.getElementById("pickFileBtn");
+      const startBtn = document.getElementById("startBtn");
+      const recoverBtn = document.getElementById("recoverBtn");
+      const fileNameDisplay = document.getElementById("fileNameDisplay");
+      const ioStatusDisplay = document.getElementById("ioStatusDisplay");
+      const myInfoDisplay = document.getElementById("myInfoDisplay");
+      const stateBadge = document.getElementById("stateBadge");
+      const myColorDisplay = document.getElementById("myColorDisplay");
+      const countDisplay = document.getElementById("countDisplay");
+      const blackAppDisplay = document.getElementById("blackAppDisplay");
+      const whiteAppDisplay = document.getElementById("whiteAppDisplay");
+      const resultBanner = document.getElementById("resultBanner");
+      const errorBanner = document.getElementById("errorBanner");
+      const boardGrid = document.getElementById("boardGrid");
+      const kifuList = document.getElementById("kifuList");
+
+      versionDisplay.textContent = VERSION;
+
+      const cellEls = [];
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          boardGrid.appendChild(cell);
+          cellEls.push(cell);
+        }
+      }
+
+      // Game & session state
+      let fileHandle = null;
+      let pollTimer = null;
+      let activeWorker = null;
+      let isThinking = false;
+      let isPolling = false;
+      let sessionId = 0;
+      let consecutiveIoErrors = 0;
+      let lastIoNote = "I/O状態: 待機中";
+      let needsPermissionPrompt = false;
+
+      // Status values: "開始前" | "自分の番" | "相手の番" | "終局" | "エラー"
+      let status = "開始前";
+      let myColor = "B";
+      let myAppName = "";
+      let blackAppName = "-";
+      let whiteAppName = "-";
+      let blackBits = INIT_BLACK;
+      let whiteBits = INIT_WHITE;
+      let lastMoveIdx = -1;
+      let moveLines = [];
+      let endInfo = null;
+      let errorMsg = "";
+
+      function setIoNote(msg) {
+        lastIoNote = `I/O状態: ${msg}`;
+        ioStatusDisplay.textContent = lastIoNote;
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      function isPermissionError(err) {
+        if (!err) return false;
+        const name = String(err.name || "");
+        const msg = String(err.message || "").toLowerCase();
+        return (
+          name === "NotAllowedError" ||
+          name === "SecurityError" ||
+          msg.includes("permission") ||
+          msg.includes("access denied") ||
+          msg.includes("not allowed")
+        );
+      }
+
+      function isTransientIoError(err) {
+        if (!err) return false;
+        if (isPermissionError(err)) return true;
+        const name = String(err.name || "");
+        const msg = String(err.message || "").toLowerCase();
+        return (
+          name === "NotReadableError" ||
+          name === "AbortError" ||
+          name === "InvalidStateError" ||
+          name === "NoModificationAllowedError" ||
+          msg.includes("could not be read") ||
+          msg.includes("sharing") ||
+          msg.includes("locked") ||
+          msg.includes("busy") ||
+          msg.includes("modified")
+        );
+      }
+
+      async function ensureFilePermission(mode = "readwrite", allowInteractive = false) {
+        if (!fileHandle) {
+          throw new Error("共有ファイルハンドルが未設定です。");
+        }
+        if (typeof fileHandle.queryPermission !== "function") {
+          return true;
+        }
+        const opts = { mode };
+        let perm = await fileHandle.queryPermission(opts);
+        if (perm === "granted") {
+          needsPermissionPrompt = false;
+          return true;
+        }
+        if (allowInteractive && typeof fileHandle.requestPermission === "function") {
+          setIoNote(`ファイル権限（${mode}）を再確認中...`);
+          perm = await fileHandle.requestPermission(opts);
+          if (perm === "granted") {
+            needsPermissionPrompt = false;
+            setIoNote(`ファイル権限（${mode}）を取得しました`);
+            return true;
+          }
+        }
+        needsPermissionPrompt = true;
+        const permErr = new Error(`共有ファイルへの${mode}アクセス権がありません（「権限・再同期」または再選択を実行してください）。`);
+        permErr.name = "NotAllowedError";
+        throw permErr;
+      }
+
+      function popcount(x) {
+        let v = x & MASK_64;
+        let cnt = 0;
+        while (v > 0n) {
+          v &= v - 1n;
+          cnt++;
+        }
+        return cnt;
+      }
+
+      function idxToCoord(idx) {
+        const c = idx & 7;
+        const r = (idx >> 3) & 7;
+        return String.fromCharCode(97 + c) + String.fromCharCode(49 + r);
+      }
+
+      function coordToIdx(str) {
+        if (!/^[a-h][1-8]$/.test(str)) return -1;
+        const c = str.charCodeAt(0) - 97;
+        const r = str.charCodeAt(1) - 49;
+        return r * 8 + c;
+      }
+
+      function shift(b, dir) {
+        switch (dir) {
+          case 0: return (b << 8n) & MASK_64;
+          case 1: return (b >> 8n) & MASK_64;
+          case 2: return ((b & ~FILE_H) << 1n) & MASK_64;
+          case 3: return ((b & ~FILE_A) >> 1n) & MASK_64;
+          case 4: return ((b & ~FILE_H) << 9n) & MASK_64;
+          case 5: return ((b & ~FILE_A) << 7n) & MASK_64;
+          case 6: return ((b & ~FILE_H) >> 7n) & MASK_64;
+          case 7: return ((b & ~FILE_A) >> 9n) & MASK_64;
+          default: return 0n;
+        }
+      }
+
+      function getLegalMovesMask(me, opp) {
+        const empty = ~(me | opp) & MASK_64;
+        let moves = 0n;
+        for (let dir = 0; dir < 8; dir++) {
+          let candidates = shift(me, dir) & opp;
+          for (let i = 0; i < 5; i++) {
+            candidates |= shift(candidates, dir) & opp;
+          }
+          moves |= shift(candidates, dir) & empty;
+        }
+        return moves;
+      }
+
+      function applyMoveBits(me, opp, idx) {
+        const moveBit = 1n << BigInt(idx);
+        let flipped = 0n;
+        for (let dir = 0; dir < 8; dir++) {
+          let line = 0n;
+          let cur = shift(moveBit, dir);
+          while (cur !== 0n && (cur & opp) !== 0n) {
+            line |= cur;
+            cur = shift(cur, dir);
+          }
+          if (cur !== 0n && (cur & me) !== 0n) {
+            flipped |= line;
+          }
+        }
+        if (flipped === 0n) return null;
+        return {
+          newMe: me | moveBit | flipped,
+          newOpp: opp & ~flipped
+        };
+      }
+
+      function stopPolling() {
+        if (pollTimer !== null) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      }
+
+      function stopWorker() {
+        isThinking = false;
+        if (activeWorker) {
+          activeWorker.terminate();
+          activeWorker = null;
+        }
+      }
+
+      function enterError(msg) {
+        stopPolling();
+        stopWorker();
+        status = "エラー";
+        errorMsg = String(msg || "不明なエラー").replace(/^エラー：\s*/, "");
+        render();
+      }
+
+      function enterEnd(winner, bCnt, wCnt) {
+        stopPolling();
+        stopWorker();
+        status = "終局";
+        endInfo = { winner, bCount: bCnt, wCount: wCnt };
+        setIoNote("対局終了（終局確定）");
+        render();
+      }
+
+      function render() {
+        const typedName = appNameInput.value.trim();
+        const shownName = myAppName || typedName || "-";
+        myInfoDisplay.textContent = `${shownName} / ${VERSION}`;
+
+        const activeColor = (status === "開始前") ? colorSelect.value : myColor;
+        myColorDisplay.textContent = activeColor === "B" ? "黒（B・先手）" : "白（W・後手）";
+
+        stateBadge.textContent = status;
+        stateBadge.className = "state-badge " + (
+          status === "自分の番" ? "st-my" :
+          status === "相手の番" ? "st-opp" :
+          status === "終局" ? "st-end" :
+          status === "エラー" ? "st-err" : "st-idle"
+        );
+
+        const bCnt = popcount(blackBits);
+        const wCnt = popcount(whiteBits);
+        countDisplay.textContent = `${bCnt} / ${wCnt}`;
+        blackAppDisplay.textContent = blackAppName || "-";
+        whiteAppDisplay.textContent = whiteAppName || "-";
+
+        const canConfigure = (status === "開始前" || status === "終局" || status === "エラー") && !isThinking;
+        appNameInput.disabled = !canConfigure;
+        colorSelect.disabled = !canConfigure;
+        timeLimitInput.disabled = !canConfigure;
+        pickFileBtn.disabled = !canConfigure;
+        startBtn.disabled = !canConfigure;
+        recoverBtn.disabled = !fileHandle || isThinking;
+
+        for (let i = 0; i < 64; i++) {
+          const bit = 1n << BigInt(i);
+          const cell = cellEls[i];
+          cell.classList.toggle("last", i === lastMoveIdx);
+          cell.innerHTML = "";
+          if ((blackBits & bit) !== 0n) {
+            const d = document.createElement("div");
+            d.className = "disc B";
+            cell.appendChild(d);
+          } else if ((whiteBits & bit) !== 0n) {
+            const d = document.createElement("div");
+            d.className = "disc W";
+            cell.appendChild(d);
+          }
+        }
+
+        kifuList.textContent = moveLines.map((ln, idx) => `${idx + 1}. ${ln}`).join("\n");
+
+        if (status === "終局" && endInfo) {
+          const wText =
+            endInfo.winner === "B" ? "黒（B）の勝ち" :
+            endInfo.winner === "W" ? "白（W）の勝ち" : "引き分け（D）";
+          resultBanner.textContent = `終局：${wText}（黒 ${endInfo.bCount} - 白 ${endInfo.wCount}）`;
+          resultBanner.classList.add("show");
+        } else {
+          resultBanner.classList.remove("show");
+        }
+
+        if (status === "エラー" && errorMsg) {
+          errorBanner.textContent = `エラー：${errorMsg}`;
+          errorBanner.classList.add("show");
+        } else {
+          errorBanner.classList.remove("show");
+        }
+      }
+
+      appNameInput.addEventListener("input", render);
+      colorSelect.addEventListener("change", render);
+
+      pickFileBtn.addEventListener("click", async () => {
+        if (typeof window.showOpenFilePicker !== "function") {
+          enterError("このブラウザは showOpenFilePicker に対応していません。");
+          return;
+        }
+        try {
+          const [handle] = await window.showOpenFilePicker({
+            multiple: false,
+            types: [{
+              description: "Text / Kifu File",
+              accept: { "text/plain": [".txt", ".kifu", ".log"] }
+            }]
+          });
+          fileHandle = handle;
+          consecutiveIoErrors = 0;
+          needsPermissionPrompt = false;
+          fileNameDisplay.textContent = handle.name;
+          await ensureFilePermission("readwrite", true);
+          setIoNote(`ファイル指定完了: ${handle.name}`);
+          if (status === "エラー") {
+            status = "開始前";
+            errorMsg = "";
+          }
+          render();
+        } catch (err) {
+          if (err && err.name === "AbortError") return;
+          enterError(`ファイルの指定に失敗しました: ${err?.message || String(err)}`);
+        }
+      });
+
+      async function getFileWithRetry(maxAttempts = 12, baseDelayMs = 80) {
+        let lastErr = null;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          try {
+            if (attempt > 0 && needsPermissionPrompt) {
+              await ensureFilePermission("readwrite", false);
+            }
+            const f = await fileHandle.getFile();
+            consecutiveIoErrors = 0;
+            return f;
+          } catch (err) {
+            lastErr = err;
+            if (isPermissionError(err)) {
+              needsPermissionPrompt = true;
+              setIoNote(`アクセス権エラー（再試行 ${attempt + 1}/${maxAttempts}）`);
+            } else {
+              setIoNote(`読込リトライ ${attempt + 1}/${maxAttempts}: ${err?.name || "I/O Error"}`);
+            }
+            if (!isTransientIoError(err) || attempt === maxAttempts - 1) {
+              throw err;
+            }
+            await sleep(Math.min(800, baseDelayMs * Math.pow(1.35, attempt)));
+          }
+        }
+        throw lastErr;
+      }
+
+      async function readFileCompleteLines() {
+        const file = await getFileWithRetry();
+        const buf = await file.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        const decoder = new TextDecoder("utf-8", { fatal: true });
+        let text = decoder.decode(bytes);
+        if (text.charCodeAt(0) === 0xfeff) {
+          text = text.slice(1);
+        }
+        if (text.length === 0) {
+          return { isEmpty: true, lines: [], byteLength: bytes.length };
+        }
+        const parts = text.split("\n");
+        parts.pop(); // 末尾の改行以降（未完了行または空文字）を除外
+        for (const p of parts) {
+          if (p.includes("\r")) {
+            throw new Error("改行コードにCR（\\r）が含まれています。LFのみを使用してください。");
+          }
+        }
+        return { isEmpty: false, lines: parts, byteLength: bytes.length };
+      }
+
+      async function writeWritableWithRetry(payloadBytes, { keepExistingData = true, seekOffset = null, truncateTo = null } = {}) {
+        let lastErr = null;
+        for (let attempt = 0; attempt < 12; attempt++) {
+          let writable = null;
+          try {
+            await ensureFilePermission("readwrite", false);
+            writable = await fileHandle.createWritable({ keepExistingData });
+            if (typeof seekOffset === "number") {
+              await writable.seek(seekOffset);
+            }
+            if (payloadBytes && payloadBytes.byteLength > 0) {
+              await writable.write(payloadBytes);
+            }
+            if (typeof truncateTo === "number") {
+              await writable.truncate(truncateTo);
+            }
+            await writable.close();
+            consecutiveIoErrors = 0;
+            return;
+          } catch (err) {
+            lastErr = err;
+            if (writable) {
+              try { await writable.abort(); } catch (_) {}
+            }
+            if (isPermissionError(err)) {
+              needsPermissionPrompt = true;
+              setIoNote(`書込権限エラー（再試行 ${attempt + 1}/12）`);
+            } else {
+              setIoNote(`書込リトライ ${attempt + 1}/12: ${err?.name || "I/O Error"}`);
+            }
+            if (!isTransientIoError(err) || attempt === 11) {
+              throw err;
+            }
+            await sleep(Math.min(900, 90 * Math.pow(1.35, attempt)));
+          }
+        }
+        throw lastErr;
+      }
+
+      async function verifyLinePresent(expectedLine) {
+        for (let check = 0; check < 5; check++) {
+          try {
+            const { lines } = await readFileCompleteLines();
+            if (lines.includes(expectedLine)) {
+              return true;
+            }
+          } catch (_) {}
+          await sleep(60);
+        }
+        return false;
+      }
+
+      async function appendLineToFile(line) {
+        const outLine = line + "\n";
+        const encoded = new TextEncoder().encode(outLine);
+
+        // 末尾追記を試行し、サイズ変動や競合があれば最新サイズを再取得して再試行
+        let lastErr = null;
+        for (let outer = 0; outer < 5; outer++) {
+          try {
+            const file = await getFileWithRetry();
+            await writeWritableWithRetry(encoded, {
+              keepExistingData: true,
+              seekOffset: file.size
+            });
+            const ok = await verifyLinePresent(line);
+            if (ok) {
+              setIoNote(`書込完了・確認済: ${line}`);
+              return;
+            }
+            setIoNote(`書込再確認中 (${outer + 1}/5): ${line}`);
+          } catch (err) {
+            lastErr = err;
+            if (!isTransientIoError(err) || outer === 4) {
+              throw err;
+            }
+            await sleep(120 * (outer + 1));
+          }
+        }
+        throw lastErr || new Error(`行の書き込み確認に失敗しました: ${line}`);
+      }
+
+      function validateAppName(name) {
+        if (!name || name.length < 1 || name.length > 30) return false;
+        if (name.includes("\n") || name.includes("\r")) return false;
+        return true;
+      }
+
+      function resetBoardState() {
+        blackBits = INIT_BLACK;
+        whiteBits = INIT_WHITE;
+        lastMoveIdx = -1;
+        moveLines = [];
+        blackAppName = "-";
+        whiteAppName = "-";
+        endInfo = null;
+        errorMsg = "";
+        consecutiveIoErrors = 0;
+      }
+
+      function replayLines(lines) {
+        let bBits = INIT_BLACK;
+        let wBits = INIT_WHITE;
+        let lastIdx = -1;
+        const moves = [];
+        let bApp = "-";
+        let wApp = "-";
+        let ended = false;
+        let endData = null;
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (ended) {
+            throw new Error(`END行の後に余分な行があります（${i + 1}行目）: ${line}`);
+          }
+
+          if (i === 0) {
+            if (line !== PROTOCOL_HEADER) {
+              throw new Error(`1行目が「${PROTOCOL_HEADER}」ではありません: ${line}`);
+            }
+            continue;
+          }
+
+          if (i === 1) {
+            if (!line.startsWith("B ")) {
+              throw new Error(`2行目が「B 」で始まりません: ${line}`);
+            }
+            const name = line.slice(2);
+            if (!validateAppName(name)) {
+              throw new Error(`2行目の先手アプリ名が不正です（1〜30文字）: "${name}"`);
+            }
+            bApp = name;
+            continue;
+          }
+
+          if (i === 2) {
+            if (!line.startsWith("W ")) {
+              throw new Error(`3行目が「W 」で始まりません: ${line}`);
+            }
+            const name = line.slice(2);
+            if (!validateAppName(name)) {
+              throw new Error(`3行目の後手アプリ名が不正です（1〜30文字）: "${name}"`);
+            }
+            wApp = name;
+            continue;
+          }
+
+          if (line.startsWith("END")) {
+            const bMoves = getLegalMovesMask(bBits, wBits);
+            const wMoves = getLegalMovesMask(wBits, bBits);
+            if (bMoves !== 0n || wMoves !== 0n) {
+              throw new Error("まだ打てる手が存在するのにEND行が書かれました。");
+            }
+
+            const parts = line.split(" ");
+            if (parts.length !== 4 || parts[0] !== "END") {
+              throw new Error(`END行の形式が不正です: ${line}`);
+            }
+            const winner = parts[1];
+            if (winner !== "B" && winner !== "W" && winner !== "D") {
+              throw new Error(`END行の勝者が不正です: ${winner}`);
+            }
+            if (!/^\d+$/.test(parts[2]) || !/^\d+$/.test(parts[3])) {
+              throw new Error(`END行の石数が不正です: ${line}`);
+            }
+            const bCnt = Number(parts[2]);
+            const wCnt = Number(parts[3]);
+            const actualB = popcount(bBits);
+            const actualW = popcount(wBits);
+            if (bCnt !== actualB || wCnt !== actualW) {
+              throw new Error(`END行の石数（黒${bCnt}/白${wCnt}）が実際の盤面（黒${actualB}/白${actualW}）と一致しません。`);
+            }
+            const expectedWinner = actualB > actualW ? "B" : (actualW > actualB ? "W" : "D");
+            if (winner !== expectedWinner) {
+              throw new Error(`END行の勝者（${winner}）が石数から決まる勝者（${expectedWinner}）と一致しません。`);
+            }
+
+            ended = true;
+            endData = { winner, bCount: actualB, wCount: actualW };
+            moves.push(line);
+            continue;
+          }
+
+          const expectedColor = (moves.length % 2 === 0) ? "B" : "W";
+          const parts = line.split(" ");
+          if (parts.length !== 2) {
+            throw new Error(`${i + 1}行目の着手/パス形式が不正です: ${line}`);
+          }
+          const colColor = parts[0];
+          const action = parts[1];
+          if (colColor !== "B" && colColor !== "W") {
+            throw new Error(`${i + 1}行目の色が不正です: ${colColor}`);
+          }
+          if (colColor !== expectedColor) {
+            throw new Error(`${i + 1}行目の色が交互になっていません（期待: ${expectedColor}, 実際: ${colColor}）`);
+          }
+
+          const curMe = (colColor === "B") ? bBits : wBits;
+          const curOpp = (colColor === "B") ? wBits : bBits;
+          const legalMask = getLegalMovesMask(curMe, curOpp);
+
+          if (action === "pass") {
+            if (legalMask !== 0n) {
+              throw new Error(`${i + 1}行目（${colColor}）に合法手があるのにパスが記録されています。`);
+            }
+            moves.push(line);
+          } else {
+            const idx = coordToIdx(action);
+            if (idx < 0) {
+              throw new Error(`${i + 1}行目のマス指定が不正です: ${action}`);
+            }
+            const moveBit = 1n << BigInt(idx);
+            if ((legalMask & moveBit) === 0n) {
+              throw new Error(`${i + 1}行目（${colColor} ${action}）は非合法手です。`);
+            }
+            const res = applyMoveBits(curMe, curOpp, idx);
+            if (!res) {
+              throw new Error(`${i + 1}行目（${colColor} ${action}）の反転石が計算できません。`);
+            }
+            if (colColor === "B") {
+              bBits = res.newMe;
+              wBits = res.newOpp;
+            } else {
+              wBits = res.newMe;
+              bBits = res.newOpp;
+            }
+            lastIdx = idx;
+            moves.push(line);
+          }
+        }
+
+        return {
+          bBits,
+          wBits,
+          lastIdx,
+          moves,
+          bApp,
+          wApp,
+          ended,
+          endData
+        };
+      }
+
+      // --- 思考ルーチン（変更不要・そのまま保持） ---
+      function createSearchWorker() {
+        const workerCode = `
+          const FILE_A = 0x0101010101010101n;
+          const FILE_H = 0x8080808080808080n;
+          const MASK_64 = 0xffffffffffffffffn;
+
+          const POS_WEIGHT = [
+            120, -24,  16,  10,  10,  16, -24, 120,
+            -24, -40,  -4,  -2,  -2,  -4, -40, -24,
+             16,  -4,   6,   2,   2,   6,  -4,  16,
+             10,  -2,   2,   1,   1,   2,  -2,  10,
+             10,  -2,   2,   1,   1,   2,  -2,  10,
+             16,  -4,   6,   2,   2,   6,  -4,  16,
+            -24, -40,  -4,  -2,  -2,  -4, -40, -24,
+            120, -24,  16,  10,  10,  16, -24, 120
+          ];
+
+          function shift(b, dir) {
+            switch (dir) {
+              case 0: return (b << 8n) & MASK_64;
+              case 1: return (b >> 8n) & MASK_64;
+              case 2: return ((b & ~FILE_H) << 1n) & MASK_64;
+              case 3: return ((b & ~FILE_A) >> 1n) & MASK_64;
+              case 4: return ((b & ~FILE_H) << 9n) & MASK_64;
+              case 5: return ((b & ~FILE_A) << 7n) & MASK_64;
+              case 6: return ((b & ~FILE_H) >> 7n) & MASK_64;
+              case 7: return ((b & ~FILE_A) >> 9n) & MASK_64;
+              default: return 0n;
+            }
+          }
+
+          function getLegalMovesMask(me, opp) {
+            const empty = ~(me | opp) & MASK_64;
+            let moves = 0n;
+            for (let dir = 0; dir < 8; dir++) {
+              let candidates = shift(me, dir) & opp;
+              for (let i = 0; i < 5; i++) {
+                candidates |= shift(candidates, dir) & opp;
+              }
+              moves |= shift(candidates, dir) & empty;
+            }
+            return moves;
+          }
+
+          function flipMask(me, opp, idx) {
+            const moveBit = 1n << BigInt(idx);
+            let flipped = 0n;
+            for (let dir = 0; dir < 8; dir++) {
+              let line = 0n;
+              let cur = shift(moveBit, dir);
+              while (cur !== 0n && (cur & opp) !== 0n) {
+                line |= cur;
+                cur = shift(cur, dir);
+              }
+              if (cur !== 0n && (cur & me) !== 0n) {
+                flipped |= line;
+              }
+            }
+            return flipped;
+          }
+
+          function popcount(x) {
+            let v = x & MASK_64;
+            let cnt = 0;
+            while (v > 0n) {
+              v &= v - 1n;
+              cnt++;
+            }
+            return cnt;
+          }
+
+          function maskToIndices(mask) {
+            const out = [];
+            let m = mask;
+            while (m !== 0n) {
+              const lsb = m & -m;
+              let idx = 0;
+              let t = lsb;
+              while (t > 1n) { t >>= 1n; idx++; }
+              out.push(idx);
+              m ^= lsb;
+            }
+            return out;
+          }
+
+          function evaluate(me, opp, emptyCount) {
+            if (emptyCount === 0) {
+              return (popcount(me) - popcount(opp)) * 10000;
+            }
+
+            let posScore = 0;
+            for (let i = 0; i < 64; i++) {
+              const bit = 1n << BigInt(i);
+              if ((me & bit) !== 0n) posScore += POS_WEIGHT[i];
+              else if ((opp & bit) !== 0n) posScore -= POS_WEIGHT[i];
+            }
+
+            const corners = [0, 7, 56, 63];
+            const xAdj = [
+              [9, 1, 8],
+              [14, 6, 15],
+              [49, 48, 57],
+              [54, 55, 62]
+            ];
+            for (let c = 0; c < 4; c++) {
+              const cBit = 1n << BigInt(corners[c]);
+              if ((me & cBit) !== 0n || (opp & cBit) !== 0n) {
+                for (const adjIdx of xAdj[c]) {
+                  const aBit = 1n << BigInt(adjIdx);
+                  if ((me & aBit) !== 0n) posScore += 28;
+                  if ((opp & aBit) !== 0n) posScore -= 28;
+                }
+              }
+            }
+
+            const myMoves = popcount(getLegalMovesMask(me, opp));
+            const oppMoves = popcount(getLegalMovesMask(opp, me));
+            const mobility = (myMoves - oppMoves) * 14;
+
+            const parity = (emptyCount % 2 === 1) ? 8 : -8;
+            return posScore + mobility + parity;
+          }
+
+          self.onmessage = function(e) {
+            const { me, opp, timeLimitSec } = e.data;
+            const legalMask = getLegalMovesMask(me, opp);
+            const moves = maskToIndices(legalMask);
+            if (moves.length === 0) {
+              self.postMessage({ moveIdx: -1 });
+              return;
+            }
+            if (moves.length === 1) {
+              self.postMessage({ moveIdx: moves[0] });
+              return;
+            }
+
+            const startMs = performance.now();
+            const budgetMs = Math.max(40, (Number(timeLimitSec) || 2.0) * 1000 - 60);
+            let timeUp = false;
+            let nodes = 0;
+
+            function checkTime() {
+              if ((++nodes & 511) === 0) {
+                if (performance.now() - startMs >= budgetMs) {
+                  timeUp = true;
+                }
+              }
+              return timeUp;
+            }
+
+            const totalDiscs = popcount(me) + popcount(opp);
+            const emptySquares = 64 - totalDiscs;
+
+            moves.sort((a, b) => {
+              const fA = popcount(flipMask(me, opp, a));
+              const fB = popcount(flipMask(me, opp, b));
+              return (POS_WEIGHT[b] + fB) - (POS_WEIGHT[a] + fA);
+            });
+
+            function alphaBeta(curMe, curOpp, depth, alpha, beta, passedLast, empties) {
+              if (checkTime()) return 0;
+              if (empties === 0) {
+                return (popcount(curMe) - popcount(curOpp)) * 10000;
+              }
+              if (depth <= 0) {
+                return evaluate(curMe, curOpp, empties);
+              }
+
+              const mMask = getLegalMovesMask(curMe, curOpp);
+              if (mMask === 0n) {
+                if (passedLast) {
+                  return (popcount(curMe) - popcount(curOpp)) * 10000;
+                }
+                return -alphaBeta(curOpp, curMe, depth, -beta, -alpha, true, empties);
+              }
+
+              const childIndices = maskToIndices(mMask);
+              childIndices.sort((a, b) => POS_WEIGHT[b] - POS_WEIGHT[a]);
+
+              let best = -Infinity;
+              for (const idx of childIndices) {
+                const flp = flipMask(curMe, curOpp, idx);
+                const moveBit = 1n << BigInt(idx);
+                const nMe = curMe | moveBit | flp;
+                const nOpp = curOpp & ~flp;
+                const val = -alphaBeta(nOpp, nMe, depth - 1, -beta, -alpha, false, empties - 1);
+                if (timeUp) return best === -Infinity ? 0 : best;
+                if (val > best) best = val;
+                if (val > alpha) alpha = val;
+                if (alpha >= beta) break;
+              }
+              return best;
+            }
+
+            let bestMove = moves[0];
+            const maxDepth = Math.min(emptySquares, 10);
+
+            for (let depth = 1; depth <= maxDepth; depth++) {
+              if (performance.now() - startMs >= budgetMs) break;
+              let currentBestMove = bestMove;
+              let currentBestScore = -Infinity;
+              let alpha = -Infinity;
+              const beta = Infinity;
+
+              for (const idx of moves) {
+                const flp = flipMask(me, opp, idx);
+                const moveBit = 1n << BigInt(idx);
+                const nMe = me | moveBit | flp;
+                const nOpp = opp & ~flp;
+                const score = -alphaBeta(nOpp, nMe, depth - 1, -beta, -alpha, false, emptySquares - 1);
+                if (timeUp) break;
+                if (score > currentBestScore) {
+                  currentBestScore = score;
+                  currentBestMove = idx;
+                }
+                if (score > alpha) alpha = score;
+              }
+
+              if (!timeUp) {
+                bestMove = currentBestMove;
+                moves.splice(moves.indexOf(bestMove), 1);
+                moves.unshift(bestMove);
+              } else {
+                break;
+              }
+            }
+
+            self.postMessage({ moveIdx: bestMove });
+          };
+        `;
+        const blob = new Blob([workerCode], { type: "application/javascript" });
+        const url = URL.createObjectURL(blob);
+        const worker = new Worker(url);
+        URL.revokeObjectURL(url);
+        return worker;
+      }
+
+      function syncStateFromParsed(parsed) {
+        blackAppName = parsed.bApp;
+        whiteAppName = parsed.wApp;
+        blackBits = parsed.bBits;
+        whiteBits = parsed.wBits;
+        lastMoveIdx = parsed.lastIdx;
+        moveLines = parsed.moves.slice();
+      }
+
+      async function thinkAndAct(curSessionId, bBits, wBits, movesCount) {
+        if (isThinking) return;
+        isThinking = true;
+
+        const meBits = (myColor === "B") ? bBits : wBits;
+        const oppBits = (myColor === "B") ? wBits : bBits;
+        const myLegal = getLegalMovesMask(meBits, oppBits);
+        const oppLegal = getLegalMovesMask(oppBits, meBits);
+
+        if (myLegal === 0n && oppLegal === 0n) {
+          if (myColor === "B") {
+            const bCnt = popcount(bBits);
+            const wCnt = popcount(wBits);
+            const winner = bCnt > wCnt ? "B" : (wCnt > bCnt ? "W" : "D");
+            try {
+              await appendLineToFile(`END ${winner} ${bCnt} ${wCnt}`);
+            } catch (err) {
+              isThinking = false;
+              if (curSessionId === sessionId) enterError(`END行の書き込みに失敗しました: ${err?.message || String(err)}`);
+              return;
+            }
+            isThinking = false;
+            if (curSessionId === sessionId) {
+              if (!moveLines.includes(`END ${winner} ${bCnt} ${wCnt}`)) {
+                moveLines.push(`END ${winner} ${bCnt} ${wCnt}`);
+              }
+              enterEnd(winner, bCnt, wCnt);
+            }
+            return;
+          } else {
+            isThinking = false;
+            if (curSessionId === sessionId) {
+              status = "相手の番";
+              render();
+            }
+            return;
+          }
+        }
+
+        if (myLegal === 0n) {
+          const passLine = `${myColor} pass`;
+          try {
+            await appendLineToFile(passLine);
+          } catch (err) {
+            isThinking = false;
+            if (curSessionId === sessionId) enterError(`パス行の書き込みに失敗しました: ${err?.message || String(err)}`);
+            return;
+          }
+          isThinking = false;
+          if (curSessionId === sessionId) {
+            if (!moveLines.includes(passLine)) {
+              moveLines.push(passLine);
+            }
+            const nextState = replayLines([PROTOCOL_HEADER, `B ${blackAppName}`, `W ${whiteAppName}`, ...moveLines]);
+            const nextB = getLegalMovesMask(nextState.bBits, nextState.wBits);
+            const nextW = getLegalMovesMask(nextState.wBits, nextState.bBits);
+            if (myColor === "B" && nextB === 0n && nextW === 0n) {
+              const bCnt = popcount(nextState.bBits);
+              const wCnt = popcount(nextState.wBits);
+              const winner = bCnt > wCnt ? "B" : (wCnt > bCnt ? "W" : "D");
+              await appendLineToFile(`END ${winner} ${bCnt} ${wCnt}`);
+              moveLines.push(`END ${winner} ${bCnt} ${wCnt}`);
+              enterEnd(winner, bCnt, wCnt);
+              return;
+            }
+            status = "相手の番";
+            render();
+          }
+          return;
+        }
+
+        const timeLimitSec = Math.max(0.1, Number(timeLimitInput.value) || 2.0);
+        const worker = createSearchWorker();
+        activeWorker = worker;
+
+        worker.onmessage = async (ev) => {
+          stopWorker();
+          if (curSessionId !== sessionId || status !== "自分の番") return;
+
+          const chosenIdx = ev.data?.moveIdx;
+          if (typeof chosenIdx !== "number" || chosenIdx < 0) {
+            enterError("思考エンジンが有効な着手を返しませんでした。");
+            return;
+          }
+
+          const moveBit = 1n << BigInt(chosenIdx);
+          if ((myLegal & moveBit) === 0n) {
+            enterError(`思考エンジンが非合法手 ${idxToCoord(chosenIdx)} を選択しました。`);
+            return;
+          }
+
+          const moveStr = `${myColor} ${idxToCoord(chosenIdx)}`;
+          try {
+            await appendLineToFile(moveStr);
+          } catch (err) {
+            enterError(`着手行の書き込みに失敗しました: ${err?.message || String(err)}`);
+            return;
+          }
+
+          if (curSessionId !== sessionId) return;
+
+          // 書込後、最新ファイルを読み直して状態を再同期（競合や先行書込の見落とし防止）
+          try {
+            const { lines: latestLines } = await readFileCompleteLines();
+            if (latestLines.length >= 3) {
+              const latestParsed = replayLines(latestLines);
+              syncStateFromParsed(latestParsed);
+              if (latestParsed.ended && latestParsed.endData) {
+                enterEnd(latestParsed.endData.winner, latestParsed.endData.bCount, latestParsed.endData.wCount);
+                return;
+              }
+            }
+          } catch (_) {
+            const res = applyMoveBits(meBits, oppBits, chosenIdx);
+            const nBlack = (myColor === "B") ? res.newMe : res.newOpp;
+            const nWhite = (myColor === "B") ? res.newOpp : res.newMe;
+            blackBits = nBlack;
+            whiteBits = nWhite;
+            lastMoveIdx = chosenIdx;
+            if (!moveLines.includes(moveStr)) moveLines.push(moveStr);
+          }
+
+          if (myColor === "B") {
+            const bAfter = getLegalMovesMask(blackBits, whiteBits);
+            const wAfter = getLegalMovesMask(whiteBits, blackBits);
+            if (bAfter === 0n && wAfter === 0n) {
+              const bCnt = popcount(blackBits);
+              const wCnt = popcount(whiteBits);
+              const winner = bCnt > wCnt ? "B" : (wCnt > bCnt ? "W" : "D");
+              try {
+                await appendLineToFile(`END ${winner} ${bCnt} ${wCnt}`);
+              } catch (err) {
+                enterError(`END行の書き込みに失敗しました: ${err?.message || String(err)}`);
+                return;
+              }
+              if (curSessionId !== sessionId) return;
+              if (!moveLines.includes(`END ${winner} ${bCnt} ${wCnt}`)) {
+                moveLines.push(`END ${winner} ${bCnt} ${wCnt}`);
+              }
+              enterEnd(winner, bCnt, wCnt);
+              return;
+            }
+          }
+
+          status = "相手の番";
+          render();
+        };
+
+        worker.onerror = (err) => {
+          stopWorker();
+          if (curSessionId === sessionId) {
+            enterError(`思考ワーカーでエラーが発生しました: ${err?.message || "不明なエラー"}`);
+          }
+        };
+
+        worker.postMessage({
+          me: meBits,
+          opp: oppBits,
+          timeLimitSec,
+          turnIndex: movesCount
+        });
+      }
+
+      async function pollTick(curSessionId) {
+        if (curSessionId !== sessionId) return;
+        if (status === "終局" || status === "エラー" || status === "開始前") return;
+        if (isThinking || isPolling) return;
+
+        isPolling = true;
+        try {
+          const { isEmpty, lines } = await readFileCompleteLines();
+
+          if (myColor === "B") {
+            if (isEmpty) {
+              setIoNote("共有ファイルが空です（再読込待機中）");
+              return;
+            }
+            if (lines.length < 2) {
+              setIoNote("ヘッダ行を待機中...");
+              return;
+            }
+            const parsed = replayLines(lines);
+            syncStateFromParsed(parsed);
+
+            if (parsed.ended && parsed.endData) {
+              enterEnd(parsed.endData.winner, parsed.endData.bCount, parsed.endData.wCount);
+              return;
+            }
+
+            if (lines.length < 3) {
+              status = "相手の番";
+              setIoNote("後手（W）の参加行を待機中...");
+              render();
+              return;
+            }
+
+            const bLeg = getLegalMovesMask(parsed.bBits, parsed.wBits);
+            const wLeg = getLegalMovesMask(parsed.wBits, parsed.bBits);
+            if (bLeg === 0n && wLeg === 0n) {
+              const bCnt = popcount(parsed.bBits);
+              const wCnt = popcount(parsed.wBits);
+              const winner = bCnt > wCnt ? "B" : (wCnt > bCnt ? "W" : "D");
+              await appendLineToFile(`END ${winner} ${bCnt} ${wCnt}`);
+              if (curSessionId !== sessionId) return;
+              if (!moveLines.includes(`END ${winner} ${bCnt} ${wCnt}`)) {
+                moveLines.push(`END ${winner} ${bCnt} ${wCnt}`);
+              }
+              enterEnd(winner, bCnt, wCnt);
+              return;
+            }
+
+            const nextTurn = (parsed.moves.length % 2 === 0) ? "B" : "W";
+            if (nextTurn === "B") {
+              status = "自分の番";
+              setIoNote(`自分の番（黒 B / 手数 ${parsed.moves.length}）`);
+              render();
+              await thinkAndAct(curSessionId, parsed.bBits, parsed.wBits, parsed.moves.length);
+            } else {
+              status = "相手の番";
+              setIoNote(`相手の番（白 W / 手数 ${parsed.moves.length}）`);
+              render();
+            }
+          } else {
+            if (isEmpty || lines.length < 2) {
+              status = "相手の番";
+              setIoNote("先手（B）の開始行を待機中...");
+              render();
+              return;
+            }
+
+            const headOnly = replayLines(lines.slice(0, 2));
+            blackAppName = headOnly.bApp;
+
+            if (lines.length === 2) {
+              await appendLineToFile(`W ${myAppName}`);
+              if (curSessionId !== sessionId) return;
+              whiteAppName = myAppName;
+              status = "相手の番";
+              render();
+              return;
+            }
+
+            const parsed = replayLines(lines);
+            syncStateFromParsed(parsed);
+
+            if (parsed.ended && parsed.endData) {
+              enterEnd(parsed.endData.winner, parsed.endData.bCount, parsed.endData.wCount);
+              return;
+            }
+
+            const bLeg = getLegalMovesMask(parsed.bBits, parsed.wBits);
+            const wLeg = getLegalMovesMask(parsed.wBits, parsed.bBits);
+            if (bLeg === 0n && wLeg === 0n) {
+              status = "相手の番";
+              setIoNote("終局判定（先手のEND行待機中）");
+              render();
+              return;
+            }
+
+            const nextTurn = (parsed.moves.length % 2 === 0) ? "B" : "W";
+            if (nextTurn === "W") {
+              status = "自分の番";
+              setIoNote(`自分の番（白 W / 手数 ${parsed.moves.length}）`);
+              render();
+              await thinkAndAct(curSessionId, parsed.bBits, parsed.wBits, parsed.moves.length);
+            } else {
+              status = "相手の番";
+              setIoNote(`相手の番（黒 B / 手数 ${parsed.moves.length}）`);
+              render();
+            }
+          }
+        } catch (err) {
+          if (curSessionId !== sessionId) return;
+          if (isTransientIoError(err)) {
+            consecutiveIoErrors++;
+            if (isPermissionError(err)) {
+              needsPermissionPrompt = true;
+              setIoNote(`アクセス権エラー（${consecutiveIoErrors}回連続・ポーリング継続中）`);
+            } else {
+              setIoNote(`読込エラー（${consecutiveIoErrors}回連続・次回再試行）: ${err?.message || String(err)}`);
+            }
+            render();
+            return;
+          }
+          enterError(err?.message || String(err));
+        } finally {
+          isPolling = false;
+        }
+      }
+
+      recoverBtn.addEventListener("click", async () => {
+        if (!fileHandle) return;
+        try {
+          await ensureFilePermission("readwrite", true);
+          consecutiveIoErrors = 0;
+          if (status === "エラー") {
+            status = "相手の番";
+            errorMsg = "";
+          }
+          render();
+          if (status !== "開始前" && status !== "終局") {
+            if (pollTimer === null) {
+              const curId = sessionId;
+              pollTimer = setInterval(() => pollTick(curId), 1000);
+            }
+            await pollTick(sessionId);
+          }
+        } catch (err) {
+          setIoNote(`権限再取得失敗: ${err?.message || String(err)}`);
+          render();
+        }
+      });
+
+      startBtn.addEventListener("click", async () => {
+        stopPolling();
+        stopWorker();
+
+        const trimmedName = appNameInput.value.trim();
+        if (!validateAppName(trimmedName)) {
+          enterError("アプリ名は前後の空白を除いて1〜30文字（改行なし）で入力してください。");
+          return;
+        }
+        if (!fileHandle) {
+          enterError("共有ファイルを指定してください。");
+          return;
+        }
+
+        const timeVal = Number(timeLimitInput.value);
+        if (!Number.isFinite(timeVal) || timeVal <= 0) {
+          enterError("制限時間には正の数値を入力してください。");
+          return;
+        }
+
+        sessionId++;
+        const curSessionId = sessionId;
+        myAppName = trimmedName;
+        myColor = colorSelect.value;
+        resetBoardState();
+
+        try {
+          await ensureFilePermission("readwrite", true);
+          const file = await getFileWithRetry();
+          const { isEmpty, lines } = await readFileCompleteLines();
+
+          if (myColor === "B") {
+            if (file.size !== 0 || !isEmpty || lines.length > 0) {
+              enterError("黒番（先手）で開始するときは、空（0バイト）のファイルを指定してください。");
+              return;
+            }
+            blackAppName = myAppName;
+            await appendLineToFile(PROTOCOL_HEADER);
+            await appendLineToFile(`B ${myAppName}`);
+            if (curSessionId !== sessionId) return;
+            status = "相手の番";
+            render();
+          } else {
+            status = "相手の番";
+            render();
+            if (!isEmpty && lines.length >= 2) {
+              const head = replayLines(lines.slice(0, 2));
+              blackAppName = head.bApp;
+              if (lines.length === 2) {
+                await appendLineToFile(`W ${myAppName}`);
+                if (curSessionId !== sessionId) return;
+                whiteAppName = myAppName;
+                render();
+              }
+            }
+          }
+        } catch (err) {
+          if (curSessionId === sessionId) {
+            enterError(`開始処理に失敗しました: ${err?.message || String(err)}`);
+          }
+          return;
+        }
+
+        pollTimer = setInterval(() => {
+          pollTick(curSessionId);
+        }, 1000);
+        pollTick(curSessionId);
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

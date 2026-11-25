@@ -39,6 +39,13 @@ Games and tools that run in your browser, made by an individual developer. No si
 | [MOMO Player](https://qiqiroon.github.io/momo/tools/player/) | 手元の音楽フォルダを再生するプレイヤー | Music player for local folders |
 | [MOMO Remaster](https://qiqiroon.github.io/momo/tools/remaster/) | 録音の修復とリマスター | Audio restoration and remastering |
 
+## 実験 / Experiments
+
+| ページ / Page | 説明 | Description |
+|---|---|---|
+| [MOMO Experiments](https://qiqiroon.github.io/momo/experiments/) | AI の使い方の実験ノート | Notes on experiments with AI |
+| [リバーシ AI トーナメント](https://qiqiroon.github.io/momo/experiments/reversi-ai-tournament/) | 同じプロンプトで7つの AI が作ったリバーシの総当たり戦 | Reversi programs written by seven AI services from the same prompt, in a round robin |
+
 ---
 
 ## 日本語

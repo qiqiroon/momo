@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reversi AI v1.00</title>
+<style>
+:root {
+  --bg: #1a1a2e;
+  --panel: #16213e;
+  --accent: #0f3460;
+  --text: #e8e8e8;
+  --black: #111;
+  --white: #f5f5f5;
+  --board: #0a7a3e;
+  --line: #065c2e;
+  --last: #ffcc00;
+  --legal: rgba(255,255,255,0.25);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', 'Hiragino Sans', Meiryo, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+}
+h1 { font-size: 1.4rem; margin-bottom: 8px; color: #7ec8e3; }
+.controls {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  background: var(--panel); padding: 10px 14px; border-radius: 8px;
+  margin-bottom: 10px; max-width: 920px; width: 100%;
+}
+.controls label { font-size: 0.85rem; }
+.controls input[type="text"], .controls input[type="number"] {
+  background: var(--accent); border: 1px solid #2a4a6a; color: var(--text);
+  padding: 4px 8px; border-radius: 4px; width: 140px;
+}
+.controls select {
+  background: var(--accent); border: 1px solid #2a4a6a; color: var(--text);
+  padding: 4px 8px; border-radius: 4px;
+}
+button {
+  background: #1e88e5; color: white; border: none; padding: 6px 14px;
+  border-radius: 5px; cursor: pointer; font-weight: 600;
+}
+button:hover { background: #1565c0; }
+button:disabled { background: #555; cursor: not-allowed; }
+.main {
+  display: flex; flex-wrap: wrap; gap: 16px; justify-content: center;
+  max-width: 920px; width: 100%;
+}
+.board-wrap {
+  background: var(--panel); padding: 12px; border-radius: 8px;
+}
+#board {
+  display: grid; grid-template-columns: repeat(8, 48px); grid-template-rows: repeat(8, 48px);
+  gap: 2px; background: var(--line); border: 3px solid #044422;
+}
+.cell {
+  width: 48px; height: 48px; background: var(--board);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; cursor: default;
+}
+.cell.last { box-shadow: inset 0 0 0 3px var(--last); }
+.disc {
+  width: 38px; height: 38px; border-radius: 50%;
+  box-shadow: 1px 2px 3px rgba(0,0,0,0.5);
+}
+.disc.B { background: radial-gradient(circle at 35% 35%, #444, #000); }
+.disc.W { background: radial-gradient(circle at 35% 35%, #fff, #ccc); }
+.info {
+  background: var(--panel); padding: 12px 16px; border-radius: 8px;
+  min-width: 260px; flex: 1;
+}
+.info h2 { font-size: 1rem; margin-bottom: 8px; color: #7ec8e3; }
+.status-line { margin: 4px 0; font-size: 0.9rem; }
+.kifu {
+  margin-top: 10px; max-height: 220px; overflow-y: auto;
+  background: var(--accent); padding: 8px; border-radius: 4px;
+  font-family: monospace; font-size: 0.8rem; white-space: pre-wrap;
+}
+.error { color: #ff6b6b; font-weight: bold; }
+.score { font-size: 1.1rem; font-weight: bold; margin-top: 6px; }
+</style>
+</head>
+<body>
+<h1>Reversi Engine <span id="ver">v1.00</span></h1>
+<div class="controls">
+  <label>アプリ名 <input type="text" id="appName" maxlength="30" value="StrongReversi"></label>
+  <label>自分の色
+    <select id="myColor">
+      <option value="B">黒（先手）</option>
+      <option value="W">白（後手）</option>
+    </select>
+  </label>
+  <label>制限時間(秒) <input type="number" id="timeLimit" min="1" max="300" value="5"></label>
+  <button id="fileBtn">共有ファイル指定</button>
+  <button id="startBtn" disabled>スタート</button>
+</div>
+<div class="main">
+  <div class="board-wrap">
+    <div id="board"></div>
+  </div>
+  <div class="info">
+    <h2>状態</h2>
+    <div class="status-line">自分: <span id="myColorDisp">-</span></div>
+    <div class="status-line">状態: <span id="stateDisp">開始前</span></div>
+    <div class="status-line">黒: <span id="blackName">-</span> (<span id="blackCnt">2</span>)</div>
+    <div class="status-line">白: <span id="whiteName">-</span> (<span id="whiteCnt">2</span>)</div>
+    <div class="score" id="resultDisp"></div>
+    <div class="status-line error" id="errorDisp"></div>
+    <h2 style="margin-top:12px;">棋譜</h2>
+    <div class="kifu" id="kifuDisp"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const POS = [];
+for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) POS.push(r * 8 + c);
+const COLS = "abcdefgh";
+
+// Bitboard helpers (64-bit via BigInt)
+const ONE = 1n;
+const MASK = 0xffffffffffffffffn;
+function bit(sq) { return ONE << BigInt(sq); }
+function popcnt(x) {
+  let n = 0;
+  while (x) { n++; x &= x - 1n; }
+  return n;
+}
+function lsb(x) {
+  if (!x) return -1;
+  let i = 0;
+  while (!(x & (ONE << BigInt(i)))) i++;
+  return i;
+}
+
+// Precomputed masks
+const FILE_A = 0x0101010101010101n;
+const FILE_H = 0x8080808080808080n;
+const RANK_1 = 0x00000000000000ffn;
+const RANK_8 = 0xff00000000000000n;
+const CORNERS = 0x8100000000000081n;
+const X_SQUARES = 0x4200000000000042n;
+const C_SQUARES = 0x2400810000810024n;
+
+function shift(bb, dir) {
+  switch (dir) {
+    case 0: return (bb >> 9n) & ~FILE_H & MASK; // NW
+    case 1: return (bb >> 8n) & MASK;           // N
+    case 2: return (bb >> 7n) & ~FILE_A & MASK; // NE
+    case 3: return (bb >> 1n) & ~FILE_H & MASK; // W
+    case 4: return (bb << 1n) & ~FILE_A & MASK; // E
+    case 5: return (bb << 7n) & ~FILE_H & MASK; // SW
+    case 6: return (bb << 8n) & MASK;           // S
+    case 7: return (bb << 9n) & ~FILE_A & MASK; // SE
+  }
+  return 0n;
+}
+
+function genMoves(mine, opp) {
+  let moves = 0n;
+  const empty = ~(mine | opp) & MASK;
+  for (let d = 0; d < 8; d++) {
+    let t = shift(mine, d) & opp;
+    t |= shift(t, d) & opp;
+    t |= shift(t, d) & opp;
+    t |= shift(t, d) & opp;
+    t |= shift(t, d) & opp;
+    t |= shift(t, d) & opp;
+    moves |= shift(t, d) & empty;
+  }
+  return moves;
+}
+
+function makeMove(mine, opp, sq) {
+  const m = bit(sq);
+  let flips = 0n;
+  for (let d = 0; d < 8; d++) {
+    let t = 0n;
+    let s = shift(m, d);
+    while (s & opp) {
+      t |= s;
+      s = shift(s, d);
+    }
+    if (s & mine) flips |= t;
+  }
+  mine |= m | flips;
+  opp &= ~flips;
+  return [mine, opp];
+}
+
+function isLegal(mine, opp, sq) {
+  return !!(genMoves(mine, opp) & bit(sq));
+}
+
+// Evaluation
+const EDGE = [
+  0,1,2,3,4,5,6,7,
+  8,15,16,23,24,31,32,39,40,47,48,55,
+  56,57,58,59,60,61,62,63
+];
+const STAB_WEIGHT = 20;
+const MOB_WEIGHT = 12;
+const POT_MOB_WEIGHT = 4;
+const CORNER_W = 80;
+const X_W = -35;
+const C_W = -15;
+const DISC_W = [0, 1, 2, 3, 4, 6, 10, 20]; // by stage
+
+function edgeStability(mine, opp) {
+  // Simple edge stability approximation
+  let score = 0;
+  // Corners
+  if (mine & 0x01n) score += CORNER_W;
+  if (mine & 0x80n) score += CORNER_W;
+  if (mine & 0x0100000000000000n) score += CORNER_W;
+  if (mine & 0x8000000000000000n) score += CORNER_W;
+  if (opp & 0x01n) score -= CORNER_W;
+  if (opp & 0x80n) score -= CORNER_W;
+  if (opp & 0x0100000000000000n) score -= CORNER_W;
+  if (opp & 0x8000000000000000n) score -= CORNER_W;
+
+  // X-squares (dangerous if corner empty)
+  const emptyCorners = ~(mine | opp);
+  if (emptyCorners & 0x01n) {
+    if (mine & 0x0200n) score += X_W;
+    if (opp & 0x0200n) score -= X_W;
+  }
+  if (emptyCorners & 0x80n) {
+    if (mine & 0x4000n) score += X_W;
+    if (opp & 0x4000n) score -= X_W;
+  }
+  if (emptyCorners & 0x0100000000000000n) {
+    if (mine & 0x0002000000000000n) score += X_W;
+    if (opp & 0x0002000000000000n) score -= X_W;
+  }
+  if (emptyCorners & 0x8000000000000000n) {
+    if (mine & 0x0040000000000000n) score += X_W;
+    if (opp & 0x0040000000000000n) score -= X_W;
+  }
+  return score;
+}
+
+function potentialMobility(mine, opp) {
+  let pot = 0n;
+  const empty = ~(mine | opp) & MASK;
+  for (let d = 0; d < 8; d++) {
+    pot |= shift(opp, d) & empty;
+  }
+  return popcnt(pot);
+}
+
+function evaluate(mine, opp, stage) {
+  const mCnt = popcnt(mine);
+  const oCnt = popcnt(opp);
+  const empties = 64 - mCnt - oCnt;
+  if (empties === 0) return (mCnt - oCnt) * 1000;
+
+  const myMoves = popcnt(genMoves(mine, opp));
+  const opMoves = popcnt(genMoves(opp, mine));
+  if (myMoves === 0 && opMoves === 0) return (mCnt - oCnt) * 1000;
+
+  let score = 0;
+  score += edgeStability(mine, opp);
+  score += (myMoves - opMoves) * MOB_WEIGHT;
+  score += (potentialMobility(opp, mine) - potentialMobility(mine, opp)) * POT_MOB_WEIGHT;
+
+  // Disc difference weighted by stage
+  const dw = DISC_W[Math.min(7, Math.floor((64 - empties) / 8))];
+  score += (mCnt - oCnt) * dw;
+
+  // Parity (late game)
+  if (empties <= 12) {
+    score += (empties % 2 === 0 ? -8 : 8);
+  }
+  return score;
+}
+
+// Search
+let nodes = 0;
+let startTime = 0;
+let timeLimitMs = 5000;
+let stopSearch = false;
+
+function negamax(mine, opp, depth, alpha, beta, ply) {
+  nodes++;
+  if (stopSearch || (performance.now() - startTime > timeLimitMs)) {
+    stopSearch = true;
+    return evaluate(mine, opp, ply);
+  }
+  const moves = genMoves(mine, opp);
+  if (!moves) {
+    const opMoves = genMoves(opp, mine);
+    if (!opMoves) return evaluate(mine, opp, ply);
+    // pass
+    return -negamax(opp, mine, depth - 1, -beta, -alpha, ply + 1);
+  }
+  if (depth <= 0) return evaluate(mine, opp, ply);
+
+  // Move ordering: corners first, then high mobility reduction
+  let moveList = [];
+  let m = moves;
+  while (m) {
+    const sq = lsb(m);
+    m ^= bit(sq);
+    const [nm, no] = makeMove(mine, opp, sq);
+    const mob = popcnt(genMoves(no, nm));
+    let ord = 100 - mob;
+    if (bit(sq) & CORNERS) ord += 200;
+    if (bit(sq) & X_SQUARES) ord -= 50;
+    moveList.push({sq, ord, nm, no});
+  }
+  moveList.sort((a, b) => b.ord - a.ord);
+
+  let best = -999999;
+  for (const mv of moveList) {
+    const val = -negamax(mv.no, mv.nm, depth - 1, -beta, -alpha, ply + 1);
+    if (val > best) best = val;
+    if (best > alpha) alpha = best;
+    if (alpha >= beta) break;
+  }
+  return best;
+}
+
+function searchBest(mine, opp, maxDepth) {
+  nodes = 0;
+  startTime = performance.now();
+  stopSearch = false;
+  let bestSq = -1;
+  let bestVal = -999999;
+  const moves = genMoves(mine, opp);
+  if (!moves) return -1;
+
+  let moveList = [];
+  let m = moves;
+  while (m) {
+    const sq = lsb(m);
+    m ^= bit(sq);
+    moveList.push(sq);
+  }
+  // Prefer corners
+  moveList.sort((a, b) => {
+    const ca = (bit(a) & CORNERS) ? 1 : 0;
+    const cb = (bit(b) & CORNERS) ? 1 : 0;
+    return cb - ca;
+  });
+
+  for (let depth = 1; depth <= maxDepth; depth++) {
+    let localBest = -999999;
+    let localSq = moveList[0];
+    for (const sq of moveList) {
+      if (stopSearch) break;
+      const [nm, no] = makeMove(mine, opp, sq);
+      const val = -negamax(no, nm, depth - 1, -999999, 999999, 1);
+      if (val > localBest) {
+        localBest = val;
+        localSq = sq;
+      }
+    }
+    if (!stopSearch) {
+      bestSq = localSq;
+      bestVal = localBest;
+      // Move best to front for next iteration
+      moveList = [bestSq, ...moveList.filter(s => s !== bestSq)];
+    } else break;
+    if (performance.now() - startTime > timeLimitMs * 0.85) break;
+  }
+  return bestSq;
+}
+
+// Board state (array for UI + bitboards for search)
+let board = new Array(64).fill(0); // 0 empty, 1 black, 2 white
+let blackBB = 0n, whiteBB = 0n;
+let lastMove = -1;
+let myColor = 'B';
+let gameState = 'idle'; // idle, waiting, thinking, opponent, end, error
+let fileHandle = null;
+let writable = null;
+let pollTimer = null;
+let appName = 'StrongReversi';
+let blackApp = '', whiteApp = '';
+let kifuLines = [];
+let timeLimitSec = 5;
+
+function sqToStr(sq) {
+  if (sq < 0) return 'pass';
+  return COLS[sq % 8] + (Math.floor(sq / 8) + 1);
+}
+function strToSq(s) {
+  if (s === 'pass') return -1;
+  const c = s.charCodeAt(0) - 97;
+  const r = parseInt(s[1], 10) - 1;
+  if (c < 0 || c > 7 || r < 0 || r > 7) return -99;
+  return r * 8 + c;
+}
+
+function initBoard() {
+  board.fill(0);
+  board[27] = 2; board[28] = 1; board[35] = 1; board[36] = 2; // d4=W, e4=B, d5=B, e5=W
+  blackBB = bit(28) | bit(35);
+  whiteBB = bit(27) | bit(36);
+  lastMove = -1;
+}
+
+function syncBB() {
+  blackBB = 0n; whiteBB = 0n;
+  for (let i = 0; i < 64; i++) {
+    if (board[i] === 1) blackBB |= bit(i);
+    else if (board[i] === 2) whiteBB |= bit(i);
+  }
+}
+
+function countStones() {
+  let b = 0, w = 0;
+  for (let i = 0; i < 64; i++) {
+    if (board[i] === 1) b++;
+    else if (board[i] === 2) w++;
+  }
+  return [b, w];
+}
+
+function legalMoves(color) {
+  const mine = color === 'B' ? blackBB : whiteBB;
+  const opp = color === 'B' ? whiteBB : blackBB;
+  return genMoves(mine, opp);
+}
+
+function applyMove(color, sq) {
+  if (sq < 0) return true; // pass
+  const mine = color === 'B' ? blackBB : whiteBB;
+  const opp = color === 'B' ? whiteBB : blackBB;
+  if (!(genMoves(mine, opp) & bit(sq))) return false;
+  const [nm, no] = makeMove(mine, opp, sq);
+  if (color === 'B') { blackBB = nm; whiteBB = no; }
+  else { whiteBB = nm; blackBB = no; }
+  // update array
+  board[sq] = color === 'B' ? 1 : 2;
+  // flip
+  for (let d = 0; d < 8; d++) {
+    let flips = [];
+    let r = Math.floor(sq / 8) + DIRS[d][0];
+    let c = (sq % 8) + DIRS[d][1];
+    while (r >= 0 && r < 8 && c >= 0 && c < 8) {
+      const p = r * 8 + c;
+      if (board[p] === 0) break;
+      if (board[p] === (color === 'B' ? 1 : 2)) {
+        for (const f of flips) board[f] = color === 'B' ? 1 : 2;
+        break;
+      }
+      flips.push(p);
+      r += DIRS[d][0]; c += DIRS[d][1];
+    }
+  }
+  lastMove = sq;
+  return true;
+}
+
+function bothCannotMove() {
+  return !legalMoves('B') && !legalMoves('W');
+}
+
+function renderBoard() {
+  const el = document.getElementById('board');
+  el.innerHTML = '';
+  for (let i = 0; i < 64; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell' + (i === lastMove ? ' last' : '');
+    if (board[i] === 1) {
+      const d = document.createElement('div'); d.className = 'disc B'; cell.appendChild(d);
+    } else if (board[i] === 2) {
+      const d = document.createElement('div'); d.className = 'disc W'; cell.appendChild(d);
+    }
+    el.appendChild(cell);
+  }
+  const [bc, wc] = countStones();
+  document.getElementById('blackCnt').textContent = bc;
+  document.getElementById('whiteCnt').textContent = wc;
+}
+
+function setState(s) {
+  gameState = s;
+  const map = { idle: '開始前', waiting: '相手待ち', thinking: '自分の番', opponent: '相手の番', end: '終局', error: 'エラー' };
+  document.getElementById('stateDisp').textContent = map[s] || s;
+}
+
+function showError(msg) {
+  setState('error');
+  document.getElementById('errorDisp').textContent = msg;
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+function updateNames() {
+  document.getElementById('blackName').textContent = blackApp || '-';
+  document.getElementById('whiteName').textContent = whiteApp || '-';
+  document.getElementById('myColorDisp').textContent = myColor === 'B' ? '黒' : '白';
+}
+
+function updateKifu() {
+  document.getElementById('kifuDisp').textContent = kifuLines.join('\n');
+}
+
+// File I/O
+async function readFile() {
+  if (!fileHandle) return null;
+  const file = await fileHandle.getFile();
+  const text = await file.text();
+  return text;
+}
+
+async function appendLine(line) {
+  if (!fileHandle) throw new Error('no file');
+
+  const maxRetry = 8;
+  for (let i = 0; i < maxRetry; i++) {
+    try {
+      // 追記モード（全体書き換えをやめる）
+      const w = await fileHandle.createWritable({ keepExistingData: true });
+      const file = await fileHandle.getFile();
+      await w.seek(file.size);
+      await w.write(line + '\n');
+      await w.close();
+      return; // 成功
+    } catch (e) {
+      const msg = e.message || '';
+      // よくある競合エラーなら少し待ってリトライ
+      if (msg.includes('state had changed') || 
+          msg.includes('cached') || 
+          msg.includes('InvalidStateError') ||
+          e.name === 'InvalidStateError') {
+        await new Promise(r => setTimeout(r, 30 + Math.random() * 80));
+        continue;
+      }
+      throw e; // 別のエラーはそのまま投げる
+    }
+  }
+  throw new Error('書き込みリトライ上限超過（競合が続いている）');
+}
+
+function parseLines(text) {
+  if (!text) return [];
+  const lines = text.split('\n');
+  // 最後が不完全な行なら捨てる
+  if (text.length && !text.endsWith('\n')) {
+    lines.pop();
+  }
+  return lines.filter(l => l.length > 0);
+}
+
+async function poll() {
+  if (gameState === 'error' || gameState === 'end' || gameState === 'idle') return;
+  try {
+    const text = await readFile();
+    const lines = parseLines(text || '');
+    processLines(lines);
+  } catch (e) {
+    showError('ファイル読み込みエラー: ' + e.message);
+  }
+}
+
+function processLines(lines) {
+  // Validate header if present
+  if (lines.length >= 1 && lines[0] !== 'OTHELLO v1.00') {
+    showError('不正な見出し: ' + lines[0]);
+    return;
+  }
+  if (lines.length >= 2 && !lines[1].startsWith('B ')) {
+    showError('不正な先手行');
+    return;
+  }
+  if (lines.length >= 3 && !lines[2].startsWith('W ')) {
+    showError('不正な後手行');
+    return;
+  }
+
+  // Update names
+  if (lines.length >= 2) blackApp = lines[1].substring(2).trim();
+  if (lines.length >= 3) whiteApp = lines[2].substring(2).trim();
+  updateNames();
+
+  // Reconstruct board from moves
+  initBoard();
+  kifuLines = lines.slice();
+  let expect = 'B';
+  let moveStart = 3;
+  for (let i = 3; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith('END ')) {
+      // End
+      const parts = line.split(' ');
+      if (parts.length !== 4) { showError('不正なEND行'); return; }
+      const winner = parts[1];
+      const bc = parseInt(parts[2], 10);
+      const wc = parseInt(parts[3], 10);
+      const [rb, rw] = countStones();
+      if (myColor === 'W') {
+        if (rb !== bc || rw !== wc) {
+          showError(`石数不一致: 記録 ${bc}-${wc} 実際 ${rb}-${rw}`);
+          return;
+        }
+      }
+      setState('end');
+      let res = '';
+      if (winner === 'B') res = `黒の勝ち ${bc} - ${wc}`;
+      else if (winner === 'W') res = `白の勝ち ${bc} - ${wc}`;
+      else res = `引き分け ${bc} - ${wc}`;
+      document.getElementById('resultDisp').textContent = res;
+      updateKifu();
+      renderBoard();
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      return;
+    }
+    if (line.endsWith(' pass')) {
+      const col = line[0];
+      if (col !== expect) { showError('手番色が交互でない: ' + line); return; }
+      // pass ok
+      expect = expect === 'B' ? 'W' : 'B';
+      continue;
+    }
+    // move
+    const parts = line.split(' ');
+    if (parts.length !== 2) { showError('不正な着手行: ' + line); return; }
+    const col = parts[0];
+    const sq = strToSq(parts[1]);
+    if (col !== expect) { showError('手番色が交互でない: ' + line); return; }
+    if (sq === -99) { showError('不正なマス: ' + parts[1]); return; }
+    if (!applyMove(col, sq)) {
+      showError('非合法手: ' + line);
+      return;
+    }
+    expect = expect === 'B' ? 'W' : 'B';
+  }
+  updateKifu();
+  renderBoard();
+
+  // Decide action
+  if (gameState === 'end' || gameState === 'error') return;
+
+  const moveCount = lines.length - 3; // moves + passes
+  const nextIsBlack = (moveCount % 2 === 0);
+
+  if (myColor === 'B') {
+    // Black is responsible for start and END
+    if (lines.length === 0) {
+      // We should have written header already on start
+      return;
+    }
+    if (lines.length === 1) {
+      // waiting for W name? No, we write B name at start
+      return;
+    }
+    if (lines.length === 2) {
+      // waiting for W name
+      setState('waiting');
+      return;
+    }
+    if (lines.length === 3) {
+      // time for first move
+      doMyMove();
+      return;
+    }
+    // After our move or after reading opponent
+    if (nextIsBlack && expect === 'B') {
+      // Check end condition after opponent move or our previous
+      if (bothCannotMove()) {
+        writeEnd();
+        return;
+      }
+      doMyMove();
+    } else {
+      setState('opponent');
+    }
+  } else {
+    // White
+    if (lines.length < 2) {
+      setState('waiting');
+      return;
+    }
+    if (lines.length === 2) {
+      // write our name
+      writeWhiteName();
+      return;
+    }
+    if (lines.length === 3) {
+      // wait for black first move
+      setState('opponent');
+      return;
+    }
+    if (!nextIsBlack && expect === 'W') {
+      if (bothCannotMove()) {
+        // wait for END
+        setState('waiting');
+        return;
+      }
+      doMyMove();
+    } else {
+      setState('opponent');
+    }
+  }
+}
+
+async function writeHeaderAndName() {
+  try {
+    const text = await readFile();
+    if (text && text.trim().length > 0) {
+      showError('ファイルが空ではありません');
+      return false;
+    }
+    const name = appName.trim().substring(0, 30);
+    await appendLine('OTHELLO v1.00');
+    await appendLine('B ' + name);
+    blackApp = name;
+    updateNames();
+    return true;
+  } catch (e) {
+    showError('書き込みエラー: ' + e.message);
+    return false;
+  }
+}
+
+async function writeWhiteName() {
+  try {
+    const name = appName.trim().substring(0, 30);
+    await appendLine('W ' + name);
+    whiteApp = name;
+    updateNames();
+    setState('opponent');
+  } catch (e) {
+    showError('書き込みエラー: ' + e.message);
+  }
+}
+
+async function writeEnd() {
+  const [bc, wc] = countStones();
+  let winner = 'D';
+  if (bc > wc) winner = 'B';
+  else if (wc > bc) winner = 'W';
+  const line = `END ${winner} ${bc} ${wc}`;
+  try {
+    await appendLine(line);
+    kifuLines.push(line);
+    setState('end');
+    let res = '';
+    if (winner === 'B') res = `黒の勝ち ${bc} - ${wc}`;
+    else if (winner === 'W') res = `白の勝ち ${bc} - ${wc}`;
+    else res = `引き分け ${bc} - ${wc}`;
+    document.getElementById('resultDisp').textContent = res;
+    updateKifu();
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  } catch (e) {
+    showError('END書き込みエラー: ' + e.message);
+  }
+}
+
+async function doMyMove() {
+  if (gameState === 'thinking' || gameState === 'end' || gameState === 'error') return;
+  setState('thinking');
+  const mine = myColor === 'B' ? blackBB : whiteBB;
+  const opp = myColor === 'B' ? whiteBB : blackBB;
+  const moves = genMoves(mine, opp);
+  let sq = -1;
+  if (moves) {
+    // Determine depth based on time and empties
+    const empties = 64 - popcnt(mine) - popcnt(opp);
+    let maxD = 8;
+    if (empties <= 12) maxD = 16;
+    else if (empties <= 16) maxD = 12;
+    else if (timeLimitSec >= 10) maxD = 10;
+    else if (timeLimitSec >= 5) maxD = 9;
+    else maxD = 7;
+    timeLimitMs = timeLimitSec * 1000 * 0.92;
+    sq = searchBest(mine, opp, maxD);
+    if (sq < 0) {
+      // fallback any legal
+      sq = lsb(moves);
+    }
+  } else {
+    // must pass if opponent can move, else end (black only)
+    if (myColor === 'B' && bothCannotMove()) {
+      writeEnd();
+      return;
+    }
+    // pass
+    sq = -1;
+  }
+
+  const col = myColor;
+  const line = sq < 0 ? `${col} pass` : `${col} ${sqToStr(sq)}`;
+  try {
+    await appendLine(line);
+    if (sq >= 0) applyMove(col, sq);
+    lastMove = sq;
+    kifuLines.push(line);
+    updateKifu();
+    renderBoard();
+
+    // After our move, black checks end
+    if (myColor === 'B') {
+      if (bothCannotMove()) {
+        writeEnd();
+        return;
+      }
+    }
+    setState('opponent');
+  } catch (e) {
+    showError('着手書き込みエラー: ' + e.message);
+  }
+}
+
+// UI events
+document.getElementById('fileBtn').addEventListener('click', async () => {
+  try {
+    [fileHandle] = await window.showOpenFilePicker({
+      types: [{ description: 'Text', accept: { 'text/plain': ['.txt'] } }],
+      multiple: false
+    });
+    // Request readwrite
+    const perm = await fileHandle.requestPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') {
+      showError('ファイル書き込み権限がありません');
+      fileHandle = null;
+      return;
+    }
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('errorDisp').textContent = '';
+  } catch (e) {
+    if (e.name !== 'AbortError') showError('ファイル選択エラー: ' + e.message);
+  }
+});
+
+document.getElementById('startBtn').addEventListener('click', async () => {
+  if (!fileHandle) return;
+  appName = document.getElementById('appName').value.trim() || 'StrongReversi';
+  if (appName.length < 1 || appName.length > 30) {
+    showError('アプリ名は1〜30文字');
+    return;
+  }
+  myColor = document.getElementById('myColor').value;
+  timeLimitSec = Math.max(1, Math.min(300, parseInt(document.getElementById('timeLimit').value, 10) || 5));
+  document.getElementById('errorDisp').textContent = '';
+  document.getElementById('resultDisp').textContent = '';
+  kifuLines = [];
+  initBoard();
+  renderBoard();
+  updateNames();
+  setState('waiting');
+
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(poll, 1000);
+
+  if (myColor === 'B') {
+    const ok = await writeHeaderAndName();
+    if (!ok) return;
+    // Now wait for white name, then we move
+  } else {
+    // Wait for header + black name
+  }
+});
+
+// Initial render
+initBoard();
+renderBoard();
+updateNames();
+})();
+</script>
+</body>
+</html>

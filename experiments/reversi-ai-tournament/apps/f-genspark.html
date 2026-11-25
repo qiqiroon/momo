@@ -1,0 +1,1361 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reversi Mind v1.00</title>
+<style>
+  :root{
+    --bg:#0f1520; --panel:#18212e; --panel2:#1f2a3a; --line:#2b3a4f;
+    --txt:#e8eef7; --dim:#93a4bb; --acc:#4ea8ff; --green:#2f8f63;
+    --green2:#26744f; --ok:#3ddc84; --err:#ff6b6b; --warn:#ffc857;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 600px at 20% -10%,#1b2740 0%,var(--bg) 55%);
+    color:var(--txt); min-height:100vh;
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:14px; line-height:1.5;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:20px 16px 40px}
+  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px;
+    padding-bottom:12px;border-bottom:1px solid var(--line)}
+  header h1{font-size:20px;margin:0;letter-spacing:.02em}
+  #appTitle{font-size:20px;font-weight:700;color:#fff}
+  .badge{font-size:12px;padding:2px 8px;border-radius:999px;background:#233149;color:var(--dim);
+    border:1px solid var(--line)}
+  .layout{display:grid;grid-template-columns:360px 1fr;gap:18px;align-items:start}
+  @media (max-width:900px){.layout{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .panel h2{font-size:13px;margin:0 0 10px;color:var(--dim);font-weight:600;letter-spacing:.08em}
+  .field{margin-bottom:14px}
+  .field > label.lbl{display:block;font-size:12px;color:var(--dim);margin-bottom:5px}
+  input[type=text],input[type=number]{
+    width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--line);
+    background:#0e1622;color:var(--txt);font-size:14px;font-family:inherit;outline:none;
+  }
+  input[type=text]:focus,input[type=number]:focus{border-color:var(--acc)}
+  input:disabled{opacity:.55}
+  .radios{display:flex;gap:10px}
+  .radios label{flex:1;display:flex;align-items:center;gap:7px;padding:9px 10px;border:1px solid var(--line);
+    border-radius:8px;background:#0e1622;cursor:pointer;font-size:13px}
+  .radios label:hover{border-color:#3b5273}
+  .radios input{accent-color:var(--acc)}
+  .row2{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+  button{
+    font-family:inherit;font-size:13px;padding:9px 14px;border-radius:8px;cursor:pointer;
+    border:1px solid var(--line);background:var(--panel2);color:var(--txt);
+  }
+  button:hover{border-color:#3b5273;background:#26334a}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  #btnStart{width:100%;padding:12px;font-size:15px;font-weight:700;border:none;
+    background:linear-gradient(180deg,#4ea8ff,#2f7fd6);color:#04121f;margin-top:6px}
+  #btnStart:hover{filter:brightness(1.08)}
+  #btnStart:disabled{background:#2b3a4f;color:#7d8ea6;filter:none}
+  .file-name{font-size:12px;color:var(--dim);margin-top:7px;word-break:break-all}
+  .file-name.ok{color:var(--ok)}
+  .message{margin-top:12px;font-size:13px;min-height:20px;color:var(--dim)}
+  .message.info{color:var(--acc)}
+  .message.ok{color:var(--ok);font-weight:600}
+  .message.err{color:var(--err);font-weight:600}
+
+  /* ---------- board ---------- */
+  .boardwrap{display:flex;justify-content:center}
+  #board{
+    display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);
+    width:min(78vw,520px);height:min(78vw,520px);
+    background:var(--green);border:6px solid #1b5c40;border-radius:8px;
+    box-shadow:0 12px 30px rgba(0,0,0,.45), inset 0 0 60px rgba(0,0,0,.2);
+    gap:0;
+  }
+  .cell{position:relative;display:flex;align-items:center;justify-content:center;
+    border:1px solid rgba(0,0,0,.22)}
+  .cell.last::before{
+    content:"";position:absolute;inset:0;border:3px solid var(--warn);
+    background:rgba(255,200,87,.16);border-radius:2px;
+  }
+  .disc-slot{width:80%;height:80%;border-radius:50%;display:flex;align-items:center;justify-content:center}
+  .disc{width:86%;height:86%;border-radius:50%;position:relative}
+  .disc.black{background:radial-gradient(circle at 34% 30%,#5b6472 0%,#171b22 55%,#000 100%);
+    box-shadow:0 3px 6px rgba(0,0,0,.55), inset 0 -2px 4px rgba(0,0,0,.6);}
+  .disc.white{background:radial-gradient(circle at 34% 30%,#ffffff 0%,#e6e9ee 52%,#b9c1cc 100%);
+    box-shadow:0 3px 6px rgba(0,0,0,.45), inset 0 -2px 4px rgba(0,0,0,.18);}
+
+  /* ---------- status ---------- */
+  .statusbar{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+  @media (max-width:640px){.statusbar{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .stat .k{font-size:11px;color:var(--dim);letter-spacing:.06em}
+  .stat .v{font-size:15px;font-weight:700;margin-top:3px}
+  .state.s-before{color:var(--dim)}
+  .state.s-myturn,.state.s-thinking{color:var(--acc)}
+  .state.s-oppturn{color:var(--warn)}
+  .state.s-ended{color:var(--ok)}
+  .state.s-error{color:var(--err)}
+
+  .players{margin-top:12px;display:grid;gap:8px}
+  .prow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;
+    background:var(--panel);border:1px solid var(--line);font-size:14px}
+  .prow.me{border-color:var(--acc);background:#16283e}
+  .pdot{width:14px;height:14px;border-radius:50%;flex:none}
+  .pdot.b{background:#111;border:1px solid #555}
+  .pdot.w{background:#fff}
+  .prow .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prow .cnt{font-variant-numeric:tabular-nums;font-weight:700}
+  #resultBox{margin-top:10px;font-size:15px;font-weight:700;color:var(--ok);min-height:22px}
+
+  /* ---------- move list ---------- */
+  #movelist{list-style:none;margin:0;padding:0;max-height:230px;overflow-y:auto;
+    background:#0e1622;border:1px solid var(--line);border-radius:9px}
+  #movelist li{display:flex;align-items:center;gap:10px;padding:5px 10px;
+    border-bottom:1px solid rgba(255,255,255,.04);font-size:13px}
+  #movelist li:last-child{border-bottom:none}
+  #movelist li.empty{color:var(--dim);justify-content:center;padding:14px}
+  #movelist .no{width:26px;color:var(--dim);text-align:right;font-variant-numeric:tabular-nums}
+  #movelist .clr{width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;flex:none}
+  #movelist .clr.c-b{background:#111;color:#fff;border:1px solid #666}
+  #movelist .clr.c-w{background:#fff;color:#111}
+  #movelist .mv{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em}
+  .hint{font-size:11.5px;color:var(--dim);margin-top:8px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div id="appTitle">（未記入） v1.00</div>
+    <span class="badge">オセロ自動対戦</span>
+    <span class="badge" id="verBadge">バージョン v1.00</span>
+  </header>
+
+  <div class="layout">
+    <!-- ============ left : settings ============ -->
+    <div>
+      <div class="panel">
+        <h2>設定</h2>
+
+        <div class="field">
+          <label class="lbl" for="appName">アプリ名（1〜30文字）</label>
+          <input type="text" id="appName" maxlength="30" placeholder="例：Reversi Mind" autocomplete="off">
+        </div>
+
+        <div class="field">
+          <span class="lbl">自分の色</span>
+          <div class="radios">
+            <label><input type="radio" name="color" id="colorB" value="1" checked> 黒（先手）</label>
+            <label><input type="radio" name="color" id="colorW" value="2"> 白（後手）</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="lbl" for="timeLimit">1手の制限時間（秒）</label>
+          <input type="number" id="timeLimit" value="3" min="0.2" max="600" step="0.1">
+        </div>
+
+        <div class="field">
+          <span class="lbl">共有ファイル（空ファイルを指定）</span>
+          <div class="row2">
+            <button id="btnFile" type="button">ファイルを指定</button>
+            <span id="fileName" class="file-name">未指定</span>
+          </div>
+        </div>
+
+        <button id="btnStart" type="button">スタート</button>
+        <div id="message" class="message"></div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h2>棋譜（着手一覧）</h2>
+        <ul id="movelist"><li class="empty">（まだ着手はありません）</li></ul>
+        <div class="hint">アプリ名・色・ファイルを決めてスタートを押すと対局を開始します。終局またはエラーで停止中に、新しい空ファイルを指定してスタートを押すと再試合になります。</div>
+      </div>
+    </div>
+
+    <!-- ============ right : board & status ============ -->
+    <div>
+      <div class="panel">
+        <h2>盤面</h2>
+        <div class="boardwrap"><div id="board"></div></div>
+
+        <div class="statusbar">
+          <div class="stat"><div class="k">自分の色</div><div class="v" id="stColor">未選択</div></div>
+          <div class="stat"><div class="k">状態</div><div class="v state s-before" id="stState">開始前</div></div>
+          <div class="stat"><div class="k">空きマス</div><div class="v" id="stEmpty">60</div></div>
+          <div class="stat"><div class="k">探索ノード</div><div class="v" id="stNodes">0</div></div>
+        </div>
+
+        <div class="players">
+          <div class="prow" id="rowBlack">
+            <span class="pdot b"></span>
+            <span class="nm" id="stBlack">—</span>
+            <span class="cnt"></span>
+          </div>
+          <div class="prow" id="rowWhite">
+            <span class="pdot w"></span>
+            <span class="nm" id="stWhite">—</span>
+            <span class="cnt"></span>
+          </div>
+        </div>
+        <div id="resultBox"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= Othello search engine (bitboard, 64bit as 2x32) =================
+   squares: 0..63, sq = row*8 + col ; row 0 = rank 1 (top), col 0 = file a (left)
+   bits 0..31 in LO word, 32..63 in HI word
+=================================================================================== */
+(function (global) {
+  'use strict';
+
+  var INF = 100000000;
+  var _l = 0, _h = 0;
+  var FL = 0, FH = 0;
+  var ML = 0, MH = 0;
+  var EL = 0, EH = 0;
+
+  /* shift a square by -8 (up one row)  [row4->row3 crosses LO/HI] */
+  function sN(l, h) {
+    _l = ((l >>> 8) | ((h & 0xFF) << 24)) | 0;
+    _h = (h >>> 8) | 0;
+  }
+  /* +8 */
+  function sS(l, h) {
+    _l = (l << 8) | 0;
+    _h = ((h << 8) | (l >>> 24)) | 0;
+  }
+  /* +1 : source must not be on file h (col 7) -> mask 0x7F7F7F7F */
+  function sE(l, h) {
+    _l = ((l & 0x7F7F7F7F) << 1) | 0;
+    _h = ((h & 0x7F7F7F7F) << 1) | 0;
+  }
+  /* -1 : mask result so col 7 stays empty */
+  function sW(l, h) {
+    _l = ((l >>> 1) & 0x7F7F7F7F) | 0;
+    _h = ((h >>> 1) & 0x7F7F7F7F) | 0;
+  }
+  function sNE(l, h) { sN(l, h); var a = _l, b = _h; sE(a, b); }
+  function sNW(l, h) { sN(l, h); var a = _l, b = _h; sW(a, b); }
+  function sSE(l, h) { sS(l, h); var a = _l, b = _h; sE(a, b); }
+  function sSW(l, h) { sS(l, h); var a = _l, b = _h; sW(a, b); }
+
+  var DIRS = [sN, sS, sE, sW, sNE, sNW, sSE, sSW];
+
+  function pc(x) {
+    x = x >>> 0;
+    x = x - ((x >>> 1) & 0x55555555);
+    x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
+    x = (x + (x >>> 4)) & 0x0F0F0F0F;
+    return ((x + (x >>> 8) + (x >>> 16) + (x >>> 24)) & 0xFF);
+  }
+  function pcs(l, h) { return pc(l) + pc(h); }
+
+  /* ---------- move generation ---------- */
+  function genMoves(pl, ph, ol, oh) {
+    var eL = ~(pl | ol), eH = ~(ph | oh);
+    var mL = 0, mH = 0, d, k, f;
+    for (d = 0; d < 8; d++) {
+      f = DIRS[d];
+      f(pl, ph);
+      var al = _l & ol, ah = _h & oh;
+      if ((al | ah) === 0) continue;
+      var accL = al, accH = ah;
+      for (k = 0; k < 5; k++) {
+        f(al, ah);
+        al = _l & ol; ah = _h & oh;
+        if ((al | ah) === 0) break;
+        accL |= al; accH |= ah;
+      }
+      f(accL, accH);
+      mL |= (_l & eL); mH |= (_h & eH);
+    }
+    ML = mL; MH = mH;
+  }
+
+  /* ---------- flips for a single move ---------- */
+  function calcFlips(pl, ph, ol, oh, sqL, sqH) {
+    var fl = 0, fh = 0, d, k, f;
+    for (d = 0; d < 8; d++) {
+      f = DIRS[d];
+      f(sqL, sqH);
+      var tl = _l & ol, th = _h & oh;
+      if ((tl | th) === 0) continue;
+      var accL = tl, accH = th;
+      for (k = 0; k < 5; k++) {
+        f(tl, th);
+        tl = _l & ol; th = _h & oh;
+        if ((tl | th) === 0) break;
+        accL |= tl; accH |= th;
+      }
+      f(accL, accH);
+      if (((_l & pl) | (_h & ph)) !== 0) { fl |= accL; fh |= accH; }
+    }
+    FL = fl; FH = fh;
+  }
+
+  function expandSet(l, h) {
+    var rl = 0, rh = 0;
+    sN(l, h); rl |= _l; rh |= _h;
+    sS(l, h); rl |= _l; rh |= _h;
+    sE(l, h); rl |= _l; rh |= _h;
+    sW(l, h); rl |= _l; rh |= _h;
+    sNE(l, h); rl |= _l; rh |= _h;
+    sNW(l, h); rl |= _l; rh |= _h;
+    sSE(l, h); rl |= _l; rh |= _h;
+    sSW(l, h); rl |= _l; rh |= _h;
+    EL = rl; EH = rh;
+  }
+
+  /* ---------- evaluation ---------- */
+  var COR_L = 0x00000081, COR_H = 0x81000000;
+  var XC_L = 0x0000C342, XC_H = 0x82C30000;
+
+  function evalState(pl, ph, ol, oh) {
+    var eL = ~(pl | ol), eH = ~(ph | oh);
+    var myN = pcs(pl, ph), opN = pcs(ol, oh);
+    var empties = 64 - myN - opN;
+
+    genMoves(pl, ph, ol, oh);
+    var myMob = pcs(ML, MH);
+    genMoves(ol, oh, pl, ph);
+    var opMob = pcs(ML, MH);
+
+    expandSet(eL, eH);
+    var adjL = EL, adjH = EH;
+    var myFront = pcs(pl & adjL, ph & adjH);
+    var opFront = pcs(ol & adjL, oh & adjH);
+
+    var myCor = pcs(pl & COR_L, ph & COR_H);
+    var opCor = pcs(ol & COR_L, oh & COR_H);
+    var myXC = pcs(pl & XC_L, ph & XC_H);
+    var opXC = pcs(ol & XC_L, oh & XC_H);
+
+    var t = empties / 60; if (t > 1) t = 1; if (t < 0) t = 0;
+    var wMob = 6 + 9 * t;
+    var wFront = 3 + 4 * t;
+    var wCor = 30;
+    var wXC = 5 + 7 * t;
+    var wDisc = 0.4 + 3.6 * (1 - t) * (1 - t);
+
+    var s = 0;
+    expandSet(ol, oh);
+    var pmOpL = EL & eL, pmOpH = EH & eH;
+    expandSet(pl, ph);
+    var pmMeL = EL & eL, pmMeH = EH & eH;
+    var pmMe = pcs(pmMeL, pmMeH), pmOp = pcs(pmOpL, pmOpH);
+    var wPM = 2 + 3 * t;
+    s += (pmMe - pmOp) * wPM;
+    s += (myCor - opCor) * wCor;
+    s += (myMob - opMob) * wMob;
+    s += (opFront - myFront) * wFront;
+    s += (opXC - myXC) * wXC;
+    s += (myN - opN) * wDisc;
+    return Math.round(s);
+  }
+
+  /* ---------- zobrist ---------- */
+  var Z1 = [new Int32Array(64), new Int32Array(64)];
+  var Z2 = [new Int32Array(64), new Int32Array(64)];
+  (function () {
+    var seed = 0x1a2b3c4d;
+    function rnd() {
+      seed ^= seed << 13; seed |= 0;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;  seed |= 0;
+      return seed | 0;
+    }
+    for (var c = 0; c < 2; c++) {
+      for (var i = 0; i < 64; i++) { Z1[c][i] = rnd(); Z2[c][i] = rnd(); }
+    }
+  })();
+
+  /* ---------- transposition table ---------- */
+  var TT_BITS = 19, TT_SIZE = 1 << TT_BITS, TT_MASK = TT_SIZE - 1;
+  var ttKey = new Int32Array(TT_SIZE);
+  var ttDepth = new Int8Array(TT_SIZE);
+  var ttFlag = new Int8Array(TT_SIZE);
+  var ttVal = new Int32Array(TT_SIZE);
+  var ttMove = new Int8Array(TT_SIZE);
+
+  var HISTORY = new Int32Array(64);
+  var killer1 = new Int8Array(128);
+  var killer2 = new Int8Array(128);
+  var MOVE_STACK = new Int8Array(128 * 40);
+
+  /* ---------- square priority order ---------- */
+  var ORDER = new Int32Array(64);
+  (function () {
+    var vals = [], i;
+    function cls(sq) {
+      var x = sq % 8, y = (sq - x) / 8;
+      var corner = (x === 0 || x === 7) && (y === 0 || y === 7);
+      if (corner) return 100;
+      var xc = ((x === 1 || x === 6) && (y === 0 || y === 7)) ||
+               ((y === 1 || y === 6) && (x === 0 || x === 7));
+      if (xc) return -20;
+      var edge = (x === 0 || x === 7 || y === 0 || y === 7);
+      if (edge) return 40;
+      var cd = Math.abs(x - 3.5) + Math.abs(y - 3.5);
+      return 26 - cd * 3;
+    }
+    for (i = 0; i < 64; i++) vals.push(i);
+    vals.sort(function (a, b) { return (cls(b) - cls(a)) || (a - b); });
+    for (i = 0; i < 64; i++) ORDER[i] = vals[i];
+  })();
+
+  var nodes = 0, deadline = 0, aborted = false;
+  var nowMs = (typeof performance !== 'undefined' && performance.now)
+    ? function () { return performance.now(); }
+    : function () { return Date.now(); };
+
+  var ENDGAME_CUT = 12;
+
+  function buildMoveList(mL, mH, ttsq, k1, k2, off) {
+    var n = 0, i, sq, bl, bh, tmp;
+    for (i = 0; i < 64; i++) {
+      sq = ORDER[i];
+      if (sq < 32) { bl = 1 << sq; bh = 0; } else { bl = 0; bh = 1 << (sq - 32); }
+      if (((mL & bl) | (mH & bh)) !== 0) { MOVE_STACK[off + n] = sq; n++; }
+    }
+    if (n > 1) {
+      if (ttsq >= 0) {
+        for (i = 1; i < n; i++) if (MOVE_STACK[off + i] === ttsq) {
+          tmp = MOVE_STACK[off + i]; MOVE_STACK[off + i] = MOVE_STACK[off]; MOVE_STACK[off] = tmp; break;
+        }
+      }
+      if (k1 >= 0) {
+        for (i = 1; i < n; i++) if (MOVE_STACK[off + i] === k1) {
+          tmp = MOVE_STACK[off + i]; MOVE_STACK[off + i] = MOVE_STACK[off + 1]; MOVE_STACK[off + 1] = tmp; break;
+        }
+      }
+      if (k2 >= 0) {
+        for (i = 2; i < n; i++) if (MOVE_STACK[off + i] === k2) {
+          tmp = MOVE_STACK[off + i]; MOVE_STACK[off + i] = MOVE_STACK[off + 2]; MOVE_STACK[off + 2] = tmp; break;
+        }
+      }
+    }
+    return n;
+  }
+
+  function search(pl, ph, ol, oh, h1, h2, side, depth, alpha, beta, ply) {
+    nodes++;
+    if ((nodes & 511) === 0 && nowMs() > deadline) aborted = true;
+    if (aborted) return 0;
+
+    var empties = 64 - pcs(pl | ol, ph | oh);
+
+    var k1h = (h1 ^ (side ? 0x9E3779B9 : 0)) | 0;
+    var k2h = (h2 ^ (side ? 0x85EBCA6B : 0)) | 0;
+    var idx = k1h & TT_MASK;
+    var ttsq = -1;
+    if (ttFlag[idx] !== 0 && ttKey[idx] === k2h) {
+      ttsq = ttMove[idx];
+      if (ttDepth[idx] >= depth) {
+        var tv = ttVal[idx], tf = ttFlag[idx];
+        if (tf === 1) return tv;
+        if (tf === 2) { if (tv >= beta) return tv; }
+        else if (tf === 3) { if (tv <= alpha) return tv; }
+      }
+    }
+
+    var alphaOrig = alpha;
+
+    genMoves(pl, ph, ol, oh);
+    var mL = ML, mH = MH;
+    if ((mL | mH) === 0) {
+      genMoves(ol, oh, pl, ph);
+      if ((ML | MH) === 0) {
+        return (pcs(pl, ph) - pcs(ol, oh)) * 1000;
+      }
+      return -search(ol, oh, pl, ph, h1, h2, 1 - side, depth - 1, -beta, -alpha, ply + 1);
+    }
+
+    if (empties <= ENDGAME_CUT) {
+      var full = empties + 2;
+      if (depth < full) depth = full;
+      if (depth > 120) depth = 120;
+    } else if (depth <= 0) {
+      return evalState(pl, ph, ol, oh);
+    }
+    if (depth > 120) depth = 120;
+
+    var off = ply * 40;
+    var n = buildMoveList(mL, mH, ttsq, killer1[ply], killer2[ply], off);
+
+    var best = -INF, bestSq = -1, tried = 0;
+    var i, sq, bl, bh, flL, flH, nPl, nPh, nOl, nOh, nh1, nh2, sc, b, s2, t, tt;
+
+    for (i = 0; i < n; i++) {
+      sq = MOVE_STACK[off + i];
+      if (sq < 32) { bl = 1 << sq; bh = 0; } else { bl = 0; bh = 1 << (sq - 32); }
+
+      calcFlips(pl, ph, ol, oh, bl, bh);
+      flL = FL; flH = FH;
+      nPl = (pl | flL | bl) | 0; nPh = (ph | flH | bh) | 0;
+      nOl = (ol & ~flL) | 0;     nOh = (oh & ~flH) | 0;
+
+      nh1 = h1 ^ Z1[side][sq];
+      nh2 = h2 ^ Z2[side][sq];
+      tt = flL;
+      while (tt !== 0) {
+        b = tt & -tt; s2 = 31 - Math.clz32(b);
+        nh1 ^= Z1[1 - side][s2] ^ Z1[side][s2];
+        nh2 ^= Z2[1 - side][s2] ^ Z2[side][s2];
+        tt ^= b;
+      }
+      tt = flH;
+      while (tt !== 0) {
+        b = tt & -tt; s2 = 31 - Math.clz32(b) + 32;
+        nh1 ^= Z1[1 - side][s2] ^ Z1[side][s2];
+        nh2 ^= Z2[1 - side][s2] ^ Z2[side][s2];
+        tt ^= b;
+      }
+
+      if (tried === 0) {
+        sc = -search(nOl, nOh, nPl, nPh, nh1, nh2, 1 - side, depth - 1, -beta, -alpha, ply + 1);
+      } else {
+        sc = -search(nOl, nOh, nPl, nPh, nh1, nh2, 1 - side, depth - 1, -alpha - 1, -alpha, ply + 1);
+        if (sc > alpha && sc < beta && !aborted) {
+          sc = -search(nOl, nOh, nPl, nPh, nh1, nh2, 1 - side, depth - 1, -beta, -alpha, ply + 1);
+        }
+      }
+      if (aborted) return 0;
+      tried++;
+      if (sc > best) { best = sc; bestSq = sq; }
+      if (sc > alpha) alpha = sc;
+      if (alpha >= beta) {
+        if (killer1[ply] !== sq) { killer2[ply] = killer1[ply]; killer1[ply] = sq; }
+        if (depth < 30) HISTORY[sq] += (1 << depth);
+        break;
+      }
+    }
+
+    var flag = 1;
+    if (best <= alphaOrig) flag = 3;
+    else if (best >= beta) flag = 2;
+    ttKey[idx] = k2h; ttDepth[idx] = depth; ttFlag[idx] = flag;
+    ttVal[idx] = best; ttMove[idx] = bestSq;
+
+    return best;
+  }
+
+  /* ---------- helpers ---------- */
+  function boardToBits(board, colorInt) {
+    var side = colorInt === 1 ? 0 : 1;
+    var pl = 0, ph = 0, ol = 0, oh = 0, sq, v, bl, bh;
+    for (sq = 0; sq < 64; sq++) {
+      v = board[sq] | 0;
+      if (!v) continue;
+      if (sq < 32) { bl = 1 << sq; bh = 0; } else { bl = 0; bh = 1 << (sq - 32); }
+      if ((v === 1 ? 0 : 1) === side) { pl |= bl; ph |= bh; }
+      else { ol |= bl; oh |= bh; }
+    }
+    return [pl, ph, ol, oh];
+  }
+
+  function hashBits(pl, ph, ol, oh) {
+    var h1 = 0, h2 = 0, sq, bl, bh;
+    for (sq = 0; sq < 64; sq++) {
+      if (sq < 32) { bl = 1 << sq; bh = 0; } else { bl = 0; bh = 1 << (sq - 32); }
+      if (((pl & bl) | (ph & bh)) !== 0) { h1 ^= Z1[0][sq]; h2 ^= Z2[0][sq]; }
+      else if (((ol & bl) | (oh & bh)) !== 0) { h1 ^= Z1[1][sq]; h2 ^= Z2[1][sq]; }
+    }
+    return [h1, h2];
+  }
+
+  function moveListFromBits(mL, mH) {
+    var arr = [], i, sq, bl, bh;
+    for (i = 0; i < 64; i++) {
+      sq = ORDER[i];
+      if (sq < 32) { bl = 1 << sq; bh = 0; } else { bl = 0; bh = 1 << (sq - 32); }
+      if (((mL & bl) | (mH & bh)) !== 0) arr.push(sq);
+    }
+    return arr;
+  }
+
+  function movesFor(board, colorInt) {
+    var b = boardToBits(board, colorInt);
+    genMoves(b[0], b[1], b[2], b[3]);
+    return moveListFromBits(ML, MH);
+  }
+
+  function flipsFor(board, colorInt, sq) {
+    var b = boardToBits(board, colorInt), bitL, bitH;
+    if (sq < 32) { bitL = 1 << sq; bitH = 0; } else { bitL = 0; bitH = 1 << (sq - 32); }
+    calcFlips(b[0], b[1], b[2], b[3], bitL, bitH);
+    var out = [], i, bl, bh;
+    for (i = 0; i < 64; i++) {
+      if (i < 32) { bl = 1 << i; bh = 0; } else { bl = 0; bh = 1 << (i - 32); }
+      if (((FL & bl) | (FH & bh)) !== 0) out.push(i);
+    }
+    return out;
+  }
+
+  /**
+   * Pick a move.
+   * @param {Array|Int8Array} board 64 cells: 0 empty, 1 black, 2 white
+   * @param {number} colorInt 1 = black, 2 = white
+   * @param {number} timeMs   thinking budget
+   * @returns {number} square index 0..63, or -1 if no legal move
+   */
+  function think(board, colorInt, timeMs) {
+    var side = colorInt === 1 ? 0 : 1;
+    var bb = boardToBits(board, colorInt);
+    var pl = bb[0], ph = bb[1], ol = bb[2], oh = bb[3];
+
+    genMoves(pl, ph, ol, oh);
+    if ((ML | MH) === 0) return -1;
+
+    var list = moveListFromBits(ML, MH);
+    if (list.length === 1) return list[0];
+
+    var empties = 64 - pcs(pl | ol, ph | oh);
+    var hh = hashBits(pl, ph, ol, oh);
+    var h1 = hh[0], h2 = hh[1];
+
+    nodes = 0; aborted = false;
+    var budget = timeMs * 0.80;
+    if (budget < 60) budget = 60;
+    deadline = nowMs() + budget;
+
+    ttFlag.fill(0);
+    killer1.fill(-1); killer2.fill(-1);
+    HISTORY.fill(0);
+
+    var best = list[0];
+    var ordered = list.slice();
+    var maxDepth = Math.min(64, empties + 2);
+
+    for (var depth = 1; depth <= maxDepth; depth++) {
+      aborted = false;
+      var alpha = -INF, localBest = -1, localScore = -INF, scored = [], j, sq3, bl3, bh3;
+
+      for (j = 0; j < ordered.length; j++) {
+        sq3 = ordered[j];
+        if (sq3 < 32) { bl3 = 1 << sq3; bh3 = 0; } else { bl3 = 0; bh3 = 1 << (sq3 - 32); }
+        calcFlips(pl, ph, ol, oh, bl3, bh3);
+        var flL = FL, flH = FH;
+        var nPl = (pl | flL | bl3) | 0, nPh = (ph | flH | bh3) | 0;
+        var nOl = (ol & ~flL) | 0,     nOh = (oh & ~flH) | 0;
+        var nh1 = h1 ^ Z1[side][sq3], nh2 = h2 ^ Z2[side][sq3];
+        var tt2 = flL;
+        while (tt2 !== 0) {
+          var b1 = tt2 & -tt2, s1 = 31 - Math.clz32(b1);
+          nh1 ^= Z1[1 - side][s1] ^ Z1[side][s1];
+          nh2 ^= Z2[1 - side][s1] ^ Z2[side][s1];
+          tt2 ^= b1;
+        }
+        tt2 = flH;
+        while (tt2 !== 0) {
+          var b2 = tt2 & -tt2, s3 = 31 - Math.clz32(b2) + 32;
+          nh1 ^= Z1[1 - side][s3] ^ Z1[side][s3];
+          nh2 ^= Z2[1 - side][s3] ^ Z2[side][s3];
+          tt2 ^= b2;
+        }
+        var sc = -search(nOl, nOh, nPl, nPh, nh1, nh2, 1 - side, depth - 1, -INF, -alpha, 1);
+        if (aborted) break;
+        scored.push([sq3, sc]);
+        if (sc > localScore) { localScore = sc; localBest = sq3; }
+        if (sc > alpha) alpha = sc;
+      }
+
+      if (aborted) { if (localBest >= 0) best = localBest; break; }
+      if (localBest >= 0) best = localBest;
+      scored.sort(function (a, b) { return b[1] - a[1]; });
+      ordered = [];
+      for (j = 0; j < scored.length; j++) ordered.push(scored[j][0]);
+
+      if (depth >= maxDepth) break;
+      if (localScore > 900000 || localScore < -900000) break;
+      if (nowMs() > deadline) break;
+    }
+    return best;
+  }
+
+  global.OthelloEngine = {
+    think: think,
+    movesFor: movesFor,
+    flipsFor: flipsFor,
+    getNodes: function () { return nodes; }
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* ============================================================================
+   Othello match protocol & game flow  (no DOM, no file API dependency)
+   ========================================================================= */
+(function (global) {
+  'use strict';
+
+  var BLACK = 1, WHITE = 2;
+  var VERSION = 'v1.00';
+  var HEADER = 'OTHELLO v1.00';
+
+  var DIRS = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+
+  function newBoard() {
+    var b = new Int8Array(64);
+    b[27] = 2; b[28] = 1; b[35] = 1; b[36] = 2;   /* d4,e5 white / d5,e4 black */
+    return b;
+  }
+
+  function inRange(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
+
+  function flipsOf(board, me, sq) {
+    if (sq < 0 || sq > 63 || board[sq] !== 0) return null;
+    var r = (sq - (sq % 8)) / 8, c = sq % 8, opp = 3 - me;
+    var out = [], k, dr, dc, j;
+    for (k = 0; k < 8; k++) {
+      dr = DIRS[k][0]; dc = DIRS[k][1];
+      var rr = r + dr, cc = c + dc, acc = [];
+      while (inRange(rr, cc) && board[rr * 8 + cc] === opp) { acc.push(rr * 8 + cc); rr += dr; cc += dc; }
+      if (acc.length > 0 && inRange(rr, cc) && board[rr * 8 + cc] === me) {
+        for (j = 0; j < acc.length; j++) out.push(acc[j]);
+      }
+    }
+    return out;
+  }
+
+  function legalMoves(board, me) {
+    var out = [], sq, f;
+    for (sq = 0; sq < 64; sq++) {
+      if (board[sq] !== 0) continue;
+      f = flipsOf(board, me, sq);
+      if (f && f.length > 0) out.push(sq);
+    }
+    return out;
+  }
+
+  function counts(board) {
+    var b = 0, w = 0, i;
+    for (i = 0; i < 64; i++) { if (board[i] === 1) b++; else if (board[i] === 2) w++; }
+    return { b: b, w: w, e: 64 - b - w };
+  }
+
+  function sqToStr(sq) { return 'abcdefgh'.charAt(sq % 8) + String(Math.floor(sq / 8) + 1); }
+  function strToSq(s) {
+    if (!/^[a-h][1-8]$/.test(s)) return -1;
+    return 'abcdefgh'.indexOf(s.charAt(0)) + (parseInt(s.charAt(1), 10) - 1) * 8;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * 棋譜の解析・検証
+   * ------------------------------------------------------------------ */
+  function fail(msg) { return { ok: false, error: msg }; }
+
+  function parseRecord(rawText) {
+    var text = rawText || '';
+    /* 改行で終わっていない最後の行は「書き込み途中」とみなして無視する */
+    if (text.length > 0 && text.charAt(text.length - 1) !== '\n') {
+      var cut = text.lastIndexOf('\n');
+      text = cut >= 0 ? text.slice(0, cut + 1) : '';
+    }
+    var lines = text.length > 0 ? text.slice(0, -1).split('\n') : [];
+    var i;
+    for (i = 0; i < lines.length; i++) {
+      if (lines[i].length > 0 && lines[i].charAt(lines[i].length - 1) === '\r') {
+        lines[i] = lines[i].slice(0, -1);
+      }
+    }
+
+    var res = {
+      ok: true, error: null, board: newBoard(), names: { b: null, w: null },
+      moves: [], end: null, lineCount: lines.length, lines: lines, stage: 'empty'
+    };
+
+    if (lines.length === 0) { return res; }
+
+    if (lines[0] !== HEADER) {
+      return fail('棋譜1行目が「' + HEADER + '」ではありません: "' + lines[0] + '"');
+    }
+    res.stage = 'header';
+
+    if (lines.length >= 2) {
+      if (lines[1].slice(0, 2) !== 'B ' || lines[1].length < 3) {
+        return fail('棋譜2行目が「B アプリ名」の形式ではありません: "' + lines[1] + '"');
+      }
+      res.names.b = lines[1].slice(2);
+      res.stage = 'playerB';
+    }
+    if (lines.length >= 3) {
+      if (lines[2].slice(0, 2) !== 'W ' || lines[2].length < 3) {
+        return fail('棋譜3行目が「W アプリ名」の形式ではありません: "' + lines[2] + '"');
+      }
+      res.names.w = lines[2].slice(2);
+      res.stage = 'playerW';
+    }
+
+    var board = res.board;
+    var ended = false;
+
+    for (i = 3; i < lines.length; i++) {
+      var line = lines[i];
+
+      if (ended) {
+        return fail('END 行の後に記述があります（' + (i + 1) + '行目: "' + line + '"）');
+      }
+      if (line.slice(0, 3) === 'END') {
+        var m = /^END (B|W|D) ([0-9]+) ([0-9]+)$/.exec(line);
+        if (!m) {
+          return fail((i + 1) + '行目の END 行の形式が不正です: "' + line + '"');
+        }
+        var c = counts(board);
+        var recB = parseInt(m[2], 10), recW = parseInt(m[3], 10);
+        if (recB !== c.b || recW !== c.w) {
+          return fail('END 行の石数が盤面と一致しません（記録: 黒' + recB + ' 白' + recW +
+            ' / 実際: 黒' + c.b + ' 白' + c.w + '）');
+        }
+        var exp = c.b > c.w ? 'B' : (c.w > c.b ? 'W' : 'D');
+        if (m[1] !== exp) {
+          return fail('END 行の勝者が石数と矛盾しています（記録: ' + m[1] +
+            ' / 実際: ' + exp + '）');
+        }
+        res.end = { winner: m[1], b: c.b, w: c.w, lineIndex: i };
+        ended = true;
+        continue;
+      }
+
+      var expected = ((i - 3) % 2 === 0) ? 'B' : 'W';
+      if (line.slice(0, 2) !== expected + ' ') {
+        return fail('手番の色が交互になっていません（' + (i + 1) + '行目: "' + line + '"、期待: ' +
+          expected + '）');
+      }
+      var me = expected === 'B' ? BLACK : WHITE;
+      var rest = line.slice(2);
+
+      if (rest === 'pass') {
+        res.moves.push({ color: me, pass: true, sq: -1 });
+        continue;
+      }
+      var sq = strToSq(rest);
+      if (sq < 0) {
+        return fail('マスの表記が不正です（' + (i + 1) + '行目: "' + line + '"）');
+      }
+      if (board[sq] !== 0) {
+        return fail('既に石があるマスへの着手です（' + (i + 1) + '行目: "' + line + '"）');
+      }
+      var fl = flipsOf(board, me, sq);
+      if (!fl || fl.length === 0) {
+        return fail('ルール上打てないマスへの着手です（' + (i + 1) + '行目: "' + line + '"）');
+      }
+      board[sq] = me;
+      for (var j = 0; j < fl.length; j++) board[fl[j]] = me;
+      res.moves.push({ color: me, pass: false, sq: sq });
+    }
+
+    return res;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Game
+   * ------------------------------------------------------------------ */
+  function createGame(opts) {
+    var io = opts.io;                 /* { readText(), appendLines(lines[]) } */
+    var engine = opts.engine;         /* { think(board, color, ms) -> Promise<{move}> } */
+    var onUpdate = opts.onUpdate || function () {};
+    var onError = opts.onError || function () {};
+    var pollMs = opts.pollMs || 1000;
+
+    var st = {
+      kind: 'before',                 /* before | playing | ended | error */
+      status: 'before',               /* before | myturn | thinking | oppturn | ended | error */
+      name: opts.name,
+      color: opts.color,
+      timeLimit: opts.timeLimit || 3000,
+      minLines: 0,
+      endWritten: false,
+      rec: null,
+      result: null,
+      error: null,
+      nodes: 0,
+      timer: null,
+      busy: false
+    };
+
+    function snapshot() {
+      var rec = st.rec;
+      var board = rec ? rec.board : newBoard();
+      var c = counts(board);
+      var lastSq = -1, k;
+      if (rec) {
+        for (k = rec.moves.length - 1; k >= 0; k--) {
+          if (!rec.moves[k].pass) { lastSq = rec.moves[k].sq; break; }
+        }
+      }
+      return {
+        kind: st.kind,
+        status: st.status,
+        name: st.name,
+        color: st.color,
+        version: VERSION,
+        board: board,
+        counts: c,
+        names: rec ? rec.names : { b: null, w: null },
+        moves: rec ? rec.moves : [],
+        lastSq: lastSq,
+        result: st.result,
+        error: st.error,
+        nodes: st.nodes,
+        toMove: (rec && rec.stage === 'playerW' && !rec.end)
+          ? ((rec.moves.length % 2 === 0) ? BLACK : WHITE) : 0
+      };
+    }
+
+    function emit() { onUpdate(snapshot()); }
+
+    function stopLoop() {
+      if (st.timer !== null) { clearTimeout(st.timer); st.timer = null; }
+    }
+
+    function fail(msg) {
+      stopLoop();
+      st.kind = 'error';
+      st.status = 'error';
+      st.error = msg;
+      emit();
+      onError(msg);
+    }
+
+    function tick() {
+      if (st.kind !== 'playing') return;
+      st.timer = null;
+      step().then(function () {
+        if (st.kind === 'playing' && st.timer === null) {
+          st.timer = setTimeout(tick, pollMs);
+        }
+      }, function (e) {
+        fail('内部エラー: ' + (e && e.message ? e.message : String(e)));
+      });
+    }
+
+    function step() {
+      if (st.kind !== 'playing' || st.busy) return Promise.resolve();
+      st.busy = true;
+      var savedRec = st.rec;
+
+      return Promise.resolve()
+        .then(function () { return io.readText(); })
+        .then(function (raw) {
+          var rec = parseRecord(raw);
+          if (!rec.ok) { fail(rec.error); return null; }
+          if (rec.lineCount < st.minLines) { return null; }   /* 読み取りが古い */
+          st.rec = rec;
+
+          /* --- 白番：1〜2行目がそろったら自分の名前を3行目に書く --- */
+          if (st.color === WHITE && rec.names.w === null) {
+            if (rec.names.b !== null) {
+              st.minLines = rec.lineCount + 1;
+              emit();
+              return io.appendLines(['W ' + st.name]).then(function () { emit(); return null; });
+            }
+            st.status = 'oppturn';
+            emit();
+            return null;
+          }
+
+          /* --- 終局行 --- */
+          if (rec.end) {
+            if (st.color === BLACK && !st.endWritten) {
+              fail('白番が END 行を書きました（END 行は黒番のみが書けます）。');
+              return null;
+            }
+            stopLoop();
+            st.kind = 'ended';
+            st.status = 'ended';
+            st.result = rec.end;
+            emit();
+            return null;
+          }
+
+          /* --- 黒番の終局判定（自分の着手直後・相手の行を読んだ直後） --- */
+          if (st.color === BLACK && !st.endWritten && rec.names.b !== null && rec.names.w !== null) {
+            var bm = legalMoves(rec.board, BLACK).length;
+            var wm = legalMoves(rec.board, WHITE).length;
+            if (bm === 0 && wm === 0 && rec.moves.length > 0) {
+              var c = counts(rec.board);
+              var win = c.b > c.w ? 'B' : (c.w > c.b ? 'W' : 'D');
+              st.endWritten = true;
+              st.minLines = rec.lineCount + 1;
+              return io.appendLines(['END ' + win + ' ' + c.b + ' ' + c.w]).then(function () {
+                emit(); return null;
+              });
+            }
+          }
+
+          /* 両者のアプリ名がそろうまでは着手しない（相手の書き込み待ち） */
+          if (rec.names.b === null || rec.names.w === null) {
+            st.status = 'oppturn';
+            emit();
+            return null;
+          }
+
+          var toMove = (rec.moves.length % 2 === 0) ? BLACK : WHITE;
+          if (toMove !== st.color) {
+            st.status = (rec.moves.length === 0 && st.color === WHITE) ? 'oppturn' : 'oppturn';
+            emit();
+            return null;
+          }
+
+          var mine = legalMoves(rec.board, st.color);
+          if (mine.length === 0) {
+            var theirs = legalMoves(rec.board, 3 - st.color);
+            if (theirs.length > 0) {
+              st.minLines = rec.lineCount + 1;
+              emit();
+              return io.appendLines([(st.color === BLACK ? 'B' : 'W') + ' pass']).then(function () {
+                emit(); return null;
+              });
+            }
+            st.status = 'oppturn';            /* 両者打てない：黒番の END を待つ */
+            emit();
+            return null;
+          }
+
+          /* --- 自分の手番：思考する --- */
+          st.status = 'thinking';
+          emit();
+          return engine.think(rec.board.slice(), st.color, st.timeLimit).then(function (r) {
+            var mv = (r && typeof r.move === 'number') ? r.move : -1;
+            if (r && typeof r.nodes === 'number') st.nodes = r.nodes;
+            if (mine.indexOf(mv) < 0) mv = mine[0];
+            st.minLines = rec.lineCount + 1;
+            return io.appendLines([(st.color === BLACK ? 'B' : 'W') + ' ' + sqToStr(mv)])
+              .then(function () { st.status = 'oppturn'; emit(); return null; });
+          });
+        })
+        .then(function () { st.busy = false; }, function (e) {
+          st.busy = false;
+          if (st.kind === 'playing') fail('エラー: ' + (e && e.message ? e.message : String(e)));
+        });
+    }
+
+    function start() {
+      stopLoop();
+      st.kind = 'playing';
+      st.status = 'before';
+      st.result = null;
+      st.error = null;
+      st.rec = null;
+      st.endWritten = false;
+      st.minLines = 0;
+      st.nodes = 0;
+      st.name = opts.name;
+      st.color = opts.color;
+      st.timeLimit = opts.timeLimit;
+      emit();
+
+      return Promise.resolve()
+        .then(function () {
+          if (st.color !== BLACK) { st.minLines = 0; return null; }
+          return io.readText().then(function (raw) {
+            if (raw.length !== 0) {
+              throw new Error('指定された共有ファイルが空ではありません。空のテキストファイルを指定してください。');
+            }
+            st.minLines = 2;
+            return io.appendLines([HEADER, 'B ' + st.name]);
+          }).then(function () { emit(); return null; });
+        })
+        .then(function () {
+          if (st.kind === 'playing' && st.timer === null) st.timer = setTimeout(tick, 0);
+        }, function (e) {
+          fail('エラー: ' + (e && e.message ? e.message : String(e)));
+        });
+    }
+
+    function dispose() { stopLoop(); st.kind = 'before'; }
+
+    return {
+      start: start,
+      dispose: dispose,
+      snapshot: snapshot,
+      setPoll: function (ms) { pollMs = ms; }
+    };
+  }
+
+  global.OthelloGame = {
+    createGame: createGame,
+    parseRecord: parseRecord,
+    newBoard: newBoard,
+    legalMoves: legalMoves,
+    flipsOf: flipsOf,
+    counts: counts,
+    sqToStr: sqToStr,
+    strToSq: strToSq,
+    BLACK: BLACK,
+    WHITE: WHITE,
+    VERSION: VERSION,
+    HEADER: HEADER
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* ============================================================================
+   UI layer
+   ========================================================================= */
+(function () {
+  'use strict';
+
+  var G = window.OthelloGame, E = window.OthelloEngine;
+  var BLACK = 1, WHITE = 2;
+  var VERSION_TEXT = 'v1.00';
+
+  var el = {};
+  var game = null;
+  var handle = null;
+  var fileName = '';
+  var suppressChange = false;
+
+  function $(id) { return document.getElementById(id); }
+
+  function stateLabel(s) {
+    switch (s) {
+      case 'before': return '開始前';
+      case 'myturn': return '自分の番';
+      case 'thinking': return '自分の番（思考中）';
+      case 'oppturn': return '相手の番';
+      case 'ended': return '終局';
+      case 'error': return 'エラー';
+      default: return '開始前';
+    }
+  }
+
+  function colorLabel(c) { return c === BLACK ? '黒（先手）' : '白（後手）'; }
+
+  function setMessage(text, cls) {
+    el.message.textContent = text || '';
+    el.message.className = 'message' + (cls ? ' ' + cls : '');
+  }
+
+  function sqName(sq) { return 'abcdefgh'.charAt(sq % 8) + String(Math.floor(sq / 8) + 1); }
+
+  /* ---------------- board ---------------- */
+  function buildBoard() {
+    el.board.innerHTML = '';
+    var i;
+    for (i = 0; i < 64; i++) {
+      var d = document.createElement('div');
+      d.className = 'cell';
+      d.dataset.sq = String(i);
+      var inner = document.createElement('div');
+      inner.className = 'disc-slot';
+      d.appendChild(inner);
+      el.board.appendChild(d);
+    }
+  }
+
+  function renderBoard(snap) {
+    var cells = el.board.children, i, board, cls, disc;
+    board = snap.board || G.newBoard();
+    for (i = 0; i < 64; i++) {
+      cls = 'cell';
+      var pc = snap.lastSq;
+      if (pc === i) cls += ' last';
+      cells[i].className = cls;
+      disc = cells[i].firstChild;
+      if (board[i] === 1) disc.className = 'disc black';
+      else if (board[i] === 2) disc.className = 'disc white';
+      else disc.className = 'disc-slot';
+    }
+  }
+
+  /* ---------------- move list ---------------- */
+  function renderMoves(snap) {
+    var rows = [], i, m, mv = snap.moves || [];
+    for (i = 0; i < mv.length; i++) {
+      m = mv[i];
+      var cn = m.color === BLACK ? 'B' : 'W';
+      var txt = m.pass ? 'pass' : sqName(m.sq);
+      rows.push('<li><span class="no">' + (i + 1) + '</span>' +
+        '<span class="clr ' + (cn === 'B' ? 'c-b' : 'c-w') + '">' + cn + '</span>' +
+        '<span class="mv">' + txt + '</span></li>');
+    }
+    el.movelist.innerHTML = rows.length ? rows.join('') : '<li class="empty">（まだ着手はありません）</li>';
+    el.movelist.scrollTop = el.movelist.scrollHeight;
+  }
+
+  /* ---------------- panels ---------------- */
+  function render(snap) {
+    renderBoard(snap);
+    renderMoves(snap);
+
+    el.appTitle.textContent = (snap.name || '（未記入）') + ' ' + VERSION_TEXT;
+    el.stColor.textContent = snap.color ? colorLabel(snap.color) : '未選択';
+    el.stState.textContent = stateLabel(snap.status);
+    el.stState.className = 'state s-' + snap.status;
+
+    var nb = snap.names && snap.names.b ? snap.names.b : '—';
+    var nw = snap.names && snap.names.w ? snap.names.w : '—';
+    el.stBlack.textContent = nb + ' ： ' + snap.counts.b + ' 石';
+    el.stWhite.textContent = nw + ' ： ' + snap.counts.w + ' 石';
+    el.stEmpty.textContent = String(snap.counts.e);
+    el.stNodes.textContent = String(snap.nodes || 0);
+
+    el.rowBlack.className = 'prow' + (snap.color === BLACK ? ' me' : '');
+    el.rowWhite.className = 'prow' + (snap.color === WHITE ? ' me' : '');
+
+    if (snap.kind === 'ended' && snap.result) {
+      var r = snap.result;
+      var who;
+      if (r.winner === 'B') who = '黒（B）の勝ち';
+      else if (r.winner === 'W') who = '白（W）の勝ち';
+      else who = '引き分け';
+      setMessage('終局：' + who + '／ 黒 ' + r.b + ' 石 － 白 ' + r.w + ' 石', 'ok');
+      el.resultBox.textContent = who + '　黒 ' + r.b + ' － ' + r.w + ' 白';
+    } else if (snap.kind === 'error') {
+      setMessage('エラー：' + (snap.error || '不明なエラー') + '（停止しました）', 'err');
+      el.resultBox.textContent = 'エラーで停止';
+    } else if (snap.kind === 'playing') {
+      if (snap.status === 'oppturn') setMessage('相手の着手を待っています…', 'info');
+      else if (snap.status === 'thinking') setMessage('思考中…', 'info');
+    }
+
+    var locked = (snap.kind === 'playing');
+    el.name.disabled = locked;
+    el.time.disabled = locked;
+    el.radioB.disabled = locked;
+    el.radioW.disabled = locked;
+    el.btnStart.textContent = (snap.kind === 'playing') ? '対局中' : 'スタート';
+    el.btnStart.disabled = locked;
+  }
+
+  /* ---------------- file IO ---------------- */
+  function makeIo() {
+    return {
+      readText: function () {
+        return handle.getFile().then(function (f) { return f.text(); });
+      },
+      appendLines: function (lines) {
+        var text = lines.join('\n') + '\n';
+        return handle.getFile().then(function (f) {
+          var size = f.size;
+          return handle.createWritable({ keepExistingData: true }).then(function (w) {
+            return w.write({ type: 'write', position: size, data: text })
+              .then(function () { return w.close(); });
+          });
+        });
+      }
+    };
+  }
+
+  /* ---------------- engine wrapper ---------------- */
+  function engineWrapper() {
+    return {
+      think: function (board, color, ms) {
+        return new Promise(function (resolve) {
+          /* 画面を一度描画させてから（＝待機中に資源を使わない）、自分の手番のときだけ思考する */
+          setTimeout(function () {
+            var mv = E.think(board, color, ms);
+            resolve({ move: mv, nodes: E.getNodes() });
+          }, 0);
+        });
+      }
+    };
+  }
+
+  /* ---------------- events ---------------- */
+  function pickFile() {
+    if (!window.showOpenFilePicker) {
+      setMessage('このブラウザは showOpenFilePicker に対応していません。Chrome / Edge の最新版でお試しください。', 'err');
+      return;
+    }
+    window.showOpenFilePicker({
+      multiple: false,
+      excludeAcceptAllOption: false,
+      types: [{ description: 'テキストファイル', accept: { 'text/plain': ['.txt', '.log', '.otl', '.rec'] } }]
+    }).then(function (handles) {
+      handle = handles[0];
+      fileName = handle.name;
+      el.fileName.textContent = fileName;
+      return handle.requestPermission({ mode: 'readwrite' }).catch(function () { return 'granted'; });
+    }).then(function (perm) {
+      if (perm && perm !== 'granted') {
+        setMessage('ファイルの書き込み許可が得られませんでした。', 'err');
+      } else {
+        setMessage('共有ファイル「' + fileName + '」を指定しました。', 'info');
+      }
+      el.fileName.className = 'file-name ok';
+    }).catch(function (e) {
+      if (e && e.name === 'AbortError') return;
+      setMessage('ファイルを開けませんでした：' + (e && e.message ? e.message : String(e)), 'err');
+    });
+  }
+
+  function startGame() {
+    var name = (el.name.value || '').trim();
+    if (!name) { setMessage('アプリ名を入力してください。', 'err'); return; }
+    if (name.length > 30) { setMessage('アプリ名は1〜30文字にしてください。', 'err'); return; }
+    if (name.indexOf('\n') >= 0) { setMessage('アプリ名に改行は使えません。', 'err'); return; }
+    if (!handle) { setMessage('共有ファイルを指定してください。', 'err'); return; }
+    var color = el.radioB.checked ? BLACK : WHITE;
+    var sec = parseFloat(el.time.value);
+    if (!isFinite(sec) || sec <= 0) { setMessage('制限時間（秒）を正しく入力してください。', 'err'); return; }
+    var ms = Math.max(100, Math.round(sec * 1000));
+
+    if (game) game.dispose();
+    el.resultBox.textContent = '';
+    el.movelist.innerHTML = '';
+    setMessage('', '');
+    render({ kind: 'before', status: 'before', name: name, color: color,
+      board: G.newBoard(), counts: { b: 2, w: 2, e: 60 }, names: { b: null, w: null },
+      moves: [], lastSq: -1, nodes: 0 });
+
+    game = G.createGame({
+      io: makeIo(),
+      engine: engineWrapper(),
+      name: name,
+      color: color,
+      timeLimit: ms,
+      pollMs: 1000,
+      onUpdate: function (snap) { render(snap); },
+      onError: function () { /* 表示は render 側で行う */ }
+    });
+    game.start();
+  }
+
+  /* ---------------- init ---------------- */
+  function init() {
+    el.board = $('board');
+    el.message = $('message');
+    el.movelist = $('movelist');
+    el.appTitle = $('appTitle');
+    el.stColor = $('stColor');
+    el.stState = $('stState');
+    el.stBlack = $('stBlack');
+    el.stWhite = $('stWhite');
+    el.stEmpty = $('stEmpty');
+    el.stNodes = $('stNodes');
+    el.rowBlack = $('rowBlack');
+    el.rowWhite = $('rowWhite');
+    el.name = $('appName');
+    el.time = $('timeLimit');
+    el.radioB = $('colorB');
+    el.radioW = $('colorW');
+    el.btnStart = $('btnStart');
+    el.fileName = $('fileName');
+    el.resultBox = $('resultBox');
+
+    buildBoard();
+    $('btnFile').addEventListener('click', pickFile);
+    el.btnStart.addEventListener('click', startGame);
+    el.name.addEventListener('input', function () {
+      el.appTitle.textContent = ((el.name.value || '').trim() || '（未記入）') + ' ' + VERSION_TEXT;
+    });
+
+    render({ kind: 'before', status: 'before', name: '', color: 0,
+      board: G.newBoard(), counts: { b: 2, w: 2, e: 60 }, names: { b: null, w: null },
+      moves: [], lastSq: -1, nodes: 0 });
+    el.appTitle.textContent = '（未記入） ' + VERSION_TEXT;
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+
+</script>
+</body>
+</html>

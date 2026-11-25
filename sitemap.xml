@@ -4,7 +4,7 @@
   <!-- ── Top / Hubs ── -->
   <url>
     <loc>https://qiqiroon.github.io/momo/</loc>
-    <lastmod>2026-06-03</lastmod>
+    <lastmod>2026-11-25</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
   </url>
@@ -276,6 +276,21 @@
     <lastmod>2026-10-29</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
+  </url>
+
+  <!-- ── Experiments（2026-11-25） ──
+       experiments/reversi-ai-tournament/apps/ の中は AI が作ったアプリの写し（手を加えない）なので載せない -->
+  <url>
+    <loc>https://qiqiroon.github.io/momo/experiments/</loc>
+    <lastmod>2026-11-25</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://qiqiroon.github.io/momo/experiments/reversi-ai-tournament/</loc>
+    <lastmod>2026-11-25</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
   </url>
 
   <!-- ── Other ──

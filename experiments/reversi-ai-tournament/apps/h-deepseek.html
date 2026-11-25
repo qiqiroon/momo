@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>リバーシAI - 棋譜ファイル対戦</title>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, 'Segoe UI', Roboto, sans-serif; }
+    body { background: #1a2a32; color: #e0e0e0; margin: 0; min-height: 100vh; display: flex; justify-content: center; padding: 20px; }
+    .app { max-width: 1000px; width: 100%; background: #1e2f3a; border-radius: 24px; padding: 24px; box-shadow: 0 12px 30px rgba(0,0,0,0.6); }
+    h1 { font-size: 1.8rem; font-weight: 400; margin-top: 0; margin-bottom: 16px; color: #b0d8e8; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .version { font-size: 1rem; background: #2c4050; padding: 4px 12px; border-radius: 30px; color: #9fc7db; }
+    .row { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; align-items: flex-end; }
+    .field { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
+    .field label { font-size: 0.8rem; color: #9ab8c8; text-transform: uppercase; letter-spacing: 0.5px; }
+    input, select, button { background: #263b48; border: 1px solid #3a5566; color: #e0f0f8; padding: 10px 14px; border-radius: 12px; font-size: 1rem; outline: none; transition: border 0.2s, background 0.2s; }
+    input:focus, select:focus { border-color: #6aa9c4; background: #1f3340; }
+    button { background: #2f6f8f; border: none; cursor: pointer; font-weight: 500; padding: 10px 22px; color: white; transition: background 0.2s; }
+    button:hover { background: #3d8aad; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; background: #3a5566; }
+    .board-container { display: flex; flex-wrap: wrap; gap: 30px; margin: 20px 0; justify-content: center; }
+    .board { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; background: #0e1a22; padding: 8px; border-radius: 16px; width: fit-content; }
+    .cell { width: 56px; height: 56px; background: #1e5f3e; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: bold; cursor: default; position: relative; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); }
+    .cell.last-move { box-shadow: 0 0 0 4px #f0c050, inset 0 0 0 2px rgba(255,255,255,0.3); }
+    .cell.black::after { content: "●"; color: #0b0b0b; text-shadow: 0 2px 4px rgba(0,0,0,0.5); line-height: 1; }
+    .cell.white::after { content: "○"; color: #f8f8f8; text-shadow: 0 2px 4px rgba(0,0,0,0.5); line-height: 1; }
+    .info-panel { background: #10222c; border-radius: 18px; padding: 18px 22px; flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 12px; border: 1px solid #2d4f60; }
+    .status-row { display: flex; justify-content: space-between; font-size: 1rem; border-bottom: 1px solid #2d4f60; padding-bottom: 6px; }
+    .status-row span:first-child { color: #8bb5c9; }
+    .status-row span:last-child { font-weight: 600; color: #e0f0f8; }
+    .score { font-size: 2rem; display: flex; gap: 20px; justify-content: center; margin: 6px 0; }
+    .score .black { color: #0b0b0b; background: #d8e8f0; padding: 2px 12px; border-radius: 30px; }
+    .score .white { color: #f0f8ff; background: #3a5566; padding: 2px 12px; border-radius: 30px; }
+    .move-list { background: #0b1a22; border-radius: 14px; padding: 12px 16px; max-height: 180px; overflow-y: auto; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.9rem; color: #b0d0e0; border: 1px solid #2d4f60; white-space: pre-wrap; word-break: break-all; line-height: 1.6; }
+    .move-list .turn-b { color: #d0d0d0; }
+    .move-list .turn-w { color: #9fc7db; }
+    .error-msg { background: #5a1e1e; color: #ffb0b0; padding: 10px 16px; border-radius: 12px; border-left: 4px solid #ff6b6b; font-weight: 500; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <h1>
+    <span id="displayAppName">リバーシAI</span>
+    <span class="version" id="displayVersion">v1.00</span>
+  </h1>
+
+  <div class="row">
+    <div class="field">
+      <label>アプリ名（1〜30文字）</label>
+      <input type="text" id="appNameInput" value="AlphaReversi" maxlength="30" placeholder="アプリ名">
+    </div>
+    <div class="field">
+      <label>自分の色</label>
+      <select id="colorSelect">
+        <option value="B">黒（先手）</option>
+        <option value="W">白（後手）</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>思考制限時間（秒）</label>
+      <input type="number" id="timeLimitInput" value="2.0" step="0.1" min="0.1" max="10.0">
+    </div>
+    <div class="field">
+      <label>棋譜ファイル</label>
+      <button id="fileBtn">ファイルを開く</button>
+    </div>
+    <div class="field">
+      <label>&nbsp;</label>
+      <button id="startBtn">スタート</button>
+    </div>
+  </div>
+
+  <div class="board-container">
+    <div class="board" id="board"></div>
+    <div class="info-panel">
+      <div class="status-row"><span>自分の色</span><span id="statusMyColor">未選択</span></div>
+      <div class="status-row"><span>状態</span><span id="statusState">開始前</span></div>
+      <div class="status-row"><span>黒 (B)</span><span id="statusBlackName">-</span></div>
+      <div class="status-row"><span>白 (W)</span><span id="statusWhiteName">-</span></div>
+      <div class="score">
+        <span class="black" id="scoreBlack">2</span>
+        <span class="white" id="scoreWhite">2</span>
+      </div>
+      <div class="move-list" id="moveList"></div>
+    </div>
+  </div>
+
+  <div id="errorContainer" style="margin-top: 12px;"></div>
+</div>
+
+<script>
+  (function() {
+    'use strict';
+
+    const VERSION = 'v1.00';
+    const EMPTY = 0, BLACK = 1, WHITE = 2;
+    const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+    const START_BOARD = [
+      [0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0],
+      [0,0,0,2,1,0,0,0],
+      [0,0,0,1,2,0,0,0],
+      [0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0]
+    ];
+    const POS_WEIGHTS = [
+      [120, -20,  20,   5,   5,  20, -20, 120],
+      [-20, -40,  -5,  -5,  -5,  -5, -40, -20],
+      [ 20,  -5,  15,   3,   3,  15,  -5,  20],
+      [  5,  -5,   3,   3,   3,   3,  -5,   5],
+      [  5,  -5,   3,   3,   3,   3,  -5,   5],
+      [ 20,  -5,  15,   3,   3,  15,  -5,  20],
+      [-20, -40,  -5,  -5,  -5,  -5, -40, -20],
+      [120, -20,  20,   5,   5,  20, -20, 120]
+    ];
+
+    function createBoard() { return START_BOARD.map(row => row.slice()); }
+    function cloneBoard(board) { return board.map(row => row.slice()); }
+    function countStones(board) {
+      let black = 0, white = 0;
+      for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+        if (board[r][c] === BLACK) black++;
+        else if (board[r][c] === WHITE) white++;
+      }
+      return { black, white };
+    }
+    function isOnBoard(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
+
+    function getFlips(board, row, col, color) {
+      if (board[row][col] !== EMPTY) return [];
+      const opp = color === BLACK ? WHITE : BLACK;
+      const flips = [];
+      for (const [dr, dc] of DIRS) {
+        let r = row + dr, c = col + dc;
+        const line = [];
+        while (isOnBoard(r, c) && board[r][c] === opp) { line.push([r, c]); r += dr; c += dc; }
+        if (line.length > 0 && isOnBoard(r, c) && board[r][c] === color) flips.push(...line);
+      }
+      return flips;
+    }
+    function getValidMoves(board, color) {
+      const moves = [];
+      for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+        if (board[r][c] !== EMPTY) continue;
+        const flips = getFlips(board, r, c, color);
+        if (flips.length > 0) moves.push({ row: r, col: c, flips });
+      }
+      return moves;
+    }
+    function applyMove(board, row, col, color) {
+      const flips = getFlips(board, row, col, color);
+      if (flips.length === 0) return false;
+      board[row][col] = color;
+      for (const [r, c] of flips) board[r][c] = color;
+      return true;
+    }
+
+    function evaluateBoard(board, color) {
+      const opp = color === BLACK ? WHITE : BLACK;
+      let score = 0;
+      for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+        if (board[r][c] === color) score += POS_WEIGHTS[r][c];
+        else if (board[r][c] === opp) score -= POS_WEIGHTS[r][c];
+      }
+      const { black, white } = countStones(board);
+      const myStones = color === BLACK ? black : white;
+      const oppStones = color === BLACK ? white : black;
+      if (myStones + oppStones > 50) score += (myStones - oppStones) * 15;
+      return score;
+    }
+
+    function searchBestMove(board, color, timeLimitMs) {
+      const startTime = performance.now();
+      const maxTime = Math.max(50, timeLimitMs - 20);
+      const moves = getValidMoves(board, color);
+      if (moves.length === 0) return null;
+      if (moves.length === 1) return moves[0];
+
+      let bestMove = moves[0];
+      for (let depth = 1; depth <= 64; depth++) {
+        let currentBest = null;
+        let currentBestScore = -Infinity;
+        let aborted = false;
+        const sortedMoves = moves.slice().sort((a, b) => POS_WEIGHTS[b.row][b.col] - POS_WEIGHTS[a.row][a.col]);
+        for (const move of sortedMoves) {
+          if (performance.now() - startTime > maxTime) { aborted = true; break; }
+          const newBoard = cloneBoard(board);
+          applyMove(newBoard, move.row, move.col, color);
+          const score = -negamax(newBoard, depth - 1, -Infinity, -currentBestScore,
+                                 color === BLACK ? WHITE : BLACK, startTime, maxTime);
+          if (score > currentBestScore) { currentBestScore = score; currentBest = move; }
+        }
+        if (aborted) break;
+        if (currentBest) bestMove = currentBest;
+        if (performance.now() - startTime > maxTime * 0.8) break;
+      }
+      return bestMove;
+    }
+
+    function negamax(board, depth, alpha, beta, color, startTime, maxTime) {
+      if (performance.now() - startTime > maxTime) return evaluateBoard(board, color);
+      const moves = getValidMoves(board, color);
+      if (moves.length === 0) {
+        const oppMoves = getValidMoves(board, color === BLACK ? WHITE : BLACK);
+        if (oppMoves.length === 0) {
+          const { black, white } = countStones(board);
+          const my = color === BLACK ? black : white;
+          const opp = color === BLACK ? white : black;
+          return (my - opp) * 1000;
+        }
+        return -negamax(board, depth, -beta, -alpha, color === BLACK ? WHITE : BLACK, startTime, maxTime);
+      }
+      if (depth === 0) return evaluateBoard(board, color);
+
+      let best = -Infinity;
+      const sorted = moves.slice().sort((a, b) => POS_WEIGHTS[b.row][b.col] - POS_WEIGHTS[a.row][a.col]);
+      for (const move of sorted) {
+        if (performance.now() - startTime > maxTime) break;
+        const newBoard = cloneBoard(board);
+        applyMove(newBoard, move.row, move.col, color);
+        const score = -negamax(newBoard, depth - 1, -beta, -alpha, color === BLACK ? WHITE : BLACK, startTime, maxTime);
+        if (score > best) best = score;
+        if (score > alpha) alpha = score;
+        if (alpha >= beta) break;
+      }
+      return best;
+    }
+
+    let state = {
+      appName: 'AlphaReversi',
+      myColor: 'B',
+      fileHandle: null,
+      gameActive: false,
+      thinking: false,
+      board: createBoard(),
+      lastMove: null,
+      moveHistory: [],
+      blackName: '',
+      whiteName: '',
+      blackCount: 2,
+      whiteCount: 2,
+      currentTurn: 'B',
+      gameOver: false,
+      error: null,
+      lastProcessedLineCount: 0,
+      timerId: null,
+      timeLimitMs: 2000,
+      hasWrittenWLine: false,
+      polling: false,
+      myWrittenLines: []   // 自分が書いた行（ファイル読込時にスキップ）
+    };
+
+    const boardEl = document.getElementById('board');
+    const appNameInput = document.getElementById('appNameInput');
+    const colorSelect = document.getElementById('colorSelect');
+    const timeLimitInput = document.getElementById('timeLimitInput');
+    const fileBtn = document.getElementById('fileBtn');
+    const startBtn = document.getElementById('startBtn');
+    const statusMyColor = document.getElementById('statusMyColor');
+    const statusState = document.getElementById('statusState');
+    const statusBlackName = document.getElementById('statusBlackName');
+    const statusWhiteName = document.getElementById('statusWhiteName');
+    const scoreBlackEl = document.getElementById('scoreBlack');
+    const scoreWhiteEl = document.getElementById('scoreWhite');
+    const moveListEl = document.getElementById('moveList');
+    const errorContainer = document.getElementById('errorContainer');
+    const displayAppName = document.getElementById('displayAppName');
+    const displayVersion = document.getElementById('displayVersion');
+
+    function cellToCoord(cell) { return { row: parseInt(cell[1]) - 1, col: cell.charCodeAt(0) - 97 }; }
+    function coordToCell(row, col) { return String.fromCharCode(97 + col) + (row + 1); }
+
+    function setError(msg) {
+      state.error = msg;
+      state.gameActive = false;
+      state.thinking = false;
+      if (state.timerId) { clearTimeout(state.timerId); state.timerId = null; }
+      errorContainer.innerHTML = '<div class="error-msg">⚠ エラー: ' + msg + '</div>';
+      updateUI();
+    }
+    function clearError() { state.error = null; errorContainer.innerHTML = ''; }
+
+    function updateUI() {
+      displayAppName.textContent = state.appName || 'リバーシAI';
+      displayVersion.textContent = VERSION;
+      statusMyColor.textContent = state.myColor === 'B' ? '黒（先手）' : '白（後手）';
+      if (state.error) statusState.textContent = 'エラー';
+      else if (state.gameOver) statusState.textContent = '終局';
+      else if (state.gameActive) {
+        if (state.thinking) statusState.textContent = '思考中...';
+        else if (state.currentTurn === state.myColor) statusState.textContent = '自分の番';
+        else statusState.textContent = '相手の番';
+      } else statusState.textContent = '開始前';
+      statusBlackName.textContent = state.blackName || '-';
+      statusWhiteName.textContent = state.whiteName || '-';
+      const { black, white } = countStones(state.board);
+      scoreBlackEl.textContent = black;
+      scoreWhiteEl.textContent = white;
+      renderBoard();
+      moveListEl.innerHTML = state.moveHistory.map(m =>
+        '<span class="' + (m.color === 'B' ? 'turn-b' : 'turn-w') + '">' + m.color + ' ' + m.move + '</span>'
+      ).join('\n');
+    }
+
+    function renderBoard() {
+      boardEl.innerHTML = '';
+      for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        if (state.board[r][c] === BLACK) cell.classList.add('black');
+        else if (state.board[r][c] === WHITE) cell.classList.add('white');
+        if (state.lastMove && state.lastMove.row === r && state.lastMove.col === c) cell.classList.add('last-move');
+        boardEl.appendChild(cell);
+      }
+    }
+
+    async function openFile() {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          types: [{ description: 'テキストファイル', accept: { 'text/plain': ['.txt'] } }],
+          multiple: false,
+          excludeAcceptAllOption: true
+        });
+        state.fileHandle = handle;
+        fileBtn.textContent = '📄 ' + handle.name;
+        clearError();
+      } catch (err) {
+        if (err.name !== 'AbortError') setError('ファイルを開けませんでした: ' + err.message);
+      }
+    }
+
+    async function readFileContent() {
+      if (!state.fileHandle) return '';
+      try {
+        const file = await state.fileHandle.getFile();
+        return await file.text();
+      } catch (err) {
+        setError('ファイル読み込みエラー: ' + err.message);
+        return '';
+      }
+    }
+
+    async function appendLine(line) {
+      if (!state.fileHandle) { setError('ファイルが指定されていません'); return false; }
+      try {
+        const writable = await state.fileHandle.createWritable({ keepExistingData: true });
+        const file = await state.fileHandle.getFile();
+        const existing = await file.text();
+        let content = existing;
+        if (content.length > 0 && !content.endsWith('\n')) content += '\n';
+        content += line + '\n';
+        await writable.write(content);
+        await writable.close();
+        // 自分が書いた行を記録（ファイル読込時にスキップする）
+        state.myWrittenLines.push(line);
+        return true;
+      } catch (err) {
+        setError('ファイル書き込みエラー: ' + err.message);
+        return false;
+      }
+    }
+
+    function parseMoveLine(line) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 2) return null;
+      if (parts[0] !== 'B' && parts[0] !== 'W') return null;
+      if (parts[1] === 'pass') return { color: parts[0], move: 'pass' };
+      if (/^[a-h][1-8]$/.test(parts[1])) return { color: parts[0], move: parts[1] };
+      return null;
+    }
+
+    function parseEndLine(line) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length !== 4 || parts[0] !== 'END') return null;
+      if (!['B', 'W', 'D'].includes(parts[1])) return null;
+      const black = parseInt(parts[2], 10), white = parseInt(parts[3], 10);
+      if (isNaN(black) || isNaN(white)) return null;
+      return { winner: parts[1], black, white };
+    }
+
+    function extractCompleteLines(text) {
+      const lines = text.split('\n');
+      if (lines.length > 0) lines.pop();
+      return lines;
+    }
+
+    async function processLine(line, lineIndex) {
+      if (lineIndex === 0) {
+        if (line !== 'OTHELLO v1.00') { setError('1行目が「OTHELLO v1.00」ではありません'); return false; }
+        return true;
+      }
+      if (lineIndex === 1) {
+        if (!line.startsWith('B ')) { setError('2行目が「B 」で始まっていません'); return false; }
+        state.blackName = line.substring(2).trim();
+        if (state.blackName.length < 1 || state.blackName.length > 30) { setError('黒のアプリ名が1〜30文字ではありません'); return false; }
+        return true;
+      }
+      if (lineIndex === 2) {
+        if (!line.startsWith('W ')) { setError('3行目が「W 」で始まっていません'); return false; }
+        state.whiteName = line.substring(2).trim();
+        if (state.whiteName.length < 1 || state.whiteName.length > 30) { setError('白のアプリ名が1〜30文字ではありません'); return false; }
+        updateUI();
+        return true;
+      }
+
+      if (line.startsWith('END')) {
+        const end = parseEndLine(line);
+        if (!end) { setError('END行の形式が不正です: ' + line); return false; }
+        if (state.myColor === 'W') {
+          const { black, white } = countStones(state.board);
+          if (black !== end.black || white !== end.white) {
+            setError('ENDの石数が盤面と一致しません（盤面: B' + black + ' W' + white + '、END: B' + end.black + ' W' + end.white + '）');
+            return false;
+          }
+        }
+        state.gameOver = true;
+        state.gameActive = false;
+        state.thinking = false;
+        if (state.timerId) { clearTimeout(state.timerId); state.timerId = null; }
+        updateUI();
+        return true;
+      }
+
+      const parsed = parseMoveLine(line);
+      if (!parsed) { setError('着手行の形式が不正です: ' + line); return false; }
+
+      const expectedTurn = state.moveHistory.length % 2 === 0 ? 'B' : 'W';
+      if (parsed.color !== expectedTurn) {
+        setError('色が交互ではありません（期待: ' + expectedTurn + '、実際: ' + parsed.color + '）');
+        return false;
+      }
+
+      if (parsed.move === 'pass') {
+        const moves = getValidMoves(state.board, parsed.color === 'B' ? BLACK : WHITE);
+        if (moves.length > 0) { setError(parsed.color + 'のパスは不正です（打てる場所があります）'); return false; }
+        state.moveHistory.push({ color: parsed.color, move: 'pass' });
+        state.currentTurn = parsed.color === 'B' ? 'W' : 'B';
+        updateUI();
+        return true;
+      }
+
+      const { row, col } = cellToCoord(parsed.move);
+      const color = parsed.color === 'B' ? BLACK : WHITE;
+      const flips = getFlips(state.board, row, col, color);
+      if (flips.length === 0) { setError(parsed.color + ' ' + parsed.move + ' は打てないマスです'); return false; }
+      applyMove(state.board, row, col, color);
+      state.lastMove = { row, col };
+      state.moveHistory.push({ color: parsed.color, move: parsed.move });
+      state.currentTurn = parsed.color === 'B' ? 'W' : 'B';
+      updateUI();
+      return true;
+    }
+
+    async function processFileUpdate() {
+      if (!state.gameActive || !state.fileHandle) return;
+      const text = await readFileContent();
+      if (!text) return;
+      const lines = extractCompleteLines(text);
+      for (let i = state.lastProcessedLineCount; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line === '') { state.lastProcessedLineCount = i + 1; continue; }
+        // 自分が書いた行はスキップ（既に moveHistory 等に反映済み）
+        const myIdx = state.myWrittenLines.indexOf(line);
+        if (myIdx !== -1) {
+          state.myWrittenLines.splice(myIdx, 1);
+          state.lastProcessedLineCount = i + 1;
+          continue;
+        }
+        const ok = await processLine(line, i);
+        if (!ok || state.error || state.gameOver) break;
+        state.lastProcessedLineCount = i + 1;
+      }
+      updateUI();
+    }
+
+    async function tryWriteWLine() {
+      if (state.myColor !== 'W' || state.hasWrittenWLine || !state.gameActive) return;
+      const text = await readFileContent();
+      const lines = extractCompleteLines(text);
+      if (lines.length >= 2 && lines[0] === 'OTHELLO v1.00' && lines[1].startsWith('B ')) {
+        state.blackName = lines[1].substring(2).trim();
+        if (lines.length < 3) {
+          const ok = await appendLine('W ' + state.appName);
+          if (ok) { state.hasWrittenWLine = true; state.whiteName = state.appName; updateUI(); }
+        } else if (lines[2].startsWith('W ')) {
+          state.hasWrittenWLine = true;
+          state.whiteName = lines[2].substring(2).trim();
+          updateUI();
+        }
+      }
+    }
+
+    async function onMyTurn() {
+      if (!state.gameActive || state.gameOver || state.error) return;
+      if (state.currentTurn !== state.myColor) return;
+      if (state.thinking) return;
+
+      if (state.myColor === 'W' && !state.hasWrittenWLine) {
+        await tryWriteWLine();
+        if (!state.hasWrittenWLine) return;
+      }
+
+      state.thinking = true;
+      updateUI();
+
+      const color = state.myColor === 'B' ? BLACK : WHITE;
+      const moves = getValidMoves(state.board, color);
+
+      if (moves.length === 0) {
+        const oppMoves = getValidMoves(state.board, color === BLACK ? WHITE : BLACK);
+        if (oppMoves.length === 0) {
+          if (state.myColor === 'B') await writeEndLine();
+          state.thinking = false;
+          return;
+        }
+        const ok = await appendLine(state.myColor + ' pass');
+        if (!ok) { state.thinking = false; return; }
+        state.moveHistory.push({ color: state.myColor, move: 'pass' });
+        state.currentTurn = state.myColor === 'B' ? 'W' : 'B';
+        state.thinking = false;
+        updateUI();
+        return;
+      }
+
+      const best = searchBestMove(state.board, color, state.timeLimitMs);
+      if (!best) { state.thinking = false; return; }
+
+      const cell = coordToCell(best.row, best.col);
+      const ok = await appendLine(state.myColor + ' ' + cell);
+      if (!ok) { state.thinking = false; return; }
+
+      applyMove(state.board, best.row, best.col, color);
+      state.lastMove = { row: best.row, col: best.col };
+      state.moveHistory.push({ color: state.myColor, move: cell });
+      state.currentTurn = state.myColor === 'B' ? 'W' : 'B';
+      state.thinking = false;
+      updateUI();
+
+      if (state.myColor === 'B') await checkAndWriteEnd();
+    }
+
+    async function checkAndWriteEnd() {
+      if (!state.gameActive || state.gameOver) return;
+      if (getValidMoves(state.board, BLACK).length === 0 && getValidMoves(state.board, WHITE).length === 0) {
+        await writeEndLine();
+      }
+    }
+
+    async function writeEndLine() {
+      if (state.myColor !== 'B') return;
+      const { black, white } = countStones(state.board);
+      let winner = 'D';
+      if (black > white) winner = 'B';
+      else if (white > black) winner = 'W';
+      const ok = await appendLine('END ' + winner + ' ' + black + ' ' + white);
+      if (ok) {
+        state.gameOver = true;
+        state.gameActive = false;
+        state.thinking = false;
+        if (state.timerId) { clearTimeout(state.timerId); state.timerId = null; }
+        updateUI();
+      }
+    }
+
+    async function pollLoop() {
+      if (!state.gameActive || state.gameOver || state.error) return;
+      if (state.polling) return;
+      state.polling = true;
+      try {
+        if (state.myColor === 'W' && !state.hasWrittenWLine) await tryWriteWLine();
+        await processFileUpdate();
+        if (state.gameActive && !state.gameOver && !state.error &&
+            state.currentTurn === state.myColor && !state.thinking) {
+          await onMyTurn();
+        }
+      } catch (err) {
+        setError('ポーリングエラー: ' + err.message);
+      } finally {
+        state.polling = false;
+      }
+      if (state.gameActive && !state.gameOver && !state.error) {
+        state.timerId = setTimeout(pollLoop, 1000);
+      }
+    }
+
+    async function startGame() {
+      if (state.timerId) { clearTimeout(state.timerId); state.timerId = null; }
+      clearError();
+      state.gameOver = false;
+      state.gameActive = false;
+      state.thinking = false;
+      state.polling = false;
+
+      const appName = appNameInput.value.trim();
+      if (appName.length < 1 || appName.length > 30) { setError('アプリ名は1〜30文字で入力してください'); return; }
+      if (!state.fileHandle) { setError('棋譜ファイルを指定してください'); return; }
+      const timeLimitSec = parseFloat(timeLimitInput.value);
+      if (isNaN(timeLimitSec) || timeLimitSec < 0.1 || timeLimitSec > 10.0) { setError('制限時間は0.1〜10.0秒で指定してください'); return; }
+
+      state.appName = appName;
+      state.myColor = colorSelect.value;
+      state.timeLimitMs = timeLimitSec * 1000;
+      state.board = createBoard();
+      state.lastMove = null;
+      state.moveHistory = [];
+      state.blackName = '';
+      state.whiteName = '';
+      state.currentTurn = 'B';
+      state.lastProcessedLineCount = 0;
+      state.gameActive = true;
+      state.thinking = false;
+      state.hasWrittenWLine = false;
+      state.myWrittenLines = [];
+      updateUI();
+
+      if (state.myColor === 'B') {
+        const text = await readFileContent();
+        if (text.trim().length > 0) {
+          setError('指定されたファイルは空ではありません。空のファイルを指定してください。');
+          state.gameActive = false;
+          return;
+        }
+        const ok1 = await appendLine('OTHELLO v1.00');
+        if (!ok1) { state.gameActive = false; return; }
+        const ok2 = await appendLine('B ' + appName);
+        if (!ok2) { state.gameActive = false; return; }
+      }
+
+      setTimeout(async () => {
+        if (!state.gameActive) return;
+        await pollLoop();
+      }, 100);
+    }
+
+    fileBtn.addEventListener('click', openFile);
+    startBtn.addEventListener('click', startGame);
+
+    appNameInput.addEventListener('input', () => {
+      state.appName = appNameInput.value.trim() || 'リバーシAI';
+      displayAppName.textContent = state.appName;
+    });
+    colorSelect.addEventListener('change', () => { state.myColor = colorSelect.value; updateUI(); });
+    timeLimitInput.addEventListener('change', () => {
+      const v = parseFloat(timeLimitInput.value);
+      if (!isNaN(v) && v >= 0.1 && v <= 10.0) state.timeLimitMs = v * 1000;
+    });
+
+    updateUI();
+  })();
+</script>
+</body>
+</html>

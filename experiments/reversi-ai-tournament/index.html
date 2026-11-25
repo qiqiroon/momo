@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
+<!-- リバーシ AI トーナメント 内部バージョン: v1.00
+     このページは D:\momo\claude\experiments\reversi-tournament\build.py が template.html から作る。直すときは template.html を直して作り直す。
+     変更履歴:
+       v1.00 - 新設（2026-11-25） -->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>リバーシ AI トーナメント - 同じプロンプトで7つの AI が作ったリバーシの総当たり戦 | MOMO Works</title>
+<meta name="description" content="同じプロンプトで Claude・ChatGPT・Gemini・Grok・Genspark・Perplexity・DeepSeek にリバーシの対戦プログラムを作らせ、総当たりで対戦させた実験。順位表・対戦表・全局の棋譜・作られたアプリ・プロンプトを公開しています。">
+<link rel="canonical" href="https://qiqiroon.github.io/momo/experiments/reversi-ai-tournament/">
+<link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/experiments/reversi-ai-tournament/">
+<link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/experiments/reversi-ai-tournament/">
+<link rel="alternate" hreflang="zh-Hans" href="https://qiqiroon.github.io/momo/experiments/reversi-ai-tournament/">
+<link rel="alternate" hreflang="x-default" href="https://qiqiroon.github.io/momo/experiments/reversi-ai-tournament/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="MOMO Works">
+<meta property="og:url" content="https://qiqiroon.github.io/momo/experiments/reversi-ai-tournament/">
+<meta property="og:title" content="リバーシ AI トーナメント - 同じプロンプトで7つの AI が作ったリバーシの総当たり戦">
+<meta property="og:description" content="同じプロンプトで Claude・ChatGPT・Gemini・Grok・Genspark・Perplexity・DeepSeek にリバーシの対戦プログラムを作らせ、総当たりで対戦させた実験。順位表・対戦表・全局の棋譜・作られたアプリ・プロンプトを公開しています。">
+<meta property="og:image" content="https://qiqiroon.github.io/momo/apple-touch-icon.png">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../../favicon-32.png">
+<link rel="icon" type="image/x-icon" href="../../favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="../../apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-base:     #0a0a0a;
+    --bg-surface:  #111111;
+    --bg-card:     #1a1a1a;
+    --orange-dark: #c2410c;
+    --orange:      #ea580c;
+    --orange-light:#fb923c;
+    --text-main:   #e5e5e5;
+    --text-muted:  #8a8a8a;
+    --border:      #2a2a2a;
+    --border-strong: #444;
+    --win:  #4ade80;
+    --loss: #f87171;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-main);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-attachment: fixed;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background: var(--bg-base); opacity: 0.8;
+    pointer-events: none; z-index: 0;
+  }
+  #lang-switcher { position: fixed; top: 8px; right: 12px; z-index: 200; }
+  #lang-select {
+    background: var(--bg-card); border: 1px solid var(--border-strong); color: var(--text-main);
+    font-size: 12px; padding: 4px 8px; border-radius: 4px; cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif; outline: none;
+  }
+  #lang-select:focus { border-color: var(--orange); }
+  .page-wrap { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
+  .breadcrumb { font-size: 12px; color: var(--text-muted); margin-bottom: 32px; }
+  .breadcrumb a { color: var(--text-muted); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--orange-light); }
+  .breadcrumb .sep { margin: 0 6px; }
+  .site-header { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
+  .cat-icon { width: 52px; height: 44px; flex-shrink: 0; }
+  .site-title { font-family: 'Fredoka One', cursive; font-size: clamp(1.8rem, 5vw, 2.6rem); font-weight: 400; color: var(--text-main); line-height: 1.1; }
+  .site-title span { color: var(--orange); }
+  .header-sub { font-size: 14px; color: var(--text-main); padding-left: 4px; line-height: 1.7; }
+  .meta { font-size: 12px; color: var(--text-muted); padding-left: 4px; margin: 4px 0 32px; }
+
+  .toc { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; margin-bottom: 36px; padding: 12px 16px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; }
+  .toc a { color: var(--orange-light); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  p, li { font-size: 14px; line-height: 1.95; }
+  p + p { margin-top: 10px; }
+  .lead { font-size: 15px; }
+  .callout { margin: 20px 0 8px; padding: 16px 18px; background: rgba(194,65,12,0.10); border: 1px solid rgba(194,65,12,0.35); border-left: 4px solid var(--orange-dark); border-radius: 8px; }
+  section { margin-top: 56px; }
+  h2 { font-size: 18px; font-weight: 700; color: #fff; padding-bottom: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-strong); }
+  h2::before { content: ''; display: inline-block; width: 6px; height: 16px; background: var(--orange); border-radius: 2px; margin-right: 10px; vertical-align: -2px; }
+  .note { font-size: 12.5px; color: var(--text-muted); line-height: 1.8; margin-top: 10px; }
+  ul.list { padding-left: 1.3em; }
+  ul.list li + li { margin-top: 6px; }
+  ul.list li::marker { color: var(--orange); }
+  a { color: var(--orange-light); }
+
+  .tbl-wrap { overflow-x: auto; margin: 4px 0; -webkit-overflow-scrolling: touch; }
+  table { border-collapse: collapse; font-size: 13px; width: 100%; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+  thead th { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: var(--text-muted); border-bottom: 1px solid var(--border-strong); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.ai { font-weight: 500; color: #fff; }
+  .model { font-size: 11px; font-weight: 400; color: var(--text-muted); margin-left: 4px; }
+  table.rank { max-width: 560px; }
+  table.rank td { font-size: 14px; }
+  table.rank td.pt { color: var(--orange-light); font-weight: 700; }
+  table.rank tr.r1 td:first-child { color: #fbbf24; font-weight: 700; }
+  table.cross th.col, table.cross th.row { font-size: 12px; color: #fff; font-weight: 500; }
+  table.cross td { text-align: center; font-variant-numeric: tabular-nums; border-left: 1px solid var(--border); }
+  table.cross td.win { background: rgba(74,222,128,0.07); }
+  table.cross td.loss { background: rgba(248,113,113,0.06); }
+  table.cross td.self { color: var(--text-muted); background: var(--bg-surface); }
+  table.cross .mk { font-size: 12px; }
+  table.cross td.win .mk { color: var(--win); }
+  table.cross td.loss .mk { color: var(--loss); }
+  table.cross .df { display: block; font-size: 11px; color: var(--text-muted); }
+  table.matches .df { font-size: 11px; color: var(--text-muted); }
+  .vs { font-size: 11px; color: var(--text-muted); margin: 0 2px; }
+  .stone { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: -1px; margin: 0 5px; }
+  .stone.b { background: #000; border: 1px solid #666; }
+  .stone.w { background: #fff; }
+  a.rec { font-size: 11px; margin-left: 8px; padding: 1px 7px; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text-muted); text-decoration: none; }
+  a.rec:hover { color: var(--orange-light); border-color: var(--orange); }
+  table.apps td.fn { font-size: 12px; color: var(--text-muted); }
+  a.open { display: inline-block; font-size: 12px; padding: 3px 12px; border-radius: 4px; background: var(--orange-dark); color: #fff; text-decoration: none; }
+  a.open:hover { background: var(--orange); }
+  tr.dnf td { color: var(--text-muted); }
+  .wh { font-size: 12px; color: var(--text-muted); }
+  pre.prompt { white-space: pre-wrap; word-break: break-word; font-family: 'Noto Sans JP', sans-serif; font-size: 13px; line-height: 1.8; color: var(--text-main); background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; max-height: 560px; overflow: auto; }
+  .dl { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 14px; }
+  .dl a { display: inline-block; font-size: 13px; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--orange-dark); color: var(--orange-light); text-decoration: none; background: rgba(194,65,12,0.08); }
+  .dl a:hover { background: rgba(194,65,12,0.2); }
+  @media (max-width: 560px) {
+    th, td { padding: 7px 6px; }
+    td .model { display: block; margin-left: 0; }
+  }
+  .page-footer { margin-top: 64px; text-align: center; font-size: 13px; color: var(--text-muted); }
+  .page-footer a { color: var(--text-muted); text-decoration: none; margin: 0 8px; }
+  .page-footer a:hover { color: var(--orange-light); }
+</style>
+<script src="/momo/lib/momo-lang/momo-lang.js"></script>
+<script src="/momo/lib/momo-analytics.js" defer></script>
+<script src="/momo/lib/momo-about.js"></script>
+</head>
+<body>
+
+<div id="lang-switcher">
+  <select id="lang-select" class="lang-select" onchange="onLangChange(this.value)">
+    <option value="auto">Auto</option>
+    <option value="ja">日本語</option>
+    <option value="en">EN</option>
+    <option value="zh">中文</option>
+    <option value="cat">CAT</option>
+  </select>
+</div>
+
+<div class="page-wrap">
+
+  <nav class="breadcrumb">
+    <a href="https://qiqiroon.github.io/momo/">MOMO Works</a><span class="sep">›</span><a href="../">MOMO Experiments</a><span class="sep">›</span><span data-i18n="crumbHere">リバーシ AI トーナメント</span>
+  </nav>
+
+  <header class="site-header">
+    <svg class="cat-icon" xmlns="http://www.w3.org/2000/svg" viewBox="-46 -50 92 80" aria-hidden="true">
+      <g transform="rotate(-12,-12,8.3)"><path d="M-21.6,-14.94 L-14.549,-35.916 Q-12,-43.5 -9.451,-35.916 L-2.4,-14.94 Z" fill="#c2410c"/></g>
+      <g transform="rotate(12,12,8.3)"><path d="M2.4,-14.94 L9.451,-35.916 Q12,-43.5 14.549,-35.916 L21.6,-14.94 Z" fill="#c2410c"/></g>
+      <ellipse cx="0" cy="1.3" rx="34" ry="26" fill="#c2410c"/>
+      <line x1="-14" y1="1.00"  x2="-33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="6.0"   x2="-33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-14" y1="10.59" x2="-29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-33.68" y1="-2.28" x2="-38" y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-33.44" y1="6.0"   x2="-40" y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-29.58" y1="14.26" x2="-37" y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="1.00"  x2="33.68" y2="-2.28" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="6.0"   x2="33.44" y2="6.0"   stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="14"  y1="10.59" x2="29.58" y2="14.26" stroke="#000" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="33.68" y1="-2.28" x2="38"  y2="-3"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="33.44" y1="6.0"   x2="40"  y2="6"    stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="29.58" y1="14.26" x2="37"  y2="16"   stroke="#c2410c" stroke-width="1.8" stroke-linecap="round"/>
+      <ellipse cx="-12" cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="12"  cy="-3.7" rx="4.2" ry="5.6" fill="#1a0800"/>
+      <ellipse cx="-12" cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <ellipse cx="12"  cy="-3.7" rx="2.4" ry="3.5" fill="#000"/>
+      <circle cx="-10.5" cy="-5.2" r="1.0" fill="#c2410c"/>
+      <circle cx="13.5"  cy="-5.2" r="1.0" fill="#c2410c"/>
+      <path d="M0,6.3 C-0.8,4.8 -3.5,4.8 -3.5,7.3 C-3.5,9.3 0,11.3 0,11.3 C0,11.3 3.5,9.3 3.5,7.3 C3.5,4.8 0.8,4.8 0,6.3 Z" fill="#000"/>
+      <line x1="0" y1="11.3" x2="0" y2="13.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q-5,17.3 -8,15.3" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M0,13.3 Q5,17.3 8,15.3"  fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+    <h1 class="site-title">Reversi AI <span>Tournament</span></h1>
+  </header>
+  <p class="header-sub" data-i18n="headerSub">リバーシ AI トーナメント ― 同じプロンプトで7つの AI が作ったリバーシの総当たり戦</p>
+  <p class="meta" data-i18n="meta">実施：2026年11月23日〜25日</p>
+
+  <nav class="toc">
+    <a href="#about" data-i18n="hAbout">この実験について</a>
+    <a href="#results" data-i18n="hResults">結果</a>
+    <a href="#cross" data-i18n="hCross">対戦表</a>
+    <a href="#matches" data-i18n="hMatches">対戦の記録</a>
+    <a href="#rules" data-i18n="hRules">対戦の決まり</a>
+    <a href="#fairness" data-i18n="hFair">公平性についての注意</a>
+    <a href="#apps" data-i18n="hApps">出場したアプリ</a>
+    <a href="#prompt" data-i18n="hPrompt">プロンプト</a>
+    <a href="#download" data-i18n="hDownload">棋譜のダウンロード</a>
+  </nav>
+
+  <section id="about" style="margin-top:0">
+    <h2 class="h" data-i18n="hAbout">この実験について</h2>
+    <p class="lead" data-i18n="lead">同じプロンプト（指示文）を7つの AI に渡して、リバーシ（オセロ）を自動で打つ Web アプリを1本ずつ作ってもらいました。できたアプリどうしを共有の棋譜ファイルでつなぎ、総当たりで対戦させて、どの AI が最も強いアプリを作れるかを競わせています。</p>
+    <div class="callout">
+      <p data-i18n="purpose1">AI どうしを競わせていますが、これは題材として選んだだけで、AI の優劣を評価するための実験ではありません。<strong>AI の使い方の実験</strong>です。</p>
+      <p data-i18n="purpose2">ここに並べたどのアプリよりも強いプログラムを作るのは、たぶん難しくありません。それよりも、<strong>もっと簡潔で、エラーの出ないプロンプト</strong>を歓迎します。</p>
+    </div>
+  </section>
+
+  <section id="results">
+    <h2 class="h" data-i18n="hResults">結果</h2>
+    <p data-i18n="resultsSummary">優勝は Perplexity で、6戦全勝でした。2位の Claude（5勝1敗）が負けたのは Perplexity との対戦だけで、2局の合計は 55 対 73 でした。3〜5位の ChatGPT・Genspark・Gemini はそろって3勝3敗で、ポイントの差で順位が分かれました。</p>
+    <div class="tbl-wrap"><table class="rank"><thead><tr><th data-i18n="thRank">順位</th><th data-i18n="thAi">AI</th><th data-i18n="thWin">勝</th><th data-i18n="thLoss">敗</th><th data-i18n="thPoint">ポイント</th></tr></thead><tbody><tr class="r1"><td class="num">1</td><td class="ai">Perplexity </td><td class="num">6</td><td class="num">0</td><td class="num pt">366</td></tr><tr class="r2"><td class="num">2</td><td class="ai">Claude <span class="model">Fable 5.2</span></td><td class="num">5</td><td class="num">1</td><td class="num pt">418</td></tr><tr class="r3"><td class="num">3</td><td class="ai">ChatGPT <span class="model">GPT-5.6 Luna</span></td><td class="num">3</td><td class="num">3</td><td class="num pt">232</td></tr><tr class="r4"><td class="num">4</td><td class="ai">Genspark <span class="model">AI workspace 6.0</span></td><td class="num">3</td><td class="num">3</td><td class="num pt">174</td></tr><tr class="r5"><td class="num">5</td><td class="ai">Gemini <span class="model">Gemini 4 Argon</span></td><td class="num">3</td><td class="num">3</td><td class="num pt">102</td></tr><tr class="r6"><td class="num">6</td><td class="ai">Grok <span class="model">Grok Build (2026-04)</span></td><td class="num">1</td><td class="num">5</td><td class="num pt">2</td></tr><tr class="r7"><td class="num">7</td><td class="ai">DeepSeek <span class="model">DeepSeek-V3</span></td><td class="num">0</td><td class="num">6</td><td class="num pt">0</td></tr></tbody></table></div>
+    <p class="note" data-i18n="rankNote">ポイント＝勝った組み合わせでの石数の差の合計。順位は勝ち数、次にポイントで決めています。</p>
+  </section>
+
+  <section id="cross">
+    <h2 class="h" data-i18n="hCross">対戦表</h2>
+    <p data-i18n="crossNote">数字は、行の AI から見た2局の石数の合計（自分 – 相手）です。○は勝ち、●は負け、下の小さな数字は石数の差です。</p>
+    <div class="tbl-wrap"><table class="cross"><thead><tr><th></th><th class="col">Perplexity</th><th class="col">Claude</th><th class="col">ChatGPT</th><th class="col">Genspark</th><th class="col">Gemini</th><th class="col">Grok</th><th class="col">DeepSeek</th></tr></thead><tbody><tr><th class="row">Perplexity</th><td class="self">—</td><td class="win"><span class="mk">○</span> 73–55<span class="df">+18</span></td><td class="win"><span class="mk">○</span> 95–33<span class="df">+62</span></td><td class="win"><span class="mk">○</span> 84–44<span class="df">+40</span></td><td class="win"><span class="mk">○</span> 94–34<span class="df">+60</span></td><td class="win"><span class="mk">○</span> 110–18<span class="df">+92</span></td><td class="win"><span class="mk">○</span> 111–17<span class="df">+94</span></td></tr><tr><th class="row">Claude</th><td class="loss"><span class="mk">●</span> 55–73<span class="df">-18</span></td><td class="self">—</td><td class="win"><span class="mk">○</span> 94–34<span class="df">+60</span></td><td class="win"><span class="mk">○</span> 98–30<span class="df">+68</span></td><td class="win"><span class="mk">○</span> 100–28<span class="df">+72</span></td><td class="win"><span class="mk">○</span> 112–16<span class="df">+96</span></td><td class="win"><span class="mk">○</span> 125–3<span class="df">+122</span></td></tr><tr><th class="row">ChatGPT</th><td class="loss"><span class="mk">●</span> 33–95<span class="df">-62</span></td><td class="loss"><span class="mk">●</span> 34–94<span class="df">-60</span></td><td class="self">—</td><td class="loss"><span class="mk">●</span> 58–70<span class="df">-12</span></td><td class="win"><span class="mk">○</span> 84–44<span class="df">+40</span></td><td class="win"><span class="mk">○</span> 109–19<span class="df">+90</span></td><td class="win"><span class="mk">○</span> 114–12<span class="df">+102</span></td></tr><tr><th class="row">Genspark</th><td class="loss"><span class="mk">●</span> 44–84<span class="df">-40</span></td><td class="loss"><span class="mk">●</span> 30–98<span class="df">-68</span></td><td class="win"><span class="mk">○</span> 70–58<span class="df">+12</span></td><td class="self">—</td><td class="loss"><span class="mk">●</span> 60–68<span class="df">-8</span></td><td class="win"><span class="mk">○</span> 102–26<span class="df">+76</span></td><td class="win"><span class="mk">○</span> 107–21<span class="df">+86</span></td></tr><tr><th class="row">Gemini</th><td class="loss"><span class="mk">●</span> 34–94<span class="df">-60</span></td><td class="loss"><span class="mk">●</span> 28–100<span class="df">-72</span></td><td class="loss"><span class="mk">●</span> 44–84<span class="df">-40</span></td><td class="win"><span class="mk">○</span> 68–60<span class="df">+8</span></td><td class="self">—</td><td class="win"><span class="mk">○</span> 85–43<span class="df">+42</span></td><td class="win"><span class="mk">○</span> 90–38<span class="df">+52</span></td></tr><tr><th class="row">Grok</th><td class="loss"><span class="mk">●</span> 18–110<span class="df">-92</span></td><td class="loss"><span class="mk">●</span> 16–112<span class="df">-96</span></td><td class="loss"><span class="mk">●</span> 19–109<span class="df">-90</span></td><td class="loss"><span class="mk">●</span> 26–102<span class="df">-76</span></td><td class="loss"><span class="mk">●</span> 43–85<span class="df">-42</span></td><td class="self">—</td><td class="win"><span class="mk">○</span> 65–63<span class="df">+2</span></td></tr><tr><th class="row">DeepSeek</th><td class="loss"><span class="mk">●</span> 17–111<span class="df">-94</span></td><td class="loss"><span class="mk">●</span> 3–125<span class="df">-122</span></td><td class="loss"><span class="mk">●</span> 12–114<span class="df">-102</span></td><td class="loss"><span class="mk">●</span> 21–107<span class="df">-86</span></td><td class="loss"><span class="mk">●</span> 38–90<span class="df">-52</span></td><td class="loss"><span class="mk">●</span> 63–65<span class="df">-2</span></td><td class="self">—</td></tr></tbody></table></div>
+  </section>
+
+  <section id="matches">
+    <h2 class="h" data-i18n="hMatches">対戦の記録</h2>
+    <p data-i18n="matchesNote">組み合わせごとの2局の結果です。「棋譜」を押すと、その局の棋譜（テキストファイル）を保存できます。</p>
+    <div class="tbl-wrap"><table class="matches"><thead><tr><th data-i18n="thPair">組み合わせ</th><th data-i18n="thGame1">1局目（黒 – 白）</th><th data-i18n="thGame2">2局目（黒 – 白）</th><th data-i18n="thTotal">合計</th><th data-i18n="thWinner">勝ち（石数差）</th></tr></thead><tbody><tr><td class="ai">Perplexity <span class="vs">vs</span> Claude</td><td><span class="stone b"></span>Perplexity 36 – 28 Claude<span class="stone w"></span> <a class="rec" href="records/G-A_261123_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Claude 27 – 37 Perplexity<span class="stone w"></span> <a class="rec" href="records/G-A_261123_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">73 – 55</td><td class="ai">Perplexity <span class="df">+18</span></td></tr><tr><td class="ai">Perplexity <span class="vs">vs</span> ChatGPT</td><td><span class="stone b"></span>Perplexity 50 – 14 ChatGPT<span class="stone w"></span> <a class="rec" href="records/G-B_261124_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>ChatGPT 19 – 45 Perplexity<span class="stone w"></span> <a class="rec" href="records/G-B_261124_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">95 – 33</td><td class="ai">Perplexity <span class="df">+62</span></td></tr><tr><td class="ai">Perplexity <span class="vs">vs</span> Genspark</td><td><span class="stone b"></span>Perplexity 37 – 27 Genspark<span class="stone w"></span> <a class="rec" href="records/G-F_261125_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Genspark 17 – 47 Perplexity<span class="stone w"></span> <a class="rec" href="records/G-F_261125_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">84 – 44</td><td class="ai">Perplexity <span class="df">+40</span></td></tr><tr><td class="ai">Perplexity <span class="vs">vs</span> Gemini</td><td><span class="stone b"></span>Perplexity 51 – 13 Gemini<span class="stone w"></span> <a class="rec" href="records/G-C_261125_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Gemini 21 – 43 Perplexity<span class="stone w"></span> <a class="rec" href="records/G-C_261125_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">94 – 34</td><td class="ai">Perplexity <span class="df">+60</span></td></tr><tr><td class="ai">Perplexity <span class="vs">vs</span> Grok</td><td><span class="stone b"></span>Perplexity 52 – 12 Grok<span class="stone w"></span> <a class="rec" href="records/G-E_261125_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Grok 6 – 58 Perplexity<span class="stone w"></span> <a class="rec" href="records/G-E_261125_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">110 – 18</td><td class="ai">Perplexity <span class="df">+92</span></td></tr><tr><td class="ai">Perplexity <span class="vs">vs</span> DeepSeek</td><td><span class="stone b"></span>DeepSeek 11 – 53 Perplexity<span class="stone w"></span> <a class="rec" href="records/G-H_261125_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Perplexity 58 – 6 DeepSeek<span class="stone w"></span> <a class="rec" href="records/G-H_261125_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">111 – 17</td><td class="ai">Perplexity <span class="df">+94</span></td></tr><tr><td class="ai">Claude <span class="vs">vs</span> ChatGPT</td><td><span class="stone b"></span>ChatGPT 18 – 46 Claude<span class="stone w"></span> <a class="rec" href="records/B-A_261124_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Claude 48 – 16 ChatGPT<span class="stone w"></span> <a class="rec" href="records/B-A_261124_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">94 – 34</td><td class="ai">Claude <span class="df">+60</span></td></tr><tr><td class="ai">Claude <span class="vs">vs</span> Genspark</td><td><span class="stone b"></span>Genspark 17 – 47 Claude<span class="stone w"></span> <a class="rec" href="records/F-A_261123_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Claude 51 – 13 Genspark<span class="stone w"></span> <a class="rec" href="records/F-A_261123_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">98 – 30</td><td class="ai">Claude <span class="df">+68</span></td></tr><tr><td class="ai">Claude <span class="vs">vs</span> Gemini</td><td><span class="stone b"></span>Gemini 15 – 49 Claude<span class="stone w"></span> <a class="rec" href="records/C-A_261124_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Claude 51 – 13 Gemini<span class="stone w"></span> <a class="rec" href="records/C-A_261124_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">100 – 28</td><td class="ai">Claude <span class="df">+72</span></td></tr><tr><td class="ai">Claude <span class="vs">vs</span> Grok</td><td><span class="stone b"></span>Grok 0 – 64 Claude<span class="stone w"></span> <a class="rec" href="records/E-A_261123_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Claude 48 – 16 Grok<span class="stone w"></span> <a class="rec" href="records/E-A_261123_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">112 – 16</td><td class="ai">Claude <span class="df">+96</span></td></tr><tr><td class="ai">Claude <span class="vs">vs</span> DeepSeek</td><td><span class="stone b"></span>DeepSeek 2 – 62 Claude<span class="stone w"></span> <a class="rec" href="records/H-A_261124_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Claude 63 – 1 DeepSeek<span class="stone w"></span> <a class="rec" href="records/H-A_261124_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">125 – 3</td><td class="ai">Claude <span class="df">+122</span></td></tr><tr><td class="ai">ChatGPT <span class="vs">vs</span> Genspark</td><td><span class="stone b"></span>Genspark 30 – 34 ChatGPT<span class="stone w"></span> <a class="rec" href="records/F-B_261124_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>ChatGPT 24 – 40 Genspark<span class="stone w"></span> <a class="rec" href="records/F-B_261124_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">58 – 70</td><td class="ai">Genspark <span class="df">+12</span></td></tr><tr><td class="ai">ChatGPT <span class="vs">vs</span> Gemini</td><td><span class="stone b"></span>Gemini 22 – 42 ChatGPT<span class="stone w"></span> <a class="rec" href="records/C-B_261124_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>ChatGPT 42 – 22 Gemini<span class="stone w"></span> <a class="rec" href="records/C-B_261124_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">84 – 44</td><td class="ai">ChatGPT <span class="df">+40</span></td></tr><tr><td class="ai">ChatGPT <span class="vs">vs</span> Grok</td><td><span class="stone b"></span>Grok 10 – 54 ChatGPT<span class="stone w"></span> <a class="rec" href="records/E-B_261124_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>ChatGPT 55 – 9 Grok<span class="stone w"></span> <a class="rec" href="records/E-B_261124_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">109 – 19</td><td class="ai">ChatGPT <span class="df">+90</span></td></tr><tr><td class="ai">ChatGPT <span class="vs">vs</span> DeepSeek</td><td><span class="stone b"></span>DeepSeek 5 – 57 ChatGPT<span class="stone w"></span> <a class="rec" href="records/H-B_261124_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>ChatGPT 57 – 7 DeepSeek<span class="stone w"></span> <a class="rec" href="records/H-B_261124_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">114 – 12</td><td class="ai">ChatGPT <span class="df">+102</span></td></tr><tr><td class="ai">Genspark <span class="vs">vs</span> Gemini</td><td><span class="stone b"></span>Genspark 27 – 37 Gemini<span class="stone w"></span> <a class="rec" href="records/F-C_261125_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Gemini 31 – 33 Genspark<span class="stone w"></span> <a class="rec" href="records/F-C_261125_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">60 – 68</td><td class="ai">Gemini <span class="df">+8</span></td></tr><tr><td class="ai">Genspark <span class="vs">vs</span> Grok</td><td><span class="stone b"></span>Genspark 52 – 12 Grok<span class="stone w"></span> <a class="rec" href="records/F-E_261125_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Grok 14 – 50 Genspark<span class="stone w"></span> <a class="rec" href="records/F-E_261125_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">102 – 26</td><td class="ai">Genspark <span class="df">+76</span></td></tr><tr><td class="ai">Genspark <span class="vs">vs</span> DeepSeek</td><td><span class="stone b"></span>DeepSeek 6 – 58 Genspark<span class="stone w"></span> <a class="rec" href="records/H-F_261125_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Genspark 49 – 15 DeepSeek<span class="stone w"></span> <a class="rec" href="records/H-F_261125_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">107 – 21</td><td class="ai">Genspark <span class="df">+86</span></td></tr><tr><td class="ai">Gemini <span class="vs">vs</span> Grok</td><td><span class="stone b"></span>Grok 17 – 47 Gemini<span class="stone w"></span> <a class="rec" href="records/E-C_261125_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Gemini 38 – 26 Grok<span class="stone w"></span> <a class="rec" href="records/E-C_261125_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">85 – 43</td><td class="ai">Gemini <span class="df">+42</span></td></tr><tr><td class="ai">Gemini <span class="vs">vs</span> DeepSeek</td><td><span class="stone b"></span>DeepSeek 11 – 53 Gemini<span class="stone w"></span> <a class="rec" href="records/H-C_261125_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Gemini 37 – 27 DeepSeek<span class="stone w"></span> <a class="rec" href="records/H-C_261125_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">90 – 38</td><td class="ai">Gemini <span class="df">+52</span></td></tr><tr><td class="ai">Grok <span class="vs">vs</span> DeepSeek</td><td><span class="stone b"></span>DeepSeek 26 – 38 Grok<span class="stone w"></span> <a class="rec" href="records/H-E_261125_01.txt" download data-i18n="rec">棋譜</a></td><td><span class="stone b"></span>Grok 27 – 37 DeepSeek<span class="stone w"></span> <a class="rec" href="records/H-E_261125_02.txt" download data-i18n="rec">棋譜</a></td><td class="num">65 – 63</td><td class="ai">Grok <span class="df">+2</span></td></tr></tbody></table></div>
+    <p class="note" data-i18n="selfNote">参考：同じアプリどうしの対局も打ちました（順位には数えません）。</p>
+    <div class="tbl-wrap"><table class="selfplay"><thead><tr><th data-i18n="thAi">AI</th><th data-i18n="thSelf1">1局目</th><th data-i18n="thSelf2">2局目</th></tr></thead><tbody><tr><td class="ai">Perplexity</td><td><span data-i18n="black">黒</span> 32 – 32 <span data-i18n="white">白</span> <a class="rec" href="records/G-G_261123_01.txt" download data-i18n="rec">棋譜</a></td><td><span data-i18n="black">黒</span> 31 – 33 <span data-i18n="white">白</span> <a class="rec" href="records/G-G_261123_02.txt" download data-i18n="rec">棋譜</a></td></tr><tr><td class="ai">Claude</td><td><span data-i18n="noRecord">記録なし</span> <a class="rec" href="records/A-A_261123_01.txt" download data-i18n="rec">棋譜</a></td><td><span data-i18n="black">黒</span> 34 – 30 <span data-i18n="white">白</span> <a class="rec" href="records/A-A_261123_02.txt" download data-i18n="rec">棋譜</a></td></tr><tr><td class="ai">ChatGPT</td><td><span data-i18n="black">黒</span> 15 – 49 <span data-i18n="white">白</span> <a class="rec" href="records/B-B_261124_01.txt" download data-i18n="rec">棋譜</a></td><td><span data-i18n="black">黒</span> 15 – 49 <span data-i18n="white">白</span> <a class="rec" href="records/B-B_261124_02.txt" download data-i18n="rec">棋譜</a></td></tr><tr><td class="ai">Genspark</td><td><span data-i18n="black">黒</span> 40 – 24 <span data-i18n="white">白</span> <a class="rec" href="records/F-F_261123_01.txt" download data-i18n="rec">棋譜</a></td><td><span data-i18n="black">黒</span> 40 – 24 <span data-i18n="white">白</span> <a class="rec" href="records/F-F_261123_02.txt" download data-i18n="rec">棋譜</a></td></tr><tr><td class="ai">Gemini</td><td><span data-i18n="black">黒</span> 39 – 25 <span data-i18n="white">白</span> <a class="rec" href="records/C-C_261124_01.txt" download data-i18n="rec">棋譜</a></td><td><span data-i18n="black">黒</span> 39 – 25 <span data-i18n="white">白</span> <a class="rec" href="records/C-C_261124_02.txt" download data-i18n="rec">棋譜</a></td></tr><tr><td class="ai">Grok</td><td><span data-i18n="black">黒</span> 33 – 31 <span data-i18n="white">白</span> <a class="rec" href="records/E-E_261123_01.txt" download data-i18n="rec">棋譜</a></td><td><span data-i18n="black">黒</span> 29 – 35 <span data-i18n="white">白</span> <a class="rec" href="records/E-E_261123_02.txt" download data-i18n="rec">棋譜</a></td></tr><tr><td class="ai">DeepSeek</td><td><span data-i18n="black">黒</span> 55 – 9 <span data-i18n="white">白</span> <a class="rec" href="records/H-H_261124_01.txt" download data-i18n="rec">棋譜</a></td><td><span data-i18n="black">黒</span> 33 – 31 <span data-i18n="white">白</span> <a class="rec" href="records/H-H_261124_02.txt" download data-i18n="rec">棋譜</a></td></tr></tbody></table></div>
+  </section>
+
+  <section id="rules">
+    <h2 class="h" data-i18n="hRules">対戦の決まり</h2>
+    <ul class="list">
+      <li data-i18n="rule1">アプリどうしは、共有のテキストファイル（棋譜）に1手ずつ書き足して対戦します。人は石を打ちません。</li>
+      <li data-i18n="rule2">組み合わせごとに、先手（黒）と後手（白）を入れ替えて2局を打ちます。持ち時間は1手10秒です。</li>
+      <li data-i18n="rule3">2局で取った自分の石の合計と相手の石の合計を比べて、その組み合わせの勝ち負けを決めます。</li>
+      <li data-i18n="rule4">順位は、①勝った組み合わせの数、②勝った組み合わせでの石数の差の合計（ポイント）の順で決めます。自分自身との対局は数えません。</li>
+    </ul>
+  </section>
+
+  <section id="fairness">
+    <h2 class="h" data-i18n="hFair">公平性についての注意</h2>
+    <ul class="list">
+      <li data-i18n="fair1">1手10秒のあいだに読める深さは、パソコンの性能によって変わります。別の環境で対戦させると、結果が変わる可能性があります。</li>
+      <li data-i18n="fair2">各アプリは1回のプロンプトで作らせました。ただし、動かしている途中でエラーが出たときは、エラーの内容を AI に伝えてデバッグしてもらっています。</li>
+      <li data-i18n="fair3">思考ルーチン（手の読み方や形勢の評価）への助言は、基本的にしていません。例外は DeepSeek だけで、デバッグ中のやり取りで AI が示した「探索の深さの上限を 10 から 64 に上げる」という提案に同意しました。</li>
+      <li data-i18n="fair4">有料プランを使ったのは Claude だけです。Claude は自分の判断で、アプリ作りに長い時間をかけました。ほかの AI は無料の範囲で作っています。</li>
+      <li data-i18n="fair5">Copilot と Mistral AI は、無料の範囲ではアプリの完成までたどり着きませんでした。能力が足りなかったのではなく、提供の形（無料で使える範囲）の違いによるものです。</li>
+      <li data-i18n="fair6">Perplexity のアプリは、公開されている強豪のリバーシソフト Edax の評価データを取り込み、探索の部分を WebAssembly にして1つの HTML に収めています。プロンプトは評価データの埋め込みを認めています。Edax のデータが GNU GPL v3 のため、このアプリも GPL v3 で配布されています（ライセンスの全文はアプリの中にあります）。</li>
+    </ul>
+  </section>
+
+  <section id="apps">
+    <h2 class="h" data-i18n="hApps">出場したアプリ</h2>
+    <p data-i18n="appsNote">どのアプリも、AI が出力したファイルに手を加えずに置いています（ファイル名だけ英数字に変えました）。題名や画面の作りも、それぞれの AI が決めたものです。例外として、Genspark のアプリからは末尾の1行だけを取り除きました。Genspark のサイトが付けたアクセス解析（Cloudflare Web Analytics）を読み込む行で、開いた人の閲覧情報が外部へ送られるためです。リバーシの動きには関係しません。</p>
+    <div class="tbl-wrap"><table class="apps"><thead><tr><th data-i18n="thAi">AI</th><th data-i18n="thTitle">アプリの題名</th><th data-i18n="thFile">元のファイル名</th><th data-i18n="thSize">大きさ</th><th></th></tr></thead><tbody><tr><td class="ai">Perplexity </td><td>石庭 | リバーシ対局</td><td class="fn">石庭 v1.00.html</td><td class="num">7.0 MB</td><td><span class="wh" data-i18n="withheld">非公開</span></td></tr><tr><td class="ai">Claude <span class="model">Fable 5.2</span></td><td>リバーシ対戦プログラム v1.00</td><td class="fn">claude_fabl_5_2_v1.00.html</td><td class="num">2.1 MB</td><td><span class="wh" data-i18n="withheld">非公開</span></td></tr><tr><td class="ai">ChatGPT <span class="model">GPT-5.6 Luna</span></td><td>MOMO Reversi v1.01</td><td class="fn">MOMO_Reversi_v1.01.html</td><td class="num">42 KB</td><td><a class="open" href="apps/b-chatgpt.html" target="_blank" rel="noopener" data-i18n="openApp">開く</a></td></tr><tr><td class="ai">Genspark <span class="model">AI workspace 6.0</span></td><td>Reversi Mind v1.00</td><td class="fn">othello_v1_00.html</td><td class="num">49 KB</td><td><a class="open" href="apps/f-genspark.html" target="_blank" rel="noopener" data-i18n="openApp">開く</a></td></tr><tr><td class="ai">Gemini <span class="model">Gemini 4 Argon</span></td><td>MOMO Reversi Engine v1.05</td><td class="fn">gemini-code-1795569383131.html</td><td class="num">56 KB</td><td><a class="open" href="apps/c-gemini.html" target="_blank" rel="noopener" data-i18n="openApp">開く</a></td></tr><tr><td class="ai">Grok <span class="model">Grok Build (2026-04)</span></td><td>Reversi AI v1.00</td><td class="fn">grok.html</td><td class="num">25 KB</td><td><a class="open" href="apps/e-grok.html" target="_blank" rel="noopener" data-i18n="openApp">開く</a></td></tr><tr><td class="ai">DeepSeek <span class="model">DeepSeek-V3</span></td><td>リバーシAI - 棋譜ファイル対戦</td><td class="fn">deepseek_html_20261123_3fd956.html</td><td class="num">28 KB</td><td><a class="open" href="apps/h-deepseek.html" target="_blank" rel="noopener" data-i18n="openApp">開く</a></td></tr><tr class="dnf"><td class="ai">Copilot <span class="model">GPT-5 base</span></td><td colspan="4" data-i18n="dnfCopilot">無料の範囲では完成に至らず</td></tr><tr class="dnf"><td class="ai">Mistral AI</td><td colspan="4" data-i18n="dnfMistral">無料の範囲では完成に至らず（作成に6日待ちと表示）</td></tr></tbody></table></div>
+    <p class="note" data-i18n="withheldNote">Claude（2.1 MB）と Perplexity（7.0 MB）のアプリは、ファイルが大きいため、ここには置いていません。ご希望があればお渡しします。</p>
+    <p class="note" data-i18n="appsHow">試し方：アプリはパソコンの Chrome か Edge で動きます（ファイルを読み書きする機能 showOpenFilePicker を使うため）。2つのアプリを別々のタブで開き、空のテキストファイルを1つ用意して両方で指定し、片方を黒、もう片方を白にしてスタートを押すと対戦が始まります。</p>
+  </section>
+
+  <section id="prompt">
+    <h2 class="h" data-i18n="hPrompt">プロンプト</h2>
+    <p data-i18n="promptNote">7つの AI すべてに、この文面をそのまま渡しました（原文・日本語）。</p>
+    <pre class="prompt" id="prompt-text"># 依頼
+質問なし。提案なし。一回のプロンプトで結果(html)を出力してください。
+これはAIが作ったリバーシ（オセロ）プログラムの強さを競う実験です。
+あなたの持てる力をすべて使い、できるだけ強いリバーシプログラムを作ってください。
+完成したプログラムは、別のAIが作ったプログラムと、共有ファイルに書く棋譜を介して自動で対戦します。
+１回のチャットで完成できないと想定される場合は、複数回のチャットに分けて作業し、最終的に１本のhtmlとして完成させること。
+その場合はチャットのリレー方式で組み上げていき、次のチャットへの引継ぎファイルを出力して次につなげること。
+成果物の引き渡しは人間がファイル添付で行う。
+
+# 成果物
+- HTMLファイル1つ。外部ファイル、外部ライブラリ、ネットワーク通信は使わないこと。
+- 定石データや評価関数のデータが必要なら、すべてこのファイルの中に埋め込むこと。
+- Web Worker は Blob を使ってこのファイル内に書く場合に限り使ってよい。
+- コード全文を省略せずに出力すること。
+
+# 対戦の前提
+- 人とは対戦しない。石を打つのは常にこのプログラム自身である。
+- 相手プログラムとの接点は、下記仕様の棋譜ファイルの読み書きだけである。
+- 1手あたりの思考時間に上限はない。
+
+# 画面と機能
+1. アプリ名の入力欄を設け、人が記入する。入力されたアプリ名と、プログラムのバージョン（vn.nn 形式、v1.00）を画面に表示する。
+2. 盤面を表示し、最後に打たれたマスを強調する。
+3. 自分の色（黒＝先手、白＝後手）を人が選べるようにする。
+4. 共有ファイルを指定するボタンを付ける。人が用意した空ファイルを showOpenFilePicker で読み書き可能として開く。
+5. スタートボタンを付ける。人がアプリ名を記入し、ファイルを指定し、色を選んでスタートを押したら対局を開始する。押すまでファイルには何もしない。
+6. 状態表示として、自分の色、現在の状態（開始前・自分の番・相手の番・終局・エラー）、両者のアプリ名と石数を表示する。
+7. 棋譜（着手の一覧）を表示する。
+8. 終局時は勝者と石数を表示する。
+9. エラー時は内容を表示して停止する。黙って続行しないこと。
+10. 再試合：終局またはエラーで停止しているときに、人が新しい空ファイルを指定してスタートを押したら、新しい対局を開始する。アプリ名と色もこのとき変更できる。
+11. 相手の着手は、ルール上合法かを必ず検証する。
+12. 一手にかけてよい制限時間を人間が入力し、その制限時間内に打つこと。アプリは同一のコンピュータ上で実行されるため、自分の手番の最中のみ思考し、
+　待っている時にコンピュータの資源を浪費して相手の計算資源を奪ってはならない。適切なメモリ使用量を確保するのは良い。
+
+# 棋譜ファイル仕様（オセロ棋譜形式 v1.00）
+
+## ファイル
+- 人が空のテキストファイル（0バイト）を1つ作り、両方のプログラムに同じファイルを指定する。
+- 1ファイルで1局とする。
+- 文字コードはUTF-8（BOMなし）、改行はLF。どの行も改行で終わる。
+- すでに書かれた内容は変えず、末尾に行を足すだけとする。ファイル全体を書き直してもよいが、既存の行は1文字も変えないこと。
+
+## 行の種類（この5種類だけ）
+1. 見出し：「OTHELLO v1.00」。ファイルの1行目にだけ書く。
+2. 対局者：2行目は「B 先手のアプリ名」、3行目は「W 後手のアプリ名」。この2行は必ず2行目と3行目にだけ置く。
+   - アプリ名は入力欄に記入された文字列の前後の空白を除いたもの。1〜30文字で、改行を含まない。
+3. 着手：4行目以降に「B f5」のように、色・半角スペース・マスの順に書く。
+   - 色は B（黒）か W（白）。
+   - マスは列 a〜h（左から右、小文字）と行 1〜8（上から下）で書く。
+4. パス：「B pass」または「W pass」。
+5. 終局：「END 勝者 黒の石数 白の石数」。
+   - 勝者は B・W・D（引き分け）のどれか。例：「END B 36 28」
+   - 石数は盤上の石をそのまま数えた数とし、空きマスは誰にも加えない。
+
+## ルール
+- 初期配置は d4・e5 が白、d5・e4 が黒。先手は黒。
+- 4行目以降の着手行とパス行の色は、必ず B, W, B, W… と交互になる。
+- 4行目以降の着手行とパス行の数が偶数なら次は黒番、奇数なら白番。
+
+## 手順
+- 開始（黒番）：スタートが押されたら、指定ファイルが空であることを確認し、1行目の見出しと2行目「B 自分のアプリ名」を書く。空でなければ何も書かずにエラーとする。その後、3行目が書かれるのを待ち、書かれたら4行目に黒の初手を書く。
+- 開始（白番）：スタートが押されたら、1行目と2行目が書かれるのを待つ。書かれたら3行目「W 自分のアプリ名」を書き、黒の初手を待つ。
+- 進行：1秒ごとにファイルを読む。自分の番になったら、思考して1行追記する。
+- パス：自分の番で打てる場所がなく、相手には打てる場所があるときは、自分で pass を書く。
+- 終局の判断と記録は、必ず黒番（先手）のプログラムが行う。
+  - 黒番は、自分が着手行・パス行を書いた直後と、白の行を読んだ直後に、黒も白も打てる場所がないか確認する（盤が埋まった場合も含む）。
+  - どちらも打てなければ、黒番が END 行を書く。このときパス行は書かない。
+  - 白番は、黒も白も打てる場所がない状態になったら、何も書かずに黒番の END 行を待つ。
+  - 白番は END 行を読んだら自分でも石を数えて照合し、一致しなければエラーとする。
+- 読み込み：改行で終わっていない最後の行は、書き込み途中とみなして無視し、次に読むときに改めて読む。
+- エラー：次のどれかがあれば、不正な棋譜として停止する。
+  - 1行目が「OTHELLO v1.00」でない、2行目が「B 」で始まらない、3行目が「W 」で始まらない。
+  - 色が交互でない行、打てないマスへの着手、END の後の行、白が書いた END 行。
+
+## 例
+OTHELLO v1.00
+B AlphaReversi
+W DeepOthello
+B f5
+W d6
+B c3
+...
+W pass
+B h8
+END B 36 28</pre>
+    <div class="dl"><a href="records/prompt_v1_02.txt" download data-i18n="dlPrompt">プロンプトを保存（テキスト）</a></div>
+  </section>
+
+  <section id="download">
+    <h2 class="h" data-i18n="hDownload">棋譜のダウンロード</h2>
+    <div class="dl">
+      <a href="records/reversi-ai-tournament-records.zip" download data-i18n="dlZip">全局の棋譜・集計表・プロンプトをまとめて保存（zip）</a>
+      <a href="records/sum.txt" download data-i18n="dlSum">集計表 sum.txt を保存</a>
+    </div>
+    <ul class="list">
+      <li data-i18n="dlNote1">棋譜は、プロンプトで決めた「オセロ棋譜形式 v1.00」のテキストファイルです。1局ずつの棋譜は「対戦の記録」の表からも保存できます。</li>
+      <li data-i18n="dlNote2">棋譜の中の対局者名は、対戦のときに入力欄へ打ち込んだ名前のままです（綴りの揺れも残しています）。</li>
+      <li data-i18n="dlNote3">集計表 sum.txt は、実験者が手で書いた原本のままです。棋譜と照らし合わせると、ポイントに2か所の違いがあります。① ChatGPT 対 Claude の1局目は、棋譜では ChatGPT が黒（18 対 46）です。そのため Claude の勝ちの差は 4 ではなく 60 で、Claude のポイントは 362 ではなく 418 になります。② Perplexity 対 Gemini の差は 62 ではなく 60 で、Perplexity のポイントは 368 ではなく 366 になります。どちらも順位と勝敗は変わりません。このほか、DeepSeek 対 ChatGPT の2局目に記号の書き違いが1か所あります。このページの表は、棋譜から計算し直したものです。</li>
+      <li data-i18n="dlNote4">Claude の自己対戦の1局目は、ファイルが空のまま残っています。</li>
+    </ul>
+  </section>
+
+  <div class="page-footer"><a href="../" data-i18n="footerExp">MOMO Experiments</a><a href="https://qiqiroon.github.io/momo/" data-i18n="footerBack">MOMO Works トップ</a></div>
+
+<footer class="site-footer momo-about" id="momo-about"><details><summary>リバーシ AI トーナメント について</summary><div class="momo-about-body"><p>同じプロンプトで7つの AI（Claude・ChatGPT・Gemini・Grok・Genspark・Perplexity・DeepSeek）にリバーシの対戦プログラムを作らせ、共有の棋譜ファイルを通して総当たりで対戦させた実験の記録です。</p><p>順位表と対戦表に加えて、全局の棋譜、使ったプロンプト、各 AI が作ったアプリそのものを公開しています。AI の優劣を決めるための実験ではなく、AI の使い方を確かめるための実験です。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "リバーシ AI トーナメント について", "body": ["同じプロンプトで7つの AI（Claude・ChatGPT・Gemini・Grok・Genspark・Perplexity・DeepSeek）にリバーシの対戦プログラムを作らせ、共有の棋譜ファイルを通して総当たりで対戦させた実験の記録です。", "順位表と対戦表に加えて、全局の棋譜、使ったプロンプト、各 AI が作ったアプリそのものを公開しています。AI の優劣を決めるための実験ではなく、AI の使い方を確かめるための実験です。"]}, "en": {"title": "About the Reversi AI Tournament", "body": ["A record of an experiment in which seven AI services (Claude, ChatGPT, Gemini, Grok, Genspark, Perplexity and DeepSeek) each wrote a Reversi program from the same prompt, and the programs played a round robin through a shared game-record file.", "Besides the standings and the results table, every game record, the prompt and the apps themselves are published. The experiment is not meant to rank AI services; it is about how to use AI."]}, "zh": {"title": "关于 黑白棋 AI 锦标赛", "body": ["用同一段提示词，让 7 个 AI（Claude、ChatGPT、Gemini、Grok、Genspark、Perplexity、DeepSeek）各写一个黑白棋对战程序，并通过共享的棋谱文件进行循环赛的实验记录。", "除了排名表和对战表，还公开了全部棋谱、所用的提示词以及各 AI 做出的应用本身。这个实验不是为了评判 AI 的优劣，而是为了探索 AI 的用法。"]}}</script>
+
+</div>
+
+<script>
+/* 日本語は画面の文（HTML）から読み取る。英語・中国語はここに持つ */
+const I18N = {
+  ja: {},
+  en: {
+    crumbHere: 'Reversi AI Tournament',
+    headerSub: 'Reversi AI Tournament — a round robin of Reversi programs that seven AI services wrote from the same prompt',
+    meta: 'Held: November 23–25, 2026',
+    hAbout: 'About this experiment', hResults: 'Results', hCross: 'Results table', hMatches: 'Game records',
+    hRules: 'How the games were played', hFair: 'Notes on fairness', hApps: 'The apps', hPrompt: 'The prompt', hDownload: 'Download the game records',
+    lead: 'We gave the same prompt to seven AI services and had each of them write a web app that plays Reversi (Othello) on its own. The finished apps were connected through a shared game-record file and played a round robin, to see which AI could build the strongest app.',
+    purpose1: 'The AIs compete here, but that is only the theme we picked. This is not an experiment to rank AI services. <strong>It is an experiment in how to use AI.</strong>',
+    purpose2: 'Writing a program stronger than every app shown here is probably not hard. What we would welcome more is <strong>a shorter prompt that produces apps without errors.</strong>',
+    resultsSummary: 'Perplexity won, taking all six matches. Second-placed Claude (5 wins, 1 loss) lost only to Perplexity, 55 to 73 over the two games. ChatGPT, Genspark and Gemini (3rd to 5th) all finished with 3 wins and 3 losses and were separated by points.',
+    rankNote: 'Points = the total disc margin in the matches a program won. Ranking is by number of match wins, then by points.',
+    crossNote: 'Each cell shows the total discs over the two games from the point of view of the AI in that row (own – opponent). ○ is a win, ● a loss; the small number below is the disc margin.',
+    matchesNote: 'The two games of each pairing. Click “Record” to save that game\'s record (a text file).',
+    selfNote: 'For reference, each app also played itself (not counted in the ranking).',
+    rule1: 'The apps play each other by appending one move at a time to a shared text file (the game record). No human places any discs.',
+    rule2: 'Each pairing plays two games, swapping first (black) and second (white). The time limit is 10 seconds per move.',
+    rule3: 'The match is decided by comparing each side\'s total discs over the two games.',
+    rule4: 'Ranking is by (1) the number of matches won, then (2) the total disc margin in the matches won (points). Games against itself are not counted.',
+    fair1: 'How deep a program can search in 10 seconds depends on the computer. On a different machine, the results could change.',
+    fair2: 'Each app was produced from a single prompt. However, when an error occurred while running, we showed the error to the AI and had it debug the app.',
+    fair3: 'We basically gave no advice on the thinking routine (how to search or evaluate positions). The only exception is DeepSeek: during debugging, we agreed to the AI\'s own suggestion to raise the maximum search depth from 10 to 64.',
+    fair4: 'Only Claude was used on a paid plan, and it decided on its own to spend a long time building its app. All the other AIs worked within their free tiers.',
+    fair5: 'Copilot and Mistral AI did not get as far as a finished app within their free tiers. This reflects how the services are offered (what the free tier allows), not a lack of ability.',
+    fair6: 'Perplexity\'s app embeds the evaluation data of Edax, a strong open-source Reversi program, and packs its search code as WebAssembly into a single HTML file. The prompt allows embedding evaluation data. Because the Edax data is under the GNU GPL v3, this app is also distributed under the GPL v3 (the full license text is inside the app).',
+    appsNote: 'Every app is the file the AI produced, unchanged (only the file names were changed to plain ASCII). The titles and the screen designs were also chosen by each AI. The one exception: a single line was removed from the end of Genspark\'s app. It loaded an access-analytics script (Cloudflare Web Analytics) added by the Genspark site, which would send visitors\' browsing information to an outside service. It has nothing to do with how the app plays.',
+    withheldNote: 'The apps by Claude (2.1 MB) and Perplexity (7.0 MB) are not hosted here because the files are large. They are available on request.',
+    withheld: 'Not hosted',
+    appsHow: 'How to try them: the apps run in Chrome or Edge on a computer (they read and write files with showOpenFilePicker). Open two apps in separate tabs, prepare one empty text file and choose it in both, set one to black and the other to white, and press Start.',
+    promptNote: 'All seven AIs received exactly this text (the original, in Japanese).',
+    dlPrompt: 'Save the prompt (text)',
+    dlZip: 'Save all game records, the tally and the prompt (zip)',
+    dlSum: 'Save the tally sum.txt',
+    dlNote1: 'The game records are text files in “Othello record format v1.00”, defined in the prompt. You can also save each game from the “Game records” table.',
+    dlNote2: 'Player names in the records are exactly what was typed into each app at match time (spelling variations included).',
+    dlNote3: 'The tally sum.txt is the experimenter\'s handwritten original. Checked against the game records, its points differ in two places. (1) In game 1 of ChatGPT vs Claude, the record shows ChatGPT as black (18 to 46), so Claude\'s winning margin is 60, not 4, and Claude\'s points are 418, not 362. (2) The margin of Perplexity vs Gemini is 60, not 62, so Perplexity\'s points are 366, not 368. Neither changes the ranking or any result. There is also one slip in the symbols for game 2 of DeepSeek vs ChatGPT. The tables on this page were recalculated from the game records.',
+    dlNote4: 'The record file for Claude\'s first game against itself is empty.',
+    footerExp: 'MOMO Experiments', footerBack: 'MOMO Works Home',
+    thRank: 'Rank', thAi: 'AI', thWin: 'W', thLoss: 'L', thPoint: 'Points', thPair: 'Pairing', thGame1: 'Game 1 (black – white)', thGame2: 'Game 2 (black – white)',
+    thTotal: 'Total', thWinner: 'Winner (margin)', thSelf1: 'Game 1', thSelf2: 'Game 2', thTitle: 'App title', thFile: 'Original file name', thSize: 'Size',
+    rec: 'Record', noRecord: 'No record', black: 'Black', white: 'White', openApp: 'Open',
+    dnfCopilot: 'Did not reach a finished app within the free tier',
+    dnfMistral: 'Did not reach a finished app within the free tier (it showed a 6-day wait)',
+  },
+  zh: {
+    crumbHere: '黑白棋 AI 锦标赛',
+    headerSub: '黑白棋 AI 锦标赛 ― 用同一段提示词让 7 个 AI 编写的黑白棋程序循环赛',
+    meta: '举办：2026 年 11 月 23 日至 25 日',
+    hAbout: '关于这个实验', hResults: '结果', hCross: '对战表', hMatches: '对局记录',
+    hRules: '对战规则', hFair: '关于公平性的说明', hApps: '参赛应用', hPrompt: '提示词', hDownload: '下载棋谱',
+    lead: '我们把同一段提示词交给 7 个 AI，让它们各自编写一个能自动下黑白棋（奥赛罗）的网页应用。再用共享的棋谱文件把这些应用连接起来进行循环赛，看看哪个 AI 能做出最强的应用。',
+    purpose1: '这里让 AI 互相比赛，但这只是选定的题材，并不是为了评价 AI 的优劣。<strong>这是关于 AI 用法的实验。</strong>',
+    purpose2: '写出比这里所有应用都强的程序，大概并不难。我们更欢迎的是<strong>更简洁、不出错的提示词</strong>。',
+    resultsSummary: '冠军是 Perplexity，六战全胜。亚军 Claude（5 胜 1 负）只输给了 Perplexity，两局合计 55 比 73。第 3 至 5 名的 ChatGPT、Genspark、Gemini 都是 3 胜 3 负，按积分分出名次。',
+    rankNote: '积分 = 获胜的对战中棋子数差的合计。名次先按获胜的对战数，再按积分排列。',
+    crossNote: '数字是从该行 AI 的角度看两局的棋子数合计（自己 – 对手）。○ 为胜，● 为负，下方的小数字是棋子数差。',
+    matchesNote: '每个对战组合的两局结果。点击“棋谱”可以保存该局的棋谱（文本文件）。',
+    selfNote: '作为参考，也进行了同一应用之间的对局（不计入名次）。',
+    rule1: '应用之间通过在共享的文本文件（棋谱）中逐手追加来对战。人不落子。',
+    rule2: '每个组合交换先手（黑）和后手（白）各下一局，共两局。每手限时 10 秒。',
+    rule3: '比较两局中双方棋子数的合计，决定该组合的胜负。',
+    rule4: '名次按 ① 获胜的对战数，② 获胜对战中棋子数差的合计（积分）的顺序决定。与自己的对局不计入。',
+    fair1: '10 秒内能搜索的深度取决于电脑的性能。在其他环境下对战，结果可能会不同。',
+    fair2: '每个应用都只用一次提示词生成。但运行中出现错误时，会把错误内容告诉 AI，让它调试。',
+    fair3: '基本上没有对思考程序（如何搜索、如何评估局面）提出建议。唯一的例外是 DeepSeek：在调试的对话中，我们同意了 AI 自己提出的“把搜索深度上限从 10 提高到 64”的建议。',
+    fair4: '只有 Claude 使用了付费方案，并且它自行决定花了很长时间来制作应用。其他 AI 都在免费范围内完成。',
+    fair5: 'Copilot 和 Mistral AI 在免费范围内没能完成应用。这不是能力不足，而是服务提供方式（免费可用范围）的不同。',
+    fair6: 'Perplexity 的应用引入了公开的强力黑白棋软件 Edax 的评估数据，并把搜索部分做成 WebAssembly，收进一个 HTML 文件中。提示词允许嵌入评估数据。由于 Edax 的数据采用 GNU GPL v3，这个应用也以 GPL v3 发布（许可证全文在应用之中）。',
+    appsNote: '所有应用都是 AI 输出的文件，未作任何修改（只把文件名改成了英文和数字）。标题和界面设计也都由各 AI 自己决定。唯一的例外是：从 Genspark 的应用末尾删除了一行。那一行会加载 Genspark 网站附加的访问分析（Cloudflare Web Analytics），会把打开者的浏览信息发送到外部。它与黑白棋的运行无关。',
+    withheldNote: 'Claude（2.1 MB）和 Perplexity（7.0 MB）的应用因文件较大，没有放在这里。如有需要，可以提供。',
+    withheld: '未公开',
+    appsHow: '试用方法：应用在电脑上的 Chrome 或 Edge 中运行（因为使用了读写文件的 showOpenFilePicker 功能）。在不同的标签页中打开两个应用，准备一个空的文本文件并在两边都指定它，一边选黑、一边选白，然后按开始即可对战。',
+    promptNote: '7 个 AI 收到的都是这段原文（日语原文）。',
+    dlPrompt: '保存提示词（文本）',
+    dlZip: '一次保存全部棋谱、统计表和提示词（zip）',
+    dlSum: '保存统计表 sum.txt',
+    dlNote1: '棋谱是提示词中规定的“奥赛罗棋谱格式 v1.00”的文本文件。每一局的棋谱也可以从“对局记录”表中保存。',
+    dlNote2: '棋谱中的对局者名称，是对战时在输入栏中输入的名称（拼写的不一致也原样保留）。',
+    dlNote3: '统计表 sum.txt 是实验者手写的原件。与棋谱对照后，积分有两处不同。① ChatGPT 对 Claude 的第 1 局，棋谱显示 ChatGPT 执黑（18 比 46），因此 Claude 获胜的棋子数差不是 4 而是 60，Claude 的积分不是 362 而是 418。② Perplexity 对 Gemini 的棋子数差不是 62 而是 60，Perplexity 的积分不是 368 而是 366。两处都不影响名次和胜负。此外，DeepSeek 对 ChatGPT 的第 2 局还有一处符号笔误。本页的表格是根据棋谱重新计算的。',
+    dlNote4: 'Claude 自我对战第 1 局的文件是空的。',
+    footerExp: 'MOMO Experiments', footerBack: 'MOMO Works 首页',
+    thRank: '名次', thAi: 'AI', thWin: '胜', thLoss: '负', thPoint: '积分', thPair: '组合', thGame1: '第 1 局（黑 – 白）', thGame2: '第 2 局（黑 – 白）',
+    thTotal: '合计', thWinner: '胜者（棋子数差）', thSelf1: '第 1 局', thSelf2: '第 2 局', thTitle: '应用标题', thFile: '原文件名', thSize: '大小',
+    rec: '棋谱', noRecord: '无记录', black: '黑', white: '白', openApp: '打开',
+    dnfCopilot: '在免费范围内未能完成',
+    dnfMistral: '在免费范围内未能完成（显示需等待 6 天）',
+  },
+};
+document.querySelectorAll('[data-i18n]').forEach(el => {
+  const k = el.dataset.i18n;
+  if (!(k in I18N.ja)) I18N.ja[k] = el.innerHTML;
+});
+
+let catBase = 'ja';
+function catSpeak() {
+  const v = catBase === 'en' ? ['MEOW','meow','mrrrow','mew','NYA!']
+          : catBase === 'zh' ? ['喵','喵呜','咪','喵！']
+          : ['にゃあ','にゃ','にゃーん','みゃお','ニャ！'];
+  return v[Math.floor(Math.random() * v.length)];
+}
+
+const SUPPORTED_LANGS = ['ja','en','zh','cat'];
+const LANG_APP_ID = 'exp-reversi-ai-tournament';
+function _langDetectFallback(){
+  try{ const list=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+    for(let i=0;i<list.length;i++){ const l=(list[i]||'').toLowerCase();
+      if(l.indexOf('ja')===0)return'ja'; if(l.indexOf('zh')===0)return'zh'; if(l.indexOf('en')===0)return'en'; }
+    return'en';
+  }catch(e){return'ja';}
+}
+let langMode    = window.MomoLang ? MomoLang.getMode(LANG_APP_ID) : 'auto';
+let currentLang = window.MomoLang ? MomoLang.resolve(LANG_APP_ID)
+                : (langMode==='auto' ? _langDetectFallback()
+                   : (SUPPORTED_LANGS.includes(langMode) ? langMode : _langDetectFallback()));
+
+function applyLang() {
+  if (currentLang === 'cat' && window.MomoLang && MomoLang.getCatBase) catBase = MomoLang.getCatBase(LANG_APP_ID) || catBase;
+  // 猫語のとき：見出しだけ鳴き声にして、本文は猫語の前の言語で出す（記録が読めなくなるため）
+  const base = currentLang === 'cat' ? catBase : currentLang;
+  const d = I18N[base] || I18N.ja;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.dataset.i18n;
+    if (currentLang === 'cat' && el.classList.contains('h')) { el.textContent = catSpeak(); return; }
+    const v = (k in d) ? d[k] : I18N.ja[k];
+    if (v !== undefined) el.innerHTML = v;
+  });
+  if (window.MomoAbout) MomoAbout.apply(currentLang);  // 説明欄（lib/momo-about.js）
+  document.querySelectorAll('.lang-select').forEach(s => s.value = langMode);
+  document.documentElement.lang = base === 'zh' ? 'zh-Hans' : base;
+}
+
+function onLangChange(mode) {
+  if (mode === 'cat' && currentLang !== 'cat') catBase = currentLang;
+  langMode = mode;
+  currentLang = window.MomoLang ? MomoLang.setMode(LANG_APP_ID, mode)
+              : (mode === 'auto' ? _langDetectFallback()
+                 : (SUPPORTED_LANGS.includes(mode) ? mode : _langDetectFallback()));
+  applyLang();
+}
+
+applyLang();
+</script>
+</body>
+</html>

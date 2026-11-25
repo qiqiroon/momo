@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MOMO Reversi v1.01</title>
+<style>
+:root{color-scheme:dark;--bg:#111820;--panel:#1c2732;--panel2:#243341;--line:#3a4b59;--text:#edf3f7;--muted:#aab9c5;--accent:#73c7a3;--warn:#f1c36c;--danger:#f08b87;--board:#08734f;--boardline:#054c37}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}
+main{width:min(1180px,100%);margin:0 auto;padding:22px}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+h1{margin:0;font-size:clamp(1.5rem,3vw,2rem);letter-spacing:.02em}
+.version{color:var(--muted);font-size:.9rem}
+.layout{display:grid;grid-template-columns:minmax(300px,390px) minmax(320px,1fr);gap:18px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 8px 24px #0003}
+.panel h2{font-size:1.05rem;margin:0 0 14px}
+.field{margin:0 0 13px}
+label{display:block;font-size:.9rem;color:var(--muted);margin-bottom:5px}
+input,select{width:100%;border:1px solid var(--line);border-radius:8px;background:#111a22;color:var(--text);padding:10px 11px;font:inherit;min-height:42px}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:15px}
+button{border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text);padding:10px 15px;font:inherit;font-weight:650;cursor:pointer;min-height:42px}
+button.primary{background:#176e52;border-color:#258765}
+button:disabled{opacity:.42;cursor:not-allowed}
+.fileline{padding:9px 11px;border-radius:8px;background:#101820;border:1px dashed var(--line);color:var(--muted);font-size:.86rem;overflow-wrap:anywhere;min-height:40px}
+.help{color:var(--muted);font-size:.8rem;margin-top:6px}
+.statebox{display:flex;align-items:center;gap:9px;padding:10px 12px;border-radius:9px;background:#111a22;border:1px solid var(--line);margin-bottom:13px}
+.state-dot{width:9px;height:9px;border-radius:50%;background:#8b99a5;flex:none}
+.state-dot.active{background:var(--accent);box-shadow:0 0 0 4px #73c7a322}
+.state-dot.error{background:var(--danger)}
+.state-dot.done{background:var(--warn)}
+.state-title{font-weight:700}
+.detail{font-size:.83rem;color:var(--muted);margin-top:2px}
+.players{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.player{background:#111a22;border:1px solid var(--line);border-radius:9px;padding:10px}
+.player-name{font-size:.86rem;color:var(--muted);overflow-wrap:anywhere}
+.player-stats{font-size:1.25rem;font-weight:750;font-variant-numeric:tabular-nums}
+.player-tag{font-size:.72rem;color:var(--muted)}
+.board-wrap{display:flex;justify-content:center;align-items:center;padding:4px}
+.board{width:min(100%,620px);aspect-ratio:1;background:var(--board);border:5px solid #064a35;border-radius:7px;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);box-shadow:0 8px 26px #0005;overflow:hidden}
+.cell{position:relative;border:1px solid var(--boardline);display:flex;align-items:center;justify-content:center;min-width:0;min-height:0}
+.cell.last{background:#d7c65a35;box-shadow:inset 0 0 0 3px #f7e36a}
+.cell::before{content:attr(data-coord);position:absolute;left:3px;top:1px;font-size:clamp(7px,1vw,10px);color:#d2eadf90;z-index:1;pointer-events:none}
+.stone{width:78%;height:78%;border-radius:50%;box-shadow:inset -3px -4px 7px #0005,0 2px 3px #0006;z-index:2}
+.stone.black{background:radial-gradient(circle at 33% 27%,#666,#17191c 48%,#050607 100%)}
+.stone.white{background:radial-gradient(circle at 33% 27%,#fff,#e7e9e7 56%,#aeb5b4 100%)}
+.move-dot{position:absolute;width:8px;height:8px;border-radius:50%;background:#fff9;z-index:3}
+.bottom-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,.75fr);gap:18px;margin-top:18px}
+.moves{max-height:245px;overflow:auto;background:#111a22;border:1px solid var(--line);border-radius:8px;padding:10px;font-variant-numeric:tabular-nums}
+.move-row{display:grid;grid-template-columns:38px 1fr 1fr;gap:8px;padding:3px 4px;border-bottom:1px solid #ffffff0c;font-size:.86rem}
+.move-row:last-child{border-bottom:0}
+.move-num{color:var(--muted)}
+.result{min-height:70px;padding:12px;border:1px solid var(--line);border-radius:8px;background:#111a22}
+.result strong{display:block;font-size:1rem;margin-bottom:3px}
+.error-text{color:var(--danger);white-space:pre-wrap;overflow-wrap:anywhere}
+.ok-text{color:var(--accent)}
+footer{color:var(--muted);font-size:.78rem;margin-top:16px}
+@media(max-width:820px){main{padding:14px}.layout{grid-template-columns:1fr}.bottom-grid{grid-template-columns:1fr}.panel{padding:14px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div><h1>MOMO Reversi</h1><div class="version">対戦エンジン v1.01</div></div>
+  <div class="version">共有棋譜ファイル方式 / OTHELLO v1.00</div>
+</header>
+<div class="layout">
+  <section class="panel" aria-label="対局設定と状態">
+    <h2>対局設定</h2>
+    <div class="field"><label for="appName">アプリ名（1〜30文字）</label><input id="appName" type="text" maxlength="60" value="MOMO Reversi" autocomplete="off"></div>
+    <div class="field"><label for="side">自分の色</label><select id="side"><option value="B">黒（先手）</option><option value="W">白（後手）</option></select></div>
+    <div class="field"><label for="timeLimit">一手の思考時間（秒）</label><input id="timeLimit" type="number" min="1" max="3600" step="1" value="10"></div>
+    <div class="field">
+      <label>共有棋譜ファイル</label>
+      <div class="actions" style="margin-top:0"><button id="pickFile">ファイルを指定</button></div>
+      <div class="fileline" id="fileName" style="margin-top:8px">未指定</div>
+      <div class="help">人が作成した空のテキストファイルを指定してください。黒側が先に開始し、白側は黒側が作った先頭2行を確認して参加します。有効な進行中の棋譜を選べば、同じアプリ名・色で既存局面から再開できます。読み取りエラー時は同じファイルを再指定すると、対局を維持したまま再接続します。</div>
+    </div>
+    <div class="actions"><button class="primary" id="startBtn">スタート</button></div>
+    <div style="height:18px"></div>
+    <h2>対局状態</h2>
+    <div class="statebox"><span class="state-dot" id="stateDot"></span><div><div class="state-title" id="stateText">開始前</div><div class="detail" id="stateDetail">アプリ名・色・ファイルを指定してスタートしてください。</div></div></div>
+    <div class="detail" style="margin-bottom:6px">自分の色：<strong id="myColor">未選択</strong></div>
+    <div class="players">
+      <div class="player"><div class="player-tag">黒 / 先手</div><div class="player-name" id="blackName">未確定</div><div class="player-stats" id="blackCount">2</div><div class="player-tag">石</div></div>
+      <div class="player"><div class="player-tag">白 / 後手</div><div class="player-name" id="whiteName">未確定</div><div class="player-stats" id="whiteCount">2</div><div class="player-tag">石</div></div>
+    </div>
+    <div class="result" id="resultBox">対局開始を待っています。</div>
+  </section>
+  <section class="panel" aria-label="盤面">
+    <h2>盤面</h2>
+    <div class="board-wrap"><div class="board" id="board" role="img" aria-label="リバーシ盤面"></div></div>
+    <div class="help" style="text-align:center;margin-top:10px">最後に打たれたマスは黄色で強調されます。</div>
+  </section>
+</div>
+<div class="bottom-grid">
+  <section class="panel"><h2>棋譜</h2><div class="moves" id="moves"><div class="detail">まだ着手はありません。</div></div></section>
+  <section class="panel"><h2>エンジン情報</h2><div class="result" id="engineInfo">待機中</div><div class="help">反復深化・Negamax αβ探索・Principal Variation Search・置換表・履歴手順序付けを使用。終盤は時間の許す範囲で探索深度を延長します。</div></section>
+</div>
+<footer>このページは単一HTMLで動作します。外部ライブラリ・ネットワーク通信は使用しません。ファイル読み書きには File System Access API 対応ブラウザーが必要です。ファイルの一時的な読み取り失敗は再試行し、継続する場合は対局を保持したまま再接続できます。</footer>
+</main>
+<script>
+'use strict';
+(() => {
+const VERSION = 'v1.01';
+const HEADER = 'OTHELLO v1.00';
+const $ = id => document.getElementById(id);
+const boardEl = $('board');
+const appNameEl = $('appName');
+const sideEl = $('side');
+const timeEl = $('timeLimit');
+const pickBtn = $('pickFile');
+const startBtn = $('startBtn');
+let fileHandle = null;
+let session = null;
+let pollTimer = null;
+let polling = false;
+let thinking = false;
+let worker = null;
+let currentBoard = initialBoard();
+let currentMoves = [];
+let currentLastPos = -1;
+
+function initialBoard(){
+  const b = Array(64).fill(0);
+  b[3*8+3] = 2; b[4*8+4] = 2;
+  b[3*8+4] = 1; b[4*8+3] = 1;
+  return b;
+}
+const DIRS_MAIN = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+function legalMovesMain(board, side){
+  const opp=3-side,out=[];
+  for(let p=0;p<64;p++){
+    if(board[p]!==0) continue;
+    const r=p>>3,c=p&7,flips=[];
+    for(const [dr,dc] of DIRS_MAIN){
+      let nr=r+dr,nc=c+dc,line=[];
+      while(nr>=0&&nr<8&&nc>=0&&nc<8){
+        const q=nr*8+nc;
+        if(board[q]===opp){line.push(q);nr+=dr;nc+=dc;continue;}
+        if(board[q]===side&&line.length) flips.push(...line);
+        break;
+      }
+    }
+    if(flips.length) out.push({pos:p,flips:[...new Set(flips)]});
+  }
+  return out;
+}
+
+function setState(kind, title, detail){
+  $('stateText').textContent=title;
+  $('stateDetail').textContent=detail||'';
+  $('stateDot').className='state-dot'+(kind==='active'?' active':kind==='error'?' error':kind==='done'?' done':'');
+}
+function stopPolling(){if(pollTimer!==null){clearInterval(pollTimer);pollTimer=null;}}
+function stopWorker(){if(worker){try{worker.terminate();}catch(_){}worker=null;}thinking=false;}
+function fail(message){
+  stopPolling();stopWorker();
+  if(session) session.status='error';
+  setState('error','エラー',message);
+  $('resultBox').innerHTML='<strong class="error-text">エラーで停止</strong><span class="error-text"></span>';
+  $('resultBox').querySelector('span').textContent=message;
+  $('engineInfo').textContent='エラー停止';
+  startBtn.disabled=false;pickBtn.disabled=false;pickBtn.textContent='ファイルを指定';
+  appNameEl.disabled=false;sideEl.disabled=false;timeEl.disabled=false;
+}
+function pauseForFileReconnect(error){
+  stopPolling();stopWorker();
+  if(!session||session.status!=='active'){fail(errorMessage(error));return;}
+  session.status='paused';
+  pickBtn.disabled=false;
+  pickBtn.textContent='ファイル再接続';
+  startBtn.disabled=true;
+  setState('error','ファイル再接続待ち',`棋譜ファイルを読み取れません。${errorMessage(error)} 同じ共有ファイルを「ファイル再接続」から選び直してください。対局内容は保持されています。`);
+  $('resultBox').innerHTML='<strong class="error-text">ファイル再接続が必要です</strong><span class="error-text"></span>';
+  $('resultBox').querySelector('span').textContent='同じ棋譜ファイルを再指定してください。再接続後、現在の棋譜を検証して対局を続行します。';
+  $('engineInfo').textContent='ファイル再接続待ち（AI探索は停止）';
+}
+function handleOperationalError(error){
+  if(isRecoverableFileError(error)&&session&&session.status==='active') pauseForFileReconnect(error);
+  else fail(errorMessage(error));
+}
+function finish(result){
+  stopPolling();stopWorker();
+  if(session) session.status='done';
+  const winner=result.winner==='D'?'引き分け':(result.winner==='B'?'黒（先手）の勝ち':'白（後手）の勝ち');
+  setState('done','終局',`${winner}。黒 ${result.black} 石 / 白 ${result.white} 石`);
+  $('resultBox').innerHTML=`<strong>${winner}</strong><span>黒 ${result.black} 石 / 白 ${result.white} 石</span>`;
+  $('engineInfo').textContent='対局終了';
+  startBtn.disabled=false;pickBtn.disabled=false;pickBtn.textContent='ファイルを指定';
+  appNameEl.disabled=false;sideEl.disabled=false;timeEl.disabled=false;
+}
+function renderBoard(board,lastPos){
+  boardEl.innerHTML='';
+  for(let p=0;p<64;p++){
+    const cell=document.createElement('div');
+    cell.className='cell'+(p===lastPos?' last':'');
+    cell.dataset.coord=String.fromCharCode(97+(p&7))+(1+(p>>3));
+    if(board[p]){
+      const stone=document.createElement('div');
+      stone.className='stone '+(board[p]===1?'black':'white');
+      cell.appendChild(stone);
+    }
+    boardEl.appendChild(cell);
+  }
+}
+function renderMoves(moves){
+  const root=$('moves');root.innerHTML='';
+  if(!moves.length){root.innerHTML='<div class="detail">まだ着手はありません。</div>';return;}
+  for(let i=0;i<moves.length;i+=2){
+    const row=document.createElement('div');row.className='move-row';
+    const num=document.createElement('span');num.className='move-num';num.textContent=String(Math.floor(i/2)+1)+'.';
+    const black=document.createElement('span');black.textContent='B '+moves[i].notation;
+    const white=document.createElement('span');white.textContent=moves[i+1]?'W '+moves[i+1].notation:'';
+    row.append(num,black,white);root.appendChild(row);
+  }
+  root.scrollTop=root.scrollHeight;
+}
+function refreshBoard(board,moves,lastPos){
+  currentBoard=board.slice();currentMoves=moves.slice();currentLastPos=lastPos;
+  renderBoard(currentBoard,currentLastPos);renderMoves(currentMoves);
+  const black=board.filter(x=>x===1).length,white=board.filter(x=>x===2).length;
+  $('blackCount').textContent=black;$('whiteCount').textContent=white;
+}
+function validateName(name){
+  const trimmed=name.trim();
+  const length=Array.from(trimmed).length;
+  if(length<1||length>30) throw new Error('アプリ名は前後の空白を除いて1〜30文字にしてください。');
+  if(/[\r\n\u2028\u2029]/.test(trimmed)) throw new Error('アプリ名に改行を含めることはできません。');
+  return trimmed;
+}
+function completeLines(raw){
+  const last=raw.lastIndexOf('\n');
+  if(last<0) return [];
+  const complete=raw.slice(0,last);
+  if(complete.includes('\r')) throw new Error('棋譜にCR（\r）が含まれています。改行はLFのみです。');
+  if(complete.length===0) return [''];
+  return complete.split('\n');
+}
+function validatePlayerLine(line,letter){
+  if(!line.startsWith(letter+' ')) throw new Error(`対局者行が不正です。${letter} で始まる必要があります。`);
+  const name=line.slice(2);
+  if(!name || name!==name.trim() || Array.from(name).length>30 || /[\r\n\u2028\u2029]/.test(name)) throw new Error(`${letter}側のアプリ名が不正です。`);
+  return name;
+}
+function parseMatch(raw){
+  const lines=completeLines(raw);
+  if(lines.length===0 || (lines.length===1 && lines[0]==='')) return {waiting:true,stage:'header'};
+  if(lines[0]!==HEADER) throw new Error(`1行目が「${HEADER}」ではありません。`);
+  if(lines.length<2) return {waiting:true,stage:'black-name'};
+  const blackName=validatePlayerLine(lines[1],'B');
+  if(lines.length<3) return {waiting:true,stage:'white-name',blackName};
+  const whiteName=validatePlayerLine(lines[2],'W');
+  const board=initialBoard(),moves=[];
+  let lastPos=-1,ended=null;
+  for(let li=3;li<lines.length;li++){
+    const line=lines[li];
+    if(!line) throw new Error(`${li+1}行目が空行です。`);
+    if(ended) throw new Error('END行の後に別の行があります。');
+    if(line.startsWith('END')){
+      const m=/^END (B|W|D) (0|[1-9][0-9]*) (0|[1-9][0-9]*)$/.exec(line);
+      if(!m) throw new Error('END行の形式が不正です。');
+      const b=board.filter(x=>x===1).length,w=board.filter(x=>x===2).length;
+      const bm=legalMovesMain(board,1),wm=legalMovesMain(board,2);
+      if(bm.length||wm.length) throw new Error('双方に合法手が残っているため、END行は不正です。');
+      const winner=b===w?'D':b>w?'B':'W';
+      if(m[1]!==winner||Number(m[2])!==b||Number(m[3])!==w) throw new Error(`END行の結果が盤面と一致しません（正しくは END ${winner} ${b} ${w}）。`);
+      ended={winner,black:b,white:w};
+      continue;
+    }
+    const expected=moves.length%2===0?'B':'W';
+    const m=/^(B|W) (pass|[a-h][1-8])$/.exec(line);
+    if(!m) throw new Error(`${li+1}行目の着手形式が不正です: ${line}`);
+    if(m[1]!==expected) throw new Error(`${li+1}行目の色が交互になっていません。${expected}番です。`);
+    const side=expected==='B'?1:2,opp=3-side;
+    const legal=legalMovesMain(board,side);
+    if(m[2]==='pass'){
+      if(legal.length!==0) throw new Error(`${expected}のパスは不正です。合法手があります。`);
+      if(legalMovesMain(board,opp).length===0) throw new Error('双方に合法手がないため、パスではなくEND行が必要です。');
+      moves.push({color:expected,notation:'pass',pos:-1});
+    }else{
+      if(!legal.length) throw new Error(`${expected}には合法手がないため、パスが必要です。`);
+      const pos=(m[2].charCodeAt(1)-49)*8+(m[2].charCodeAt(0)-97);
+      const move=legal.find(x=>x.pos===pos);
+      if(!move) throw new Error(`${li+1}行目の ${m[2]} は合法手ではありません。`);
+      board[pos]=side;for(const f of move.flips) board[f]=side;
+      lastPos=pos;
+      moves.push({color:expected,notation:m[2],pos});
+    }
+  }
+  const b=board.filter(x=>x===1).length,w=board.filter(x=>x===2).length;
+  const noMoves=!legalMovesMain(board,1).length&&!legalMovesMain(board,2).length;
+  if(ended&&!noMoves) throw new Error('終局条件を満たしていないのにEND行があります。');
+  return {waiting:false,blackName,whiteName,board,moves,lastPos,ended,pendingEnd:noMoves&&!ended,turn:moves.length%2===0?'B':'W',black:b,white:w,raw};
+}
+function stablePrefix(raw){
+  const end=raw.lastIndexOf('\n');
+  return end<0?'':raw.slice(0,end+1);
+}
+function isRecoverableFileError(e){
+  const name=e&&e.name?e.name:'';
+  const message=e&&e.message?e.message:String(e);
+  return ['NotReadableError','NotFoundError','SecurityError','NotAllowedError','InvalidStateError'].includes(name)
+    || /requested file could not be read|permission problems.*reference to a file|could not be read/i.test(message);
+}
+function rememberStableRaw(raw){
+  if(!session)return;
+  const stable=stablePrefix(raw);
+  const previous=session.lastKnownRaw||'';
+  if(previous&&!raw.startsWith(previous)) throw new Error('棋譜ファイルの既存部分が変更または削除されています。追記専用の棋譜仕様に反するため停止しました。');
+  if(stable.length>=previous.length) session.lastKnownRaw=stable;
+}
+async function readRaw(){
+  if(!fileHandle) throw new Error('棋譜ファイルが指定されていません。');
+  let lastError=null;
+  // 相手側の書き込み・ファイル確定と読み取りが重なった場合に備え、
+  // Fileオブジェクトを取得し直して短い間隔で最大3回読み直す。
+  for(let attempt=0;attempt<3;attempt++){
+    try{
+      const file=await fileHandle.getFile();
+      const bytes=await file.arrayBuffer();
+      const decoder=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true});
+      const raw=decoder.decode(bytes);
+      if(raw.startsWith('\uFEFF')) throw new Error('UTF-8 BOMが含まれています。BOMなしのUTF-8にしてください。');
+      return {raw,size:file.size,lastModified:file.lastModified};
+    }catch(e){
+      lastError=e;
+      if(!isRecoverableFileError(e)||attempt===2) throw e;
+      await new Promise(resolve=>setTimeout(resolve,[80,180,350][attempt]));
+    }
+  }
+  throw lastError||new Error('棋譜ファイルを読み取れません。');
+}
+async function ensurePermission(){
+  if(!fileHandle) throw new Error('棋譜ファイルを指定してください。');
+  let p=await fileHandle.queryPermission({mode:'readwrite'});
+  if(p!=='granted') p=await fileHandle.requestPermission({mode:'readwrite'});
+  if(p!=='granted') throw new Error('棋譜ファイルへの読み書き権限がありません。');
+}
+async function appendLine(expectedRaw,line){
+  const latest=await readRaw();
+  if(latest.raw!==expectedRaw) throw new Error('書き込み直前に棋譜ファイルが変更されました。安全のため停止します。');
+  const writable=await fileHandle.createWritable({keepExistingData:true});
+  try{
+    await writable.seek(latest.size);
+    await writable.write(new TextEncoder().encode(line+'\n'));
+    await writable.close();
+  }catch(e){try{await writable.abort();}catch(_){}throw e;}
+}
+async function writeBlackHeader(name){
+  const r=await readRaw();
+  if(r.size!==0||r.raw!=='') throw new Error('黒側の開始には0バイトの空ファイルが必要です。ファイルには何も書き込みませんでした。');
+  const writable=await fileHandle.createWritable({keepExistingData:false});
+  try{await writable.write(new TextEncoder().encode(`${HEADER}\nB ${name}\n`));await writable.close();}
+  catch(e){try{await writable.abort();}catch(_){}throw e;}
+}
+function endLine(state){
+  const winner=state.black===state.white?'D':state.black>state.white?'B':'W';
+  return `END ${winner} ${state.black} ${state.white}`;
+}
+function showStateForParsed(p){
+  refreshBoard(p.board,p.moves,p.lastPos);
+  $('blackName').textContent=p.blackName||'未確定';$('whiteName').textContent=p.whiteName||'未確定';
+  $('myColor').textContent=session.color==='B'?'黒（先手）':'白（後手）';
+}
+async function startMatch(){
+  try{
+    if(session&&session.status==='active') throw new Error('対局中です。');
+    if(!fileHandle) throw new Error('先に共有棋譜ファイルを指定してください。');
+    const name=validateName(appNameEl.value);
+    const color=sideEl.value;
+    const seconds=Number(timeEl.value);
+    if(!Number.isFinite(seconds)||seconds<1||seconds>3600) throw new Error('思考時間は1〜3600秒で指定してください。');
+    await ensurePermission();
+    stopPolling();stopWorker();
+    session={name,color,timeMs:Math.round(seconds*1000),status:'active',lastKnownRaw:''};
+    currentBoard=initialBoard();currentMoves=[];currentLastPos=-1;refreshBoard(currentBoard,[], -1);
+    $('blackName').textContent=color==='B'?name:'待機中';$('whiteName').textContent=color==='W'?name:'待機中';
+    $('myColor').textContent=color==='B'?'黒（先手）':'白（後手）';
+    $('resultBox').textContent='対局進行中';$('engineInfo').textContent='自分の手番になると探索を開始します。';
+    startBtn.disabled=true;pickBtn.disabled=true;appNameEl.disabled=true;sideEl.disabled=true;timeEl.disabled=true;
+    if(color==='B'){
+      const r=await readRaw();
+      if(r.raw===''){
+        await writeBlackHeader(name);
+        session.lastKnownRaw=`${HEADER}\nB ${name}\n`;
+        setState('active','相手の番','先頭2行を書き込みました。白側の参加を待っています。');
+      }else{
+        const existing=parseMatch(r.raw);
+        if(existing.waiting){
+          if(existing.stage!=='white-name'||existing.blackName!==name) throw new Error('黒側で再開できる棋譜ではありません。新規対局は空ファイルを指定してください。');
+          session.lastKnownRaw=stablePrefix(r.raw);
+          setState('active','相手の番','既存の対局開始情報を確認しました。白側の参加を待っています。');
+        }else{
+          if(existing.ended) throw new Error('この棋譜は終局済みです。新しい対局には空ファイルを指定してください。');
+          if(existing.blackName!==name) throw new Error('既存棋譜の黒側アプリ名が入力名と一致しません。対局を再開できません。');
+          session.lastKnownRaw=stablePrefix(r.raw);
+          setState('active','対局を再開','既存の棋譜を検証しました。現在の局面から黒側として再開します。');
+        }
+      }
+    }else{
+      setState('active','相手の番','黒側が棋譜の先頭2行を書くのを待っています。');
+      const r=await readRaw();
+      if(r.raw!==''){
+        const existing=parseMatch(r.raw);
+        if(!existing.waiting){
+          if(existing.ended) throw new Error('この棋譜は終局済みです。新しい対局には空ファイルを指定してください。');
+          if(existing.whiteName!==name) throw new Error('既存棋譜の白側アプリ名が入力名と一致しません。対局を再開できません。');
+          setState('active','対局を再開','既存の棋譜を検証しました。現在の局面から白側として再開します。');
+        }
+        session.lastKnownRaw=stablePrefix(r.raw);
+      }
+    }
+    pollTimer=setInterval(()=>poll().catch(handleOperationalError),1000);
+    await poll();
+  }catch(e){handleOperationalError(e);}
+}
+function errorMessage(e){return e&&e.message?e.message:String(e);}
+async function poll(){
+  if(polling||!session||session.status!=='active'||thinking) return;
+  polling=true;
+  try{
+    const r=await readRaw();
+    const p=parseMatch(r.raw);
+    rememberStableRaw(r.raw);
+    if(p.waiting){
+      if(session.color==='W' && p.stage==='white-name' && p.blackName){
+        const lines=completeLines(r.raw);
+        if(r.raw!==lines.join('\n')+'\n'){
+          setState('active','相手の番','棋譜の途中書き込みが完了するのを待っています。');
+          return;
+        }
+        if(lines.length!==2) throw new Error('白側が参加する時点で、棋譜は見出しと黒側対局者の2行だけである必要があります。');
+        await appendLine(r.raw,`W ${session.name}`);
+        setState('active','相手の番','白側の対局者行を書き込みました。黒の初手を待っています。');
+      }else if(session.color==='B') setState('active','相手の番',p.stage==='white-name'?'白側が3行目（W アプリ名）を書くのを待っています。':'対局開始情報を待っています。');
+      else setState('active','相手の番','黒側が対局開始情報を書くのを待っています。');
+      return;
+    }
+    showStateForParsed(p);
+    if(session.color==='B' && p.blackName!==session.name) throw new Error('棋譜の黒側アプリ名が開始時の情報と一致しません。');
+    if(session.color==='W' && p.whiteName!==session.name) throw new Error('棋譜の白側アプリ名が自分のアプリ名と一致しません。');
+    if(p.ended){finish(p.ended);return;}
+    if(session.color==='B' && p.pendingEnd){
+      setState('active','自分の番','双方に合法手がありません。黒側が終局を記録します。');
+      await appendLine(r.raw,endLine(p));
+      const after=await readRaw();const verified=parseMatch(after.raw);
+      if(!verified.ended) throw new Error('END行を書き込みましたが、終局の再検証に失敗しました。');
+      showStateForParsed(verified);finish(verified.ended);return;
+    }
+    if(p.turn!==session.color){
+      setState('active','相手の番',`相手（${p.turn==='B'?'黒':'白'}）の着手を待っています。`);
+      $('engineInfo').textContent='待機中（思考処理は停止）';
+      return;
+    }
+    const side=session.color==='B'?1:2,opp=3-side;
+    const ownLegal=legalMovesMain(p.board,side),oppLegal=legalMovesMain(p.board,opp);
+    if(!ownLegal.length){
+      if(!oppLegal.length){
+        if(session.color==='B'){
+          await appendLine(r.raw,endLine(p));
+          const after=await readRaw();const verified=parseMatch(after.raw);
+          if(!verified.ended) throw new Error('終局記録の検証に失敗しました。');
+          showStateForParsed(verified);finish(verified.ended);
+        }else setState('active','相手の番','双方に合法手がありません。黒側によるEND行を待っています。');
+        return;
+      }
+      setState('active','自分の番','合法手がないためパスを記録します。');
+      await appendLine(r.raw,`${session.color} pass`);
+      $('engineInfo').textContent='パスを記録しました。';
+      setState('active','相手の番','パスを記録しました。相手の着手を待っています。');
+      return;
+    }
+    setState('active','自分の番','探索中');
+    thinking=true;
+    $('engineInfo').textContent=`探索中（制限時間 ${session.timeMs/1000} 秒）`;
+    startSearch(p,r.raw,ownLegal);
+  }catch(e){throw e;}
+  finally{polling=false;}
+}
+async function afterOwnWrite(){
+  if(polling||!session||session.status!=='active') return;
+  polling=true;
+  try{
+  const r=await readRaw();const p=parseMatch(r.raw);
+  rememberStableRaw(r.raw);
+  if(p.waiting) return;
+  showStateForParsed(p);
+  if(p.ended){finish(p.ended);return;}
+  if(session.color==='B'&&p.pendingEnd){
+    await appendLine(r.raw,endLine(p));
+    const z=await readRaw();const v=parseMatch(z.raw);
+    if(!v.ended) throw new Error('END行の確認に失敗しました。');
+    showStateForParsed(v);finish(v.ended);return;
+  }
+  const turn=p.turn;
+  if(turn===session.color) setState('active','自分の番','棋譜を再確認しています。');
+  else setState('active','相手の番','相手の着手を待っています。');
+  }finally{polling=false;}
+}
+function workerSource(){return String.raw`
+'use strict';
+const DIRS=[-9,-8,-7,-1,1,7,8,9];
+const BASE=[120,-20,20,5,5,20,-20,120,-20,-40,-5,-5,-5,-5,-40,-20,20,-5,15,3,3,15,-5,20,5,-5,3,3,3,3,-5,5,5,-5,3,3,3,3,-5,5,20,-5,15,3,3,15,-5,20,-20,-40,-5,-5,-5,-5,-40,-20,120,-20,20,5,5,20,-20,120];
+let deadline=0,nodes=0,ttKeys,ttDepth,ttFlag,ttValue,ttMove,ttMask,history,killers,zobrist,sideKey,aborted=false;
+function makeZobrist(){let s=0x9e3779b9;const rnd=()=>{s^=s<<13;s^=s>>>17;s^=s<<5;return s>>>0;};zobrist=Array.from({length:64},()=>[rnd(),rnd()]);sideKey=rnd();}
+function hashBoard(b,side){let h=side===1?sideKey:0;for(let p=0;p<64;p++)if(b[p])h^=zobrist[p][b[p]-1];return h>>>0;}
+function movesFor(b,side){const opp=3-side,out=[];for(let p=0;p<64;p++){if(b[p])continue;const r=p>>3,flips=[];for(const d of DIRS){let q=p+d,line=[];while(q>=0&&q<64){const qr=q>>3,qc=q&7,pr=(q-d)>>3,pc=(q-d)&7;if(Math.abs(qr-pr)>1||Math.abs(qc-pc)>1)break;if(b[q]===opp){line.push(q);q+=d;continue;}if(b[q]===side&&line.length)flips.push(...line);break;}}if(flips.length)out.push({pos:p,flips:Array.from(new Set(flips))});}return out;}
+function apply(b,m,side){b[m.pos]=side;for(const p of m.flips)b[p]=side;}
+function undo(b,m,side){b[m.pos]=0;for(const p of m.flips)b[p]=3-side;}
+function count(b,side){let n=0;for(let i=0;i<64;i++)if(b[i]===side)n++;return n;}
+function terminal(b,side){return (count(b,side)-count(b,3-side))*1000;}
+function isCorner(p){return p===0||p===7||p===56||p===63;}
+function positionalWeight(b,p,side){let w=BASE[p];const corners=[[0,[1,8,9]],[7,[6,14,15]],[56,[48,49,57]],[63,[54,55,62]]];for(const [c,adj] of corners){if(p===c)continue;if(adj.includes(p)){if(b[c]===0)w-=p===((c===0||c===63)?(c===0?9:54):(c===7?14:49))?38:22;else if(b[c]===side)w+=8;}}return w;}
+function frontierCount(b,side){let n=0;for(let p=0;p<64;p++)if(b[p]===side){const r=p>>3,c=p&7;let front=false;for(let dr=-1;dr<=1&&!front;dr++)for(let dc=-1;dc<=1;dc++){if(!dr&&!dc)continue;const nr=r+dr,nc=c+dc;if(nr>=0&&nr<8&&nc>=0&&nc<8&&b[nr*8+nc]===0){front=true;break;}}if(front)n++;}return n;}
+function potentialMobility(b,side){let n=0;for(let p=0;p<64;p++)if(!b[p]){const r=p>>3,c=p&7;let found=false;for(let dr=-1;dr<=1&&!found;dr++)for(let dc=-1;dc<=1;dc++){if(!dr&&!dc)continue;const nr=r+dr,nc=c+dc;if(nr>=0&&nr<8&&nc>=0&&nc<8&&b[nr*8+nc]===3-side){found=true;break;}}if(found)n++;}return n;}
+function stableEdge(b,side){const set=new Set();const corners=[[0,1,8],[7,-1,8],[56,1,-8],[63,-1,-8]];for(const [c,h,v] of corners){if(b[c]!==side)continue;set.add(c);for(const d of [h,v]){let p=c+d;while(p>=0&&p<64){const r=p>>3,pr=(p-d)>>3,co=p&7,pco=(p-d)&7;if(Math.abs(r-pr)>1||Math.abs(co-pco)>1||b[p]!==side)break;set.add(p);p+=d;}}}return set.size;}
+function evaluate(b,side,ownMoves){let empties=0,pos=0;for(let p=0;p<64;p++){if(!b[p]){empties++;continue;}pos+=(b[p]===side?1:-1)*positionalWeight(b,p,side);}const oppMoves=movesFor(b,3-side);const mobility=(ownMoves.length-oppMoves.length)*(empties>40?11:empties>20?8:empties>10?5:2);const potential=(potentialMobility(b,side)-potentialMobility(b,3-side))*(empties>20?2.2:1.0);const front=(frontierCount(b,3-side)-frontierCount(b,side))*(empties>20?3.2:1.6);const stable=(stableEdge(b,side)-stableEdge(b,3-side))*(empties>20?10:empties>10?15:22);const disc=(count(b,side)-count(b,3-side))*(empties>40?0.1:empties>20?0.5:empties>10?1.8:5.5);return pos*0.85+mobility+potential+front+stable+disc;}
+function orderMoves(b,moves,side,ttMovePos,ply){const k1=killers[ply]?killers[ply][0]:-1,k2=killers[ply]?killers[ply][1]:-1;for(const m of moves){let s=history[side][m.pos];if(m.pos===ttMovePos)s+=1000000;if(isCorner(m.pos))s+=500000;if(m.pos===k1)s+=80000;else if(m.pos===k2)s+=60000;s+=BASE[m.pos]*20;s+=m.flips.length*2;m.order=s;}moves.sort((a,b)=>b.order-a.order);}
+function probe(key,depth,alpha,beta){const i=key&ttMask;if(ttKeys[i]!==key)return null;const d=ttDepth[i];if(d<depth)return {move:ttMove[i],usable:false};const v=ttValue[i],f=ttFlag[i];if(f===0||(f===1&&v<=alpha)||(f===2&&v>=beta))return {move:ttMove[i],usable:true,value:v};return {move:ttMove[i],usable:false};}
+function store(key,depth,flag,value,move){const i=key&ttMask;if(ttKeys[i]!==key||depth>=ttDepth[i]){ttKeys[i]=key;ttDepth[i]=Math.min(255,depth);ttFlag[i]=flag;ttValue[i]=value;ttMove[i]=move;}}
+function checkTime(){if((nodes&127)===0&&Date.now()>=deadline)throw new Error('TIMEOUT');}
+function search(b,side,depth,alpha,beta,ply){nodes++;checkTime();const key=hashBoard(b,side),origAlpha=alpha;const hit=probe(key,depth,alpha,beta);if(hit&&hit.usable)return hit.value;const ttMovePos=hit?hit.move:-1;
+ let moves=movesFor(b,side);
+ if(!moves.length){const other=movesFor(b,3-side);if(!other.length)return terminal(b,side);if(depth<=0)return evaluate(b,side,moves);const score=-search(b,3-side,depth-1,-beta,-alpha,ply+1);store(key,depth,score<=origAlpha?1:score>=beta?2:0,score,-1);return score;}
+ if(depth<=0)return evaluate(b,side,moves);
+ orderMoves(b,moves,side,ttMovePos,Math.min(ply,63));let best=-Infinity,bestMove=-1,first=true;
+ for(let mi=0;mi<moves.length;mi++){const m=moves[mi];apply(b,m,side);let score;if(first){score=-search(b,3-side,depth-1,-beta,-alpha,ply+1);first=false;}else{score=-search(b,3-side,depth-1,-alpha-1,-alpha,ply+1);if(score>alpha&&score<beta)score=-search(b,3-side,depth-1,-beta,-alpha,ply+1);}undo(b,m,side);if(score>best){best=score;bestMove=m.pos;}if(score>alpha)alpha=score;if(alpha>=beta){if(!isCorner(m.pos)){const k=killers[Math.min(ply,63)];if(k&&k[0]!==m.pos){k[1]=k[0];k[0]=m.pos;}history[side][m.pos]=Math.min(200000,history[side][m.pos]+depth*depth*4);}break;}}
+ store(key,depth,best<=origAlpha?1:best>=beta?2:0,best,bestMove);return best;}
+function rootSearch(b,side,moves,depth){const rootKey=hashBoard(b,side),old=probe(rootKey,depth,-Infinity,Infinity);orderMoves(b,moves,side,old?old.move:-1,0);let alpha=-Infinity,beta=Infinity,best=-Infinity,bestMove=moves[0].pos;let first=true;for(const m of moves){apply(b,m,side);let score;if(first){score=-search(b,3-side,depth-1,-beta,-alpha,1);first=false;}else{score=-search(b,3-side,depth-1,-alpha-1,-alpha,1);if(score>alpha&&score<beta)score=-search(b,3-side,depth-1,-beta,-alpha,1);}undo(b,m,side);if(score>best){best=score;bestMove=m.pos;}if(score>alpha)alpha=score;}store(rootKey,depth,0,best,bestMove);return {move:bestMove,score:best};}
+function initTT(){const size=1<<19;ttKeys=new Uint32Array(size);ttDepth=new Uint8Array(size);ttFlag=new Int8Array(size);ttValue=new Int32Array(size);ttMove=new Int8Array(size);ttMask=size-1;history=[null,new Int32Array(64),new Int32Array(64)];killers=Array.from({length:64},()=>[-1,-1]);}
+self.onmessage=function(e){try{const data=e.data;const b=data.board.slice(),side=data.side;deadline=Date.now()+Math.max(100,data.timeMs);nodes=0;makeZobrist();initTT();let moves=movesFor(b,side);if(!moves.length){self.postMessage({error:'探索開始時点で合法手がありません。'});return;}orderMoves(b,moves,side,-1,0);let bestMove=moves[0].pos,bestScore=0,completedDepth=0;const empties=b.filter(x=>x===0).length;const maxDepth=empties<=14?Math.max(1,empties*2+2):64;for(let depth=1;depth<=maxDepth;depth++){try{const result=rootSearch(b,side,moves,depth);bestMove=result.move;bestScore=result.score;completedDepth=depth;self.postMessage({progress:true,depth,nodes,bestMove,bestScore});}catch(err){if(err.message==='TIMEOUT')break;throw err;}if(Date.now()>=deadline)break;}self.postMessage({done:true,move:bestMove,depth:completedDepth,nodes,score:bestScore,elapsed:Math.max(0,(Date.now()-(deadline-data.timeMs))/1000)});}catch(err){self.postMessage({error:err&&err.message?err.message:String(err)});}};
+`}
+function startSearch(parsed,expectedRaw,legal){
+  try{
+    if(typeof Worker==='undefined'||typeof Blob==='undefined') throw new Error('このブラウザーではWeb Workerを利用できません。対応ブラウザーで実行してください。');
+    const source=workerSource();
+    const blob=new Blob([source],{type:'text/javascript'});
+    const url=URL.createObjectURL(blob);
+    worker=new Worker(url);
+    URL.revokeObjectURL(url);
+    worker.onmessage=async ev=>{
+      const data=ev.data;
+      if(data.progress){$('engineInfo').textContent=`探索深度 ${data.depth} / ノード ${data.nodes.toLocaleString()} / 暫定手 ${coord(data.bestMove)}`;return;}
+      if(data.error){stopWorker();fail('AI探索エラー: '+data.error);return;}
+      if(data.done){
+        const finishedWorker=worker;worker=null;try{if(finishedWorker)finishedWorker.terminate();}catch(_){}
+        if(!session||session.status!=='active'){thinking=false;return;}
+        try{
+          const now=await readRaw();
+          if(now.raw!==expectedRaw) throw new Error('思考中に棋譜が変更されました。安全のため着手しません。');
+          const fresh=parseMatch(now.raw);
+          if(fresh.waiting||fresh.ended||fresh.turn!==session.color) throw new Error('着手直前の棋譜状態が想定と異なります。');
+          const side=session.color==='B'?1:2;
+          const freshLegal=legalMovesMain(fresh.board,side);
+          if(!freshLegal.some(m=>m.pos===data.move)) throw new Error('AIが返した着手が合法手ではありません。');
+          const notation=coord(data.move);
+          await appendLine(now.raw,`${session.color} ${notation}`);
+          $('engineInfo').textContent=`深度 ${data.depth} / ${data.nodes.toLocaleString()} nodes / ${data.elapsed.toFixed(1)} 秒 / 評価 ${data.score}`;
+          await afterOwnWrite();
+        }catch(err){handleOperationalError(err);}
+        finally{thinking=false;}
+      }
+    };
+    worker.onerror=ev=>{stopWorker();fail('Web Workerでエラーが発生しました: '+(ev.message||'詳細不明'));};
+    worker.postMessage({board:parsed.board,side:session.color==='B'?1:2,timeMs:session.timeMs});
+  }catch(e){thinking=false;fail(errorMessage(e));}
+}
+function coord(pos){return String.fromCharCode(97+(pos&7))+(1+(pos>>3));}
+
+async function reconnectPausedMatch(newHandle){
+  const previousHandle=fileHandle;
+  fileHandle=newHandle;
+  try{
+    let permission=await fileHandle.queryPermission({mode:'readwrite'});
+    if(permission!=='granted') permission=await fileHandle.requestPermission({mode:'readwrite'});
+    if(permission!=='granted') throw new Error('選択したファイルへの読み書き権限がありません。');
+    const r=await readRaw();
+    const parsed=parseMatch(r.raw);
+    const previous=session.lastKnownRaw||'';
+    if(previous&&!r.raw.startsWith(previous)) throw new Error('選択したファイルは、停止前に使用していた棋譜の続きではありません。元の共有ファイルを選んでください。');
+    if(parsed.blackName&&session.color==='B'&&parsed.blackName!==session.name) throw new Error('選択した棋譜の黒側アプリ名が現在の対局と一致しません。');
+    if(parsed.whiteName&&session.color==='W'&&parsed.whiteName!==session.name) throw new Error('選択した棋譜の白側アプリ名が現在の対局と一致しません。');
+    rememberStableRaw(r.raw);
+    session.status='active';
+    $('fileName').textContent=fileHandle.name+'（再接続済み）';
+    pickBtn.textContent='ファイルを指定';pickBtn.disabled=true;
+    startBtn.disabled=true;
+    setState('active','対局を再開', '棋譜を検証しました。現在の局面から対局を再開します。');
+    $('resultBox').textContent='対局進行中';
+    $('engineInfo').textContent='再接続完了。棋譜を確認しています。';
+    stopPolling();
+    pollTimer=setInterval(()=>poll().catch(handleOperationalError),1000);
+    await poll();
+  }catch(e){
+    fileHandle=previousHandle;
+    session.status='paused';
+    pickBtn.disabled=false;pickBtn.textContent='ファイル再接続';
+    startBtn.disabled=true;
+    setState('error','ファイル再接続に失敗',errorMessage(e)+' 同じ共有ファイルを選び直してください。');
+    $('resultBox').innerHTML='<strong class="error-text">再接続できません</strong><span class="error-text"></span>';
+    $('resultBox').querySelector('span').textContent=errorMessage(e);
+  }
+}
+pickBtn.addEventListener('click',async()=>{
+  if(session&&session.status==='active')return;
+  try{
+    if(!window.showOpenFilePicker) throw new Error('showOpenFilePickerに対応したブラウザー（Chrome / Edge等）で開いてください。');
+    const handles=await window.showOpenFilePicker({multiple:false,excludeAcceptAllOption:false,types:[{description:'テキストファイル',accept:{'text/plain':['.txt','.log']}}]});
+    if(!handles||!handles.length)return;
+    if(session&&session.status==='paused'){
+      await reconnectPausedMatch(handles[0]);
+      return;
+    }
+    fileHandle=handles[0];
+    $('fileName').textContent=fileHandle.name;
+  }catch(e){if(e.name!=='AbortError'){$('fileName').textContent='ファイル指定エラー: '+errorMessage(e);}}
+});
+startBtn.addEventListener('click',startMatch);
+renderBoard(currentBoard,-1);
+$('myColor').textContent='未選択';
+})();
+</script>
+</body>
+</html>

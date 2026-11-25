@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <!-- Terms of Use: https://qiqiroon.github.io/momo/terms.html -->
-<!-- MOMO Experiments 内部バージョン: v1.00
+<!-- MOMO Experiments 内部バージョン: v1.01
      変更履歴:
-       v1.00 - 新設。AI の使い方の実験の置き場。一覧はカードにせず、文字のリンクで並べる（2026-11-25） -->
+       v1.00 - 新設。アプリ開発の実験の置き場。一覧はカードにせず、文字のリンクで並べる（2026-11-25）
+       v1.01 - 役割の説明を「AI の実験」から「アプリ開発の実験」に直した。数十件並んでも見やすいよう、一覧を細い1行表示にした（2026-11-25） -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MOMO Experiments - AI の使い方の実験ノート | MOMO Works</title>
-<meta name="description" content="AI の使い方を試した実験の記録。同じプロンプトで各社の AI にリバーシのプログラムを作らせて総当たりで対戦させた「リバーシ AI トーナメント」など、実験の内容・結果・作られたアプリ・記録を公開しています。">
+<title>MOMO Experiments - アプリ開発の実験ノート | MOMO Works</title>
+<meta name="description" content="アプリ開発のさまざまな実験の記録。同じプロンプトで7つの AI にリバーシのプログラムを作らせて総当たりで対戦させた「リバーシ AI トーナメント」など、実験の内容・結果・作ったもの・記録を公開しています。">
 <link rel="canonical" href="https://qiqiroon.github.io/momo/experiments/">
 <link rel="alternate" hreflang="ja" href="https://qiqiroon.github.io/momo/experiments/">
 <link rel="alternate" hreflang="en" href="https://qiqiroon.github.io/momo/experiments/">
@@ -17,8 +18,8 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MOMO Works">
 <meta property="og:url" content="https://qiqiroon.github.io/momo/experiments/">
-<meta property="og:title" content="MOMO Experiments - AI の使い方の実験ノート">
-<meta property="og:description" content="AI の使い方を試した実験の記録。同じプロンプトで各社の AI にリバーシのプログラムを作らせて総当たりで対戦させた「リバーシ AI トーナメント」など、実験の内容・結果・作られたアプリ・記録を公開しています。">
+<meta property="og:title" content="MOMO Experiments - アプリ開発の実験ノート">
+<meta property="og:description" content="アプリ開発のさまざまな実験の記録。同じプロンプトで7つの AI にリバーシのプログラムを作らせて総当たりで対戦させた「リバーシ AI トーナメント」など、実験の内容・結果・作ったもの・記録を公開しています。">
 <meta property="og:image" content="https://qiqiroon.github.io/momo/apple-touch-icon.png">
 <meta property="og:locale" content="ja_JP">
 <meta property="og:locale:alternate" content="en_US">
@@ -77,19 +78,21 @@
   .site-title { font-family: 'Fredoka One', cursive; font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 400; color: var(--text-main); line-height: 1; }
   .site-title span { color: var(--orange); }
   .header-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 40px; padding-left: 4px; opacity: 0; animation: fadeDown 0.5s 0.2s ease forwards; }
-  .intro { font-size: 14px; line-height: 1.9; color: var(--text-main); margin-bottom: 40px; max-width: 720px; opacity: 0; animation: fadeUp 0.5s 0.25s ease forwards; }
+  .intro { font-size: 14px; line-height: 1.9; color: var(--text-main); margin-bottom: 32px; max-width: 720px; opacity: 0; animation: fadeUp 0.5s 0.25s ease forwards; }
   .section-label {
     font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
     color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 20px;
     opacity: 0; animation: fadeDown 0.5s 0.25s ease forwards;
   }
-  /* 一覧はカードにせず、文字のリンクで並べる */
+  /* 一覧はカードにせず、文字のリンクで並べる。数十件並んでも見やすいよう、1件＝細い1行（v1.01）
+     題名 → 説明（入りきらなければ … で切る）→ 年月（右端） */
   .exp-list { list-style: none; opacity: 0; animation: fadeUp 0.5s 0.3s ease forwards; }
-  .exp-list li { padding: 14px 0; border-bottom: 1px solid var(--border); line-height: 1.7; }
-  .exp-list a { color: var(--orange-light); font-size: 16px; font-weight: 500; text-decoration: none; }
+  .exp-list li { display: flex; align-items: baseline; gap: 14px; padding: 6px 2px; border-bottom: 1px solid var(--border); line-height: 1.5; }
+  .exp-list li:hover { background: rgba(255,255,255,0.025); }
+  .exp-list a { color: var(--orange-light); font-size: 14px; font-weight: 500; text-decoration: none; flex-shrink: 0; }
   .exp-list a:hover { text-decoration: underline; text-underline-offset: 3px; }
-  .exp-date { font-size: 12px; color: var(--text-muted); margin-left: 10px; }
-  .exp-desc { display: block; font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .exp-desc { flex: 1; min-width: 0; font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .exp-date { flex-shrink: 0; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
   .page-footer { margin-top: 60px; text-align: center; font-size: 13px; color: var(--text-muted); }
   .page-footer a { color: var(--text-muted); text-decoration: none; }
   .page-footer a:hover { color: var(--orange-light); }
@@ -149,47 +152,44 @@
     <h1 class="site-title">MOMO <span>Experiments</span></h1>
   </header>
 
-  <p class="header-sub" id="header-sub">Notes on experiments with AI</p>
+  <p class="header-sub" id="header-sub">Notes on app development experiments</p>
 
-  <p class="intro" id="intro">AI の使い方を試した実験の記録です。実験の内容と結果に加えて、作られたアプリや記録もそのまま公開しています。</p>
+  <p class="intro" id="intro">アプリ開発のさまざまな実験の記録です。実験の内容と結果に加えて、作ったものや記録も、できるだけそのまま公開しています。</p>
 
   <div class="section-label" id="label-list">Experiments</div>
 
   <ul class="exp-list">
-    <li>
-      <a href="reversi-ai-tournament/" id="rt-link">リバーシ AI トーナメント</a><span class="exp-date">2026-11</span>
-      <span class="exp-desc" id="rt-desc">同じプロンプトで7つの AI にリバーシのプログラムを作らせ、総当たりで対戦させました。</span>
-    </li>
+    <li><a href="reversi-ai-tournament/" id="rt-link">リバーシ AI トーナメント</a><span class="exp-desc" id="rt-desc">同じプロンプトで7つの AI にリバーシのプログラムを作らせ、総当たりで対戦させました。</span><span class="exp-date">2026-11</span></li>
   </ul>
 
   <div class="page-footer"><a href="https://qiqiroon.github.io/momo/" id="footer-back">MOMO Works トップ</a></div>
 
-<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Experiments について</summary><div class="momo-about-body"><p>MOMO Experiments は、AI の使い方を試した実験の記録を置く場所です。実験の内容・結果に加えて、実験で作られたアプリや記録のファイルも、手を加えずに公開しています。</p><p>実験の題材は、AI の優劣を決めるために選んだものではありません。「AI にどう頼むと、どんなものができるか」を確かめるための題材です。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
-<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Experiments について", "body": ["MOMO Experiments は、AI の使い方を試した実験の記録を置く場所です。実験の内容・結果に加えて、実験で作られたアプリや記録のファイルも、手を加えずに公開しています。", "実験の題材は、AI の優劣を決めるために選んだものではありません。「AI にどう頼むと、どんなものができるか」を確かめるための題材です。"]}, "en": {"title": "About MOMO Experiments", "body": ["MOMO Experiments is where we keep records of experiments in using AI. Along with what we tried and what happened, the apps and record files produced in each experiment are published as they are, without changes.", "The themes were not chosen to rank AI services. They are there to see what you get depending on how you ask an AI."]}, "zh": {"title": "关于 MOMO Experiments", "body": ["MOMO Experiments 用来存放尝试各种 AI 用法的实验记录。除了实验内容和结果之外，实验中做出的应用和记录文件也原样公开，未作任何修改。", "实验题材并不是为了比较 AI 的优劣，而是为了确认“怎样向 AI 提出要求，会得到什么样的成果”。"]}}</script>
+<footer class="site-footer momo-about" id="momo-about"><details><summary>MOMO Experiments について</summary><div class="momo-about-body"><p>MOMO Experiments は、アプリ開発のさまざまな実験の記録を置く場所です。作り方や道具を試した内容と結果に加えて、実験で作ったものや記録のファイルも、できるだけ手を加えずに公開しています。</p><p>ここに並ぶのは、完成したゲームやツールとは別の、試しの記録です。新しい実験は、一覧に1行ずつ足していきます。</p><div class="momo-about-links"><a href="/momo/">MOMO Works トップ</a><a href="/momo/games/">ゲーム一覧</a><a href="/momo/tools/">ツール一覧</a><span class="momo-about-copy">© MOMO Works</span></div></div></details></footer>
+<script type="application/json" id="momo-about-data">{"ja": {"title": "MOMO Experiments について", "body": ["MOMO Experiments は、アプリ開発のさまざまな実験の記録を置く場所です。作り方や道具を試した内容と結果に加えて、実験で作ったものや記録のファイルも、できるだけ手を加えずに公開しています。", "ここに並ぶのは、完成したゲームやツールとは別の、試しの記録です。新しい実験は、一覧に1行ずつ足していきます。"]}, "en": {"title": "About MOMO Experiments", "body": ["MOMO Experiments is where we keep records of various experiments in app development. Along with what we tried and how it turned out, the things made in each experiment and the record files are published with as few changes as possible.", "These are trial records, separate from the finished games and tools. Each new experiment is added to the list as one line."]}, "zh": {"title": "关于 MOMO Experiments", "body": ["MOMO Experiments 用来存放应用开发各种实验的记录。除了尝试的内容和结果之外，实验中做出的东西和记录文件也尽量不作修改地公开。", "这里列出的是与已完成的游戏和工具不同的试验记录。新的实验会在列表中逐行添加。"]}}</script>
 
 </div>
 
 <script>
 const I18N = {
   ja: {
-    headerSub:  'Notes on experiments with AI',
-    intro:      'AI の使い方を試した実験の記録です。実験の内容と結果に加えて、作られたアプリや記録もそのまま公開しています。',
+    headerSub:  'Notes on app development experiments',
+    intro:      'アプリ開発のさまざまな実験の記録です。実験の内容と結果に加えて、作ったものや記録も、できるだけそのまま公開しています。',
     labelList:  'Experiments',
     rtLink:     'リバーシ AI トーナメント',
     rtDesc:     '同じプロンプトで7つの AI にリバーシのプログラムを作らせ、総当たりで対戦させました。',
     footerBack: 'MOMO Works トップ',
   },
   en: {
-    headerSub:  'Notes on experiments with AI',
-    intro:      'Records of experiments in using AI. Along with what we tried and the results, the apps and records produced are published as they are.',
+    headerSub:  'Notes on app development experiments',
+    intro:      'Records of various experiments in app development. Along with what we tried and the results, what we made and the records are published as they are wherever possible.',
     labelList:  'Experiments',
     rtLink:     'Reversi AI Tournament',
     rtDesc:     'Seven AI services each wrote a Reversi program from the same prompt, and the programs played a round robin.',
     footerBack: 'MOMO Works Home',
   },
   zh: {
-    headerSub:  'AI 用法的实验笔记',
-    intro:      '尝试各种 AI 用法的实验记录。除了实验内容和结果，做出的应用和记录也原样公开。',
+    headerSub:  '应用开发实验笔记',
+    intro:      '应用开发的各种实验记录。除了实验内容和结果，做出的东西和记录也尽量原样公开。',
     labelList:  'Experiments',
     rtLink:     '黑白棋 AI 锦标赛',
     rtDesc:     '用同一段提示词让 7 个 AI 各写一个黑白棋程序，再让这些程序进行循环赛。',

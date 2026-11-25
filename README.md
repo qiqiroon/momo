@@ -43,7 +43,7 @@ Games and tools that run in your browser, made by an individual developer. No si
 
 | ページ / Page | 説明 | Description |
 |---|---|---|
-| [MOMO Experiments](https://qiqiroon.github.io/momo/experiments/) | AI の使い方の実験ノート | Notes on experiments with AI |
+| [MOMO Experiments](https://qiqiroon.github.io/momo/experiments/) | アプリ開発の実験ノート | Notes on app development experiments |
 | [リバーシ AI トーナメント](https://qiqiroon.github.io/momo/experiments/reversi-ai-tournament/) | 同じプロンプトで7つの AI が作ったリバーシの総当たり戦 | Reversi programs written by seven AI services from the same prompt, in a round robin |
 
 ---

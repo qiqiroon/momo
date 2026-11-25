@@ -1,0 +1,148 @@
+リバーシ AI トーナメント 集計表 / Reversi AI Tournament - Results
+https://qiqiroon.github.io/momo/experiments/reversi-ai-tournament/
+
+実施 2026-11-23 ～ 2026-11-25。この表は、全局の棋譜から計算したものです。
+Held 2026-11-23 to 2026-11-25. Calculated from the game records.
+
+決まり：持ち時間は1手10秒。組み合わせごとに先手（黒）と後手（白）を入れ替えて2局を打ち、
+2局で取った石の合計で勝ち負けを決める。順位は勝ち数、次にポイント（勝った組み合わせでの
+石数の差の合計）で決める。自分自身との対局は数えない。
+
+
+■ 結果 / Ranking
+  （W＝勝ち、L＝負け、Points＝ポイント）
+
+  Rank AI          Model                   W   L   Points
+  -------------------------------------------------------
+  1    Perplexity                          6   0      366
+  2    Claude      Fable 5.2               5   1      418
+  3    ChatGPT     GPT-5.6 Luna            3   3      232
+  4    Genspark    AI workspace 6.0        3   3      174
+  5    Gemini      Gemini 4 Argon          3   3      102
+  6    Grok        Grok Build (2026-04)    1   5        2
+  7    DeepSeek    DeepSeek-V3             0   6        0
+
+  出場したが完成に至らず（無料の範囲） / Did not finish (free tier): Copilot (GPT-5 base), Mistral AI
+
+
+■ 対戦表 / Results table
+  行の AI から見た2局の石数の合計（自分-相手）と、石数の差。o＝勝ち、x＝負け。
+  Total discs over two games from the row AI's view (own-opponent) and the margin. o = win, x = loss.
+
+                   Perplexity         Claude        ChatGPT       Genspark         Gemini           Grok       DeepSeek
+  Perplexity                -    o 73-55 +18    o 95-33 +62    o 84-44 +40    o 94-34 +60   o 110-18 +92   o 111-17 +94
+  Claude          x 55-73 -18              -    o 94-34 +60    o 98-30 +68   o 100-28 +72   o 112-16 +96   o 125-3 +122
+  ChatGPT         x 33-95 -62    x 34-94 -60              -    x 58-70 -12    o 84-44 +40   o 109-19 +90  o 114-12 +102
+  Genspark        x 44-84 -40    x 30-98 -68    o 70-58 +12              -     x 60-68 -8   o 102-26 +76   o 107-21 +86
+  Gemini          x 34-94 -60   x 28-100 -72    x 44-84 -40     o 68-60 +8              -    o 85-43 +42    o 90-38 +52
+  Grok           x 18-110 -92   x 16-112 -96   x 19-109 -90   x 26-102 -76    x 43-85 -42              -     o 65-63 +2
+  DeepSeek       x 17-111 -94   x 3-125 -122  x 12-114 -102   x 21-107 -86    x 38-90 -52     x 63-65 -2              -
+
+
+■ 対戦の記録 / Game records
+  組み合わせごとの2局（Game 1＝1局目、Game 2＝2局目。Black＝黒、White＝白）。右端は棋譜のファイル名。
+  Two games per pairing. The file name of each game record is on the right.
+
+  Perplexity vs Claude   total 73-55   winner Perplexity +18
+    Game 1  Black Perplexity  36 - 28  White Claude       G-A_261123_01.txt
+    Game 2  Black Claude      27 - 37  White Perplexity   G-A_261123_02.txt
+
+  Perplexity vs ChatGPT   total 95-33   winner Perplexity +62
+    Game 1  Black Perplexity  50 - 14  White ChatGPT      G-B_261124_01.txt
+    Game 2  Black ChatGPT     19 - 45  White Perplexity   G-B_261124_02.txt
+
+  Perplexity vs Genspark   total 84-44   winner Perplexity +40
+    Game 1  Black Perplexity  37 - 27  White Genspark     G-F_261125_01.txt
+    Game 2  Black Genspark    17 - 47  White Perplexity   G-F_261125_02.txt
+
+  Perplexity vs Gemini   total 94-34   winner Perplexity +60
+    Game 1  Black Perplexity  51 - 13  White Gemini       G-C_261125_01.txt
+    Game 2  Black Gemini      21 - 43  White Perplexity   G-C_261125_02.txt
+
+  Perplexity vs Grok   total 110-18   winner Perplexity +92
+    Game 1  Black Perplexity  52 - 12  White Grok         G-E_261125_01.txt
+    Game 2  Black Grok         6 - 58  White Perplexity   G-E_261125_02.txt
+
+  Perplexity vs DeepSeek   total 111-17   winner Perplexity +94
+    Game 1  Black DeepSeek    11 - 53  White Perplexity   G-H_261125_01.txt
+    Game 2  Black Perplexity  58 - 6   White DeepSeek     G-H_261125_02.txt
+
+  Claude vs ChatGPT   total 94-34   winner Claude +60
+    Game 1  Black ChatGPT     18 - 46  White Claude       B-A_261124_01.txt
+    Game 2  Black Claude      48 - 16  White ChatGPT      B-A_261124_02.txt
+
+  Claude vs Genspark   total 98-30   winner Claude +68
+    Game 1  Black Genspark    17 - 47  White Claude       F-A_261123_01.txt
+    Game 2  Black Claude      51 - 13  White Genspark     F-A_261123_02.txt
+
+  Claude vs Gemini   total 100-28   winner Claude +72
+    Game 1  Black Gemini      15 - 49  White Claude       C-A_261124_01.txt
+    Game 2  Black Claude      51 - 13  White Gemini       C-A_261124_02.txt
+
+  Claude vs Grok   total 112-16   winner Claude +96
+    Game 1  Black Grok         0 - 64  White Claude       E-A_261123_01.txt
+    Game 2  Black Claude      48 - 16  White Grok         E-A_261123_02.txt
+
+  Claude vs DeepSeek   total 125-3   winner Claude +122
+    Game 1  Black DeepSeek     2 - 62  White Claude       H-A_261124_01.txt
+    Game 2  Black Claude      63 - 1   White DeepSeek     H-A_261124_02.txt
+
+  ChatGPT vs Genspark   total 58-70   winner Genspark +12
+    Game 1  Black Genspark    30 - 34  White ChatGPT      F-B_261124_01.txt
+    Game 2  Black ChatGPT     24 - 40  White Genspark     F-B_261124_02.txt
+
+  ChatGPT vs Gemini   total 84-44   winner ChatGPT +40
+    Game 1  Black Gemini      22 - 42  White ChatGPT      C-B_261124_01.txt
+    Game 2  Black ChatGPT     42 - 22  White Gemini       C-B_261124_02.txt
+
+  ChatGPT vs Grok   total 109-19   winner ChatGPT +90
+    Game 1  Black Grok        10 - 54  White ChatGPT      E-B_261124_01.txt
+    Game 2  Black ChatGPT     55 - 9   White Grok         E-B_261124_02.txt
+
+  ChatGPT vs DeepSeek   total 114-12   winner ChatGPT +102
+    Game 1  Black DeepSeek     5 - 57  White ChatGPT      H-B_261124_01.txt
+    Game 2  Black ChatGPT     57 - 7   White DeepSeek     H-B_261124_02.txt
+
+  Genspark vs Gemini   total 60-68   winner Gemini +8
+    Game 1  Black Genspark    27 - 37  White Gemini       F-C_261125_01.txt
+    Game 2  Black Gemini      31 - 33  White Genspark     F-C_261125_02.txt
+
+  Genspark vs Grok   total 102-26   winner Genspark +76
+    Game 1  Black Genspark    52 - 12  White Grok         F-E_261125_01.txt
+    Game 2  Black Grok        14 - 50  White Genspark     F-E_261125_02.txt
+
+  Genspark vs DeepSeek   total 107-21   winner Genspark +86
+    Game 1  Black DeepSeek     6 - 58  White Genspark     H-F_261125_01.txt
+    Game 2  Black Genspark    49 - 15  White DeepSeek     H-F_261125_02.txt
+
+  Gemini vs Grok   total 85-43   winner Gemini +42
+    Game 1  Black Grok        17 - 47  White Gemini       E-C_261125_01.txt
+    Game 2  Black Gemini      38 - 26  White Grok         E-C_261125_02.txt
+
+  Gemini vs DeepSeek   total 90-38   winner Gemini +52
+    Game 1  Black DeepSeek    11 - 53  White Gemini       H-C_261125_01.txt
+    Game 2  Black Gemini      37 - 27  White DeepSeek     H-C_261125_02.txt
+
+  Grok vs DeepSeek   total 65-63   winner Grok +2
+    Game 1  Black DeepSeek    26 - 38  White Grok         H-E_261125_01.txt
+    Game 2  Black Grok        27 - 37  White DeepSeek     H-E_261125_02.txt
+
+
+■ 参考：自己対戦 / Self-play (not counted)
+  順位には数えない。no record＝記録なし（空のファイル）。
+
+  Perplexity  Game 1  Black 32 - 32 White     G-G_261123_01.txt
+  Perplexity  Game 2  Black 31 - 33 White     G-G_261123_02.txt
+  Claude      Game 1  no record (empty file)  A-A_261123_01.txt
+  Claude      Game 2  Black 34 - 30 White     A-A_261123_02.txt
+  ChatGPT     Game 1  Black 15 - 49 White     B-B_261124_01.txt
+  ChatGPT     Game 2  Black 15 - 49 White     B-B_261124_02.txt
+  Genspark    Game 1  Black 40 - 24 White     F-F_261123_01.txt
+  Genspark    Game 2  Black 40 - 24 White     F-F_261123_02.txt
+  Gemini      Game 1  Black 39 - 25 White     C-C_261124_01.txt
+  Gemini      Game 2  Black 39 - 25 White     C-C_261124_02.txt
+  Grok        Game 1  Black 33 - 31 White     E-E_261123_01.txt
+  Grok        Game 2  Black 29 - 35 White     E-E_261123_02.txt
+  DeepSeek    Game 1  Black 55 - 9  White     H-H_261124_01.txt
+  DeepSeek    Game 2  Black 33 - 31 White     H-H_261124_02.txt
+

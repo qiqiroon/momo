@@ -367,12 +367,12 @@ END B 36 28</pre>
     <h2 class="h" data-i18n="hDownload">棋譜のダウンロード</h2>
     <div class="dl">
       <a href="records/reversi-ai-tournament-records.zip" download data-i18n="dlZip">全局の棋譜・集計表・プロンプトをまとめて保存（zip）</a>
-      <a href="records/sum.txt" download data-i18n="dlSum">集計表 sum.txt を保存</a>
+      <a href="records/results.txt" download data-i18n="dlSum">集計表 results.txt を保存</a>
     </div>
     <ul class="list">
       <li data-i18n="dlNote1">棋譜は、プロンプトで決めた「オセロ棋譜形式 v1.00」のテキストファイルです。1局ずつの棋譜は「対戦の記録」の表からも保存できます。</li>
       <li data-i18n="dlNote2">棋譜の中の対局者名は、対戦のときに入力欄へ打ち込んだ名前のままです（綴りの揺れも残しています）。</li>
-      <li data-i18n="dlNote3">集計表 sum.txt は、実験者が手で書いた原本のままです。棋譜と照らし合わせると、ポイントに2か所の違いがあります。① ChatGPT 対 Claude の1局目は、棋譜では ChatGPT が黒（18 対 46）です。そのため Claude の勝ちの差は 4 ではなく 60 で、Claude のポイントは 362 ではなく 418 になります。② Perplexity 対 Gemini の差は 62 ではなく 60 で、Perplexity のポイントは 368 ではなく 366 になります。どちらも順位と勝敗は変わりません。このほか、DeepSeek 対 ChatGPT の2局目に記号の書き違いが1か所あります。このページの表は、棋譜から計算し直したものです。</li>
+      <li data-i18n="dlNote3">集計表 results.txt は、全局の棋譜から計算した結果を、このページと同じ見出し・同じ並び（結果・対戦表・対戦の記録・参考：自己対戦）で書いたテキストです。対戦の記録には、各局の棋譜のファイル名を添えています。</li>
       <li data-i18n="dlNote4">Claude の自己対戦の1局目は、ファイルが空のまま残っています。</li>
     </ul>
   </section>
@@ -419,10 +419,10 @@ const I18N = {
     promptNote: 'All seven AIs received exactly this text (the original, in Japanese).',
     dlPrompt: 'Save the prompt (text)',
     dlZip: 'Save all game records, the tally and the prompt (zip)',
-    dlSum: 'Save the tally sum.txt',
+    dlSum: 'Save the results table results.txt',
     dlNote1: 'The game records are text files in “Othello record format v1.00”, defined in the prompt. You can also save each game from the “Game records” table.',
     dlNote2: 'Player names in the records are exactly what was typed into each app at match time (spelling variations included).',
-    dlNote3: 'The tally sum.txt is the experimenter\'s handwritten original. Checked against the game records, its points differ in two places. (1) In game 1 of ChatGPT vs Claude, the record shows ChatGPT as black (18 to 46), so Claude\'s winning margin is 60, not 4, and Claude\'s points are 418, not 362. (2) The margin of Perplexity vs Gemini is 60, not 62, so Perplexity\'s points are 366, not 368. Neither changes the ranking or any result. There is also one slip in the symbols for game 2 of DeepSeek vs ChatGPT. The tables on this page were recalculated from the game records.',
+    dlNote3: 'The results table results.txt is a text version of the results calculated from all the game records, with the same headings and order as this page (Results, Results table, Game records, Self-play). Each game in the game records lists the file name of its record.',
     dlNote4: 'The record file for Claude\'s first game against itself is empty.',
     footerExp: 'MOMO Experiments', footerBack: 'MOMO Works Home',
     thRank: 'Rank', thAi: 'AI', thWin: 'W', thLoss: 'L', thPoint: 'Points', thPair: 'Pairing', thGame1: 'Game 1 (black – white)', thGame2: 'Game 2 (black – white)',
@@ -462,10 +462,10 @@ const I18N = {
     promptNote: '7 个 AI 收到的都是这段原文（日语原文）。',
     dlPrompt: '保存提示词（文本）',
     dlZip: '一次保存全部棋谱、统计表和提示词（zip）',
-    dlSum: '保存统计表 sum.txt',
+    dlSum: '保存统计表 results.txt',
     dlNote1: '棋谱是提示词中规定的“奥赛罗棋谱格式 v1.00”的文本文件。每一局的棋谱也可以从“对局记录”表中保存。',
     dlNote2: '棋谱中的对局者名称，是对战时在输入栏中输入的名称（拼写的不一致也原样保留）。',
-    dlNote3: '统计表 sum.txt 是实验者手写的原件。与棋谱对照后，积分有两处不同。① ChatGPT 对 Claude 的第 1 局，棋谱显示 ChatGPT 执黑（18 比 46），因此 Claude 获胜的棋子数差不是 4 而是 60，Claude 的积分不是 362 而是 418。② Perplexity 对 Gemini 的棋子数差不是 62 而是 60，Perplexity 的积分不是 368 而是 366。两处都不影响名次和胜负。此外，DeepSeek 对 ChatGPT 的第 2 局还有一处符号笔误。本页的表格是根据棋谱重新计算的。',
+    dlNote3: '统计表 results.txt 是根据全部棋谱计算出的结果，按照与本页相同的标题和顺序（结果、对战表、对局记录、参考：自我对战）写成的文本。对局记录中附有每局棋谱的文件名。',
     dlNote4: 'Claude 自我对战第 1 局的文件是空的。',
     footerExp: 'MOMO Experiments', footerBack: 'MOMO Works 首页',
     thRank: '名次', thAi: 'AI', thWin: '胜', thLoss: '负', thPoint: '积分', thPair: '组合', thGame1: '第 1 局（黑 – 白）', thGame2: '第 2 局（黑 – 白）',
